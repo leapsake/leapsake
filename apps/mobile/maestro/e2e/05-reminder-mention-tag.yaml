@@ -58,10 +58,15 @@ appId: com.leapsake.app
 
 # --- (c) Ada's page lists the reminder that mentions her --------------------------------
 # The backlink half of the round trip: written by the mention, read by a screen the
-# composer never touched. Reached from the catalog rather than by tapping the row on Home,
-# which carries a completion checkbox on its leading edge — a tap there marks the reminder
-# done instead of opening it, which is how an earlier draft of this flow silently
-# completed its own fixture.
+# composer never touched. Reached from the catalog rather than from Home, which is the
+# longer way round and deliberately so — this asserts that Ada's *own page* carries the
+# backlink, and arriving from the reminder that made it would prove less.
+#
+# It used to be reached this way for a sharper reason: Home's rows carried a completion
+# checkbox on their leading edge, and a tap that landed there marked the reminder done
+# instead of opening it — which is how an earlier draft of this flow silently completed
+# its own fixture. That checkbox is gone and a Home row is now a link and nothing else,
+# so the hazard is retired; the route stays for the reason above.
 - tapOn:
     id: "tab-search"
 - tapOn:

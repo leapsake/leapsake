@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   type ReminderListItem,
   type ReminderSection,
-  NO_PINS,
-  pinsFrom,
   reminderListItems,
 } from "./reminder-sections";
 
@@ -44,7 +42,7 @@ describe("reminderListItems", () => {
         row("now", { dueIn: 0, occurrenceIn: 0 }),
         row("soon", { dueIn: 6, occurrenceIn: 18, activeIn: -12 }),
       ],
-      { pins: NO_PINS, collapsed: none, now: NOW },
+      { collapsed: none, now: NOW },
     );
 
     // No belated, coming or completed rows, so no headings for them.
@@ -64,7 +62,7 @@ describe("reminderListItems", () => {
         row("now", { dueIn: 0, occurrenceIn: 0 }),
         row("later", { dueIn: 25, occurrenceIn: 25 }),
       ],
-      { pins: NO_PINS, collapsed: new Set(["coming"]), now: NOW },
+      { collapsed: new Set(["coming"]), now: NOW },
     );
 
     expect(items(list)).toEqual(["# today", "now", "# coming"]);
@@ -78,36 +76,13 @@ describe("reminderListItems", () => {
     });
   });
 
-  // The whole point of pinning the section as well as the order: a ticked row
-  // must not have the headings re-flow around it while it sits still.
-  it("holds a ticked row in the section it was tapped in", () => {
-    const before = reminderListItems(
-      [
-        row("a", { dueIn: 0, occurrenceIn: 0 }),
-        row("b", { dueIn: 0, occurrenceIn: 0 }),
-      ],
-      { pins: NO_PINS, collapsed: none, now: NOW },
-    );
-    const pins = pinsFrom(before);
-
-    const after = reminderListItems(
-      [
-        row("a", { dueIn: 0, occurrenceIn: 0, completedAt: NOW }),
-        row("b", { dueIn: 0, occurrenceIn: 0 }),
-      ],
-      { pins, collapsed: none, now: NOW },
-    );
-
-    expect(items(after)).toEqual(["# today", "a", "b"]);
-  });
-
-  it("lets the row fall into completed once the pins are released", () => {
+  it("files a completed row under done, out of the section it was in", () => {
     const list = reminderListItems(
       [
         row("a", { dueIn: 0, occurrenceIn: 0, completedAt: NOW }),
         row("b", { dueIn: 0, occurrenceIn: 0 }),
       ],
-      { pins: NO_PINS, collapsed: none, now: NOW },
+      { collapsed: none, now: NOW },
     );
 
     expect(items(list)).toEqual(["# today", "b", "# done", "a"]);
@@ -116,7 +91,7 @@ describe("reminderListItems", () => {
   it("says the day is clear where the owed sections would have been", () => {
     const list = reminderListItems(
       [row("gift", { dueIn: 9, occurrenceIn: 21, activeIn: -21 })],
-      { pins: NO_PINS, collapsed: none, now: NOW },
+      { collapsed: none, now: NOW },
     );
 
     expect(list[0]).toMatchObject({ kind: "note", allClear: false });
@@ -126,35 +101,13 @@ describe("reminderListItems", () => {
   it("distinguishes nothing owed from nothing left at all", () => {
     const list = reminderListItems(
       [row("done", { dueIn: 0, occurrenceIn: 0, completedAt: NOW })],
-      { pins: NO_PINS, collapsed: none, now: NOW },
+      { collapsed: none, now: NOW },
     );
 
     expect(list[0]).toMatchObject({ kind: "note", allClear: true });
   });
 
   it("says nothing at all when there are no reminders", () => {
-    expect(
-      reminderListItems([], { pins: NO_PINS, collapsed: none, now: NOW }),
-    ).toEqual([]);
-  });
-});
-
-describe("pinsFrom", () => {
-  it("records each row's order and section, ignoring headings", () => {
-    const list = reminderListItems(
-      [
-        row("late", { dueIn: -2, occurrenceIn: 3 }),
-        row("soon", { dueIn: 6, occurrenceIn: 18, activeIn: -12 }),
-      ],
-      { pins: NO_PINS, collapsed: none, now: NOW },
-    );
-
-    const pins = pinsFrom(list);
-
-    expect(pins.order).toEqual(["late", "soon"]);
-    expect([...pins.sections]).toEqual([
-      ["late", "past-due"],
-      ["soon", "available"],
-    ]);
+    expect(reminderListItems([], { collapsed: none, now: NOW })).toEqual([]);
   });
 });

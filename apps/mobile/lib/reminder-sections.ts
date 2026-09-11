@@ -1,5 +1,4 @@
 import { type ReminderTiming, bucketReminders } from "@leapsake/view-models";
-import { type Identified, stickyOrder } from "./sticky-order";
 
 /**
  * Which section of Home a row is in. The five display buckets
@@ -66,67 +65,43 @@ export type ReminderListItem<R> =
   | ReminderRowItem<R>
   | ReminderNoteItem;
 
-/** What the screen remembers between a tap and the reload it triggers. */
-export interface ReminderListPins {
-  /** The displayed row order at the moment of the tap (see {@link stickyOrder}). */
-  order: readonly string[];
-  /**
-   * The section each row was in at that moment.
-   *
-   * ⚠️ Pinning the order alone is not enough once the list has headings. Ticking
-   * a row moves it to `done`, which is exactly the jump `stickyOrder` exists to
-   * absorb — but with the row held in place and its *section* free to change,
-   * the headings re-flow around a row that did not move, which reads worse than
-   * the jump did. Both are pinned, and both are released together on blur.
-   */
-  sections: ReadonlyMap<string, ReminderSection>;
-}
-
-/** The un-pinned state: the natural order, untouched. */
-export const NO_PINS: ReminderListPins = {
-  order: [],
-  sections: new Map(),
-};
-
 /**
- * Home's `FlatList` data: section headings and reminder rows interleaved in one
- * flat array.
+ * Home's `FlatList` data: section headings, reminder rows and the cleared-for-
+ * the-day note interleaved in one flat array. Flat rather than a `SectionList`
+ * because the note stands *where the owed sections would have been* — it belongs
+ * to the sequence, not to a section — and because three item kinds in one array
+ * is what lets the screen render each with a single `renderItem`.
  *
- * One flat list rather than a `SectionList` because {@link stickyOrder} works on
- * a flat `Identified[]`, and holding a ticked row under the user's finger is
- * load-bearing on a phone — see its doc-comment. Headers are injected after the
- * ordering, so they never disturb it.
+ * **Rows arrive in their natural order and stay in it.** They used to be held to
+ * whatever order was on screen at the moment of a tap: Home's rows carried a
+ * completion checkbox, and a tick both re-sorted the list and moved the row into
+ * `done` — under the finger that had just tapped it. That is gone with the
+ * checkbox. A row is a link and nothing else now, so nothing on this screen
+ * writes, nothing re-sorts, and there is no moment for the list to hold still
+ * for.
  *
  * Collapsing hides a section's rows and keeps its heading, so the count stays
  * visible and the section is still reachable.
  */
-export function reminderListItems<R extends ReminderTiming & Identified>(
+export function reminderListItems<R extends ReminderTiming & { id: string }>(
   reminders: readonly R[],
   options: {
-    pins: ReminderListPins;
     /** The sections the user has folded away. */
     collapsed: ReadonlySet<ReminderSection>;
     now?: number;
   },
 ): ReminderListItem<R>[] {
   const buckets = bucketReminders(reminders, options.now);
-  const natural: [ReminderSection, R[]][] = [
+  // The buckets arrive in display order and are read back in `SECTION_ORDER`,
+  // which is the same order — named once here so the two cannot drift.
+  const bySection = new Map<ReminderSection, readonly R[]>([
     ["past-due", buckets.pastDue],
     ["belated", buckets.belated],
     ["today", buckets.today],
     ["available", buckets.available],
     ["coming", buckets.coming],
     ["done", buckets.done],
-  ];
-
-  // Re-file each row under the section it was pinned in, if it was pinned. The
-  // buckets arrive in display order, so appending preserves it.
-  const bySection = new Map<ReminderSection, R[]>(
-    SECTION_ORDER.map((section) => [section, []]),
-  );
-  for (const [section, rows] of natural)
-    for (const row of rows)
-      bySection.get(options.pins.sections.get(row.id) ?? section)?.push(row);
+  ]);
 
   const items: ReminderListItem<R>[] = [];
   for (const section of SECTION_ORDER) {
@@ -152,25 +127,8 @@ export function reminderListItems<R extends ReminderTiming & Identified>(
       collapsed,
     });
     if (collapsed) continue;
-    for (const reminder of stickyOrder(rows, options.pins.order))
+    for (const reminder of rows)
       items.push({ kind: "row", id: reminder.id, reminder });
   }
   return items;
-}
-
-/** The pins to hold the list to, snapshotted from what is on screen right now. */
-export function pinsFrom<R>(
-  items: readonly ReminderListItem<R>[],
-): ReminderListPins {
-  const order: string[] = [];
-  const sections = new Map<string, ReminderSection>();
-  let section: ReminderSection | null = null;
-  for (const item of items) {
-    if (item.kind === "header") section = item.section;
-    else if (item.kind === "row" && section !== null) {
-      order.push(item.id);
-      sections.set(item.id, section);
-    }
-  }
-  return { order, sections };
 }

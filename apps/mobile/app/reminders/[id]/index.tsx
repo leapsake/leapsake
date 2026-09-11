@@ -68,12 +68,14 @@ const HEADER = { title: "" } as const;
  * word you read. Both were a definition list describing a reminder; this is the
  * reminder.
  *
- * The list row deliberately carries none of these: it has a completion checkbox
- * and nothing else, so nothing on it can destroy a reminder or silence a nudge by
- * mistap. This screen is where those choices are made, with the room to word them
- * honestly. That is also why it reads the gift targets and the duplicates-nudge
- * id the list used to — `reminderActionsOf` needs both to know what to offer, and
- * this is now the only screen asking.
+ * The list row deliberately carries none of these — it is a link and nothing
+ * else, so nothing on it can destroy a reminder or silence a nudge by mistap.
+ * **Completion came here for the same reason**, the checkbox that used to sit on
+ * its leading edge having been the one thing on Home that could. This screen is
+ * where every one of those choices is made, with the room to word them honestly.
+ * That is also why it reads the gift targets and the duplicates-nudge id the
+ * list used to — `reminderActionsOf` needs both to know what to offer, and this
+ * is now the only screen asking.
  */
 export default function ReminderDetailScreen() {
   const core = useCore();
@@ -104,7 +106,7 @@ export default function ReminderDetailScreen() {
       ]),
     [core, id],
   );
-  const { data, error, reload } = useFocusedData(load);
+  const { data, error } = useFocusedData(load);
 
   // Every branch below mounts the header, including the ones that have nothing
   // to show yet: options are read from whichever `<Stack.Screen>` is mounted, so
@@ -191,9 +193,20 @@ export default function ReminderDetailScreen() {
   const canEdit = isReminderEditable(reminder);
   const canDelete = showsDelete(actions, done);
 
+  /**
+   * Finish this reminder — or reopen it, which is the same write with the
+   * boolean flipped.
+   *
+   * **We leave with it**, exactly as `snooze` and `answer` do, and for a reason
+   * they did not have: this is now the *only* place a reminder can be completed,
+   * Home's rows having become links and nothing else. Reloading in place would
+   * leave the user on a detail screen for something they just finished, one tap
+   * short of the list they were working through — three taps to tick a row that
+   * used to take one. Going back is what makes it two.
+   */
   function toggle() {
     core.reminders.setCompleted(id, !done).then(
-      () => reload(),
+      () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.complete, String(e)),
     );
   }

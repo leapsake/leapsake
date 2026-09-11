@@ -110,7 +110,8 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
   },
-  // A list row led by a control (a checkbox) with its content beside it. Composed
+  // A list row with something beside its content: a leading control (a
+  // checkbox), or a trailing chevron on a row that leads somewhere. Composed
   // with `row`, which keeps the padding and the separator. The gap is shared so
   // every such list indents its text to the same place.
   rowWithLead: {
@@ -121,6 +122,12 @@ export const styles = StyleSheet.create({
   /** Sit the leading control on the first line of the text beside it. */
   rowLeadCheckbox: {
     marginTop: 2,
+  },
+  /** A trailing chevron, centred against a row whose content may run to several
+   *  lines — the opposite of `rowLeadCheckbox`, which pins to the first line
+   *  because that is where the control it marks belongs. */
+  rowChevron: {
+    alignSelf: "center",
   },
   /** Everything to the right of a leading control — takes the rest of the width
    *  so long text wraps beside the control rather than under it. */

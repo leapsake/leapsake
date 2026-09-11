@@ -1,25 +1,20 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import type { ReminderInWindow } from "@leapsake/core";
 import { formatDueIn, reminderLabel } from "@leapsake/schema";
-import { Checkbox } from "../../components/Checkbox";
 import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import {
   type ReminderHeaderItem,
-  type ReminderListPins,
   type ReminderSection,
-  NO_PINS,
-  pinsFrom,
   reminderListItems,
 } from "../../lib/reminder-sections";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -33,6 +28,7 @@ import { colors, styles } from "../../lib/styles";
 const TEXT: Record<ReminderSection, string> & {
   noneOwed: string;
   allClear: string;
+  chevron: string;
 } = {
   "past-due": "Past due",
   belated: "Belated",
@@ -44,6 +40,10 @@ const TEXT: Record<ReminderSection, string> & {
   noneOwed: "Nothing owed today.",
   /** Nothing owed and nothing available either. */
   allClear: "Nothing to do. You’re all caught up.",
+  /** The affordance on every row, not a word — see {@link ReminderRow}. It sits
+   *  here anyway because it is drawn as text, and this is where this screen's
+   *  text lives. */
+  chevron: "›",
 };
 
 /**
@@ -55,17 +55,29 @@ const TEXT: Record<ReminderSection, string> & {
  * `bucketReminders`; the flat-list shape it renders as is in
  * {@link reminderListItems}, and this screen owns only how it looks.
  *
- * Each row toggles completion in place — in place *literally*: the row stays
- * where the user's finger found it, struck through, rather than sliding into the
- * completed section and pulling the next row up under the finger that just
- * tapped it (see `stickyOrder`, and {@link ReminderListPins} for why the
- * *section* has to be held too, not just the order). Every other action a
- * reminder offers lives on its detail screen, which the row text taps through
- * to. Creating one is the **➕** in this screen's own top-right corner, declared
- * with its title in `app/(tabs)/_layout.tsx`; it goes straight to the reminder
- * form and asks nothing on the way. That question — "person, reminder, or gift
- * idea?" — was what a create control shared with every other screen had to ask
- * here, and this screen had already answered it.
+ * **Every row is a link and nothing else.** Everything a reminder can be — done,
+ * put off, dismissed, answered, acted on — lives on its detail screen, one tap
+ * away. This screen writes nothing at all.
+ *
+ * That is a change from the row that carried a completion checkbox on its
+ * leading edge, and the reason it went is that a tick had stopped summarizing
+ * the row: what a reminder chiefly offers is now a call to action, a *not now*
+ * or a *don't ask again* as often as it is an errand to finish, and a checkbox
+ * can neither say that nor stand for it. It was also the one control on Home
+ * that could destroy something — the mis-tap that silently completed a fixture
+ * in an early draft of `maestro/e2e/05-reminder-mention-tag.yaml`, and the tap
+ * that parked an onboarding nudge in *Completed* forever without spending a
+ * snooze or recording a dismissal.
+ *
+ * Its removal took the list's sticky-ordering with it. Nothing here re-sorts,
+ * because nothing here writes, so there is no tapped row to hold still under a
+ * finger — see {@link reminderListItems}.
+ *
+ * Creating a reminder is the **➕** in this screen's own top-right corner,
+ * declared with its title in `app/(tabs)/_layout.tsx`; it goes straight to the
+ * reminder form and asks nothing on the way. That question — "person, reminder,
+ * or gift idea?" — was what a create control shared with every other screen had
+ * to ask here, and this screen had already answered it.
  *
  * That split is why this screen reads nothing but the list. The gift targets and
  * the duplicates-nudge id it used to fetch existed only to decide which offers a
@@ -82,27 +94,14 @@ const TEXT: Record<ReminderSection, string> & {
 export default function RemindersScreen() {
   const core = useCore();
   const load = useCallback(() => core.reminders.listInWindow(), [core]);
-  const { data: reminders, error, reload } = useFocusedData(load);
+  const { data: reminders, error } = useFocusedData(load);
   // Called before the early returns below, not beside the list it decorates:
   // it is a hook, and the loading and error branches leave without a list.
   const scrollProps = useHeaderScroll();
-  // What the list looked like when one of its rows was last toggled, which the
-  // reloaded list is held to so the tapped row doesn't move out from under the
-  // finger. Cleared when the screen blurs: leaving is the user's own break in the
-  // interaction, and the answer to "when does the list finally re-sort?".
-  const [pins, setPins] = useState<ReminderListPins>(NO_PINS);
   // Coming and completed start folded: neither is what the user opened the app
   // for, and both are unbounded in a way the owed sections are not.
   const [collapsed, setCollapsed] = useState<ReadonlySet<ReminderSection>>(
     () => new Set<ReminderSection>(["coming", "done"]),
-  );
-  useFocusEffect(
-    useCallback(
-      () => () => {
-        setPins(NO_PINS);
-      },
-      [],
-    ),
   );
 
   if (error !== null) {
@@ -120,10 +119,7 @@ export default function RemindersScreen() {
     );
   }
 
-  const items = reminderListItems(reminders, { pins, collapsed });
-  // Pinning what is *displayed*, not the natural order, is what makes a second
-  // and third tick hold everything still too.
-  const pin = () => setPins(pinsFrom(items));
+  const items = reminderListItems(reminders, { collapsed });
   const toggleSection = (section: ReminderSection) =>
     setCollapsed((current) => {
       const next = new Set(current);
@@ -157,9 +153,7 @@ export default function RemindersScreen() {
                 onToggle={() => toggleSection(item.section)}
               />
             );
-          return (
-            <ReminderRow reminder={item.reminder} pin={pin} reload={reload} />
-          );
+          return <ReminderRow reminder={item.reminder} />;
         }}
       />
     </View>
@@ -198,29 +192,26 @@ function SectionHeader({
 }
 
 /**
- * One reminder row: a completion checkbox on the leading edge, beside its heading
- * (and body, when it has both) over its due-in.
+ * One reminder row: its heading (and body, when it has both) over its due-in,
+ * with a chevron closing the line.
  *
- * The checkbox is the row's only write. Everything else a reminder can offer — a
- * nudge's *do it* / *not now* / *don't ask again*, a gift row's link to the
- * recipient, and deletion — is one tap away on the detail screen rather than
- * spread across a list row, so a row can't destroy anything and the list stays
- * scannable. Tapping anywhere else on the row goes there, and the reminder is now
- * the *only* place a tap can land: a nudge used to deep-link straight to the step
- * it asked for (which would strand its put-off and dismiss on a screen the user
- * could no longer reach), and a `#tag` or `@mention` used to be its own link.
+ * **The whole row is one link, and the chevron is why it says so.** A phone has
+ * no room for a row that is several small targets, so the row is one big one —
+ * which is also why the tags and mentions inside it are highlighted but not
+ * separately tappable (`linkAnnotations`): on a detail screen they lead to their
+ * own pages, but here they would be millimetre-wide traps inside the region the
+ * user is aiming at. The chevron is drawn on **every** row rather than only on
+ * the onboarding nudges: every row now leads somewhere and does nothing else, so
+ * marking a subset would say the rest are inert.
+ *
+ * ⚠️ **The row is named rather than composed.** An `accessible` container reads
+ * its children out in order, which would end every announcement on the chevron,
+ * so the row carries its own label instead — the reminder's own name, from
+ * `reminderLabel`. The due-in is lost from that announcement and stays lost:
+ * gluing it on would be building a sentence out of fragments, which is the one
+ * thing AGENTS.md → *User-visible text* forbids outright.
  */
-function ReminderRow({
-  reminder,
-  pin,
-  reload,
-}: {
-  reminder: ReminderInWindow;
-  /** Freeze the list's current order before this row's write re-sorts it. */
-  pin: () => void;
-  reload: () => Promise<void>;
-}) {
-  const core = useCore();
+function ReminderRow({ reminder }: { reminder: ReminderInWindow }) {
   const router = useRouter();
   const done = reminder.completedAt !== null;
   const strike = done
@@ -229,47 +220,21 @@ function ReminderRow({
   // Title leads; the body shows underneath as details. With no title the body
   // *is* the heading, so it isn't repeated below.
   const heading = reminder.title ?? reminder.body ?? "";
-  // How this reminder is named, for the checkbox's accessibility label — nothing
-  // else here names it now that the row's own buttons are gone.
-  const label = reminderLabel(reminder);
-  const open = () =>
-    router.push({ pathname: "/reminders/[id]", params: { id: reminder.id } });
-
-  function toggle() {
-    // Before the write, not after: the order to hold is the one the user was
-    // looking at when they aimed at this checkbox.
-    pin();
-    core.reminders.setCompleted(reminder.id, !done).then(
-      () => reload(),
-      (e: unknown) => Alert.alert("Couldn’t update", String(e)),
-    );
-  }
 
   return (
-    <View style={[styles.row, styles.rowWithLead]}>
-      {/* The completion toggle — deliberately a sibling of the link below rather
-          than inside it, so tapping through to the reminder never flips it, and
-          so a screen reader gets two controls rather than one ambiguous one. */}
-      <Checkbox
-        accessibilityLabel={done ? `Reopen “${label}”` : `Mark “${label}” done`}
-        checked={done}
-        onPress={toggle}
-        style={styles.rowLeadCheckbox}
-      />
-      {/* Everything but the checkbox is one link to the reminder — the text, the
-          due-in, and the empty space beside them. A phone has no room for a row
-          that is several small targets, so the row is one big one, and the tags
-          and mentions inside it are highlighted but not separately tappable
-          (`linkAnnotations`): on a detail screen they lead to their own pages,
-          but here they would be millimetre-wide traps inside the region the user
-          is aiming at. `accessible` groups the children so a screen reader
-          announces the row as the single link it now is. */}
-      <Pressable
-        accessible
-        accessibilityRole="link"
-        onPress={open}
-        style={styles.rowBody}
-      >
+    <Pressable
+      accessible
+      accessibilityRole="link"
+      accessibilityLabel={reminderLabel(reminder)}
+      onPress={() =>
+        router.push({
+          pathname: "/reminders/[id]",
+          params: { id: reminder.id },
+        })
+      }
+      style={[styles.row, styles.rowWithLead]}
+    >
+      <View style={styles.rowBody}>
         <ReminderText
           text={heading}
           tags={reminder.tags}
@@ -291,7 +256,8 @@ function ReminderRow({
             <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
           </View>
         )}
-      </Pressable>
-    </View>
+      </View>
+      <Text style={[styles.chevron, styles.rowChevron]}>{TEXT.chevron}</Text>
+    </Pressable>
   );
 }

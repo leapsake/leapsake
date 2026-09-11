@@ -294,10 +294,11 @@ The tree tells you what is there; only the screenshot tells you it is on top of 
   trailing-space trap above, and it is why the id selectors in `subflows/` are worth their
   verbosity.
 - ⚠️ **A point tap goes stale the moment anything writes.** `tapOn: {point: "55%,21%"}` is
-  the escape hatch when nothing else addresses an element — but Home **re-sorts on every
-  write**, so a second tap at the same coordinate lands on whatever moved there. Ticking a
-  row by accident and then reading the consequences as a bug is a real afternoon. Re-dump
-  the hierarchy between taps, or use a selector.
+  the escape hatch when nothing else addresses an element — but a list re-sorts around a
+  write, so a second tap at the same coordinate lands on whatever moved there. Re-dump the
+  hierarchy between taps, or use a selector. Home is no longer the worst offender: its rows
+  carry no completion checkbox any more and nothing on that screen writes, so a stray tap
+  there opens a reminder rather than silently ticking one.
 
 ### Reading the store, to tell a render bug from a data bug
 
