@@ -172,13 +172,16 @@ export const styles = StyleSheet.create({
     gap: 16,
   },
   // A reminder's offers — what it invites you to do, below the standing actions
-  // on its detail screen. Wraps, because three of them don't fit one
-  // narrow-phone line.
+  // on its detail screen. **One per line**, each a full-width button.
+  //
+  // They used to wrap across a row, which is what a row of links can do and a row
+  // of buttons cannot: these labels run to "Not now — ask in 5 days", so a
+  // wrapping strip put a long button beside a short one and broke the column
+  // every stacked control on the screen otherwise keeps. Stacking also lets the
+  // offers stay in offer order — escalating finality — read top to bottom, which
+  // is the order they are meant to be considered in.
   rowOffers: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 16,
+    gap: 12,
     marginTop: 4,
   },
   // A reminder detail's heading: its title, or its body when it has no title —
@@ -374,5 +377,60 @@ export const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  /**
+   * The quieter button: the same box as {@link button}, drawn as a raised
+   * surface with an accent label rather than an accent slab.
+   *
+   * It exists so that a screen offering several things at once can say which one
+   * it expects without demoting the others to words. A row of blue *words* is
+   * the failure this replaces — every choice equally weightless, and none of
+   * them obviously tappable.
+   */
+  buttonSecondary: {
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  buttonSecondaryText: {
+    color: colors.accent,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  /** A {@link buttonSecondary} whose label destroys something. Only the label
+   *  turns red: a filled red slab beside two ordinary buttons reads as the thing
+   *  the screen wants you to do. */
+  buttonDestructiveText: {
+    color: colors.danger,
+  },
+  /**
+   * A button that owns its line — full width, centred label, and tall enough to
+   * hit. Composed **over** {@link button} or {@link buttonSecondary}, which carry
+   * the colour; this carries only the size.
+   *
+   * `minHeight` rather than more padding, because padding wraps the *label*: a
+   * one-word button and a button whose label wraps to two lines would otherwise
+   * be different heights in the same stack. 44 is the smallest target either
+   * platform's guidelines accept.
+   */
+  buttonBlock: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  /** Two buttons sharing a line, each taking half of it (with {@link buttonFill}
+   *  on both). For a pair of peers — Edit and Delete — where a full-width stack
+   *  would give two standing actions more of the screen than the reminder's own. */
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+  },
+  buttonFill: {
+    flex: 1,
   },
 });

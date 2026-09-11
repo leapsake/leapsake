@@ -59,9 +59,9 @@ export function ContactReachButtons({
           accessibilityRole="button"
           accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
           onPress={() => perform(action, entry)}
-          style={local.button}
+          style={[styles.buttonSecondary, local.button]}
         >
-          <Text style={styles.link}>
+          <Text style={styles.buttonSecondaryText}>
             {actionLabel(action)} · {entry.method.label}
           </Text>
         </Pressable>
@@ -79,7 +79,14 @@ const local = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
+  /** The one place a reminder's buttons are **not** full-width: these are a set
+   *  of like things (one per method) rather than a set of choices, their labels
+   *  are short, and stacking six of them would push the reminder's actual offers
+   *  off the screen. They keep the shared secondary box, so they still read as
+   *  buttons — just as a strip of them. `minHeight` matches `buttonBlock`, since
+   *  a smaller target is no easier to hit for being one of several. */
   button: {
-    paddingVertical: 4,
+    minHeight: 44,
+    justifyContent: "center",
   },
 });

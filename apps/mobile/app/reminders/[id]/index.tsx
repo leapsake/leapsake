@@ -4,6 +4,7 @@ import {
   Alert,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -368,15 +369,46 @@ export default function ReminderDetailScreen() {
           can be absent at once — an open, engine-owned nudge — so the row is
           conditional rather than rendering an empty strip of actions. */}
       {(canEdit || canDelete) && (
-        <View style={styles.rowActions}>
+        <View style={styles.buttonRow}>
           {canEdit && (
-            <Link href={`/reminders/${id}/edit`} style={styles.link}>
-              Edit
+            // `asChild`, so the route stays declarative while the thing on screen
+            // is a button rather than an underlined word. Everything tappable on
+            // this screen is now a box you can hit without aiming.
+            //
+            // ⚠️ `flatten`, because a `Link`'s child is rendered through `Slot`,
+            // which **throws** on a `style` array rather than merging it — the
+            // one way this composes differently from every other button here.
+            <Link href={`/reminders/${id}/edit`} asChild>
+              <Pressable
+                accessibilityRole="button"
+                style={StyleSheet.flatten([
+                  styles.buttonSecondary,
+                  styles.buttonBlock,
+                  styles.buttonFill,
+                ])}
+              >
+                <Text style={styles.buttonSecondaryText}>Edit</Text>
+              </Pressable>
             </Link>
           )}
           {canDelete && (
-            <Pressable accessibilityRole="button" onPress={confirmDelete}>
-              <Text style={[styles.link, styles.danger]}>Delete</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={confirmDelete}
+              style={[
+                styles.buttonSecondary,
+                styles.buttonBlock,
+                styles.buttonFill,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.buttonSecondaryText,
+                  styles.buttonDestructiveText,
+                ]}
+              >
+                Delete
+              </Text>
             </Pressable>
           )}
         </View>
@@ -406,7 +438,7 @@ export default function ReminderDetailScreen() {
               different name and one of which did nothing at all. */}
           <Pressable
             accessibilityRole="button"
-            style={styles.button}
+            style={[styles.button, styles.buttonBlock]}
             onPress={() =>
               answer(planTarget.milestoneId, draft ?? planTarget.offers)
             }
@@ -423,10 +455,20 @@ export default function ReminderDetailScreen() {
         <View style={styles.rowOffers}>
           {offered.map((action) => {
             const offer = offerFor(action);
+            // The call to action wears the filled button; the ways out wear the
+            // quiet one. A reminder offers at most one CTA, so `navigate` picks
+            // it out without counting — and a prompt has none (its CTA points at
+            // the form above and is dropped), which is why Save can be the filled
+            // button there without two of them ever sharing a screen.
+            const isCta = offer.kind === "navigate";
             return (
               <Pressable
                 key={reminderActionKey(action)}
                 accessibilityRole="button"
+                style={[
+                  isCta ? styles.button : styles.buttonSecondary,
+                  styles.buttonBlock,
+                ]}
                 onPress={() => {
                   if (offer.kind === "navigate") router.push(offer.path);
                   else if (offer.kind === "answer-plan")
@@ -439,7 +481,22 @@ export default function ReminderDetailScreen() {
                   // where the form really is a screen away.
                 }}
               >
-                <Text style={styles.link}>{offer.label}</Text>
+                <Text
+                  style={
+                    isCta
+                      ? styles.buttonText
+                      : [
+                          styles.buttonSecondaryText,
+                          // "Don't ask again" is a tombstone, and the only offer
+                          // that is. It reads in the same red as Delete, which is
+                          // the other way to the same write.
+                          offer.kind === "dismiss" &&
+                            styles.buttonDestructiveText,
+                        ]
+                  }
+                >
+                  {offer.label}
+                </Text>
               </Pressable>
             );
           })}
