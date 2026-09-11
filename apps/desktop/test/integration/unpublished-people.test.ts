@@ -84,8 +84,8 @@ describe("createWithNewOther", () => {
 
   it("splits a two-word name and keeps a one-word name whole", async () => {
     const ernie = await coworker();
-    const davis = await attachWife(ernie.id, "Ruth Dakin");
-    expect(davis).toMatchObject({ firstName: "Ruth", lastName: "Dakin" });
+    const ruth = await attachWife(ernie.id, "Ruth Dakin");
+    expect(ruth).toMatchObject({ firstName: "Ruth", lastName: "Dakin" });
 
     const cher = await attachWife(ernie.id, "Zuzu");
     expect(cher).toMatchObject({ firstName: "Zuzu", lastName: null });

@@ -52,10 +52,10 @@ describe("account roster", () => {
   it("round-trips accounts through storage", async () => {
     const roster = createAccountRoster(memoryStorage());
     await roster.add(entry("a1", "ada"));
-    await roster.add(entry("a2", "grace"));
+    await roster.add(entry("a2", "henry"));
     expect((await roster.list()).map((a) => a.username)).toEqual([
       "ada",
-      "grace",
+      "henry",
     ]);
   });
 
@@ -83,7 +83,7 @@ describe("account roster", () => {
   it("swaps one account for another in its place", async () => {
     const roster = createAccountRoster(memoryStorage());
     await roster.add(entry("a1", "ada"));
-    await roster.add(entry("a2", "grace"));
+    await roster.add(entry("a2", "henry"));
     await roster.replace("a1", entry("a3", "ada-synced"));
     expect((await roster.list()).map((a) => a.id)).toEqual(["a3", "a2"]);
   });

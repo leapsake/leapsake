@@ -107,7 +107,7 @@ function sharedContacts(a: DuplicateInput, b: DuplicateInput): string[] {
  * matches, so two people with no name are not paired.
  *
  * This is the single seam for smarter matching: the future fuzzy/typo-tolerant
- * tier (e.g. "Jon" ≈ "John") replaces this body with a distance-based check
+ * tier (e.g. "Geroge" ≈ "George") replaces this body with a distance-based check
  * (`fastest-levenshtein` or `cmpstr`), returning a `low`-grade reason, and the
  * tier assembly in {@link scoreDuplicate} stays as-is. Keep the signature.
  */

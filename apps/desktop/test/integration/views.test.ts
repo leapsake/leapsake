@@ -24,12 +24,16 @@ afterEach(() => {
 
 describe("views.entityList / views.candidates", () => {
   it("merges people and pets and sorts by display label", async () => {
-    await core.people.create({ firstName: "Zoe", lastName: "Bick" }, []);
-    await core.people.create({ firstName: "Amy", lastName: "Lo" }, []);
+    await core.people.create({ firstName: "Violet", lastName: "Bick" }, []);
+    await core.people.create({ firstName: "Henry", lastName: "Potter" }, []);
     await core.pets.create({ name: "Jimmy" }, []);
 
     const rows = await core.views.entityList();
-    expect(rows.map((r) => r.label)).toEqual(["Amy Lo", "Jimmy", "Zoe Bick"]);
+    expect(rows.map((r) => r.label)).toEqual([
+      "Henry Potter",
+      "Jimmy",
+      "Violet Bick",
+    ]);
     expect(rows.map((r) => r.type)).toEqual(["person", "pet", "person"]);
   });
 
@@ -189,8 +193,8 @@ describe("views.relationshipForSubject / views.derivedRelationship", () => {
       { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
-    const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Wainwright" },
+    const pete = await core.people.create(
+      { firstName: "Pete", lastName: "Wainwright" },
       [],
     );
     await core.relationships.create({
@@ -206,13 +210,13 @@ describe("views.relationshipForSubject / views.derivedRelationship", () => {
       aId: sam.id,
       aRole: "parent",
       bType: "person",
-      bId: tim.id,
+      bId: pete.id,
       bRole: "child",
     });
 
     const view = await core.views.derivedRelationship(
       "person",
-      tim.id,
+      pete.id,
       "person",
       jane.id,
       "grandparent",
@@ -256,8 +260,8 @@ describe("views.milestoneNew / views.milestoneSubject", () => {
 
 describe("relationships.createFromSubject", () => {
   it("writes the subject as the a-end with the neutral inverse of the other role", async () => {
-    const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Wainwright" },
+    const pete = await core.people.create(
+      { firstName: "Pete", lastName: "Wainwright" },
       [],
     );
     const jane = await core.people.create(
@@ -267,13 +271,13 @@ describe("relationships.createFromSubject", () => {
 
     const rel = await core.relationships.createFromSubject({
       subjectType: "person",
-      subjectId: tim.id,
+      subjectId: pete.id,
       otherType: "person",
       otherId: jane.id,
       otherRole: "parent",
     });
 
-    expect(rel.aId).toBe(tim.id);
+    expect(rel.aId).toBe(pete.id);
     expect(rel.aRole).toBe("child"); // inverse of parent
     expect(rel.bId).toBe(jane.id);
     expect(rel.bRole).toBe("parent");
@@ -288,8 +292,8 @@ describe("relationships.createFromSubject", () => {
       { firstName: "Sam", lastName: "Wainwright" },
       [],
     );
-    const tim = await core.people.create(
-      { firstName: "Tim", lastName: "Wainwright" },
+    const pete = await core.people.create(
+      { firstName: "Pete", lastName: "Wainwright" },
       [],
     );
     await core.relationships.create({
@@ -305,23 +309,23 @@ describe("relationships.createFromSubject", () => {
       aId: sam.id,
       aRole: "parent",
       bType: "person",
-      bId: tim.id,
+      bId: pete.id,
       bRole: "child",
     });
 
-    // Tim derives Jane as a grandparent before materialising.
-    const before = await core.kinship.neighborsFor("person", tim.id);
+    // Pete derives Jane as a grandparent before materialising.
+    const before = await core.kinship.neighborsFor("person", pete.id);
     expect(before.find((n) => n.otherId === jane.id)?.origin).toBe("derived");
 
     await core.relationships.createFromSubject({
       subjectType: "person",
-      subjectId: tim.id,
+      subjectId: pete.id,
       otherType: "person",
       otherId: jane.id,
       otherRole: "grandparent",
     });
 
-    const after = await core.kinship.neighborsFor("person", tim.id);
+    const after = await core.kinship.neighborsFor("person", pete.id);
     const toJane = after.filter((n) => n.otherId === jane.id);
     expect(toJane).toHaveLength(1);
     expect(toJane[0].origin).toBe("explicit");

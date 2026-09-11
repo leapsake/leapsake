@@ -55,7 +55,7 @@ describe("createEntityRepo shared CRUD", () => {
   });
 
   it("getIncludingDeleted returns a soft-deleted row that get() hides", async () => {
-    const pet = await pets.create({ name: "Bella" });
+    const pet = await pets.create({ name: "Petals" });
     await pets.softDelete(pet.id);
 
     expect(await pets.get(pet.id)).toBeUndefined();
@@ -117,7 +117,7 @@ describe("createEntityRepo shared CRUD", () => {
 describe("defineSyncable listActive", () => {
   it("answers live rows where listChangedSince(0) also answers tombstones", async () => {
     const live = await pets.create({ name: "Jimmy" });
-    const gone = await pets.create({ name: "Bella" });
+    const gone = await pets.create({ name: "Petals" });
     await pets.softDelete(gone.id);
 
     expect((await pets.listActive()).map((p) => p.id)).toEqual([live.id]);
@@ -129,9 +129,9 @@ describe("defineSyncable listActive", () => {
 
   it("is the unnarrowed read: list() still hides an unpublished row", async () => {
     const now = Date.now();
-    const shadow = await pets.insert({
+    const bells = await pets.insert({
       id: crypto.randomUUID(),
-      name: "Shadow",
+      name: "Bells",
       gender: null,
       standing: "unpublished",
       createdAt: now,
@@ -142,7 +142,7 @@ describe("defineSyncable listActive", () => {
     // `list()` applies the repo's `listOnly` (PUBLISHED_SQL) on top of the
     // not-deleted rule; `listActive()` applies only the not-deleted rule.
     expect(await pets.list()).toEqual([]);
-    expect((await pets.listActive()).map((p) => p.id)).toEqual([shadow.id]);
+    expect((await pets.listActive()).map((p) => p.id)).toEqual([bells.id]);
   });
 
   it("reaches a table with no entity repo at all", async () => {

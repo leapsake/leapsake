@@ -73,8 +73,8 @@ describe("activeMentionQuery", () => {
   });
 
   it("keeps spaces inside the fragment (names have spaces)", () => {
-    expect(activeMentionQuery("@ali ng", 7)).toEqual({
-      query: "ali ng",
+    expect(activeMentionQuery("@vi bick", 8)).toEqual({
+      query: "vi bick",
       start: 0,
     });
   });

@@ -81,22 +81,22 @@ describe("core.gifts.ideas", () => {
 
   it("attaches recipients in the same call that mints the idea", async () => {
     const violet = await makePerson("Violet");
-    const rufus = await makePet("Rufus");
+    const jimmy = await makePet("Jimmy");
 
     const idea = await core.gifts.ideas.create({
       title: "Tennis balls",
       recipients: [
         { party: { type: "person", id: violet } },
-        { party: { type: "pet", id: rufus }, given: true },
+        { party: { type: "pet", id: jimmy }, given: true },
       ],
     });
 
     const links = await core.gifts.recipients.listForIdea(idea.id);
     expect(links.map((l) => l.recipientLabel).sort()).toEqual([
-      "Rufus",
+      "Jimmy",
       "Violet X",
     ]);
-    expect(links.find((l) => l.recipientId === rufus)?.givenAt).not.toBeNull();
+    expect(links.find((l) => l.recipientId === jimmy)?.givenAt).not.toBeNull();
     expect(links.find((l) => l.recipientId === violet)?.givenAt).toBeNull();
   });
 });
@@ -351,20 +351,20 @@ describe("core.gifts.capture (the consolidated create)", () => {
   });
 
   it("attaches a pet as readily as a person", async () => {
-    const rufus = await makePet("Rufus");
+    const jimmy = await makePet("Jimmy");
     const idea = await core.gifts.capture({
       giftIdea: { title: "Chew toy" },
-      recipients: [{ party: { type: "pet", id: rufus }, given: true }],
+      recipients: [{ party: { type: "pet", id: jimmy }, given: true }],
     });
 
     expect(
-      (await core.gifts.recipients.listForRecipient("pet", rufus)).map(
+      (await core.gifts.recipients.listForRecipient("pet", jimmy)).map(
         (l) => l.ideaTitle,
       ),
     ).toEqual(["Chew toy"]);
     expect(
       (await core.gifts.recipients.listForIdea(idea.id))[0]?.recipientLabel,
-    ).toBe("Rufus");
+    ).toBe("Jimmy");
   });
 });
 
@@ -574,7 +574,7 @@ describe("core.reminders.targets — the gift half", () => {
   it("returns nothing when no gift action is enabled", async () => {
     // The birthday kind defaults leave gift off — only the day-of wish is on.
     const person = await core.people.create(
-      { firstName: "Bea", middleName: null, lastName: "X", gender: null },
+      { firstName: "Zuzu", middleName: null, lastName: "X", gender: null },
       [],
     );
     const occ = civilDaysFromToday(10);

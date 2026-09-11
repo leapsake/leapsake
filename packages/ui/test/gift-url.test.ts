@@ -27,8 +27,8 @@ describe("giftUrlOf", () => {
   });
 
   it("takes only schemes you can shop from", () => {
-    expect(giftUrlOf("mailto:josh@example.com")).toBeNull();
-    expect(giftUrlOf("file:///Users/josh/socks.txt")).toBeNull();
+    expect(giftUrlOf("mailto:george@example.com")).toBeNull();
+    expect(giftUrlOf("file:///Users/george/socks.txt")).toBeNull();
   });
 
   it("returns the link as typed rather than normalized", () => {

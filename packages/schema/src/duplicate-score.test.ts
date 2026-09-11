@@ -79,13 +79,13 @@ describe("scoreDuplicate", () => {
 
   it("rates a shared contact with different names as medium", () => {
     const a = person({
-      name: "Harry Martini",
-      foldedName: "harry smith",
+      name: "William Bailey",
+      foldedName: "william bailey",
       phones: ["+15551234567"],
     });
     const b = person({
-      name: "Robert Martini",
-      foldedName: "robert smith",
+      name: "Billy Bailey",
+      foldedName: "billy bailey",
       phones: ["+15551234567"],
     });
     const { tier, reasons } = scoreDuplicate(a, b);
@@ -96,7 +96,7 @@ describe("scoreDuplicate", () => {
   it("rates no shared signal as none", () => {
     const a = person({
       name: "Harry Martini",
-      foldedName: "harry smith",
+      foldedName: "harry martini",
       emails: ["harry@x.com"],
     });
     const b = person({

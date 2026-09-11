@@ -186,12 +186,12 @@ describe("the name survives the trip", () => {
   it("carries punctuation a URL would otherwise eat", () => {
     // Each of these ends the query, or a value in it, if it goes in raw.
     for (const name of [
-      "Pete & Jerry",
+      "Hee-Haw & Jimmy",
       "Who? Knows",
-      "Anne-Marie O’Neill",
+      "Zuzu’s Petals",
       "50% Off",
       "C++ Study Group",
-      "Ann/Harry",
+      "Mary/George",
     ]) {
       expect(titleIn(petHref({ id: "a1", name }))).toBe(name);
     }

@@ -11,29 +11,29 @@ describe("bareHandle", () => {
   });
 
   it("drops the @ people type because handles are written with one", () => {
-    expect(bareHandle("@josh")).toBe("josh");
-    expect(bareHandle("  @josh  ")).toBe("josh");
+    expect(bareHandle("@george")).toBe("george");
+    expect(bareHandle("  @george  ")).toBe("george");
   });
 
   it("takes the last path segment of a pasted profile URL", () => {
-    expect(bareHandle("https://instagram.com/josh")).toBe("josh");
-    expect(bareHandle("https://www.instagram.com/josh/")).toBe("josh");
-    expect(bareHandle("https://www.linkedin.com/in/josh-smith")).toBe(
-      "josh-smith",
+    expect(bareHandle("https://instagram.com/george")).toBe("george");
+    expect(bareHandle("https://www.instagram.com/george/")).toBe("george");
+    expect(bareHandle("https://www.linkedin.com/in/george-bailey")).toBe(
+      "george-bailey",
     );
-    expect(bareHandle("https://bsky.app/profile/josh.bsky.social")).toBe(
-      "josh.bsky.social",
+    expect(bareHandle("https://bsky.app/profile/george.bsky.social")).toBe(
+      "george.bsky.social",
     );
   });
 
   it("strips the @ out of a URL that carries one", () => {
-    expect(bareHandle("https://www.tiktok.com/@josh")).toBe("josh");
+    expect(bareHandle("https://www.tiktok.com/@george")).toBe("george");
   });
 
   it("drops a query string and fragment", () => {
-    expect(bareHandle("https://x.com/josh?s=20")).toBe("josh");
-    expect(bareHandle("josh?utm_source=whatever")).toBe("josh");
-    expect(bareHandle("https://x.com/josh#top")).toBe("josh");
+    expect(bareHandle("https://x.com/george?s=20")).toBe("george");
+    expect(bareHandle("george?utm_source=whatever")).toBe("george");
+    expect(bareHandle("https://x.com/george#top")).toBe("george");
   });
 
   it("returns empty for input with nothing in it", () => {

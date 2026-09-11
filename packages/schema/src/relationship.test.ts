@@ -241,7 +241,7 @@ describe("gendered role system", () => {
     });
 
     it("composes on the neutral base, so gendered inputs compose too", () => {
-      // Josh's father (parent) ; that father's brother (sibling) ⇒ pibling.
+      // George's father (parent) ; that father's brother (sibling) ⇒ pibling.
       expect(composeRoles("father", "brother")).toBe("pibling");
       expect(composeRoles("mother", "sister")).toBe("pibling");
     });

@@ -56,24 +56,24 @@ async function exportedData(): Promise<ExportData> {
 
 describe("core.export.archive", () => {
   it("carries a person's whole card: name, tags, methods and birthday", async () => {
-    const jane = await core.people.create(
+    const mary = await core.people.create(
       {
-        firstName: "Jane",
-        middleName: "Marie",
-        lastName: "Wainwright",
+        firstName: "Mary",
+        middleName: "Hatch",
+        lastName: "Bailey",
         gender: "female",
       },
       ["Family", "Work"],
     );
     await core.contactMethods.emails.create({
       ownerType: "person",
-      ownerId: jane.id,
+      ownerId: mary.id,
       label: "Home",
-      address: "jane@example.com",
+      address: "mary@example.com",
     });
     await core.contactMethods.phones.create({
       ownerType: "person",
-      ownerId: jane.id,
+      ownerId: mary.id,
       label: "Mobile",
       number: "+1 555 0100",
       extension: "204",
@@ -81,7 +81,7 @@ describe("core.export.archive", () => {
     });
     await core.contactMethods.postals.create({
       ownerType: "person",
-      ownerId: jane.id,
+      ownerId: mary.id,
       label: "Home",
       line1: "1 Main St",
       line2: "Apt 4",
@@ -93,7 +93,7 @@ describe("core.export.archive", () => {
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: jane.id,
+      bearerId: mary.id,
       year: 1985,
       month: 4,
       day: 12,
@@ -103,7 +103,7 @@ describe("core.export.archive", () => {
 
     // The literal properties, because this is the assertion that catches a port
     // reading the wrong table: a card that merely parses could still be empty.
-    expect(vcf).toContain(`UID:urn:uuid:${jane.id}`);
+    expect(vcf).toContain(`UID:urn:uuid:${mary.id}`);
     expect(vcf).toContain("CATEGORIES:Family,Work");
     expect(vcf).toContain("X-LEAPSAKE-EXT=204");
     expect(vcf).toContain("X-LEAPSAKE-COUNTRY=US");
@@ -112,13 +112,13 @@ describe("core.export.archive", () => {
 
     const [card] = parseVCards(vcf);
     expect(card.name).toEqual({
-      firstName: "Jane",
-      middleName: "Marie",
-      lastName: "Wainwright",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
     expect(card.gender).toBe("female");
     expect(card.emails).toEqual([
-      { label: "Home", address: "jane@example.com" },
+      { label: "Home", address: "mary@example.com" },
     ]);
     expect(card.phones[0]).toMatchObject({
       label: "Mobile",
@@ -472,7 +472,7 @@ describe("core.export.archive — data.json", () => {
     const violet = await core.people.create({ firstName: "Violet" }, []);
     const harry = await core.people.create({ firstName: "Harry" }, []);
     const tilly = await core.people.create({ firstName: "Tilly" }, []);
-    const dave = await core.people.create({ firstName: "Dave" }, []);
+    const bert = await core.people.create({ firstName: "Bert" }, []);
 
     // A mention, then edited out of the text: its row is tombstoned, not erased.
     const reminder = await core.reminders.create({
@@ -492,9 +492,9 @@ describe("core.export.archive — data.json", () => {
 
     // A "not a duplicate" judgment, then made redundant by a merge — which
     // re-points it onto the survivor, sees a self-pair, and tombstones it.
-    await core.duplicates.reject(tilly.id, dave.id);
+    await core.duplicates.reject(tilly.id, bert.id);
     expect((await exportedData()).notADuplicate).toHaveLength(1);
-    await core.people.merge(tilly.id, dave.id);
+    await core.people.merge(tilly.id, bert.id);
 
     const data = await exportedData();
     expect(data.mentions).toEqual([]);

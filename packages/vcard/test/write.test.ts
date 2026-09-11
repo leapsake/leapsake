@@ -108,22 +108,22 @@ describe("writeVCards — card structure", () => {
     const text = write([
       contact({
         name: {
-          firstName: "Jane",
-          middleName: "Marie",
-          lastName: "Wainwright",
+          firstName: "Mary",
+          middleName: "Hatch",
+          lastName: "Bailey",
         },
       }),
     ]);
-    expect(text).toContain("N:Wainwright;Jane;Marie;;\r\n");
+    expect(text).toContain("N:Bailey;Mary;Hatch;;\r\n");
   });
 
   it("round-trips names, including the parts a card leaves empty", () => {
     expectRoundTrip([
       contact({
         name: {
-          firstName: "Jane",
-          middleName: "Marie",
-          lastName: "Wainwright",
+          firstName: "Mary",
+          middleName: "Hatch",
+          lastName: "Bailey",
         },
       }),
       contact({
@@ -143,14 +143,14 @@ describe("writeVCards — card structure", () => {
     const text = write([
       contact({
         name: {
-          firstName: "Jane",
-          middleName: "Marie",
-          lastName: "Wainwright",
+          firstName: "Mary",
+          middleName: "Hatch",
+          lastName: "Bailey",
         },
         displayName: null,
       }),
     ]);
-    expect(text).toContain("FN:Jane Marie Wainwright\r\n");
+    expect(text).toContain("FN:Mary Hatch Bailey\r\n");
   });
 
   it("round-trips every gender, and writes none for null", () => {
@@ -189,8 +189,8 @@ describe("writeVCards — escaping and folding", () => {
   it("round-trips non-ASCII", () => {
     expectRoundTrip([
       contact({
-        name: { firstName: "Zoë", middleName: null, lastName: "Ångström" },
-        displayName: "Zoë Ångström",
+        name: { firstName: "Nicolò", middleName: null, lastName: "Martini" },
+        displayName: "Nicolò Martini",
       }),
     ]);
   });
@@ -707,8 +707,8 @@ describe("writeVCards — relationships", () => {
         related: [
           related({ role: "spouse" }),
           related({ name: "Pete", role: "child" }),
-          related({ name: "Ann", role: "friend" }),
-          related({ name: "Sue", role: "coworker" }),
+          related({ name: "Violet", role: "friend" }),
+          related({ name: "Eustace", role: "coworker" }),
         ],
       }),
     ]);
@@ -725,7 +725,7 @@ describe("writeVCards — relationships", () => {
       contact({
         related: [
           related({ role: "mother" }),
-          related({ name: "Ann", role: "cousin" }),
+          related({ name: "Tilly", role: "cousin" }),
           related({ name: "Mary", role: "grandmother" }),
           related({ name: "Pete", role: "pibling" }),
         ],

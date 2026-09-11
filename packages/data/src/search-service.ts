@@ -179,8 +179,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
     if (term.trim().length < MIN_QUERY_LENGTH) return [];
     // Trimmed: leading/trailing space is typing, not intent. Without this the
-    // half-typed "john " matches nothing at all, so a result that was on screen
-    // for "john" vanishes the moment the space before the surname is typed.
+    // half-typed "harry " matches nothing at all, so a result that was on screen
+    // for "harry" vanishes the moment the space before the surname is typed.
     // (The other facets' query normalizers already trim.)
     const folded = fold(term).trim();
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
@@ -332,7 +332,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
      * absent part of a name is simply not a candidate to match against.
      *
      * Callers pass the individual parts *and* the assembled whole-name forms:
-     * a query is one string, so "john appleseed" can never be a substring of
+     * a query is one string, so "harry bailey" can never be a substring of
      * any single part, and matching parts alone would drop a person the moment
      * the user typed past their first name.
      */
@@ -354,8 +354,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     for (const p of people) {
       // The middle name is normally hidden, but surfaced in the title when the
       // term matched *it* specifically — so a hit explained only by the middle
-      // name ("br" → "Joseph Abraham Lampe") shows why it's there, while an
-      // ordinary first/last hit stays "Joseph Lampe".
+      // name ("tch" → "Mary Hatch Bailey") shows why it's there, while an
+      // ordinary first/last hit stays "Mary Bailey".
       // Joined, not interpolated: any part of a name may be absent, and a title
       // of " Dakin" would be both wrong on screen and wrong to fold against.
       const middle = p.middle_name ?? "";
@@ -377,7 +377,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
           (fold(withMiddle).includes(folded) && !fold(plain).includes(folded)));
       const title = showMiddle ? withMiddle : plain;
       // Parts first, then both whole-name forms — with and without the middle
-      // name — so "john appleseed" and "john q appleseed" both land, and a
+      // name — so "harry bailey" and "harry q bailey" both land, and a
       // whole-name match still reports the quality of its best *part* (typing
       // a surname in full stays an exact match, not a substring one).
       addNameHit("person", p.id, title, [

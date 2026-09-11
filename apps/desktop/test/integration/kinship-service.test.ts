@@ -304,12 +304,12 @@ describe("kinshipService — unpublished entities", () => {
   // and a relationship row is where that name gets read.
   it("labels a one-name person without a leading space", async () => {
     const ernie = await person("Ernie");
-    const davis = await people.create({
+    const ruth = await people.create({
       firstName: null,
       lastName: "Dakin",
       standing: "unpublished",
     });
-    await marry(ernie.id, davis.id);
+    await marry(ernie.id, ruth.id);
 
     const neighbors = await kinship.neighborsFor("person", ernie.id);
     expect(neighbors[0].otherLabel).toBe("Dakin");

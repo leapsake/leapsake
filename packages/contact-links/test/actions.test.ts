@@ -28,10 +28,10 @@ describe("email", () => {
   it("leads with a mailto and keeps the address unencoded", () => {
     const actions = resolveActions({
       kind: "email",
-      method: { address: "josh@example.com" },
+      method: { address: "george@example.com" },
     });
     expect(ids(actions)).toEqual(["email.compose", "email.copy"]);
-    expect(actions[0].url).toBe("mailto:josh@example.com");
+    expect(actions[0].url).toBe("mailto:george@example.com");
     expect(actions[0].native).toBe(false);
   });
 
@@ -149,22 +149,22 @@ describe("social", () => {
   it("reports profile reach honestly where DMs are not addressable", () => {
     const actions = resolveActions({
       kind: "social",
-      method: { platform: "tiktok", handle: "josh" },
+      method: { platform: "tiktok", handle: "george" },
     });
     expect(actions[0].reach).toBe("profile");
-    expect(actions[0].url).toBe("https://www.tiktok.com/@josh");
+    expect(actions[0].url).toBe("https://www.tiktok.com/@george");
   });
 
   it("upgrades reach from profile to chat when a user id is supplied", () => {
     const withoutId = resolveActions({
       kind: "social",
-      method: { platform: "x", handle: "josh" },
+      method: { platform: "x", handle: "george" },
     });
     expect(withoutId[0].reach).toBe("profile");
 
     const withId = resolveActions({
       kind: "social",
-      method: { platform: "x", handle: "josh", platformUserId: "12345" },
+      method: { platform: "x", handle: "george", platformUserId: "12345" },
     });
     expect(withId[0].reach).toBe("chat");
     expect(withId[0].url).toBe(
@@ -177,7 +177,7 @@ describe("social", () => {
   it("degrades a Discord handle to copy, since a username addresses nothing", () => {
     const actions = resolveActions({
       kind: "social",
-      method: { platform: "discord", handle: "josh" },
+      method: { platform: "discord", handle: "george" },
     });
     expect(ids(actions)).toEqual(["social.copy"]);
   });
@@ -185,7 +185,7 @@ describe("social", () => {
   it("uses a Discord user id when there is one", () => {
     const actions = resolveActions({
       kind: "social",
-      method: { platform: "discord", handle: "josh", platformUserId: "999" },
+      method: { platform: "discord", handle: "george", platformUserId: "999" },
     });
     expect(actions[0].url).toBe("https://discord.com/users/999");
     expect(actions[0].reach).toBe("chat");
@@ -196,21 +196,21 @@ describe("social", () => {
       kind: "social",
       method: {
         platform: "mastodon",
-        handle: "josh@hachyderm.io",
-        url: "https://hachyderm.io/@josh",
+        handle: "george@hachyderm.io",
+        url: "https://hachyderm.io/@george",
       },
     });
     expect(ids(actions)).toEqual(["social.url", "social.copy"]);
-    expect(actions[0].url).toBe("https://hachyderm.io/@josh");
+    expect(actions[0].url).toBe("https://hachyderm.io/@george");
   });
 
   it("still offers copy for an unknown platform with no URL", () => {
     const actions = resolveActions({
       kind: "social",
-      method: { platform: "mastodon", handle: "josh@hachyderm.io" },
+      method: { platform: "mastodon", handle: "george@hachyderm.io" },
     });
     expect(ids(actions)).toEqual(["social.copy"]);
-    expect(actions[0].copyText).toBe("josh@hachyderm.io");
+    expect(actions[0].copyText).toBe("george@hachyderm.io");
   });
 
   it("percent-encodes a handle so it cannot break out of the path", () => {
@@ -236,7 +236,11 @@ describe("the registry as a whole", () => {
     ...PLATFORMS.flatMap((platform) =>
       resolveActions({
         kind: "social",
-        method: { platform: platform.id, handle: "josh", platformUserId: "1" },
+        method: {
+          platform: platform.id,
+          handle: "george",
+          platformUserId: "1",
+        },
       }),
     ),
   ];
@@ -302,7 +306,7 @@ describe("the registry as a whole", () => {
       resolveActions({ kind: "postal", method: postal }),
       resolveActions({
         kind: "social",
-        method: { platform: "discord", handle: "josh" },
+        method: { platform: "discord", handle: "george" },
       }),
     ];
     for (const list of lists) {

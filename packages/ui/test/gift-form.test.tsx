@@ -11,7 +11,7 @@ import {
 } from "../src/headless/index.js";
 
 const violet: PartyOption = { type: "person", id: "a", label: "Violet" };
-const rufus: PartyOption = { type: "pet", id: "r", label: "Rufus" };
+const jimmy: PartyOption = { type: "pet", id: "r", label: "Jimmy" };
 
 describe("giftIdeaOf", () => {
   const pool = [
@@ -61,7 +61,7 @@ describe("captureRecipientOf", () => {
   });
 
   it("says so explicitly when the gift has not been given", () => {
-    expect(captureRecipientOf(rufus, false)).toEqual({
+    expect(captureRecipientOf(jimmy, false)).toEqual({
       party: { type: "pet", id: "r" },
       given: false,
     });
@@ -85,7 +85,7 @@ describe("partyKey", () => {
 describe("patchRecipient / removeRecipient", () => {
   const entries: RecipientEntry[] = [
     { option: violet, given: false },
-    { option: rufus, given: false },
+    { option: jimmy, given: false },
   ];
 
   it("patches only the addressed recipient", () => {
@@ -107,7 +107,7 @@ describe("patchRecipient / removeRecipient", () => {
 
   it("removes the addressed recipient and nobody else", () => {
     const next = removeRecipient(entries, partyKey(violet));
-    expect(next.map((e) => e.option.label)).toEqual(["Rufus"]);
+    expect(next.map((e) => e.option.label)).toEqual(["Jimmy"]);
   });
 
   it("keys a person and a pet with the same id apart when removing", () => {

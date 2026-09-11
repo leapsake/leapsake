@@ -119,13 +119,13 @@ describe("forgetAccountOnThisDevice (mobile)", () => {
   it("leaves another account's roster entry alone", async () => {
     await roster().add({
       id: OTHER,
-      username: "grace",
+      username: "henry",
       createdAt: new Date().toISOString(),
     });
 
     await forget(ACCOUNT);
 
-    expect((await roster().list()).map((a) => a.username)).toEqual(["grace"]);
+    expect((await roster().list()).map((a) => a.username)).toEqual(["henry"]);
     expect(deletedStores).toEqual([storePath(ACCOUNT)]);
   });
 });

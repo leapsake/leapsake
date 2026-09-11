@@ -116,7 +116,7 @@ describe("onboarding reminders (end to end through core)", () => {
   it("retires 'import your contacts' on pets.create too", async () => {
     await core.reminders.regenerateSystem();
 
-    await core.pets.create({ name: "Milo", gender: null }, []);
+    await core.pets.create({ name: "Jimmy", gender: null }, []);
 
     expect((await systemReminders()).map((r) => r.id)).not.toContain(
       idFor("import"),

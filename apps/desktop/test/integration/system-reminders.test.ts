@@ -120,7 +120,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // and the engine mints a reminder for each, on each action's own timetable —
     // the whole point of the per-milestone schedule.
     const bea = await core.people.create(
-      { firstName: "Bea", middleName: null, lastName: "Ko", gender: null },
+      { firstName: "Zuzu", middleName: null, lastName: "Bailey", gender: null },
       [],
     );
     const occ = civilDaysFromToday(20);
@@ -142,15 +142,15 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     const rows = await systemReminders();
     const byTitle = new Map(rows.map((r) => [reminderLabel(r), r]));
     expect([...byTitle.keys()].sort()).toEqual([
-      "🎁 Get @Bea Ko a gift",
-      "💌 Send @Bea Ko a card",
+      "🎁 Get @Zuzu Bailey a gift",
+      "💌 Send @Zuzu Bailey a card",
     ]);
     // Each due its own lead time before the birthday.
-    const gift = byTitle.get("🎁 Get @Bea Ko a gift")!;
-    const card = byTitle.get("💌 Send @Bea Ko a card")!;
+    const gift = byTitle.get("🎁 Get @Zuzu Bailey a gift")!;
+    const card = byTitle.get("💌 Send @Zuzu Bailey a card")!;
     expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(8);
     expect(daysUntil(todayCivil(), civilFromDueMs(card.dueDate!))).toBe(13);
-    // Both link back to Bea's page.
+    // Both link back to Zuzu's page.
     expect(
       (await core.reminders.mentioning("person", bea.id))
         .map((r) => r.id)
@@ -187,7 +187,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 
   it("is idempotent across runs (no duplicates, stable id)", async () => {
     const p = await core.people.create(
-      { firstName: "Harry", middleName: null, lastName: "Lee", gender: null },
+      {
+        firstName: "Harry",
+        middleName: null,
+        lastName: "Bailey",
+        gender: null,
+      },
       [],
     );
     const soon = civilDaysFromToday(0);
@@ -212,7 +217,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 
   it("removes the reminder when its milestone is deleted", async () => {
     const p = await core.people.create(
-      { firstName: "Cara", middleName: null, lastName: "Ito", gender: null },
+      {
+        firstName: "Janie",
+        middleName: null,
+        lastName: "Bailey",
+        gender: null,
+      },
       [],
     );
     const soon = civilDaysFromToday(0);
@@ -233,7 +243,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
 
   it("never resurrects a dismissed birthday reminder", async () => {
     const p = await core.people.create(
-      { firstName: "Dev", middleName: null, lastName: "Roy", gender: null },
+      {
+        firstName: "Tommy",
+        middleName: null,
+        lastName: "Bailey",
+        gender: null,
+      },
       [],
     );
     const soon = civilDaysFromToday(0);
@@ -261,7 +276,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // birthday vanished without ever saying it had been missed. End to end now:
     // yesterday is still there (belated, dated in the past), three days ago is not.
     const p = await core.people.create(
-      { firstName: "Gil", middleName: null, lastName: "Amar", gender: null },
+      { firstName: "Pete", middleName: null, lastName: "Bailey", gender: null },
       [],
     );
     const yesterday = civilDaysFromToday(-1);
@@ -284,7 +299,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       bearerType: "person",
       bearerId: (
         await core.people.create(
-          { firstName: "Hal", middleName: null, lastName: "Ora", gender: null },
+          {
+            firstName: "Marty",
+            middleName: null,
+            lastName: "Hatch",
+            gender: null,
+          },
           [],
         )
       ).id,
@@ -292,7 +312,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       day: longGone.day,
       reminderSchedule: WISH_ONLY,
     });
-    // Still just Gil's — Hal's birthday is past the belated tail.
+    // Still just Pete's — Marty's birthday is past the belated tail.
     expect(await systemReminders()).toHaveLength(1);
   });
 
@@ -309,7 +329,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
         await runMigrations(d.driver);
         const deviceCore = createCore(d.driver);
         const person = await deviceCore.people.create(
-          { firstName: "Eve", middleName: null, lastName: "Sun", gender: null },
+          {
+            firstName: "Ruth",
+            middleName: null,
+            lastName: "Dakin",
+            gender: null,
+          },
           [],
         );
         // Insert the milestone under a fixed, shared id (bypassing create's random
@@ -365,7 +390,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
     reminderSchedule: ReminderRuleInput[] = WISH_ONLY,
   ) {
     const person = await core.people.create(
-      { firstName: "Faye", middleName: null, lastName: "Bick", gender: null },
+      { firstName: "Mary", middleName: null, lastName: "Bailey", gender: null },
       [],
     );
     const occ = civilDaysFromToday(days);
@@ -477,11 +502,21 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 
   it("re-points a merged-in birthday reminder onto the survivor", async () => {
     const survivor = await core.people.create(
-      { firstName: "Ernie", middleName: null, lastName: "Sur", gender: null },
+      {
+        firstName: "Ernie",
+        middleName: null,
+        lastName: "Bishop",
+        gender: null,
+      },
       [],
     );
     const loser = await core.people.create(
-      { firstName: "Lee", middleName: null, lastName: "Los", gender: null },
+      {
+        firstName: "Sam",
+        middleName: null,
+        lastName: "Wainwright",
+        gender: null,
+      },
       [],
     );
     // The birthday (and so its reminder) belongs to the loser before the merge.
@@ -510,11 +545,11 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 
     // Its title + resolved mention now name the survivor, not the dead loser.
     expect(reminder.title).toBe(
-      `🎉 Wish ${mentionToken("Ernie Sur", "person", survivor.id)} a happy birthday`,
+      `🎉 Wish ${mentionToken("Ernie Bishop", "person", survivor.id)} a happy birthday`,
     );
     const resolved = await core.reminders.get(reminder.id);
     expect(resolved?.mentions).toEqual([
-      { targetType: "person", targetId: survivor.id, label: "Ernie Sur" },
+      { targetType: "person", targetId: survivor.id, label: "Ernie Bishop" },
     ]);
   });
 });
@@ -530,7 +565,12 @@ describe("milestone writes reconcile birthday reminders at once", () => {
 describe("migration 34 sweeps the generated reminders", () => {
   it("clears a stale tombstone so the engine can mint the row again", async () => {
     const p = await core.people.create(
-      { firstName: "Ivy", middleName: null, lastName: "Pak", gender: null },
+      {
+        firstName: "Jane",
+        middleName: null,
+        lastName: "Wainwright",
+        gender: null,
+      },
       [],
     );
     const today = civilDaysFromToday(0);
@@ -577,7 +617,12 @@ describe("migration 34 sweeps the generated reminders", () => {
 describe("migration 35 renames the stored reminder actions", () => {
   it("rewrites a pre-split schedule in place, and the engine reads it", async () => {
     const person = await core.people.create(
-      { firstName: "Otto", middleName: null, lastName: "Reid", gender: null },
+      {
+        firstName: "Henry",
+        middleName: null,
+        lastName: "Potter",
+        gender: null,
+      },
       [],
     );
     const occ = civilDaysFromToday(10);
@@ -628,7 +673,7 @@ describe("migration 35 renames the stored reminder actions", () => {
     await core.reminders.regenerateSystem();
     const titles = (await systemReminders()).map((r) => r.title);
     expect(titles).toContain(
-      `🎁 Get ${mentionToken("Otto Reid", "person", person.id)} a gift`,
+      `🎁 Get ${mentionToken("Henry Potter", "person", person.id)} a gift`,
     );
   });
 });
@@ -642,7 +687,12 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
     reminderSchedule: ReminderRuleInput[] = WISH_ONLY,
   ) {
     const person = await core.people.create(
-      { firstName: "Cara", middleName: null, lastName: "Vale", gender: null },
+      {
+        firstName: "Clarence",
+        middleName: null,
+        lastName: "Odbody",
+        gender: null,
+      },
       [],
     );
     const occ = civilDaysFromToday(days);
@@ -665,7 +715,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
   }
 
   it("previews a reminder that is not a row yet, and joins nothing to it", async () => {
-    const cara = await birthdayIn(20);
+    const clarence = await birthdayIn(20);
 
     // Nothing materialized: a wish is day-of, so twenty days out there is no row.
     expect(await systemReminders()).toHaveLength(0);
@@ -673,7 +723,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
     const [preview] = await windowed();
     expect(preview.materialized).toBe(false);
     expect(preview.title).toBe(
-      `🎉 Wish ${mentionToken("Cara Vale", "person", cara.id)} a happy birthday`,
+      `🎉 Wish ${mentionToken("Clarence Odbody", "person", clarence.id)} a happy birthday`,
     );
     // The name still renders: it is in the text, which is the source of truth.
     // The join only ever supplied *current* labels, and a preview has no row to
@@ -686,13 +736,13 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
   });
 
   it("joins tags and mentions onto a row that does exist", async () => {
-    const cara = await birthdayIn(0);
+    const clarence = await birthdayIn(0);
 
     const [row] = await windowed();
 
     expect(row.materialized).toBe(true);
     expect(row.mentions).toEqual([
-      { targetType: "person", targetId: cara.id, label: "Cara Vale" },
+      { targetType: "person", targetId: clarence.id, label: "Clarence Odbody" },
     ]);
   });
 

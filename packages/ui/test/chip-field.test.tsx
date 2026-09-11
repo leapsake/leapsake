@@ -8,13 +8,13 @@ import { renderWithUi } from "./support.js";
 
 afterEach(cleanup);
 
-const DAVID = "7d921dfc-daad-46b4-9a14-c05674e212f3";
-const davidToken = mentionToken("David Taylor", "person", DAVID);
+const ERNIE = "7d921dfc-daad-46b4-9a14-c05674e212f3";
+const ernieToken = mentionToken("Ernie Bishop", "person", ERNIE);
 
 const davidHit = {
   entityType: "person",
-  entityId: DAVID,
-  title: "David Taylor",
+  entityId: ERNIE,
+  title: "Ernie Bishop",
   reasons: [],
 } as unknown as SearchHit;
 const familyHit = {
@@ -110,57 +110,57 @@ describe("ChipTextField — mentions", () => {
     type(field, "call @dav");
     clickOption(await screen.findByRole("option"), field);
 
-    expect(field).toHaveProperty("value", "call @David Taylor ");
-    expect(stored(container)).toBe(`call ${davidToken} `);
+    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
   it("opens an existing reminder's text as a draft, not as markup", () => {
     const { container } = renderWithUi(
-      <Host initial={`call ${davidToken} today`} />,
+      <Host initial={`call ${ernieToken} today`} />,
     );
 
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call @David Taylor today",
+      "call @Ernie Bishop today",
     );
     // Untouched: what came in is what would go back out.
-    expect(stored(container)).toBe(`call ${davidToken} today`);
+    expect(stored(container)).toBe(`call ${ernieToken} today`);
   });
 
   it("chips the mention and the saved #tag, and nothing else", () => {
     const { container } = renderWithUi(
-      <Host initial={`hi ${davidToken} #family!`} />,
+      <Host initial={`hi ${ernieToken} #family!`} />,
     );
-    expect(chips(container)).toEqual(["@David Taylor", "#family"]);
+    expect(chips(container)).toEqual(["@Ernie Bishop", "#family"]);
   });
 
   it("keeps the mirrored text out of the label", () => {
-    renderWithUi(<Host initial={`call ${davidToken}`} />);
+    renderWithUi(<Host initial={`call ${ernieToken}`} />);
     // Would throw if the backdrop's copy of the text counted as label text.
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call @David Taylor",
+      "call @Ernie Bishop",
     );
   });
 
   it("deletes the whole mention when backspace lands at its end", async () => {
-    const { container } = renderWithUi(<Host initial={`call ${davidToken}`} />);
+    const { container } = renderWithUi(<Host initial={`call ${ernieToken}`} />);
     const field = screen.getByLabelText("Title");
 
-    type(field, "call @David Taylo"); // backspace at the end of the name
+    type(field, "call @Ernie Bisho"); // backspace at the end of the name
 
     expect(stored(container)).toBe("call ");
     await waitFor(() => expect(chips(container)).toEqual([]));
   });
 
   it("does not treat a placed mention as a name still being typed", async () => {
-    renderWithUi(<Host initial={davidToken} />);
+    renderWithUi(<Host initial={ernieToken} />);
     const field = screen.getByLabelText("Title");
 
     // Carry on typing after the mention. Read as raw text, everything back to
-    // the leading "@" looks like one long fragment — "David Taylor and" — and
+    // the leading "@" looks like one long fragment — "Ernie Bishop and" — and
     // the picker would open again on it; the chip is what says otherwise.
-    type(field, "@David Taylor and");
+    type(field, "@Ernie Bishop and");
 
     // Past the search debounce, so "no picker" means it never opened rather
     // than that we looked too early.
@@ -259,8 +259,8 @@ describe("ChipTextField — completing from the keyboard", () => {
     await screen.findByRole("option");
 
     expect(press(field, "Enter")).toBe(true);
-    expect(field).toHaveProperty("value", "call @David Taylor ");
-    expect(stored(container)).toBe(`call ${davidToken} `);
+    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
   it("completes the highlighted mention on Tab", async () => {
@@ -272,8 +272,8 @@ describe("ChipTextField — completing from the keyboard", () => {
 
     // Swallowed, so focus stays put rather than moving on to the next control.
     expect(press(field, "Tab")).toBe(true);
-    expect(field).toHaveProperty("value", "call @David Taylor ");
-    expect(stored(container)).toBe(`call ${davidToken} `);
+    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
   it("completes the highlighted tag on Tab", async () => {

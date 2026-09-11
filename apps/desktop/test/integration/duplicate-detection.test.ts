@@ -142,11 +142,11 @@ describe("createCore — duplicate detection", () => {
 
     // Order-independent: rejecting (b, a) is the same pair.
     const c = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     const d = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     await core.duplicates.reject(d.id, c.id);

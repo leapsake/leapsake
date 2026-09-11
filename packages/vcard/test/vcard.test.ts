@@ -20,7 +20,7 @@ describe("detectContactFormat", () => {
   });
 
   it("tolerates a leading BOM before the signature", () => {
-    expect(detectContactFormat({ text: `﻿${card("FN:Jo")}` })).toEqual({
+    expect(detectContactFormat({ text: `﻿${card("FN:Zuzu")}` })).toEqual({
       format: "vcard",
     });
   });
@@ -37,15 +37,13 @@ describe("detectContactFormat", () => {
 
 describe("parseVCards — names", () => {
   it("maps a structured N into first/middle/last", () => {
-    const [c] = parseVCards(
-      card("N:Wainwright;Jane;Marie;;", "FN:Jane Wainwright"),
-    );
+    const [c] = parseVCards(card("N:Bailey;Mary;Hatch;;", "FN:Mary Bailey"));
     expect(c.name).toEqual({
-      firstName: "Jane",
-      middleName: "Marie",
-      lastName: "Wainwright",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
-    expect(c.displayName).toBe("Jane Wainwright");
+    expect(c.displayName).toBe("Mary Bailey");
   });
 
   it("falls back to splitting FN when N has no given name", () => {

@@ -16,10 +16,10 @@ const joined = (segs: HighlightSegment[]): string =>
 
 describe("highlightSegments — text", () => {
   it("marks an accent- and case-folded match", () => {
-    const segs = highlightSegments("José Armisen", "jose", "text");
+    const segs = highlightSegments("Nicolò Martini", "nicolo", "text");
     expect(segs).toEqual([
-      { text: "José", marked: true },
-      { text: " Armisen", marked: false },
+      { text: "Nicolò", marked: true },
+      { text: " Martini", marked: false },
     ]);
   });
 

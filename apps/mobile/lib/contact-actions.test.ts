@@ -123,7 +123,7 @@ describe("offeredActions", () => {
   it("always keeps copy, so no row can dead-end", () => {
     const discord = resolveActions({
       kind: "social",
-      method: { platform: "discord", handle: "josh" },
+      method: { platform: "discord", handle: "george" },
     });
     expect(offeredActions(discord, NONE).map((a) => a.id)).toEqual([
       "social.copy",
@@ -135,7 +135,7 @@ describe("primaryAction", () => {
   it("is what the row tap does", () => {
     const email = resolveActions({
       kind: "email",
-      method: { address: "josh@example.com" },
+      method: { address: "george@example.com" },
     });
     expect(primaryAction(email, ALL)?.id).toBe("email.compose");
   });
@@ -192,7 +192,7 @@ describe("app.json declares what the registry can emit", () => {
           kind: "social",
           method: {
             platform: platform.id,
-            handle: "josh",
+            handle: "george",
             platformUserId: "1",
           },
         }),

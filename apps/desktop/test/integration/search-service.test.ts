@@ -60,116 +60,114 @@ async function titles(term: string): Promise<string[]> {
 
 describe("searchService", () => {
   it("returns nothing for queries below the minimum length", async () => {
-    await people.create({ firstName: "Jo", lastName: "Martini" });
+    await people.create({ firstName: "Janie", lastName: "Bailey" });
     expect(await search.query("")).toEqual([]);
     expect(await search.query("j")).toEqual([]);
   });
 
   it("matches names accent- and case-insensitively", async () => {
-    await people.create({ firstName: "José", lastName: "Armisen" });
-    expect(await titles("jose")).toEqual(["José Armisen"]);
-    expect(await titles("JOSE")).toEqual(["José Armisen"]);
-    expect(await titles("armi")).toEqual(["José Armisen"]);
+    await people.create({ firstName: "Nicolò", lastName: "Martini" });
+    expect(await titles("nicolo")).toEqual(["Nicolò Martini"]);
+    expect(await titles("NICOLO")).toEqual(["Nicolò Martini"]);
+    expect(await titles("mart")).toEqual(["Nicolò Martini"]);
   });
 
   it("matches a whole name typed across its parts", async () => {
-    await people.create({ firstName: "John", lastName: "Appleseed" });
-    expect(await titles("john appleseed")).toEqual(["John Appleseed"]);
+    await people.create({ firstName: "Harry", lastName: "Bailey" });
+    expect(await titles("harry bailey")).toEqual(["Harry Bailey"]);
     // Every intermediate state of typing that name keeps the row on screen —
     // including the moment the separating space is typed and nothing follows it.
-    expect(await titles("john")).toEqual(["John Appleseed"]);
-    expect(await titles("john ")).toEqual(["John Appleseed"]);
-    expect(await titles("john app")).toEqual(["John Appleseed"]);
+    expect(await titles("harry")).toEqual(["Harry Bailey"]);
+    expect(await titles("harry ")).toEqual(["Harry Bailey"]);
+    expect(await titles("harry bai")).toEqual(["Harry Bailey"]);
   });
 
   it("ignores surrounding whitespace in the term", async () => {
-    await people.create({ firstName: "John", lastName: "Appleseed" });
-    expect(await titles("  john appleseed  ")).toEqual(["John Appleseed"]);
+    await people.create({ firstName: "Harry", lastName: "Bailey" });
+    expect(await titles("  harry bailey  ")).toEqual(["Harry Bailey"]);
   });
 
   it("does not match a whole-name term against a person sharing only one part", async () => {
-    await people.create({ firstName: "John", lastName: "Appleseed" });
-    await people.create({ firstName: "John", lastName: "Martini" });
-    await people.create({ firstName: "Harry", lastName: "Appleseed" });
-    expect(await titles("john appleseed")).toEqual(["John Appleseed"]);
+    await people.create({ firstName: "Harry", lastName: "Bailey" });
+    await people.create({ firstName: "Harry", lastName: "Martini" });
+    await people.create({ firstName: "Pete", lastName: "Bailey" });
+    expect(await titles("harry bailey")).toEqual(["Harry Bailey"]);
   });
 
   it("keeps finding someone by name once their email has stopped matching", async () => {
     const person = await people.create({
-      firstName: "John",
-      lastName: "Appleseed",
+      firstName: "Harry",
+      lastName: "Bailey",
     });
     await contactMethods.emails.create({
       ownerType: "person",
       ownerId: person.id,
       label: "Home",
-      address: "John-Appleseed@mac.com",
+      address: "Harry-Bailey@example.com",
     });
-    // "john" matches both the name and the email; the two merge into one row.
-    const partial = await search.query("john");
+    // "harry" matches both the name and the email; the two merge into one row.
+    const partial = await search.query("harry");
     expect(partial).toHaveLength(1);
     expect(partial[0]?.reasons.map((r) => r.facet)).toEqual(["name", "email"]);
     // Typing the surname takes the email out of it — the name match must carry
     // the row on its own rather than letting the result vanish mid-word.
-    const full = await search.query("john appleseed");
+    const full = await search.query("harry bailey");
     expect(full).toHaveLength(1);
-    expect(full[0]?.title).toBe("John Appleseed");
+    expect(full[0]?.title).toBe("Harry Bailey");
     expect(full[0]?.reasons).toEqual([
-      { facet: "name", matchedText: "John Appleseed" },
+      { facet: "name", matchedText: "Harry Bailey" },
     ]);
   });
 
   it("matches a whole name that spans the middle name, and shows it", async () => {
     await people.create({
-      firstName: "Joseph",
-      middleName: "Abraham",
-      lastName: "Lampe",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
     // Spanning the middle name only matches the with-middle form, so the title
     // surfaces it for the same reason a bare middle-name match does.
-    expect(await titles("joseph abraham")).toEqual(["Joseph Abraham Lampe"]);
-    expect(await titles("abraham lampe")).toEqual(["Joseph Abraham Lampe"]);
-    expect(await titles("joseph abraham lampe")).toEqual([
-      "Joseph Abraham Lampe",
-    ]);
+    expect(await titles("mary hatch")).toEqual(["Mary Hatch Bailey"]);
+    expect(await titles("hatch bailey")).toEqual(["Mary Hatch Bailey"]);
+    expect(await titles("mary hatch bailey")).toEqual(["Mary Hatch Bailey"]);
     // The plain form still matches, and still hides the middle name.
-    expect(await titles("joseph lampe")).toEqual(["Joseph Lampe"]);
+    expect(await titles("mary bailey")).toEqual(["Mary Bailey"]);
   });
 
   it("matches a pet whose name is more than one word", async () => {
-    await pets.create({ name: "Mr Bigglesworth" });
-    expect(await titles("mr biggles")).toEqual(["Mr Bigglesworth"]);
+    await pets.create({ name: "Jimmy the Raven" });
+    expect(await titles("jimmy the ra")).toEqual(["Jimmy the Raven"]);
   });
 
   it("shows the middle name in the title only when the term matched it", async () => {
     await people.create({
-      firstName: "Joseph",
-      middleName: "Abraham",
-      lastName: "Lampe",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
     // Matched via the middle name → the title surfaces it so the hit is explained.
-    expect(await titles("br")).toEqual(["Joseph Abraham Lampe"]);
+    expect(await titles("tch")).toEqual(["Mary Hatch Bailey"]);
     // Matched via first or last → the middle name stays hidden.
-    expect(await titles("jose")).toEqual(["Joseph Lampe"]);
-    expect(await titles("lampe")).toEqual(["Joseph Lampe"]);
+    expect(await titles("mar")).toEqual(["Mary Bailey"]);
+    expect(await titles("bailey")).toEqual(["Mary Bailey"]);
   });
 
   it("resolves a contact-only hit to the plain title, never the middle name", async () => {
     const person = await people.create({
-      firstName: "Joseph",
-      middleName: "Abraham",
-      lastName: "Lampe",
+      firstName: "Mary",
+      middleName: "Hatch",
+      lastName: "Bailey",
     });
     await contactMethods.emails.create({
       ownerType: "person",
       ownerId: person.id,
       label: "Home",
-      address: "joe@example.com",
+      address: "mary@example.com",
     });
     // The match is on the email, not the name, so the middle name is irrelevant.
     const hits = await search.query("example");
     expect(hits).toHaveLength(1);
-    expect(hits[0]?.title).toBe("Joseph Lampe");
+    expect(hits[0]?.title).toBe("Mary Bailey");
   });
 
   it("matches pets by name like people", async () => {
@@ -180,43 +178,42 @@ describe("searchService", () => {
   });
 
   it("returns one row per entity even when several fields match", async () => {
-    await people.create({ firstName: "Lee", lastName: "Lee" });
-    const hits = await search.query("lee");
+    await people.create({ firstName: "William", lastName: "Bailey" });
+    const hits = await search.query("il");
     expect(hits).toHaveLength(1);
-    expect(hits[0]?.title).toBe("Lee Lee");
+    expect(hits[0]?.title).toBe("William Bailey");
   });
 
   it("orders by match quality: exact, then starts-with, then substring", async () => {
     // Substring (term inside a field, not at its start).
-    await people.create({ firstName: "Anna", lastName: "Bajoen" });
-    await people.create({ firstName: "Joelle", lastName: "Martini" }); // starts-with
-    await people.create({ firstName: "Joe", lastName: "Martini" }); // exact
-    expect(await titles("joe")).toEqual([
-      "Joe Martini",
-      "Joelle Martini",
-      "Anna Bajoen",
-    ]);
+    await people.create({ lastName: "Davis" });
+    await people.create({ firstName: "Violet", lastName: "Bick" }); // starts-with
+    await people.create({ firstName: "Vi" }); // exact
+    expect(await titles("vi")).toEqual(["Vi", "Violet Bick", "Davis"]);
   });
 
   it("breaks ties alphabetically within a match-quality bucket", async () => {
-    await people.create({ firstName: "Joe", lastName: "Baker" });
-    await people.create({ firstName: "Joe", lastName: "Adams" });
-    expect(await titles("joe")).toEqual(["Joe Adams", "Joe Baker"]);
+    await people.create({ firstName: "Harry", lastName: "Bailey" });
+    await people.create({ firstName: "George", lastName: "Bailey" });
+    expect(await titles("bailey")).toEqual(["George Bailey", "Harry Bailey"]);
   });
 
   it("excludes soft-deleted people and pets", async () => {
     const person = await people.create({
-      firstName: "Ghost",
-      lastName: "Gone",
+      firstName: "Clarence",
+      lastName: "Odbody",
     });
-    const pet = await pets.create({ name: "Ghostly" });
+    const pet = await pets.create({ name: "Clarence" });
     await people.softDelete(person.id);
     await pets.softDelete(pet.id);
-    expect(await search.query("ghost")).toEqual([]);
+    expect(await search.query("clarence")).toEqual([]);
   });
 
   it("matches by phone fragment, ignoring formatting on both sides", async () => {
-    const person = await people.create({ firstName: "Pat", lastName: "Bick" });
+    const person = await people.create({
+      firstName: "Violet",
+      lastName: "Bick",
+    });
     await contactMethods.phones.create({
       ownerType: "person",
       ownerId: person.id,
@@ -229,7 +226,7 @@ describe("searchService", () => {
       expect(hits).toHaveLength(1);
       expect(hits[0]).toMatchObject({
         entityType: "person",
-        title: "Pat Bick",
+        title: "Violet Bick",
       });
       expect(hits[0]?.reasons).toContainEqual({
         facet: "phone",
@@ -275,27 +272,27 @@ describe("searchService", () => {
 
   it("matches a postal address by street number or by city", async () => {
     const person = await people.create({
-      firstName: "Maple",
-      lastName: "Resident",
+      firstName: "George",
+      lastName: "Bailey",
     });
     await contactMethods.postals.create({
       ownerType: "person",
       ownerId: person.id,
       label: "Home",
-      line1: "123 Maple Street",
-      locality: "Springfield",
+      line1: "320 Sycamore Street",
+      locality: "Bedford Falls",
     });
-    for (const term of ["123 Maple", "springfield", "maple st"]) {
+    for (const term of ["320 Sycamore", "bedford falls", "sycamore st"]) {
       const hits = await search.query(term);
       expect(hits).toHaveLength(1);
       expect(hits[0]).toMatchObject({
         entityType: "person",
-        title: "Maple Resident",
+        title: "George Bailey",
       });
       // The reason shows the full formatted address, not the typed fragment.
       expect(hits[0]?.reasons).toContainEqual({
         facet: "address",
-        matchedText: "123 Maple Street, Springfield",
+        matchedText: "320 Sycamore Street, Bedford Falls",
       });
     }
   });
@@ -396,17 +393,20 @@ describe("searchService", () => {
   });
 
   it("names an unknown platform as stored in a handle's reason", async () => {
-    const person = await people.create({ firstName: "Jo", lastName: "Bailey" });
+    const person = await people.create({
+      firstName: "Zuzu",
+      lastName: "Bailey",
+    });
     await contactMethods.socials.create({
       ownerType: "person",
       ownerId: person.id,
       label: "Personal",
       platform: "mastodon",
-      handle: "jo@hachyderm.io",
+      handle: "zuzu@hachyderm.io",
     });
     const hits = await search.query("hachyderm");
     expect(hits[0]?.reasons).toEqual([
-      { facet: "social", matchedText: "mastodon · jo@hachyderm.io" },
+      { facet: "social", matchedText: "mastodon · zuzu@hachyderm.io" },
     ]);
   });
 
@@ -529,12 +529,15 @@ describe("searchService", () => {
   });
 
   it("groups a name + tag match into one bearer row, with the tag result separate", async () => {
-    const person = await people.create({ firstName: "Mason", lastName: "Lee" });
-    await tags.setEntityTags("person", person.id, ["Mason"]);
-    const hits = await search.query("mason");
+    const person = await people.create({
+      firstName: "Violet",
+      lastName: "Bick",
+    });
+    await tags.setEntityTags("person", person.id, ["Violet"]);
+    const hits = await search.query("violet");
     expect(hits).toHaveLength(2);
     // The tag result leads; the bearer is one row with both reasons merged.
-    expect(hits[0]).toMatchObject({ entityType: "tag", title: "Mason" });
+    expect(hits[0]).toMatchObject({ entityType: "tag", title: "Violet" });
     const bearer = hits.find((h) => h.entityType === "person");
     expect(bearer?.reasons.map((r) => r.facet)).toEqual(["name", "tag"]);
   });
@@ -717,13 +720,13 @@ describe("searchService — holidays", () => {
   });
 
   it("floats above an equally-matching person", async () => {
-    // Someone named "Noel Christmas" must not outrank the holiday itself when
+    // Someone named "Zuzu Christmas" must not outrank the holiday itself when
     // the query is the holiday's name.
-    await people.create({ firstName: "Noel", lastName: "Christmas" });
+    await people.create({ firstName: "Zuzu", lastName: "Christmas" });
     const hits = await search.query("christmas");
     expect(hits[0].entityType).toBe("holiday");
     // …and the person is still there, just below.
-    expect(hits.some((h) => h.title === "Noel Christmas")).toBe(true);
+    expect(hits.some((h) => h.title === "Zuzu Christmas")).toBe(true);
   });
 
   it("carries no 'matched on' reason, since it matched its own name", async () => {
@@ -959,11 +962,11 @@ describe("searchService — entities that exist only as a relationship", () => {
       firstName: "Ernie",
       lastName: "Bishop",
     });
-    await people.create({ firstName: "Ruth", lastName: "Okafor" });
+    await people.create({ firstName: "Ruth", lastName: "Dakin" });
     await attach(ernie.id, "Ruth");
 
     // A name match outranks a facet match, as it does for contact hits.
-    expect(await titles("ruth")).toEqual(["Ruth Okafor", "Ernie Bishop"]);
+    expect(await titles("ruth")).toEqual(["Ruth Dakin", "Ernie Bishop"]);
   });
 
   it("merges into one row when the anchor matched some other way", async () => {

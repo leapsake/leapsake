@@ -588,7 +588,7 @@ describe("ingestContacts — edges between two cards", () => {
               otherUid: "jane",
             }),
             {
-              name: "Ernie Vet",
+              name: "Dr. Campbell",
               role: "other",
               roleNote: "vet",
               otherUid: null,
@@ -602,7 +602,10 @@ describe("ingestContacts — edges between two cards", () => {
 
     // The bug this guards: `addRelated` used to hardcode `"person"`, so a pet
     // with a named relation failed the whole contact on `holderAllows`.
-    expect(relateds[0]).toMatchObject({ ownerType: "pet", name: "Ernie Vet" });
+    expect(relateds[0]).toMatchObject({
+      ownerType: "pet",
+      name: "Dr. Campbell",
+    });
     expect(links[0]).toMatchObject({ ownerType: "pet", otherType: "person" });
   });
 
@@ -879,7 +882,7 @@ describe("ingestContacts — contacts read from an address book", () => {
       {
         action: "create",
         contact: contact({
-          name: { firstName: "Ernie", middleName: null, lastName: "Lee" },
+          name: { firstName: "Ernie", middleName: null, lastName: "Bishop" },
         }),
       },
     ]);

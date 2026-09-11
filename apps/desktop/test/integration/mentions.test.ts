@@ -181,11 +181,16 @@ describe("core.reminders.mentioning (the entity-page backlink)", () => {
     // A reminder that names nobody, plus one naming someone else, must not leak in.
     await core.reminders.create({ title: "unrelated errand" });
     const harry = await core.people.create(
-      { firstName: "Harry", middleName: null, lastName: "Roy", gender: null },
+      {
+        firstName: "Harry",
+        middleName: null,
+        lastName: "Bailey",
+        gender: null,
+      },
       [],
     );
     await core.reminders.create({
-      title: `email ${mentionToken("Harry Roy", "person", harry.id)}`,
+      title: `email ${mentionToken("Harry Bailey", "person", harry.id)}`,
     });
 
     expect(

@@ -41,8 +41,8 @@ appId: com.leapsake.app
 - runFlow:
     file: subflows/add-person.yaml
     env:
-      FIRST: "Wren${output.run}"
-      LAST: "Ashby${output.run}"
+      FIRST: "Zuzu${output.run}"
+      LAST: "Bailey${output.run}"
 
 # ── 2. Stage a gift on the same form ────────────────────────────────────────
 # The link appends a row that is already open, in the space the link occupied —

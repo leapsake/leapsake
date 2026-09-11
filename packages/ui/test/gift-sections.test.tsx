@@ -232,14 +232,14 @@ describe("GiftIdeaRecipientsSection", () => {
     renderIdeaRecipients({
       recipients: [
         forIdea({ id: "r-1", recipientLabel: "Mary", givenAt: STAMP }),
-        forIdea({ id: "r-2", recipientLabel: "Zed" }),
+        forIdea({ id: "r-2", recipientLabel: "Zuzu" }),
       ],
     });
 
     const labels = screen
       .getAllByRole("listitem")
       .map((li) => li.textContent ?? "");
-    expect(labels[0]).toContain("Zed");
+    expect(labels[0]).toContain("Zuzu");
     expect(labels[1]).toContain("Mary");
   });
 

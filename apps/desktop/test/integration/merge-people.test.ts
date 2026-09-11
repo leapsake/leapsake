@@ -48,8 +48,8 @@ describe("createCore — mergePeople", () => {
       { firstName: "Harry", lastName: "Bailey" },
       ["Loser"],
     );
-    const tilly = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
 
@@ -59,7 +59,7 @@ describe("createCore — mergePeople", () => {
       aId: harry.id,
       aRole: "friend",
       bType: "person",
-      bId: tilly.id,
+      bId: violet.id,
       bRole: "friend",
     });
     await core.milestones.create({
@@ -76,7 +76,13 @@ describe("createCore — mergePeople", () => {
       label: "home",
       address: "harry@example.com",
     });
-    await core.kinship.dismiss("person", harry.id, "person", tilly.id, "child");
+    await core.kinship.dismiss(
+      "person",
+      harry.id,
+      "person",
+      violet.id,
+      "child",
+    );
 
     await core.people.merge(jane.id, harry.id);
 
@@ -92,7 +98,7 @@ describe("createCore — mergePeople", () => {
       expect.arrayContaining(["Survivor", "Loser"]),
     );
     const rels = await core.relationships.listForEntity("person", jane.id);
-    expect(rels.map((r) => r.otherId)).toEqual([tilly.id]);
+    expect(rels.map((r) => r.otherId)).toEqual([violet.id]);
     expect(await core.milestones.listForBearer("person", jane.id)).toHaveLength(
       1,
     );
@@ -157,18 +163,18 @@ describe("createCore — mergePeople", () => {
       { firstName: "Harry", lastName: "Bailey" },
       [],
     );
-    const tilly = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
-    // Both duplicates are friends with Tilly — the same connection.
+    // Both duplicates are friends with Violet — the same connection.
     for (const id of [jane.id, harry.id]) {
       await core.relationships.create({
         aType: "person",
         aId: id,
         aRole: "friend",
         bType: "person",
-        bId: tilly.id,
+        bId: violet.id,
         bRole: "friend",
       });
     }
@@ -177,7 +183,7 @@ describe("createCore — mergePeople", () => {
 
     const rels = await core.relationships.listForEntity("person", jane.id);
     expect(rels).toHaveLength(1);
-    expect(rels[0].otherId).toBe(tilly.id);
+    expect(rels[0].otherId).toBe(violet.id);
     expect(await activeRows(driver, "relationships")).toBe(1);
   });
 
@@ -243,21 +249,21 @@ describe("createCore — mergePeople", () => {
       { firstName: "Harry", lastName: "Bailey" },
       [],
     );
-    const tilly = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
-    // The loser was marked "not a duplicate" of both the survivor and Tilly.
+    // The loser was marked "not a duplicate" of both the survivor and Violet.
     await core.duplicates.reject(harry.id, jane.id);
-    await core.duplicates.reject(harry.id, tilly.id);
+    await core.duplicates.reject(harry.id, violet.id);
 
     await core.people.merge(jane.id, harry.id);
 
     // The harry↔jane rejection becomes survivor↔itself and is dropped; the
-    // harry↔tilly rejection survives, re-pointed onto the survivor.
+    // harry↔violet rejection survives, re-pointed onto the survivor.
     expect(await activeRows(driver, "not_a_duplicate")).toBe(1);
     const [lo, hi] =
-      jane.id < tilly.id ? [jane.id, tilly.id] : [tilly.id, jane.id];
+      jane.id < violet.id ? [jane.id, violet.id] : [violet.id, jane.id];
     const remaining = (await driver.get<{
       lower_id: string;
       higher_id: string;
@@ -308,8 +314,8 @@ describe("createCore — mergePeople converges over sync", () => {
       { firstName: "Jane", lastName: "Wainwright" },
       [],
     );
-    const tilly = await core.people.create(
-      { firstName: "Tilly", lastName: "Lee" },
+    const violet = await core.people.create(
+      { firstName: "Violet", lastName: "Bick" },
       [],
     );
     const harry = await core.people.create(
@@ -321,7 +327,7 @@ describe("createCore — mergePeople converges over sync", () => {
       aId: harry.id,
       aRole: "friend",
       bType: "person",
-      bId: tilly.id,
+      bId: violet.id,
       bRole: "friend",
     });
 
@@ -336,7 +342,7 @@ describe("createCore — mergePeople converges over sync", () => {
     // tombstone and the re-pointed edge both arrived as ordinary row changes.
     expect(await core2.people.get(harry.id)).toBeUndefined();
     const rels = await core2.relationships.listForEntity("person", jane.id);
-    expect(rels.map((r) => r.otherId)).toEqual([tilly.id]);
+    expect(rels.map((r) => r.otherId)).toEqual([violet.id]);
     expect(
       await core2.relationships.listForEntity("person", harry.id),
     ).toHaveLength(0);

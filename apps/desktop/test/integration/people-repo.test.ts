@@ -102,11 +102,11 @@ describe("peopleRepo", () => {
 
   it("lists people excluding soft-deleted ones, ordered by name", async () => {
     await repo.create({ firstName: "Mary", lastName: "Bailey" });
-    const hopper = await repo.create({
+    const potter = await repo.create({
       firstName: "Henry",
       lastName: "Potter",
     });
-    await repo.softDelete(hopper.id);
+    await repo.softDelete(potter.id);
 
     const list = await repo.list();
     expect(list).toHaveLength(1);

@@ -49,7 +49,7 @@ describe("duplicate detection readers", () => {
 
   it("reports nothing for people who look nothing alike", async () => {
     await addPerson("Jane", "Wainwright");
-    await addPerson("Amir", "Haddad");
+    await addPerson("Henry", "Potter");
     expect(await core.duplicates.count()).toBe(0);
     expect(await core.duplicates.nudgeId()).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("duplicate detection readers", () => {
   it("scopes findFor to the pairs one person is half of", async () => {
     const jane = await addPerson("Jane", "Wainwright");
     const twin = await addPerson("Jane", "Wainwright");
-    const other = await addPerson("Amir", "Haddad");
+    const other = await addPerson("Henry", "Potter");
 
     const forJane = await core.duplicates.findFor(jane.id);
     expect(forJane).toHaveLength(1);
@@ -135,7 +135,7 @@ describe("the duplicates Home nudge", () => {
 
   it("follows a rename that creates a duplicate, and one that dissolves it", async () => {
     await addPerson("Jane", "Wainwright");
-    const other = await addPerson("Amir", "Haddad");
+    const other = await addPerson("Henry", "Potter");
     expect(await core.duplicates.nudgeId()).toBeNull();
 
     // A rename can create a pair — `people.update` reconciles for exactly this.
@@ -151,7 +151,7 @@ describe("the duplicates Home nudge", () => {
     // …and renaming back dissolves it again.
     await core.people.update(
       other.id,
-      { firstName: "Amir", lastName: "Haddad" },
+      { firstName: "Henry", lastName: "Potter" },
       [],
     );
     expect(await core.duplicates.nudgeId()).toBeNull();

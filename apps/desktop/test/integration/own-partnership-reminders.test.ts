@@ -59,7 +59,7 @@ async function titles(): Promise<string[]> {
 
 /** Me, and someone else, with `me` recorded as the self-person. */
 async function twoPeople() {
-  const me = await core.people.create({ firstName: "Robin" }, []);
+  const me = await core.people.create({ firstName: "George" }, []);
   const partner = await core.people.create({ firstName: "Violet" }, []);
   await core.self.set(me.id);
   return { me, partner };
@@ -317,7 +317,7 @@ describe("the partnership question, against real repositories", () => {
   });
 
   it("says nothing when nobody has said who they are", async () => {
-    const a = await core.people.create({ firstName: "Robin" }, []);
+    const a = await core.people.create({ firstName: "George" }, []);
     const b = await core.people.create({ firstName: "Violet" }, []);
     await core.relationships.create({
       aType: "person",
@@ -428,7 +428,7 @@ describe("a wedding with nobody on the other side of it", () => {
 // the row's CTA rather than queued behind one.
 describe("your own anniversary, on the day, with no spouse attached", () => {
   it("asks who your spouse is, on the row that says it is today", async () => {
-    const me = await core.people.create({ firstName: "Robin" }, []);
+    const me = await core.people.create({ firstName: "George" }, []);
     await core.self.set(me.id);
     const today = civilDaysFromToday(0);
     const milestone = await core.milestones.create({
@@ -458,7 +458,7 @@ describe("the spouse offer, shown beside the row's own action", () => {
   // a few days a year. Answer the prompt with only "get a gift" and it never
   // appeared at all.
   it("rides alongside the prompt that outranks it", async () => {
-    const me = await core.people.create({ firstName: "Robin" }, []);
+    const me = await core.people.create({ firstName: "George" }, []);
     await core.self.set(me.id);
     const occ = civilDaysFromToday(
       promptOffsetDays("wedding") + actionDefs.plan.activeDays - 3,

@@ -80,7 +80,7 @@ function social(
     ownerId,
     label: "personal",
     platform: "instagram",
-    handle: "josh",
+    handle: "george",
     ...over,
   };
 }
@@ -273,12 +273,12 @@ describe("socials", () => {
     const created = await repo.socials.create(
       social(crypto.randomUUID(), {
         platform: "mastodon",
-        handle: "josh@hachyderm.io",
-        url: "https://hachyderm.io/@josh",
+        handle: "george@hachyderm.io",
+        url: "https://hachyderm.io/@george",
       }),
     );
     expect(created.platform).toBe("mastodon");
-    expect(created.url).toBe("https://hachyderm.io/@josh");
+    expect(created.url).toBe("https://hachyderm.io/@george");
   });
 
   it("defaults the optional id and url to null", async () => {

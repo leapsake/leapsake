@@ -88,7 +88,7 @@ describe("createCore — transactional writes", () => {
     const failing = createCore(failOnSql(driver, /taggings/i));
 
     await expect(
-      failing.people.update(jane.id, { firstName: "Janet" }, ["Family"]),
+      failing.people.update(jane.id, { firstName: "Janie" }, ["Family"]),
     ).rejects.toThrow();
 
     // The name change and the tag swap both unwound.

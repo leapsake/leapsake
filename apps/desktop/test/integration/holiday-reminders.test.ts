@@ -400,7 +400,7 @@ describe("observance reminder schedule", () => {
     const core = createCore(driver);
     const person = await violet(core);
     const grandma = await core.people.create(
-      { firstName: "Rose", lastName: "Fitz" },
+      { firstName: "Ma", lastName: "Bailey" },
       [],
     );
     await core.holidays.setObservers(CHRISTMAS, [
@@ -421,10 +421,10 @@ describe("observance reminder schedule", () => {
     expect(titles.some((t) => t.includes("Get") && t.includes("Violet"))).toBe(
       true,
     );
-    expect(titles.some((t) => t.includes("Call") && t.includes("Rose"))).toBe(
-      true,
-    );
-    // Violet gets no call, Rose gets no gift.
+    expect(
+      titles.some((t) => t.includes("Call") && t.includes("Ma Bailey")),
+    ).toBe(true);
+    // Violet gets no call, Ma Bailey gets no gift.
     expect(titles.some((t) => t.includes("Call") && t.includes("Violet"))).toBe(
       false,
     );

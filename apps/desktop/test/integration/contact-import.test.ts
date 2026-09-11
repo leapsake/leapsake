@@ -611,7 +611,7 @@ describe("core.import.commit — edges between two cards", () => {
           displayName: "Jimmy",
           related: [
             related({ name: "Jane Wainwright", role: "owner", otherUid: JANE }),
-            related({ name: "Ernie Vet", role: "other", roleNote: "vet" }),
+            related({ name: "Dr. Campbell", role: "other", roleNote: "vet" }),
           ],
         }),
       },

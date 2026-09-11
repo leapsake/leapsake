@@ -32,7 +32,7 @@ describe("petsRepo", () => {
   });
 
   it("persists and retrieves a created pet", async () => {
-    const created = await repo.create({ name: "Whiskers" });
+    const created = await repo.create({ name: "Bells" });
     const fetched = await repo.get(created.id);
     expect(fetched).toEqual(created);
   });
@@ -41,19 +41,19 @@ describe("petsRepo", () => {
     const ungendered = await repo.create({ name: "Jimmy" });
     expect(ungendered.gender).toBeNull();
 
-    const gendered = await repo.create({ name: "Bella", gender: "female" });
+    const gendered = await repo.create({ name: "Petals", gender: "female" });
     expect(gendered.gender).toBe("female");
     expect((await repo.get(gendered.id))?.gender).toBe("female");
   });
 
   it("lists pets excluding soft-deleted ones, ordered by name", async () => {
-    await repo.create({ name: "Apollo" });
-    const zeus = await repo.create({ name: "Zeus" });
-    await repo.softDelete(zeus.id);
+    await repo.create({ name: "Bells" });
+    const petals = await repo.create({ name: "Petals" });
+    await repo.softDelete(petals.id);
 
     const list = await repo.list();
     expect(list).toHaveLength(1);
-    expect(list[0]?.name).toBe("Apollo");
+    expect(list[0]?.name).toBe("Bells");
   });
 
   it("updates a pet and bumps updatedAt", async () => {
@@ -61,8 +61,8 @@ describe("petsRepo", () => {
     // Ensure a later millisecond so updatedAt is observably newer.
     await new Promise((resolve) => setTimeout(resolve, 2));
 
-    const updated = await repo.update(created.id, { name: "Rexy" });
-    expect(updated?.name).toBe("Rexy");
+    const updated = await repo.update(created.id, { name: "Jimmy the Raven" });
+    expect(updated?.name).toBe("Jimmy the Raven");
     expect(updated?.updatedAt).toBeGreaterThan(created.updatedAt);
     expect(updated?.createdAt).toBe(created.createdAt);
   });
