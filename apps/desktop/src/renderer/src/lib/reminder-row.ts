@@ -15,6 +15,19 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
     // Settings decomposition in v0-2 will want.
     "connect-sync": { path: "/settings", label: "Sign in →" },
     "create-account": { path: "/settings", label: "Create your account →" },
+    // ⚠️ **This destination does not exist yet.** Desktop has no notification
+    // surface at all — no policy screen, no scheduler — so the step's condition
+    // (`notification_settings` holding no rows) can never be satisfied from
+    // here, and the nudge would stand for good pointing at a Settings screen
+    // with nothing on it to answer. That is the same "front door onto a shut
+    // room" the `sync-devices` step's `multiDevice` gate exists to avoid.
+    //
+    // It is left pointing at Settings deliberately rather than solved: v0.1 is
+    // iOS alone and desktop ships after the transfer (`plans/shipping.md` →
+    // Part 2), so this is a dev-build wart with a known fix — gate the step the
+    // way `sync-devices` is gated, or give desktop notifications — and no user
+    // between here and there.
+    "enable-notifications": { path: "/settings", label: "Turn them on →" },
     "pick-self": { path: "/people?pick=self", label: "Pick yourself →" },
   };
 

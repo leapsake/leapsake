@@ -61,6 +61,9 @@ function makeHarness() {
       isSyncConnected: async () => state.syncConnected,
       hasSelf: async () => true,
       hasAccount: async () => state.hasAccount,
+      // Configured, so the notifications nudge stays out of a fixture that is
+      // about the duplicates row and its ranking below the onboarding family.
+      hasNotificationPolicy: async () => true,
     },
     duplicates: { pairKeys: async () => state.pairs },
   };

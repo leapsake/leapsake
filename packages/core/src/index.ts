@@ -1275,6 +1275,17 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         (await getSyncStatus({ driver })).relayUrl !== undefined,
       hasSelf: async () => (await self.getSelf()) !== undefined,
       hasAccount: async () => (await getSyncStatus({ driver })).hasAccount,
+      // No row is pre-created for a device: `notificationSettings` writes one
+      // the first time that device is given a policy or answers the permission
+      // prompt, so an empty list is "nobody here has ever been asked" and needs
+      // no nullable column to say it.
+      //
+      // ⚠️ Store-scoped, where the question is really per-device — this core has
+      // no ambient "this device" to ask about, deliberately, and the nudge could
+      // not use one anyway. The `enable-notifications` step holds the whole
+      // argument.
+      hasNotificationPolicy: async () =>
+        (await notificationSettings.list()).length > 0,
     },
     // Holiday observances — the second dated reminder family. Always supplied
     // here, never conditionally: the engine prunes (and permanently

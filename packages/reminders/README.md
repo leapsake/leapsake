@@ -677,6 +677,26 @@ Every device mints the nudges under the same deterministic id, so a device that 
 pulled could out-rank a peer's dismissal on `updated_at` and undo it. **An untouched row never
 wins a merge** — via an opt-in per-table `hasHistory` predicate the sync substrate grew for this.
 
+### The notifications nudge asks a per-device question with a store-scoped condition
+
+`enable-notifications` applies while **no device** has a `notification_settings` row — a row
+exists only once a device has been given a policy or has answered the OS prompt, so "no rows"
+is "nobody has ever been asked". That is exactly right on one device and wrong on two: the
+device that turns notifications on retires the row for everybody.
+
+⚠️ **It is not a shortcut, it is the only expressible condition today.** Onboarding rows sync,
+and `reconcile` tombstones any active `system` row the desired set does not want —
+*permanently*. So a device computing "does not apply" kills the row for its peers, and
+namespacing the id per device only moves the problem: device one prunes device two's row for
+the same reason. Nor could the desired set be built per device, because a device that has never
+been asked has **no row to be enumerated from**, and the `device` table is account-bound
+(migration 14) while this nudge fires in the accountless first-run state. There is nothing to
+enumerate by construction until multi-device brings a registry that spans it.
+
+Two things for whoever picks this up: the family needs a per-device notion *before* the nudge
+can have one, and the new ids must honour the old fixed id's tombstone once — otherwise a user
+who said *don't ask again* is asked again on the upgrade.
+
 ### Known limitation
 
 Nudge display order only holds **within a single reconcile**. Cosmetic, and deliberately

@@ -16,6 +16,10 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   // table edit.
   "connect-sync": "/settings",
   "create-account": "/settings",
+  // The notifications screen is where the policy is chosen, and choosing one is
+  // what fires the OS permission request (`lib/notification-permission.ts`) — so
+  // the CTA is a soft ask by construction, and nothing here has to arrange one.
+  "enable-notifications": "/notifications",
   // Pick-yourself deep-links to the People list in its pick mode, where each
   // Person row offers "This is me".
   "pick-self": "/people?pick=self",
@@ -39,6 +43,10 @@ const OFFER_LABELS = {
   onboarding: "Get started ›",
   signIn: "Sign in ›",
   createAccount: "Create your account ›",
+  // Named rather than generic, and the third route to earn that. "Get started"
+  // reads as *begin something* — right under a row asking you to add your first
+  // person, wrong under one asking you to flip a switch, which begins nothing.
+  turnOn: "Turn them on ›",
   duplicates: "Review ›",
   seeGifts: "See their gifts ›",
   recordGiving: "Record what you gave ›",
@@ -105,19 +113,25 @@ export type RowOffer =
 /**
  * What each nudge's call to action says. Generic where the row's own title
  * already names the act ("Add your first person" → *Get started*), and specific
- * for the two **custody** routes, where it cannot be.
+ * where "Get started" would be actively wrong.
  *
- * Those two are one fork — sign in to an account you have, or create one — sat on
- * Home together, and a shared "Get started" under both is the flattening the fork
- * exists to prevent: it reads as *begin something new* under a row offering to
- * get a returning user back into what they already have. Desktop names every
- * route for the same reason; this is the narrower version of that, spent where a
- * wrong turn used to cost the most.
+ * The two **custody** routes are one fork — sign in to an account you have, or
+ * create one — sat on Home together, and a shared "Get started" under both is the
+ * flattening the fork exists to prevent: it reads as *begin something new* under
+ * a row offering to get a returning user back into what they already have.
+ *
+ * **Notifications** is named for a plainer version of the same objection: it
+ * begins nothing. It is a switch, and "Get started ›" over a switch promises a
+ * flow that isn't there.
+ *
+ * Desktop names every route; this is the narrower version of that, spent where
+ * the generic word would mislead rather than merely repeat.
  */
 const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
   "add-person": OFFER_LABELS.onboarding,
   "connect-sync": OFFER_LABELS.signIn,
   "create-account": OFFER_LABELS.createAccount,
+  "enable-notifications": OFFER_LABELS.turnOn,
   "pick-self": OFFER_LABELS.onboarding,
 };
 

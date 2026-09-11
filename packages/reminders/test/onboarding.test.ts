@@ -50,6 +50,7 @@ function makeHarness() {
     syncConnected: false,
     hasSelf: false,
     hasAccount: false,
+    hasNotificationPolicy: false,
   };
 
   const deps: ReminderEngineDeps = {
@@ -83,6 +84,7 @@ function makeHarness() {
       isSyncConnected: async () => signals.syncConnected,
       hasSelf: async () => signals.hasSelf,
       hasAccount: async () => signals.hasAccount,
+      hasNotificationPolicy: async () => signals.hasNotificationPolicy,
     },
   };
 
@@ -125,6 +127,7 @@ const REPETITIONS: Record<OnboardingRoute, number> = {
   "create-account": 3,
   "add-person": 2,
   "pick-self": 2,
+  "enable-notifications": 2,
 };
 
 /** Every route there is, read off the exported convention rather than listed —
@@ -190,6 +193,7 @@ describe("onboarding reminders", () => {
 
     h.signals.hasEntities = true; // user added their first person/pet
     h.signals.hasSelf = true; // ...and already picked themselves (isolate this nudge)
+    h.signals.hasNotificationPolicy = true; // ...and answered notifications (ditto)
     const result = await regenerateSystemReminders(h.deps);
     // The same data that retires "add your first person" is what there is now to
     // protect, so the account invitation arrives in the very same reconcile.
@@ -217,7 +221,8 @@ describe("onboarding reminders", () => {
     h.signals.hasEntities = true;
     h.signals.syncConnected = true;
     h.signals.hasSelf = true;
-    h.signals.hasAccount = true; // every condition met
+    h.signals.hasAccount = true;
+    h.signals.hasNotificationPolicy = true; // every condition met
 
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 2 });
@@ -244,6 +249,7 @@ describe("onboarding reminders", () => {
     await regenerateSystemReminders(h.deps);
     h.signals.hasEntities = true;
     h.signals.hasSelf = true; // isolate: don't introduce the pick-self nudge
+    h.signals.hasNotificationPolicy = true; // ...nor the notifications one
     await regenerateSystemReminders(h.deps); // 'add-person' retired (tombstoned)
 
     // The user deletes all their people again — the condition reverts, but the
@@ -277,6 +283,45 @@ describe("onboarding reminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     expect(result.removed).toBeGreaterThanOrEqual(1);
     expect(h.activeSystem().map((r) => r.id)).not.toContain(idFor("pick-self"));
+  });
+
+  describe("the notifications nudge", () => {
+    it("stays away until there is something to be notified about", async () => {
+      // An empty store has no reminders to deliver, so asking for permission to
+      // deliver them would be asking for its own sake — the rule every
+      // collection nudge has to clear (README → *the rule that stops this eating
+      // the home screen*).
+      await regenerateSystemReminders(h.deps);
+      expect(h.activeSystem().map((r) => r.id)).not.toContain(
+        idFor("enable-notifications"),
+      );
+
+      h.signals.hasEntities = true; // the user's first person/pet lands
+      await regenerateSystemReminders(h.deps);
+      const nudge = h.byId(idFor("enable-notifications"));
+      expect(nudge?.title).toBe(
+        "🔔 Turn on notifications so reminders reach you",
+      );
+      expect(nudge?.dueDate).toBeNull();
+    });
+
+    it("retires once notifications have been answered, on or off", async () => {
+      h.signals.hasEntities = true;
+      await regenerateSystemReminders(h.deps);
+      expect(h.activeSystem().map((r) => r.id)).toContain(
+        idFor("enable-notifications"),
+      );
+
+      // The signal is "a policy exists", not "notifications are on" — a device
+      // that was asked and left them off has answered the question, and asking
+      // again would be arguing with it.
+      h.signals.hasNotificationPolicy = true;
+      const result = await regenerateSystemReminders(h.deps);
+      expect(result.removed).toBeGreaterThanOrEqual(1);
+      expect(h.activeSystem().map((r) => r.id)).not.toContain(
+        idFor("enable-notifications"),
+      );
+    });
   });
 
   describe("the account invitation", () => {
@@ -324,6 +369,9 @@ describe("onboarding reminders", () => {
         idFor("connect-sync"),
         idFor("create-account"),
         idFor("pick-self"),
+        // Last, and the only step whose delay costs nothing: a reminder that
+        // comes due with notifications off is still on Home when the app opens.
+        idFor("enable-notifications"),
       ]);
     });
 
@@ -408,10 +456,12 @@ describe("onboarding reminders", () => {
 
   describe("snooze retirement", () => {
     it("keeps a snoozed-but-not-exhausted step desired, and never prunes it", async () => {
-      // Isolate pick-self (2 repetitions): an account exists, a person exists.
+      // Isolate pick-self (2 repetitions): an account exists, a person exists,
+      // notifications have been answered.
       h.signals.hasEntities = true;
       h.signals.syncConnected = true;
       h.signals.hasAccount = true;
+      h.signals.hasNotificationPolicy = true;
       await regenerateSystemReminders(h.deps);
       const id = idFor("pick-self");
       expect(h.activeSystem().map((r) => r.id)).toEqual([id]);
@@ -431,6 +481,7 @@ describe("onboarding reminders", () => {
       h.signals.hasEntities = true;
       h.signals.syncConnected = true;
       h.signals.hasAccount = true;
+      h.signals.hasNotificationPolicy = true;
       await regenerateSystemReminders(h.deps);
       const id = idFor("pick-self");
 

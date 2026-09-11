@@ -216,6 +216,18 @@ export interface ReminderEngineDeps {
      * account that never touched a relay.
      */
     hasAccount(): Promise<boolean>;
+    /**
+     * Whether notifications have been configured — by **any** device, not by the
+     * device asking. The composition root reads it off `notification_settings`,
+     * where a row exists only once a device has been given a policy or has
+     * answered the OS permission prompt, so "no rows" is "nobody has ever been
+     * asked".
+     *
+     * ⚠️ **Deliberately store-scoped, and it should not be.** See the
+     * `enable-notifications` step for why a per-device condition is not
+     * expressible on rows that sync, and what has to exist before it can be.
+     */
+    hasNotificationPolicy(): Promise<boolean>;
   };
   /**
    * The holiday-observance source — the second family of recurring dated facts
@@ -577,6 +589,7 @@ export type OnboardingRoute =
   | "add-person"
   | "connect-sync"
   | "create-account"
+  | "enable-notifications"
   | "pick-self";
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
@@ -587,6 +600,10 @@ interface OnboardingSignals {
   /** Whether this store holds an account at all — relay-bound or local-only.
    *  Distinct from `syncConnected`, which is the narrower "and it has a relay". */
   hasAccount: boolean;
+  /** Whether **any** device has been asked about notifications. Store-scoped on
+   *  purpose, and the one signal here that would rather not be — see the step it
+   *  feeds in {@link ONBOARDING_STEPS}. */
+  hasNotificationPolicy: boolean;
 }
 
 /** One first-run nudge: a stable `key` (folded into its deterministic id), the
@@ -729,6 +746,49 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // tells the user that gifts (and, later, kinship) are quietly less useful
     // until this is set, but nothing is lost silently either — an unset self is
     // recoverable at any time from the People list.
+    snoozeDurationDays: 3,
+    snoozeRepetitions: 2,
+  },
+  {
+    /**
+     * Notifications — how a reminder reaches someone who is not looking at the
+     * app. It waits for `hasEntities` for the reason the collection nudges have
+     * to justify themselves by (see the package README → *the rule that stops
+     * this eating the home screen*): the missing setting has to block something
+     * the user **already said they want**. Entering a person is that
+     * declaration; on an empty store there is nothing to be notified about and
+     * asking would be asking for its own sake.
+     *
+     * Last in the array, and so lowest on Home, because it is the step whose
+     * delay costs least: a reminder that comes due with notifications off is
+     * still sitting on Home when the app is next opened. An unset self quietly
+     * degrades gifts, and no account leaves the store unprotected; neither of
+     * those waits for the user to look.
+     *
+     * ⚠️ **The condition is store-scoped and the question is per-device**, which
+     * is a real mismatch and not a shortcut. Onboarding rows sync, and
+     * {@link reconcile} tombstones any active `system` row the desired set does
+     * not want — permanently. So with two devices, the one that has notifications
+     * configured computes "does not apply", retires the row, and the second
+     * device can never show it again whatever its own answer would have been.
+     * Namespacing the id per device does not rescue it: device one would prune
+     * device two's row for the same reason, and a device that has never been
+     * asked has no `notification_settings` row to be enumerated from in the first
+     * place. The `device` table is account-bound (migration 14), and this nudge
+     * fires in the accountless first-run state, so there is nothing to enumerate
+     * *by construction* until multi-device brings a registry that spans it.
+     *
+     * Correct today, because v0.1 ships one device. When it goes per-device, the
+     * new ids must honour this fixed id's tombstone once, or a user who said
+     * *don't ask again* is asked again.
+     */
+    key: "enable-notifications",
+    title: "🔔 Turn on notifications so reminders reach you",
+    route: "enable-notifications",
+    applies: (s) => s.hasEntities && !s.hasNotificationPolicy,
+    // At the floor. Silencing this wrongly costs the least of any step here:
+    // every reminder it would have delivered is still on Home, and Settings
+    // offers the switch for as long as the app exists.
     snoozeDurationDays: 3,
     snoozeRepetitions: 2,
   },
@@ -1694,6 +1754,7 @@ async function computeDesired(
       syncConnected: await deps.onboarding.isSyncConnected(),
       hasSelf: await deps.onboarding.hasSelf(),
       hasAccount: await deps.onboarding.hasAccount(),
+      hasNotificationPolicy: await deps.onboarding.hasNotificationPolicy(),
     };
     for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;

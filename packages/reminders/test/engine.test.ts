@@ -648,6 +648,7 @@ describe("listSystemReminderTargets", () => {
         isSyncConnected: async () => false,
         hasSelf: async () => false,
         hasAccount: async () => false,
+        hasNotificationPolicy: async () => false,
       },
     };
     await regenerateSystemReminders(deps);
