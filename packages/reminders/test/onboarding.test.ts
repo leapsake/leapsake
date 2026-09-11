@@ -125,7 +125,7 @@ const SNOOZE_DAYS = 3;
 const REPETITIONS: Record<OnboardingRoute, number> = {
   "connect-sync": 2,
   "create-account": 3,
-  "add-person": 2,
+  import: 2,
   "pick-self": 2,
   "enable-notifications": 2,
 };
@@ -145,7 +145,7 @@ describe("onboarding reminders", () => {
     const result = await regenerateSystemReminders(h.deps);
     // A fresh store has no entities, so neither the pick-self nudge (which needs
     // a person to pick from) nor the account invitation (which waits for data
-    // worth protecting) applies yet — only sign-in and add-person do.
+    // worth protecting) applies yet — only sign-in and import do.
     expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
 
     const rows = h.activeSystem();
@@ -159,17 +159,17 @@ describe("onboarding reminders", () => {
 
     // Ids are exactly the exported convention, so client CTA lookup lines up.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("add-person")]),
+      new Set([idFor("connect-sync"), idFor("import")]),
     );
-    expect(h.byId(idFor("add-person"))?.title).toBe(
-      "👋 Add your first person to get started",
+    expect(h.byId(idFor("import"))?.title).toBe(
+      "📇 Import your contacts to get started",
     );
     expect(h.byId(idFor("connect-sync"))?.title).toBe(
       "🔄 Already have Leapsake on another device? Sign in.",
     );
   });
 
-  it("orders the sign-in nudge above the add-person nudge on Home", async () => {
+  it("orders the sign-in nudge above the import nudge on Home", async () => {
     await regenerateSystemReminders(h.deps);
 
     // Home sorts open reminders with compareReminderDue; both nudges are dateless,
@@ -177,7 +177,7 @@ describe("onboarding reminders", () => {
     const ordered = h.activeSystem().sort(compareReminderDue);
     expect(ordered.map((r) => r.id)).toEqual([
       idFor("connect-sync"),
-      idFor("add-person"),
+      idFor("import"),
     ]);
   });
 
@@ -188,14 +188,14 @@ describe("onboarding reminders", () => {
     expect(h.activeSystem()).toHaveLength(2);
   });
 
-  it("retires 'add your first person' once an entity exists, keeping the sign-in nudge", async () => {
+  it("retires 'import your contacts' once an entity exists, keeping the sign-in nudge", async () => {
     await regenerateSystemReminders(h.deps);
 
     h.signals.hasEntities = true; // user added their first person/pet
     h.signals.hasSelf = true; // ...and already picked themselves (isolate this nudge)
     h.signals.hasNotificationPolicy = true; // ...and answered notifications (ditto)
     const result = await regenerateSystemReminders(h.deps);
-    // The same data that retires "add your first person" is what there is now to
+    // The same data that retires "import your contacts" is what there is now to
     // protect, so the account invitation arrives in the very same reconcile.
     expect(result).toEqual({ created: 1, updated: 0, removed: 1 });
 
@@ -213,7 +213,7 @@ describe("onboarding reminders", () => {
     expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
 
     const live = h.activeSystem();
-    expect(live.map((r) => r.id)).toEqual([idFor("add-person")]);
+    expect(live.map((r) => r.id)).toEqual([idFor("import")]);
   });
 
   it("retires both once each condition is met", async () => {
@@ -231,7 +231,7 @@ describe("onboarding reminders", () => {
 
   it("never resurrects a dismissed nudge, even while its condition still holds", async () => {
     await regenerateSystemReminders(h.deps);
-    const id = idFor("add-person");
+    const id = idFor("import");
 
     await h.deps.reminders.softDelete(id); // user dismissed it
 
@@ -244,20 +244,20 @@ describe("onboarding reminders", () => {
 
   it("does not re-nag a retired nudge if its condition later reverts", async () => {
     // An account already exists, so neither custody nudge is in play and
-    // 'add-person' is the only step this walks through its whole life.
+    // 'import' is the only step this walks through its whole life.
     h.signals.hasAccount = true;
     await regenerateSystemReminders(h.deps);
     h.signals.hasEntities = true;
     h.signals.hasSelf = true; // isolate: don't introduce the pick-self nudge
     h.signals.hasNotificationPolicy = true; // ...nor the notifications one
-    await regenerateSystemReminders(h.deps); // 'add-person' retired (tombstoned)
+    await regenerateSystemReminders(h.deps); // 'import' retired (tombstoned)
 
     // The user deletes all their people again — the condition reverts, but the
     // retired nudge must stay gone (the intentional "don't re-nag" semantic).
     h.signals.hasEntities = false;
     const result = await regenerateSystemReminders(h.deps);
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
-    expect(h.byId(idFor("add-person"))?.deletedAt).not.toBeNull();
+    expect(h.byId(idFor("import"))?.deletedAt).not.toBeNull();
   });
 
   it("surfaces 'pick yourself' once a person exists and self is unset", async () => {
@@ -651,7 +651,7 @@ describe("with multi-device held back", () => {
 
     const routes = h.activeSystem().map((r) => onboardingRouteOf(r.id));
     expect(routes).not.toContain("connect-sync");
-    expect(routes).toContain("add-person");
+    expect(routes).toContain("import");
   });
 
   it("still invites an account, which is the encryption story rather than sync", async () => {

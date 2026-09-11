@@ -586,10 +586,10 @@ function occurrenceName(
  * {@link onboardingRouteOf} and the client CTA tables.
  */
 export type OnboardingRoute =
-  | "add-person"
   | "connect-sync"
   | "create-account"
   | "enable-notifications"
+  | "import"
   | "pick-self";
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
@@ -725,12 +725,35 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     snoozeRepetitions: 3,
   },
   {
-    key: "add-first-person",
-    title: "👋 Add your first person to get started",
-    route: "add-person",
+    /**
+     * **Getting started, and it means importing rather than typing.** This step
+     * replaced `add-first-person` outright *(owner, 2026-09-10)* rather than
+     * standing beside it. A personal CRM with one person in it does nothing a
+     * contacts app doesn't; the value arrives with the *list*, and the list
+     * already exists on the phone. Asking someone to type their way to it, one
+     * person at a time, is asking them to do by hand what the app could do in a
+     * tap — and the two rows offered together would have been two ways to answer
+     * the same question, which is the compounding that turns Home into a form.
+     *
+     * Manual entry is not lost, it is one tap on: the importer links to the
+     * create form and the create form links back, including from the
+     * permission-refused state — which is the state this step made load-bearing,
+     * since it is now the first thing the app asks anyone to do.
+     *
+     * ⚠️ **It ships before bulk-import dedup** *(owner, 2026-09-10)*, so
+     * importing an overlapping list still creates duplicates after the fact and
+     * the duplicates nudge follows the import in. That is accepted, and the
+     * obvious mitigation is a trap rather than a dial: the duplicates row is
+     * content-addressed on its pair set, so suppressing it by reporting no pairs
+     * would tombstone that exact id, and the same set re-deriving later would
+     * land on a tombstone and never come back. See {@link duplicatesReminderId}.
+     */
+    key: "import-contacts",
+    title: "📇 Import your contacts to get started",
+    route: "import",
     applies: (s) => !s.hasEntities,
     // Skipping this costs little: an empty app is self-evidently empty, and the
-    // nudge has nothing to add once the user starts typing.
+    // nudge has nothing to add once the user starts adding people.
     snoozeDurationDays: 3,
     snoozeRepetitions: 2,
   },

@@ -6,7 +6,12 @@ import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
  *  router path plus its link copy. */
 const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   {
-    "add-person": { path: "/people/new", label: "Add person →" },
+    // ⚠️ Desktop has no import *screen* — import is the window-wide drag-and-drop
+    // overlay (`DropImportProvider`), with no way to open it from a link. So this
+    // lands on the people list, where dropping a vCard works and the create form
+    // is one click on. Mobile sends the same step to a real importer. Revisit
+    // when desktop ships (`plans/shipping.md` → Part 2).
+    import: { path: "/people", label: "Import your contacts →" },
     // The two custody routes land on the same screen today — an accountless
     // Settings renders `CreateAccount` above `SyncSetup`, so each nudge's target
     // is already on it — but they stay two routes, not one. The labels are the

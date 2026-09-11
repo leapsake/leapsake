@@ -287,6 +287,18 @@ export default function ImportScreen() {
         >
           <Text style={styles.buttonText}>Open Settings</Text>
         </Pressable>
+        {/* The way on for someone who is not going to grant it. This screen is
+            now where the first-run nudge sends people, so a refusal here used to
+            end the only path the app had offered them — Open Settings, or back
+            to a Home whose one row led straight back here. Adding by hand is a
+            complete answer to "get started", and the two screens now link to
+            each other rather than one way. */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/add")}
+        >
+          <Text style={styles.link}>Or add someone by hand</Text>
+        </Pressable>
       </Screen>
     );
   }

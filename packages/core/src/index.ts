@@ -1258,7 +1258,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
     // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
-    // "add your first person" step and (with `hasAccount`) the account
+    // "import your contacts" step and (with `hasAccount`) the account
     // invitation; a relay-connected account (a `relayUrl` on the singleton) gates
     // the sign-in step; `hasSelf` gates the "pick yourself" step. All retire
     // (prune) automatically once satisfied — see `@leapsake/reminders`
@@ -1456,7 +1456,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           await tags.setEntityTags("person", created.id, tagNames);
           return created;
         });
-        // Reconcile after commit so the "add your first person" onboarding nudge
+        // Reconcile after commit so the getting-started onboarding nudge
         // retires promptly (its `hasAnyEntity` signal just flipped true) rather
         // than waiting for the next boot/focus. Its own transaction — BEGIN/COMMIT
         // doesn't nest — and a sync-kicking write, so the pruned row rides the kick.
@@ -1547,7 +1547,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
           await tags.setEntityTags("pet", created.id, tagNames);
           return created;
         });
-        // Reconcile after commit so the "add your first person" onboarding nudge
+        // Reconcile after commit so the getting-started onboarding nudge
         // retires promptly (a pet also satisfies `hasAnyEntity`) — see the mirror
         // in `people.create`.
         await regenerateSystem();

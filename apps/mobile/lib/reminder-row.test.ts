@@ -107,7 +107,7 @@ describe("offerFor", () => {
   it("hands the snooze the exact date the action carried", () => {
     // The guard against a second derivation: whatever the policy chose is what
     // reaches the write, so the copy and the stored clock can never disagree.
-    const actions = actionsFor(idFor("add-person"));
+    const actions = actionsFor(idFor("import"));
     const offered = actions.find((a) => a.kind === "snooze")!;
     const rendered = offersFor(actions).find((o) => o.kind === "snooze")!;
 

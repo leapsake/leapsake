@@ -441,12 +441,12 @@ shell pm clear` on Android, and on iOS a delete of `Documents/SQLite` (stores, d
   device now always arrives unauthenticated.
 - **A factory reset is not a first run, and its aftermath is racy.** The reminders engine
   reconciles asynchronously and the in-place provider rebuild does not wait for it: reset
-  twice and Home comes back once empty and once already showing the `add-first-person`
+  twice and Home comes back once empty and once already showing the `import-contacts`
   nudge. The subflow relaunches and _waits_ for the nudge, which is deterministic. Assert
   nothing about the screen between the erase and the relaunch.
 - **Assert specific expected text, never emptiness or counts.** Home is time-dependent —
   the reminders and holidays engines mint `system` rows by date — and it is _not_ empty on
-  a first run: the `add-first-person` nudge is there, and it is the better assertion
+  a first run: the `import-contacts` nudge is there, and it is the better assertion
   because it also proves the engine ran.
 
 ### Three selector traps this tier added to the list below

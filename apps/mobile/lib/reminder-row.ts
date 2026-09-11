@@ -5,9 +5,10 @@ import type { ReminderCta, ReminderRowAction } from "@leapsake/view-models";
 /** Each onboarding nudge's abstract {@link OnboardingRoute} as this client's own
  *  expo-router path — where its call to action leads. */
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
-  // The combined create form, which opens on its Person half — there is no
-  // person-only create route any more.
-  "add-person": "/add",
+  // The importer, which is where getting started begins now. It links on to the
+  // create form (and back) for the person adding someone by hand, so the manual
+  // path costs one tap rather than a second nudge.
+  import: "/import",
   // Account is a root-stack screen (reached from the Settings tab), not a tab
   // of its own, so the nudge pushes it like any other detail route. Both custody
   // routes land there today — an accountless Account screen renders
@@ -112,8 +113,8 @@ export type RowOffer =
 
 /**
  * What each nudge's call to action says. Generic where the row's own title
- * already names the act ("Add your first person" → *Get started*), and specific
- * where "Get started" would be actively wrong.
+ * already names the act ("Import your contacts to get started" → *Get started*),
+ * and specific where "Get started" would be actively wrong.
  *
  * The two **custody** routes are one fork — sign in to an account you have, or
  * create one — sat on Home together, and a shared "Get started" under both is the
@@ -128,7 +129,7 @@ export type RowOffer =
  * the generic word would mislead rather than merely repeat.
  */
 const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
-  "add-person": OFFER_LABELS.onboarding,
+  import: OFFER_LABELS.onboarding,
   "connect-sync": OFFER_LABELS.signIn,
   "create-account": OFFER_LABELS.createAccount,
   "enable-notifications": OFFER_LABELS.turnOn,

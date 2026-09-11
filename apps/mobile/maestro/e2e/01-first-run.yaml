@@ -9,7 +9,7 @@
 #
 # 1. **Home is not empty on a first run, so this does not assert that it is.** The
 #    reminders engine mints a dateless onboarding nudge whenever the store holds no
-#    entities (`ONBOARDING_STEPS` → `add-first-person`, `packages/reminders/src/engine.ts`),
+#    entities (`ONBOARDING_STEPS` → `import-contacts`, `packages/reminders/src/engine.ts`),
 #    so a fresh install shows a row rather than an empty state. The catalog's `home-empty`
 #    anchor would therefore be asserting something untrue of the build. Asserting the
 #    nudge's own text instead is both correct and stronger: it proves the reminders engine
@@ -18,9 +18,12 @@
 #    assert specific expected text, never emptiness or counts.
 #
 #    Note which nudges are *absent* and why, because it is what makes this stable rather
-#    than lucky: `create-account` and `pick-self` both require `hasEntities`, and
-#    `sync-devices` is behind the `multiDevice` flag, which v0.1 ships off. On a store
-#    with no rows, `add-first-person` is the only one that applies.
+#    than lucky: `create-account`, `pick-self` and `enable-notifications` all require
+#    `hasEntities`, and `sync-devices` is behind the `multiDevice` flag, which v0.1 ships
+#    off. On a store with no rows, `import-contacts` is the only one that applies — and it
+#    is the step that replaced `add-first-person` on 2026-09-10, which is why the text this
+#    asserts changed. The reasoning did not: whatever the one applying step is, its own
+#    words are what this flow reads.
 #
 # 2. **The at-rest gate's title is "Unlock your data"**, not the catalog's "Restore access
 #    to your data" (`lib/core-context.tsx` → `RecoveryGate`). Asserting the real string.
@@ -49,7 +52,7 @@ appId: com.leapsake.app
 - runFlow: ../subflows/factory-reset.yaml
 
 # --- the app booted all the way, and the reminders engine ran ----------------------
-- assertVisible: ".*Add your first person to get started.*"
+- assertVisible: ".*Import your contacts to get started.*"
 
 # --- no boot gate stands in front of a store that has no keys ----------------------
 # The negative half of "mints nothing": a device that minted a key on first launch and

@@ -23,7 +23,7 @@
 #
 # **The state a factory reset leaves behind is racy, and a first run's is not.** Measured
 # on the simulator, 2026-08-28: reset twice in a row, Home came back once reading "No
-# reminders yet." and once already showing the `add-first-person` nudge. The reminders
+# reminders yet." and once already showing the `import-contacts` nudge. The reminders
 # engine reconciles asynchronously and the in-place provider rebuild does not wait for it,
 # so whether the nudge is on screen right after a reset is a timing question. A relaunch
 # settles it — the bootstrap reconciles before Home renders — which is also what the
@@ -164,7 +164,7 @@ appId: com.leapsake.app
     timeout: 60000
 
 # The relaunch, and the one assertion. It is non-vacuous in exactly the way the vacuous
-# `assertNotVisible` above was not: `add-first-person` applies only while the store holds
+# `assertNotVisible` above was not: `import-contacts` applies only while the store holds
 # no entities, and retirement is a permanent tombstone — so an erase that silently did
 # nothing leaves the previous arc's people in place, the step unmet, and this red.
 #
@@ -188,5 +188,5 @@ appId: com.leapsake.app
 # on one run and green on the next. The wait is what makes this deterministic, and it
 # stays non-vacuous — a nudge that never arrives still fails, it is simply given time to.
 - extendedWaitUntil:
-    visible: ".*Add your first person to get started.*"
+    visible: ".*Import your contacts to get started.*"
     timeout: 30000

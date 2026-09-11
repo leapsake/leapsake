@@ -258,7 +258,7 @@ describe("system reminder id stability", () => {
     );
     const onboarding = deterministicUuid(
       SYSTEM_REMINDER_NAMESPACE,
-      "onboarding:add-first-person",
+      "onboarding:import-contacts",
     );
     expect(new Set([milestone, observance, onboarding]).size).toBe(3);
   });

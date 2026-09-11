@@ -170,7 +170,7 @@ export default function ReminderDetailScreen() {
    * things that are not errands. A `🗓 plan` prompt is a **question**, and
    * answering it is what retires it — Save below does that. A first-run nudge is
    * a **condition**, and it retires when the condition is met: adding a person
-   * is what finishes "add your first person", and nothing else can.
+   * is what finishes "import your contacts", and nothing else can.
    */
   const isErrand = !isPrompt && !isOnboardingNudge;
   // Present only on a `wish` about a person. When they *have* methods this feeds

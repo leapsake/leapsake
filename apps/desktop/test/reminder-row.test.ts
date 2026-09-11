@@ -89,7 +89,7 @@ describe("rowAffordanceFor", () => {
   it("hands the snooze the exact date the action carried", () => {
     // The guard against a second derivation: whatever the policy chose is what
     // reaches the write, so the copy and the stored clock can never disagree.
-    const id = idFor("add-person");
+    const id = idFor("import");
     const actions = reminderActionsOf(reminder(id), {}, NOW);
     const offered = actions.find((a) => a.kind === "snooze")!;
     const rendered = affordancesFor(actions, id).find(

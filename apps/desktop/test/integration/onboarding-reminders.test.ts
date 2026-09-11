@@ -75,22 +75,22 @@ describe("onboarding reminders (end to end through core)", () => {
       expect(onboardingRouteOf(r.id)).not.toBeNull();
     }
     // A fresh store has no entities, so the pick-self nudge (which needs a person
-    // to pick from) doesn't apply yet — only sync + add-person do.
+    // to pick from) doesn't apply yet — only sync + import do.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("add-person")]),
+      new Set([idFor("connect-sync"), idFor("import")]),
     );
     // Home order (through the real driver + list ordering): sign-in leads so a
     // returning user gets back into their account before re-adding anyone.
     expect(rows.sort(compareReminderDue).map((r) => r.id)).toEqual([
       idFor("connect-sync"),
-      idFor("add-person"),
+      idFor("import"),
     ]);
   });
 
-  it("retires 'add your first person' on people.create with no explicit reconcile", async () => {
+  it("retires 'import your contacts' on people.create with no explicit reconcile", async () => {
     await core.reminders.regenerateSystem();
     expect((await systemReminders()).map((r) => r.id)).toContain(
-      idFor("add-person"),
+      idFor("import"),
     );
 
     // Creating a person reconciles in the same call (the create-path trigger),
@@ -106,18 +106,18 @@ describe("onboarding reminders (end to end through core)", () => {
     );
 
     const live = await systemReminders();
-    expect(live.map((r) => r.id)).not.toContain(idFor("add-person"));
+    expect(live.map((r) => r.id)).not.toContain(idFor("import"));
     // The sync nudge is untouched (sync still unconnected).
     expect(live.map((r) => r.id)).toContain(idFor("connect-sync"));
   });
 
-  it("retires 'add your first person' on pets.create too", async () => {
+  it("retires 'import your contacts' on pets.create too", async () => {
     await core.reminders.regenerateSystem();
 
     await core.pets.create({ name: "Milo", gender: null }, []);
 
     expect((await systemReminders()).map((r) => r.id)).not.toContain(
-      idFor("add-person"),
+      idFor("import"),
     );
   });
 
@@ -140,11 +140,11 @@ describe("onboarding reminders (end to end through core)", () => {
     });
 
     const result = await core.reminders.regenerateSystem();
-    // Only the sign-in nudge retires; the add-person nudge stays (still no entities).
+    // Only the sign-in nudge retires; the import nudge stays (still no entities).
     expect(result.removed).toBe(1);
     const live = await systemReminders();
     expect(live.map((r) => r.id)).not.toContain(idFor("connect-sync"));
-    expect(live.map((r) => r.id)).toContain(idFor("add-person"));
+    expect(live.map((r) => r.id)).toContain(idFor("import"));
   });
 
   it("retires the sign-in nudge for a local-only account, which binds no relay", async () => {
@@ -331,7 +331,7 @@ describe("onboarding reminders (end to end through core)", () => {
   it("coexists with a birthday reminder in one reconcile (neither family prunes the other)", async () => {
     // A person with an upcoming birthday: their birthday reminder joins the same
     // desired set as the onboarding nudges. Creating the person retires the
-    // add-person nudge, so we expect the sync nudge + the birthday reminder.
+    // import nudge, so we expect the sync nudge + the birthday reminder.
     const alice = await core.people.create(
       { firstName: "Alice", middleName: null, lastName: "Ng", gender: null },
       [],
@@ -353,10 +353,10 @@ describe("onboarding reminders (end to end through core)", () => {
     const rows = await systemReminders();
     const byKind = {
       sync: rows.filter((r) => r.id === idFor("connect-sync")),
-      addPerson: rows.filter((r) => r.id === idFor("add-person")),
+      addPerson: rows.filter((r) => r.id === idFor("import")),
       birthday: rows.filter((r) => onboardingRouteOf(r.id) === null),
     };
-    // The add-person nudge is retired (Alice exists); the sync nudge remains; the
+    // The import nudge is retired (Alice exists); the sync nudge remains; the
     // birthday reminder is present and dated — all three coexist, none pruned.
     expect(byKind.addPerson).toHaveLength(0);
     expect(byKind.sync).toHaveLength(1);
