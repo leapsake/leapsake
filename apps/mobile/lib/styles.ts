@@ -140,9 +140,41 @@ export const styles = StyleSheet.create({
   },
   // An empty list's message over the offers that fill it (see `EmptyState`).
   // Padded off the top of the list so it doesn't sit flush under the header.
+  // What a list shows in place of its rows: the fact, then the way out of it,
+  // parked in the middle of the space the rows would have filled.
+  //
+  // Centred because an empty list *is* the whole screen — a message and a button
+  // pinned to the top-left of an otherwise blank page read as the first row of a
+  // list that never arrives, which is exactly the impression an empty state has
+  // to undo. `flexGrow` rather than `flex`, so this fills a content container
+  // that grows (see {@link listContent}) and still draws at its own height in one
+  // that doesn't: a list that forgets to grow its container gets an uncentred
+  // empty state rather than an invisible one.
   emptyState: {
-    paddingTop: 8,
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
     gap: 12,
+    paddingVertical: 24,
+  },
+  emptyStateMessage: {
+    textAlign: "center",
+  },
+  /** An empty state's action, sized to its label and not to the screen: it sits
+   *  in the middle of a blank page, where a full-width slab reads as a banner
+   *  rather than as something to press. The `minWidth` is what makes a stack of
+   *  two an even pair — "+ Add a person or pet" and "Import from your contacts"
+   *  are different lengths and would otherwise draw as different buttons. */
+  emptyStateButton: {
+    minWidth: 240,
+    paddingHorizontal: 24,
+  },
+  /** For a list whose padding comes from the screen around it rather than from
+   *  its own content container: grow the container anyway, so an empty state can
+   *  centre itself in the space the rows would have taken. Adds nothing to a list
+   *  that has rows — its children stay top-aligned. */
+  listContent: {
+    flexGrow: 1,
   },
   // A detail-screen section: a header (title + "Add" action) over a list.
   section: {

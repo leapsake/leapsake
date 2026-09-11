@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Link } from "expo-router";
 import { styles } from "../lib/styles";
 
@@ -37,12 +37,36 @@ export function EmptyState({
 }) {
   return (
     <View style={styles.emptyState}>
-      <Text style={styles.muted}>{message}</Text>
-      {actions.map((action) => (
-        <Link key={action.label} href={action.href} style={styles.link}>
-          {action.label}
-        </Link>
-      ))}
+      <Text style={[styles.muted, styles.emptyStateMessage]}>{message}</Text>
+      {actions.map((action, index) => {
+        // The ordinary path wears the filled button, the rest the quiet one —
+        // the same two weights a reminder's offers use, and for the same reason:
+        // a screen offering two ways in should say which one it means. `actions`
+        // is documented as being in offer order, so the first *is* that path.
+        const isPrimary = index === 0;
+        return (
+          // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which throws
+          // on a `style` array rather than merging it.
+          <Link key={action.label} href={action.href} asChild>
+            <Pressable
+              accessibilityRole="button"
+              style={StyleSheet.flatten([
+                isPrimary ? styles.button : styles.buttonSecondary,
+                styles.buttonBlock,
+                styles.emptyStateButton,
+              ])}
+            >
+              <Text
+                style={
+                  isPrimary ? styles.buttonText : styles.buttonSecondaryText
+                }
+              >
+                {action.label}
+              </Text>
+            </Pressable>
+          </Link>
+        );
+      })}
     </View>
   );
 }

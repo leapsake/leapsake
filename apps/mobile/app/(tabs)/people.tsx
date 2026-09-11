@@ -67,6 +67,9 @@ export default function PeoplePetsScreen() {
       ) : (
         <FlatList
           {...scrollProps}
+          // Grown so an empty list can centre its message and its two ways in;
+          // the padding around the rows is the screen's, not the list's.
+          contentContainerStyle={styles.listContent}
           data={entities}
           keyExtractor={(entity) => `${entity.type}:${entity.id}`}
           ListHeaderComponent={

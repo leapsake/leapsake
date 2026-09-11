@@ -131,6 +131,9 @@ export default function RemindersScreen() {
     <View style={styles.screen}>
       <FlatList
         {...scrollProps}
+        // Grown so the empty state can centre itself in the space the reminders
+        // would have filled; the rows' padding comes from the screen around it.
+        contentContainerStyle={styles.listContent}
         data={items}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
