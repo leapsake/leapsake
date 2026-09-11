@@ -120,8 +120,19 @@ const idFor = (route: string) =>
   ONBOARDING_REMINDERS.find((r) => r.route === route)!.id;
 
 /** The snooze dials the step definitions currently carry, mirrored once so that
- *  re-tuning them — which is meant to be cheap — is a one-line edit here too. */
-const SNOOZE_DAYS = 3;
+ *  re-tuning them — which is meant to be cheap — is a one-line edit here too.
+ *
+ *  ⚠️ **The durations are all different, and that is the point.** Shared values
+ *  put every put-off row back on Home on the same morning; see
+ *  `OnboardingStep.snoozeDurationDays`. Asserting them route by route is what
+ *  keeps a future edit from quietly collapsing two back together. */
+const SNOOZE_DAYS: Record<OnboardingRoute, number> = {
+  "connect-sync": 7,
+  "create-account": 4,
+  import: 5,
+  "pick-self": 6,
+  "enable-notifications": 3,
+};
 const REPETITIONS: Record<OnboardingRoute, number> = {
   "connect-sync": 2,
   "create-account": 3,
@@ -554,10 +565,24 @@ describe("onboarding reminders", () => {
   describe("snoozePolicyOf", () => {
     const NOW = Date.UTC(2026, 5, 1, 9, 30);
 
-    it("offers a snooze running to the step's duration from now", () => {
+    it("offers a snooze running to the step's own duration from now", () => {
       expect(
         snoozePolicyOf({ id: idFor("pick-self"), snoozeCount: 0 }, NOW),
-      ).toEqual({ until: NOW + SNOOZE_DAYS * DAY_MS });
+      ).toEqual({ until: NOW + SNOOZE_DAYS["pick-self"] * DAY_MS });
+    });
+
+    it("gives every step a different one, so put-off rows don't return together", () => {
+      const untils = ROUTES.map(
+        (route) =>
+          snoozePolicyOf({ id: idFor(route), snoozeCount: 0 }, NOW)?.until,
+      );
+      // Each step reads its own dial...
+      expect(untils).toEqual(
+        ROUTES.map((route) => NOW + SNOOZE_DAYS[route] * DAY_MS),
+      );
+      // ...and no two of them land on the same day, which is the property that
+      // stops Home refilling in one go with what the user just cleared.
+      expect(new Set(untils).size).toBe(ROUTES.length);
     });
 
     it("stops offering once the step's repetitions are spent", () => {

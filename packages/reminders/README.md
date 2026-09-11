@@ -617,6 +617,21 @@ Exactly one step sits above the floor: **the account invitation**, at three. It 
 wrong-silencing leaves a user's data in the clear with nothing to signal it, so it is where the
 asymmetry above is actually spent.
 
+### No two steps come back on the same day *(2026-09-10)*
+
+The durations were all 3, so a user who put off three rows on one afternoon got all three back on
+one morning — Home refilling in a single go with exactly what they had just cleared, which reads
+as the app not having listened. They are now all different, and the returns spread out with no
+scheduler and nothing stored.
+
+The spread is not arbitrary: **the number tracks how long the answer is likely to stay no.**
+*I have no second device* survives a week; *I don't want my address book in here* is a considered
+position rather than a matter of timing; *not now* to notifications is the one answer that turns
+over without the user changing their mind, because a birthday getting closer is what makes it
+concrete. So sign-in waits longest and notifications comes back soonest, with the account
+invitation shortest of the considered "no"s because it is the step that can least afford to be
+forgotten.
+
 ### The account invitation, and the fork it is half of
 
 `create-account` is the step that gets a user from Unauthenticated to Authenticated — the state

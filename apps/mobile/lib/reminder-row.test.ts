@@ -72,11 +72,14 @@ describe("offerFor", () => {
       },
       // The put-off says how long it lasts. "Not now" alone never distinguished
       // an afternoon from forever — the same ambiguity the sibling below was
-      // introduced to fix at the other end.
+      // introduced to fix at the other end. Six days because that is *this*
+      // step's dial: they differ per step so that rows put off together don't
+      // come back together, and the label is rendered from the date the policy
+      // handed over rather than from a constant here.
       {
         kind: "snooze",
         until: expect.any(Number),
-        label: "Not now — ask in 3 days",
+        label: "Not now — ask in 6 days",
       },
       { kind: "dismiss", label: "Don’t ask again" },
     ]);

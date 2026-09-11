@@ -620,6 +620,19 @@ interface OnboardingStep {
    * so a snooze runs for a fixed span from the moment it is taken, not to a civil
    * calendar date. That is the right arithmetic for a hide-until instant, and it
    * needs no civil-date math.
+   *
+   * **No two steps share a value** *(2026-09-10)*. They were all 3, which meant a
+   * user who put off three rows on the same afternoon got all three back on the
+   * same morning — Home refilling in one go with exactly what they had just
+   * cleared, which reads as the app not having listened. Distinct spans spread the
+   * returns out on their own, with no scheduler and nothing stored.
+   *
+   * The number tracks **how long the answer is likely to stay no**, which is why
+   * the spread is meaningful rather than merely arithmetic: "I have no second
+   * device" survives a week, while "not now" to notifications is the one answer
+   * that turns over without the user changing their mind, because a birthday
+   * getting closer is what makes it concrete. Each step's own reasoning is beside
+   * its dial.
    */
   snoozeDurationDays: number;
   /**
@@ -694,8 +707,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // back on will not resurrect it in a profile that already saw it.
     applies: (s) => flag("multiDevice") && !s.syncConnected && !s.hasAccount,
     // A user who says "not now" here almost certainly has no other device, so
-    // asking once more and then dropping it is the whole budget.
-    snoozeDurationDays: 3,
+    // asking once more and then dropping it is the whole budget — and the longest
+    // wait of the five before it spends it, because "I don't own a second device"
+    // is not an answer that changes over a weekend.
+    snoozeDurationDays: 7,
     snoozeRepetitions: 2,
   },
   {
@@ -720,8 +735,9 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // **The one step that gets more than the floor.** Wrongly nagging costs
     // annoyance a user can dismiss; wrongly silencing this one leaves their data
     // in the clear with no signal that it happened — so it is the step where the
-    // unequal-stakes rule above buys an extra repetition.
-    snoozeDurationDays: 3,
+    // unequal-stakes rule above buys an extra repetition, and the shortest wait
+    // of the three considered "no"s to spend it with.
+    snoozeDurationDays: 4,
     snoozeRepetitions: 3,
   },
   {
@@ -753,8 +769,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     route: "import",
     applies: (s) => !s.hasEntities,
     // Skipping this costs little: an empty app is self-evidently empty, and the
-    // nudge has nothing to add once the user starts adding people.
-    snoozeDurationDays: 3,
+    // nudge has nothing to add once the user starts adding people. "I don't want
+    // my address book in here" is a considered position rather than a matter of
+    // timing, so it is asked again slowly.
+    snoozeDurationDays: 5,
     snoozeRepetitions: 2,
   },
   {
@@ -768,8 +786,9 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // At the floor, like everything except the account invitation: nothing else
     // tells the user that gifts (and, later, kinship) are quietly less useful
     // until this is set, but nothing is lost silently either — an unset self is
-    // recoverable at any time from the People list.
-    snoozeDurationDays: 3,
+    // recoverable at any time from the People list. Nothing about it becomes more
+    // pressing with time, so it waits nearly as long as the sign-in row.
+    snoozeDurationDays: 6,
     snoozeRepetitions: 2,
   },
   {
@@ -811,7 +830,10 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     applies: (s) => s.hasEntities && !s.hasNotificationPolicy,
     // At the floor. Silencing this wrongly costs the least of any step here:
     // every reminder it would have delivered is still on Home, and Settings
-    // offers the switch for as long as the app exists.
+    // offers the switch for as long as the app exists. It comes back soonest all
+    // the same — it is the one step whose "no" turns into "yes" without the user
+    // changing their mind, because a birthday getting closer is what makes it
+    // concrete.
     snoozeDurationDays: 3,
     snoozeRepetitions: 2,
   },
