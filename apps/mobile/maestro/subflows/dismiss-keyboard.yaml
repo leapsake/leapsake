@@ -26,9 +26,18 @@
 #
 # The closing assert is the point. Without it a failed dismissal goes unnoticed
 # until something far downstream taps a key, and `scrollUntilVisible` can spin on
-# a target it keeps finding and losing rather than failing outright. `Return` is
-# the iOS keyboard's own return key — an Apple-owned id, and the one piece of
-# platform internals this suite leans on.
+# a target it keeps finding and losing rather than failing outright.
+#
+# **Each platform needs its own probe, because each keyboard is a different
+# app.** `Return` is the iOS keyboard's own return key — an Apple-owned id. On
+# Android the keyboard is Gboard, whose nodes all carry its package in their
+# `resource-id`, so any of them means it is up. This subflow once probed for
+# `Return` alone, which on Android is never there: the fallback tap never ran and
+# the assert passed with the keyboard still open. Nothing noticed until Flow 7c's
+# first Android run (2026-09-10): on the phrase door, `Enter` put a newline in the
+# `multiline` field, Gboard stayed over **Unlock**, and the tap aimed at the button
+# opened Gboard's Settings instead. Flow 5 passes over the same blind spot only
+# because its next tap, **Save**, sits above the keyboard.
 appId: com.leapsake.app
 ---
 - pressKey: Enter
@@ -38,5 +47,14 @@ appId: com.leapsake.app
         id: "Return"
     commands:
       - tapOn: "${ANCHOR}"
+- runFlow:
+    when:
+      platform: Android
+      visible:
+        id: "com\\.google\\.android\\.inputmethod\\.latin:id/.*"
+    commands:
+      - tapOn: "${ANCHOR}"
 - assertNotVisible:
     id: "Return"
+- assertNotVisible:
+    id: "com\\.google\\.android\\.inputmethod\\.latin:id/.*"

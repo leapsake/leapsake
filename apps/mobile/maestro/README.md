@@ -722,6 +722,18 @@ The gate is now a `ScrollView` with `keyboardShouldPersistTaps="handled"`, which
 and makes the subflow work anchored on `"Unlock your data"`. Worth the habit: when a flow cannot
 reach a control, check whether a user could.
 
+**On Android the subflow was blind, and the first Android run of 7c found it** (2026-09-10).
+Its keyboard probe was `id: Return` — the iOS keyboard's key — which Gboard never has. So the
+fallback tap never ran and the closing `assertNotVisible` passed with the keyboard still up.
+Flow 5 had been passing over the same hole because its next tap, **Save**, sits above the
+keyboard. On the phrase door, **Unlock** does not: the tap on `recovery-submit` resolved to the
+button's bounds from the hierarchy, landed on Gboard at the same point, and opened **Gboard's
+Settings**. The screenshot of that failure shows no app at all. The subflow now probes each
+platform's keyboard by its own id: on Android, anything whose `resource-id` is in
+`com.google.android.inputmethod.latin`. The rule it leaves: **a keyboard probe that can't
+see the keyboard passes every time**, so check each new probe against a keyboard that is
+actually up on every platform.
+
 ### iOS does not draw the dots in a `newPassword` field under automation
 
 A field with `textContentType="newPassword"` holds the value you typed but renders **empty**
