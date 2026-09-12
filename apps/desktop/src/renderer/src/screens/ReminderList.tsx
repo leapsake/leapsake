@@ -7,13 +7,21 @@ import type {
   ReminderInWindow,
   SystemReminderTargets,
 } from "@leapsake/core";
-import { formatDueIn, isReminderEditable } from "@leapsake/schema";
+import {
+  formatBackIn,
+  formatComingIn,
+  formatDueCountdown,
+  formatDueIn,
+  isReminderEditable,
+} from "@leapsake/schema";
 import { ReminderText } from "@leapsake/ui/web";
 import {
+  type ReminderCountdown,
+  type ReminderSection,
   bucketReminders,
-  groupComingByActivation,
   reminderActionKey,
   reminderActionsOf,
+  reminderCountdownOf,
 } from "@leapsake/view-models";
 import { Fragment } from "react";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
@@ -30,16 +38,33 @@ const TEXT = {
   add: "Add reminder",
   belated: "Belated",
   today: "Today",
-  available: "Available",
-  coming: "Coming",
+  next7: "Next 7 days",
+  later: "Later",
   completed: "Completed",
-  /** Nothing owed, but something is still there to do if you want to. */
-  noneOwed: "Nothing owed today.",
-  /** Nothing owed and nothing available either. */
-  allClear: "Nothing to do. You’re all caught up.",
+  /** Nothing left on Today or in Belated — the day's finish line. */
+  allDone: "All done for today. Go enjoy it.",
   /** No reminders at all — a first run, not a finished day. */
   empty: "No reminders yet.",
 } as const;
+
+/**
+ * A row's countdown in words. The date and which words it gets are
+ * `reminderCountdownOf`'s choice, so the number a row shows is the date its
+ * section sorts it by — Today counts down to the deadline, the later sections to
+ * the day a row comes back or arrives.
+ */
+function countdownText(countdown: ReminderCountdown): string {
+  switch (countdown.kind) {
+    case "due":
+      return formatDueCountdown(countdown.date);
+    case "back":
+      return formatBackIn(countdown.date);
+    case "coming":
+      return formatComingIn(countdown.date);
+    case "shown":
+      return formatDueIn(countdown.date);
+  }
+}
 
 /**
  * One reminder row: a done/reopen toggle, the reminder's heading, whatever the
@@ -56,8 +81,11 @@ function ReminderRow({
   partnershipTarget,
   linkPartnerTarget,
   isDuplicatesNudge = false,
+  section,
 }: {
   reminder: ReminderInWindow;
+  /** Which section the row is in — what decides the countdown it shows. */
+  section: ReminderSection;
   /** Set when this is a `🎁 gift` reminder — see {@link giftCtaFor}. */
   giftTarget?: GiftReminderTarget;
   /** Set when this is a `🗓 plan` prompt — what it asks about, and its offers. */
@@ -89,6 +117,7 @@ function ReminderRow({
   const done = reminder.completedAt !== null;
   const strike = done ? { textDecoration: "line-through" as const } : undefined;
   const heading = reminder.title ?? reminder.body ?? "";
+  const countdown = reminderCountdownOf(reminder, section);
   // Everything this row offers, in offer order — the view-model is the only
   // authority on *what* is offered; this screen owns only how it looks. An
   // ordinary reminder (milestone / birthday / user) offers nothing.
@@ -124,11 +153,10 @@ function ReminderRow({
           mentions={reminder.mentions}
         />
       </span>{" "}
-      {reminder.dueDate !== null && (
+      {countdown !== null && (
         <>
           <small style={{ color: "#666" }}>
-            {/* A question counts down to the occasion, not to when to decide by. */}
-            {formatDueIn(reminder.countdownDate ?? reminder.dueDate)}
+            {countdownText(countdown)}
           </small>{" "}
         </>
       )}
@@ -202,8 +230,8 @@ function ReminderRow({
 /**
  * The Reminders screen — the app's home, split by **when**.
  *
- * Three headed lists lead — belated, today, available — then *coming*
- * and *completed* in disclosures. The reasoning for the split, and for which of
+ * Two headed lists lead — belated and today — then *Next 7 days*, with *Later*
+ * nested inside it, and *completed*, in disclosures. The reasoning for the split, and for which of
  * them "done for the day" counts, is on `bucketReminders`; this screen owns only
  * how it looks. Copy is kept in one table below so the later message-catalog
  * sweep is mechanical.
@@ -226,13 +254,18 @@ export function ReminderList() {
   const linkPartnerTargetById = new Map(
     targets.linkPartners.map((t) => [t.reminderId, t]),
   );
-  const { belated, today, available, coming, done, owed, actionable } =
+  const { belated, today, next7, later, done, owed } =
     bucketReminders(reminders);
 
-  const row = (reminder: ReminderInWindow, withNudgeCta = true) => (
+  const row = (
+    reminder: ReminderInWindow,
+    section: ReminderSection,
+    withNudgeCta = true,
+  ) => (
     <ReminderRow
       key={reminder.id}
       reminder={reminder}
+      section={section}
       giftTarget={giftTargetById.get(reminder.id)}
       planTarget={planTargetById.get(reminder.id)}
       contactTarget={contactTargetById.get(reminder.id)}
@@ -242,13 +275,29 @@ export function ReminderList() {
     />
   );
 
-  const section = (heading: string, rows: ReminderInWindow[]) =>
+  const headedList = (
+    heading: string,
+    key: ReminderSection,
+    rows: ReminderInWindow[],
+  ) =>
     rows.length === 0 ? null : (
       <section>
         <h2>{heading}</h2>
-        <ul>{rows.map((r) => row(r))}</ul>
+        <ul>{rows.map((r) => row(r, key))}</ul>
       </section>
     );
+
+  // Later opens from inside Next 7 days *(owner, 2026-09-11)* — most people want
+  // the next few days and rarely the month — and stands on its own when nothing
+  // arrives in the next week, rather than behind an empty heading.
+  const laterDisclosure = later.length > 0 && (
+    <details>
+      <summary>
+        {TEXT.later} ({later.length})
+      </summary>
+      <ul>{later.map((r) => row(r, "later"))}</ul>
+    </details>
+  );
 
   return (
     <main>
@@ -260,36 +309,26 @@ export function ReminderList() {
 
       {/* Belated leads: everything overdue, the still-salvageable first — a
           deadline that blew while the occasion is still ahead — then the
-          occasions that have gone. Today follows, its dateless rows on top. */}
-      {section(TEXT.belated, belated)}
-      {section(TEXT.today, today)}
+          occasions that have gone. Today follows: its dateless rows on top, then
+          everything on display by due date. */}
+      {headedList(TEXT.belated, "belated", belated)}
+      {headedList(TEXT.today, "today", today)}
 
-      {/* Which kind of done was reached, said where the owed sections would have
-          been. Nothing owed is the line worth saying out loud; nothing left at
-          all is a different, quieter one. */}
-      {reminders.length > 0 && owed === 0 && (
-        <p>{actionable === 0 ? TEXT.allClear : TEXT.noneOwed}</p>
-      )}
+      {/* The finish line, said where the owed sections would have been: nothing
+          left that can be done today. */}
+      {reminders.length > 0 && owed === 0 && <p>{TEXT.allDone}</p>}
       {reminders.length === 0 && <p>{TEXT.empty}</p>}
 
-      {/* A month-long gift lives here the whole time, and deliberately does not
-          stand between the user and a finished day. */}
-      {section(TEXT.available, available)}
-
-      {coming.length > 0 && (
+      {next7.length > 0 ? (
         <details>
           <summary>
-            {TEXT.coming} ({coming.length})
+            {TEXT.next7} ({next7.length})
           </summary>
-          {groupComingByActivation(coming).map((group) => (
-            <section key={group.activeFrom}>
-              {/* The distance is a moving number, so it is formatted, never
-                  written in. */}
-              <h3>{formatDueIn(group.activeFrom)}</h3>
-              <ul>{group.reminders.map((r) => row(r))}</ul>
-            </section>
-          ))}
+          <ul>{next7.map((r) => row(r, "next7"))}</ul>
+          {laterDisclosure}
         </details>
+      ) : (
+        laterDisclosure
       )}
 
       {done.length > 0 && (
@@ -297,7 +336,7 @@ export function ReminderList() {
           <summary>
             {TEXT.completed} ({done.length})
           </summary>
-          <ul>{done.map((r) => row(r, false))}</ul>
+          <ul>{done.map((r) => row(r, "done", false))}</ul>
         </details>
       )}
     </main>

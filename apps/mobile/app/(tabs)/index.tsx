@@ -8,7 +8,17 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import type { ReminderInWindow } from "@leapsake/core";
-import { formatDueIn, reminderLabel } from "@leapsake/schema";
+import {
+  formatBackIn,
+  formatComingIn,
+  formatDueCountdown,
+  formatDueIn,
+  reminderLabel,
+} from "@leapsake/schema";
+import {
+  type ReminderCountdown,
+  reminderCountdownOf,
+} from "@leapsake/view-models";
 import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
@@ -26,19 +36,16 @@ import { colors, styles } from "../../lib/styles";
  * message-catalog sweep is mechanical (AGENTS.md → *User-visible text*).
  */
 const TEXT: Record<ReminderSection, string> & {
-  noneOwed: string;
-  allClear: string;
+  allDone: string;
   chevron: string;
 } = {
   belated: "Belated",
   today: "Today",
-  available: "Available",
-  coming: "Coming",
+  next7: "Next 7 days",
+  later: "Later",
   done: "Completed",
-  /** Nothing owed, but something is still there to do if you want to. */
-  noneOwed: "Nothing owed today.",
-  /** Nothing owed and nothing available either. */
-  allClear: "Nothing to do. You’re all caught up.",
+  /** Nothing left on Today or in Belated — the day's finish line. */
+  allDone: "All done for today. Go enjoy it.",
   /** The affordance on every row, not a word — see {@link ReminderRow}. It sits
    *  here anyway because it is drawn as text, and this is where this screen's
    *  text lives. */
@@ -48,8 +55,9 @@ const TEXT: Record<ReminderSection, string> & {
 /**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
  * group's `index` route. A list of reminders **split by when**: belated and
- * today lead (what is *owed*), then available, then coming and
- * completed folded away behind their own headings. The reasoning for the split —
+ * today lead (what is *owed* — everything that can be done now), then *Next 7
+ * days*, with *Later* inside it, and completed, folded away behind their own
+ * headings. The reasoning for the split —
  * and for why only the owed sections decide whether the day is finished — is on
  * `bucketReminders`; the flat-list shape it renders as is in
  * {@link reminderListItems}, and this screen owns only how it looks.
@@ -97,10 +105,10 @@ export default function RemindersScreen() {
   // Called before the early returns below, not beside the list it decorates:
   // it is a hook, and the loading and error branches leave without a list.
   const scrollProps = useHeaderScroll();
-  // Coming and completed start folded: neither is what the user opened the app
-  // for, and both are unbounded in a way the owed sections are not.
+  // The upcoming sections and completed start folded: none is what the user
+  // opened the app for, and each is unbounded in a way the owed sections are not.
   const [collapsed, setCollapsed] = useState<ReadonlySet<ReminderSection>>(
-    () => new Set<ReminderSection>(["coming", "done"]),
+    () => new Set<ReminderSection>(["next7", "later", "done"]),
   );
 
   if (error !== null) {
@@ -143,11 +151,7 @@ export default function RemindersScreen() {
         }
         renderItem={({ item }) => {
           if (item.kind === "note")
-            return (
-              <Text style={styles.muted}>
-                {item.allClear ? TEXT.allClear : TEXT.noneOwed}
-              </Text>
-            );
+            return <Text style={styles.muted}>{TEXT.allDone}</Text>;
           if (item.kind === "header")
             return (
               <SectionHeader
@@ -155,7 +159,9 @@ export default function RemindersScreen() {
                 onToggle={() => toggleSection(item.section)}
               />
             );
-          return <ReminderRow reminder={item.reminder} />;
+          return (
+            <ReminderRow reminder={item.reminder} section={item.section} />
+          );
         }}
       />
     </View>
@@ -213,8 +219,15 @@ function SectionHeader({
  * gluing it on would be building a sentence out of fragments, which is the one
  * thing AGENTS.md → *User-visible text* forbids outright.
  */
-function ReminderRow({ reminder }: { reminder: ReminderInWindow }) {
+function ReminderRow({
+  reminder,
+  section,
+}: {
+  reminder: ReminderInWindow;
+  section: ReminderSection;
+}) {
   const router = useRouter();
+  const countdown = reminderCountdownOf(reminder, section);
   const done = reminder.completedAt !== null;
   const strike = done
     ? { textDecorationLine: "line-through" as const, color: colors.muted }
@@ -253,16 +266,32 @@ function ReminderRow({ reminder }: { reminder: ReminderInWindow }) {
             linkAnnotations={false}
           />
         )}
-        {reminder.dueDate !== null && (
+        {countdown !== null && (
           <View style={styles.rowMeta}>
-            {/* A question counts down to the occasion, not to when to decide by. */}
-            <Text style={styles.muted}>
-              {formatDueIn(reminder.countdownDate ?? reminder.dueDate)}
-            </Text>
+            <Text style={styles.muted}>{countdownText(countdown)}</Text>
           </View>
         )}
       </View>
       <Text style={[styles.chevron, styles.rowChevron]}>{TEXT.chevron}</Text>
     </Pressable>
   );
+}
+
+/**
+ * A row's countdown in words. The date and which words it gets are
+ * `reminderCountdownOf`'s choice, so the number a row shows is the date its
+ * section sorts it by — Today counts down to the deadline, the later sections to
+ * the day a row comes back or arrives.
+ */
+function countdownText(countdown: ReminderCountdown): string {
+  switch (countdown.kind) {
+    case "due":
+      return formatDueCountdown(countdown.date);
+    case "back":
+      return formatBackIn(countdown.date);
+    case "coming":
+      return formatComingIn(countdown.date);
+    case "shown":
+      return formatDueIn(countdown.date);
+  }
 }

@@ -16,11 +16,14 @@ export type { GiftGivenState } from "./gifts.js";
 export { splitBearerHolidays } from "./holidays.js";
 export type { BearerHolidayFacts } from "./holidays.js";
 export {
+  NEXT_DAYS,
+  SNOOZE_PRESET_DAYS,
   bucketReminders,
-  groupComingByActivation,
+  landingDayOf,
   partitionReminders,
   reminderActionKey,
   reminderActionsOf,
+  reminderCountdownOf,
   reminderCtaOf,
 } from "./reminders.js";
 export type {
@@ -30,8 +33,10 @@ export type {
   GiftReminderSubject,
   PlanReminderSubject,
   ReminderBucket,
+  ReminderCountdown,
   ReminderCta,
   ReminderRowAction,
+  ReminderSection,
   ReminderStanding,
   ReminderTiming,
 } from "./reminders.js";

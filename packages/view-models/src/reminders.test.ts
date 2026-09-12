@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   SNOOZE_PRESET_DAYS,
   bucketReminders,
-  groupComingByActivation,
   partitionReminders,
   reminderActionsOf,
+  reminderCountdownOf,
   reminderCtaOf,
 } from "./reminders.js";
 
@@ -426,26 +426,28 @@ const timed = (
 });
 
 describe("bucketReminders", () => {
-  it("splits the open list by due date", () => {
+  it("files every row by where it stands today", () => {
     const result = bucketReminders(
       [
-        // Due in 8 days, on display since 22 days ago: a gift project.
+        // Due in 8 days, on display since 22 days ago: a gift project — on Today.
         timed("gift", { dueIn: 8, occurrenceIn: 20, activeIn: -22 }),
         timed("today", { dueIn: 0, occurrenceIn: 0 }),
         // Its post date blew, but the birthday is still four days off.
         timed("missed-post", { dueIn: -3, occurrenceIn: 4, activeIn: -17 }),
         // The birthday itself has gone.
         timed("gone", { dueIn: -1, occurrenceIn: -1 }),
+        // A gift errand that goes on display in three days.
+        timed("this-week", { dueIn: 17, occurrenceIn: 29, activeIn: 3 }),
         // A wish for a birthday three weeks out — not on display yet.
-        timed("coming", { dueIn: 21, occurrenceIn: 21 }),
+        timed("later", { dueIn: 21, occurrenceIn: 21 }),
       ],
       NOW,
     );
 
     expect(result.belated.map((r) => r.id)).toEqual(["missed-post", "gone"]);
-    expect(result.today.map((r) => r.id)).toEqual(["today"]);
-    expect(result.available.map((r) => r.id)).toEqual(["gift"]);
-    expect(result.coming.map((r) => r.id)).toEqual(["coming"]);
+    expect(result.today.map((r) => r.id)).toEqual(["today", "gift"]);
+    expect(result.next7.map((r) => r.id)).toEqual(["this-week"]);
+    expect(result.later.map((r) => r.id)).toEqual(["later"]);
   });
 
   // The one distinction that cannot be made from `dueDate` alone, and the reason
@@ -504,9 +506,9 @@ describe("bucketReminders", () => {
     expect(result.today.map((r) => r.id)).toEqual(["nudge", "due-today"]);
   });
 
-  // The whole point of the split: a month-long errand must not make the day
-  // unfinishable.
-  it("counts owed without available, and actionable with it", () => {
+  // The point of folding Available into Today *(owner, 2026-09-11)*: the day is
+  // finished only once everything that can be done now has been handled.
+  it("counts everything on display as owed, and nothing that isn't", () => {
     const result = bucketReminders(
       [
         timed("owed-now", { dueIn: 0, occurrenceIn: 0 }),
@@ -517,79 +519,79 @@ describe("bucketReminders", () => {
       NOW,
     );
 
-    expect(result.owed).toBe(2);
-    expect(result.actionable).toBe(3);
+    expect(result.owed).toBe(3);
   });
 
-  it("passes completed and snoozed rows through untouched", () => {
-    const snoozedRow = {
-      ...reminder("snoozed", {
-        dueDate: dayOut(0),
-        snoozedUntil: NOW + day(2),
-      }),
-      activeFrom: dayOut(0),
-      occurrenceDate: dayOut(0),
+  // Putting a row off is how it leaves the day, and "tomorrow" means tomorrow.
+  it("files a snoozed row by the day it comes back, and returns it to Today on that day", () => {
+    const gift = {
+      ...timed("gift", { dueIn: 20, occurrenceIn: 32, activeIn: -10 }),
+      snoozedUntil: dayOut(1),
     };
+
+    const now = bucketReminders([gift], NOW);
+    expect(now.next7.map((r) => r.id)).toEqual(["gift"]);
+    expect(now.owed).toBe(0);
+
+    expect(
+      bucketReminders([gift], NOW + day(1)).today.map((r) => r.id),
+    ).toEqual(["gift"]);
+  });
+
+  it("puts a row arriving in seven days in Next 7 days, and one in eight in Later", () => {
     const result = bucketReminders(
       [
-        timed("done", { dueIn: 0, occurrenceIn: 0, completedAt: NOW }),
-        snoozedRow,
+        timed("seven", { dueIn: 30, occurrenceIn: 30, activeIn: 7 }),
+        timed("eight", { dueIn: 30, occurrenceIn: 30, activeIn: 8 }),
       ],
+      NOW,
+    );
+
+    expect(result.next7.map((r) => r.id)).toEqual(["seven"]);
+    expect(result.later.map((r) => r.id)).toEqual(["eight"]);
+  });
+
+  it("passes completed rows through untouched", () => {
+    const result = bucketReminders(
+      [timed("done", { dueIn: 0, occurrenceIn: 0, completedAt: NOW })],
       NOW,
     );
 
     expect(result.done.map((r) => r.id)).toEqual(["done"]);
-    expect(result.snoozed.map((r) => r.id)).toEqual(["snoozed"]);
     expect(result.owed).toBe(0);
   });
 
-  it("orders each bucket soonest first, and coming by when it lands", () => {
+  // Each section is ordered by the date that moves a row out of it *(owner,
+  // 2026-09-11)* — Today by deadline, a question's included, and the later
+  // sections by the day each row enters Today, put off or not yet started.
+  it("orders Today by due date, and the later sections by when each row lands", () => {
     const result = bucketReminders(
       [
-        timed("later", { dueIn: 9, occurrenceIn: 21, activeIn: -21 }),
-        timed("sooner", { dueIn: 2, occurrenceIn: 14, activeIn: -12 }),
-        timed("lands-second", { dueIn: 28, occurrenceIn: 28 }),
-        timed("lands-first", { dueIn: 26, occurrenceIn: 26, activeIn: 12 }),
-      ],
-      NOW,
-    );
-
-    expect(result.available.map((r) => r.id)).toEqual(["sooner", "later"]);
-    expect(result.coming.map((r) => r.id)).toEqual([
-      "lands-first",
-      "lands-second",
-    ]);
-  });
-
-  // A question shows its occasion, not its deadline, so the list sorts on the
-  // date each row shows — otherwise it reads "in 10 days" above "in 5 days".
-  it("orders by the date each row shows, not by its deadline", () => {
-    const result = bucketReminders(
-      [
-        // Due tomorrow, asking about a birthday ten days out.
-        timed("question-10", {
-          dueIn: 1,
-          occurrenceIn: 10,
-          countdownIn: 10,
-          activeIn: -3,
-        }),
         // Due in two days, asking about a birthday five days out.
-        timed("question-5", {
+        timed("question", {
           dueIn: 2,
           occurrenceIn: 5,
           countdownIn: 5,
           activeIn: -3,
         }),
-        // An errand, which shows its own deadline: eight days out.
-        timed("gift-8", { dueIn: 8, occurrenceIn: 20, activeIn: -22 }),
+        timed("errand", { dueIn: 1, occurrenceIn: 20, activeIn: -10 }),
+        {
+          ...timed("back-in-five", {
+            dueIn: 20,
+            occurrenceIn: 30,
+            activeIn: -1,
+          }),
+          snoozedUntil: dayOut(5),
+        },
+        timed("starts-in-two", { dueIn: 12, occurrenceIn: 12, activeIn: 2 }),
       ],
       NOW,
     );
 
-    expect(result.available.map((r) => r.id)).toEqual([
-      "question-5",
-      "gift-8",
-      "question-10",
+    expect(result.today.map((r) => r.id)).toEqual(["errand", "question"]);
+    expect(result.next7.map((r) => r.id)).toEqual([
+      "starts-in-two",
+      "back-in-five",
     ]);
   });
 
@@ -616,29 +618,56 @@ describe("bucketReminders", () => {
   });
 });
 
-describe("groupComingByActivation", () => {
-  it("groups by the day each row lands, ascending", () => {
-    const { coming } = bucketReminders(
-      [
-        timed("later", { dueIn: 25, occurrenceIn: 25, activeIn: 20 }),
-        timed("sooner-a", { dueIn: 14, occurrenceIn: 14, activeIn: 6 }),
-        timed("sooner-b", { dueIn: 30, occurrenceIn: 30, activeIn: 6 }),
-      ],
-      NOW,
-    );
+describe("reminderCountdownOf", () => {
+  // *Due* keeps a question's deadline from reading as its occasion.
+  it("counts Today down to each row's deadline, a question's too", () => {
+    const question = timed("question", {
+      dueIn: 2,
+      occurrenceIn: 30,
+      countdownIn: 30,
+    });
 
-    expect(
-      groupComingByActivation(coming).map((g) => [
-        g.activeFrom,
-        g.reminders.map((r) => r.id),
-      ]),
-    ).toEqual([
-      [dayOut(6), ["sooner-a", "sooner-b"]],
-      [dayOut(20), ["later"]],
-    ]);
+    expect(reminderCountdownOf(question, "today")).toEqual({
+      kind: "due",
+      date: dayOut(2),
+    });
   });
 
-  it("has nothing to group when nothing is coming", () => {
-    expect(groupComingByActivation([])).toEqual([]);
+  it("counts the later sections down to the day a row comes back, or arrives", () => {
+    const putOff = {
+      ...timed("gift", { dueIn: 20, occurrenceIn: 30, activeIn: -1 }),
+      snoozedUntil: dayOut(3),
+    };
+    const starting = timed("wish", {
+      dueIn: 21,
+      occurrenceIn: 21,
+      activeIn: 10,
+    });
+
+    expect(reminderCountdownOf(putOff, "next7")).toEqual({
+      kind: "back",
+      date: dayOut(3),
+    });
+    expect(reminderCountdownOf(starting, "later")).toEqual({
+      kind: "coming",
+      date: dayOut(10),
+    });
+  });
+
+  it("shows a belated row the date it has always shown", () => {
+    const question = timed("question", {
+      dueIn: -2,
+      occurrenceIn: 5,
+      countdownIn: 5,
+    });
+
+    expect(reminderCountdownOf(question, "belated")).toEqual({
+      kind: "shown",
+      date: dayOut(5),
+    });
+  });
+
+  it("has nothing to count on a dateless row", () => {
+    expect(reminderCountdownOf(reminder("nudge", {}), "today")).toBeNull();
   });
 });

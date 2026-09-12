@@ -5,6 +5,9 @@ import {
   daysUntil,
   dueDateMs,
   dueMsFromIso,
+  formatBackIn,
+  formatComingIn,
+  formatDueCountdown,
   formatDueIn,
   isoFromDueMs,
   nextOccurrence,
@@ -94,6 +97,39 @@ describe("formatDueIn", () => {
 
   it("phrases past due dates as N days ago", () => {
     expect(formatDueIn(due(2026, 7, 5), now)).toBe("7 days ago");
+  });
+});
+
+// The three countdowns Home's sections show, each counting whole civil days so
+// the words flip at local midnight like everything else on the list.
+describe("formatDueCountdown", () => {
+  const now = localNoon(2026, 7, 12);
+
+  it("says when a row on Today is due", () => {
+    expect(formatDueCountdown(due(2026, 7, 12), now)).toBe("Due today");
+    expect(formatDueCountdown(due(2026, 7, 13), now)).toBe("Due tomorrow");
+    expect(formatDueCountdown(due(2026, 7, 17), now)).toBe("Due in 5 days");
+    expect(formatDueCountdown(due(2026, 7, 26), now)).toBe("Due in 2 weeks");
+  });
+});
+
+describe("formatBackIn", () => {
+  const now = localNoon(2026, 7, 12);
+
+  it("says when a row that was put off comes back", () => {
+    expect(formatBackIn(due(2026, 7, 13), now)).toBe("Back tomorrow");
+    expect(formatBackIn(due(2026, 7, 15), now)).toBe("Back in 3 days");
+    expect(formatBackIn(due(2026, 7, 26), now)).toBe("Back in 2 weeks");
+  });
+});
+
+describe("formatComingIn", () => {
+  const now = localNoon(2026, 7, 12);
+
+  it("says when a row not on display yet arrives", () => {
+    expect(formatComingIn(due(2026, 7, 13), now)).toBe("Tomorrow");
+    expect(formatComingIn(due(2026, 7, 15), now)).toBe("In 3 days");
+    expect(formatComingIn(due(2026, 8, 9), now)).toBe("In 4 weeks");
   });
 });
 

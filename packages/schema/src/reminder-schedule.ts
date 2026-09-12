@@ -96,6 +96,47 @@ export function formatDueIn(dueMs: number, now: number = Date.now()): string {
   return `in ${Math.round(days / 7)} weeks`;
 }
 
+/** Whole civil days from today to a stored date — the arithmetic every
+ *  countdown below shares with {@link formatDueIn}. */
+function daysAhead(ms: number, now: number): number {
+  return daysUntil(todayCivil(now), civilFromDueMs(ms));
+}
+
+/**
+ * A row's deadline as Today shows it *(owner, 2026-09-11)*: "Due today", "Due
+ * tomorrow", "Due in N days" up to a fortnight, "Due in N weeks" beyond. *Due*
+ * is the word that keeps a question's countdown from reading as its occasion —
+ * a deadline, not the birthday.
+ */
+export function formatDueCountdown(
+  dueMs: number,
+  now: number = Date.now(),
+): string {
+  const days = daysAhead(dueMs, now);
+  if (days <= 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  if (days < 14) return `Due in ${days} days`;
+  return `Due in ${Math.round(days / 7)} weeks`;
+}
+
+/** When a row that was put off comes back to Today: "Back tomorrow", "Back in N
+ *  days", "Back in N weeks". */
+export function formatBackIn(ms: number, now: number = Date.now()): string {
+  const days = daysAhead(ms, now);
+  if (days <= 1) return "Back tomorrow";
+  if (days < 14) return `Back in ${days} days`;
+  return `Back in ${Math.round(days / 7)} weeks`;
+}
+
+/** When a row not on display yet arrives on Today: "Tomorrow", "In N days",
+ *  "In N weeks". */
+export function formatComingIn(ms: number, now: number = Date.now()): string {
+  const days = daysAhead(ms, now);
+  if (days <= 1) return "Tomorrow";
+  if (days < 14) return `In ${days} days`;
+  return `In ${Math.round(days / 7)} weeks`;
+}
+
 /**
  * Order open reminders **soonest-first**: by `dueDate` ascending with undated
  * reminders (null) sinking to the bottom, then newest-created first as the

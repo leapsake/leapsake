@@ -34,16 +34,17 @@ convenience. Any future time-dependent derivation does the same — a function t
 clock itself cannot be tested without faking a global.
 
 **Time-dependent derivations compare civil days, never elapsed milliseconds.**
-`bucketReminders` splits the open list into past due, belated, today, available and coming;
+`bucketReminders` splits the list into belated, today, next 7 days and later;
 every comparison in it goes through `daysUntil` over the two ends read as calendar dates, so
 the buckets flip at the _viewer's_ local midnight rather than 24 hours after some instant —
 the same arithmetic the reminder engine's own window does, and the reason the two can never
 disagree about what "today" means.
 
-It is a strict refinement of `partitionReminders` rather than a replacement: it calls it
-first and passes its `done` and `snoozed` buckets straight through. The reasoning for the
-five buckets — and for the fact that only three of them decide whether the day is finished —
-is on the function itself. What it needs beyond `ReminderStanding` is two dates only the
+It is a refinement of `partitionReminders` rather than a replacement: it calls it first,
+passes its `done` bucket straight through, and files the snoozed rows by the day they come
+back. The reasoning for the sections — and for the fact that only belated and today decide
+whether the day is finished — is on the function itself, and `reminderCountdownOf` chooses
+the date each row shows so that it matches the order. What it needs beyond `ReminderStanding` is two dates only the
 reminder engine can supply (`ReminderTiming`), because the stored row carries neither the
 occasion it counts down to nor the day it went on display.
 

@@ -96,52 +96,62 @@ export interface ReminderTiming extends ReminderStanding {
 }
 
 /** Which part of the reminders list a row belongs in. */
-export type ReminderBucket = "belated" | "today" | "available" | "coming";
+export type ReminderBucket = "belated" | "today" | "next7" | "later";
+
+/** Every section of the list, the completed one included — what a row's
+ *  countdown is worded for ({@link reminderCountdownOf}). */
+export type ReminderSection = ReminderBucket | "done";
+
+/** How far ahead *Next 7 days* reaches; a row entering Today later than this is
+ *  in *Later*. */
+export const NEXT_DAYS = 7;
+
+/**
+ * The day a row enters Today: the later of the day it goes on display
+ * (`activeFrom`) and the day its snooze ends. `null` for a row with neither — on
+ * display from the start, and never put off.
+ */
+export function landingDayOf(reminder: ReminderTiming): number | null {
+  const shown = reminder.activeFrom ?? null;
+  const back = reminder.snoozedUntil;
+  if (shown === null) return back;
+  if (back === null) return shown;
+  return Math.max(shown, back);
+}
 
 /**
  * The reminders list, split the way the screen shows it — the display half of
- * what the engine's window already knows, and a strict refinement of
- * {@link partitionReminders}, which it calls first and whose `done` / `snoozed`
- * buckets it passes straight through.
- *
- * The problem it solves: one flat list of everything open makes a month-long
- * gift errand indistinguishable from the wish owed this morning, so there is no
- * way to clear the screen and feel finished. Four buckets, split by **due
- * date**, with activity deciding only whether a row is on the main screen at
- * all:
+ * what the engine's window already knows, and a refinement of
+ * {@link partitionReminders}, which it calls first and whose `done` bucket it
+ * passes straight through.
  *
  * - **belated** — everything overdue, in two kinds under one heading *(owner,
  *   2026-09-11)*: first a deadline that blew while the occasion is still ahead
  *   (the card missed its post date, but the birthday is Tuesday, so pay for
  *   express), because acting on it still has the most value of anything on the
  *   screen; then the occasions that have gone, where only acknowledgment is
- *   left. They were two sections once. Each row's countdown already says which
- *   it is, so a second heading only asked the reader to learn the difference
- *   before reading a single row.
- * - **today** — every dateless row first, then what is due today (see below).
- * - **available** — on display, but due later. A month-long gift lives here the
- *   whole time. It is visible, it is tickable, and it deliberately does **not**
- *   count against being done today.
- * - **coming** — not active yet. Behind an expander, ordered by when it lands.
+ *   left. Each row's countdown already says which it is, so a second heading
+ *   would only ask the reader to learn the difference before reading a row.
+ * - **today** — everything on display and not overdue: every dateless row
+ *   first, then the rest by due date, however far off that is.
+ * - **next7** / **later** — what is not on Today yet: rows whose display has
+ *   not started, and rows put off. Each goes by the day it next enters Today
+ *   ({@link landingDayOf}) — within {@link NEXT_DAYS} days is *next7*, beyond is
+ *   *later*.
  *
- * ⚠️ **`owed` is what "done for the day" measures** — belated + today, and
- * nothing else. That separation is the whole point: a gift project
- * that sits on screen for a month must never make the day unfinishable. Both
- * readings are returned, `owed` and `actionable`, so the copy can say which kind
- * of done was reached; which one it celebrates is the client's call.
+ * ⚠️ **Today holds everything that can be done now** *(owner, 2026-09-11)*. It
+ * used to stop at what was due today, with a month-long gift errand parked in an
+ * *available* section below that deliberately did not count — so the day could
+ * be finished, but never earned. The errand is on Today now, known by its "Due
+ * in N days" rather than by a divider, and it leaves the day by being done,
+ * dismissed, or put off with "Remind me in…". `owed` — belated plus today — is
+ * therefore everything actionable, and reaching zero is a real finish line.
  *
- * **Dateless rows are owed** *(owner, 2026-09-04)*. An onboarding nudge, the
- * duplicates nudge and an undated user reminder have no due date to sort on, and
- * they go in `today` alongside the dated rows rather than sinking into
- * `available`. The consequence is deliberate and known: a nudge that waits for
- * an account rather than for days keeps the day unfinishable while it stands.
- *
- * **They lead it** *(owner, 2026-09-11)*. A dateless row has been owed since it
- * appeared, longer than anything merely due today, and it is the one kind of row
- * the passing of time will never move up the list — so a busy morning used to
- * bury the getting-started steps beneath it. Nothing is special-cased to get
- * there: onboarding is simply dateless, and anything overdue still sits above
- * the lot, in belated.
+ * **Dateless rows are owed, and lead** *(owner, 2026-09-04, 2026-09-11)*. An
+ * onboarding nudge, the duplicates nudge and an undated user reminder have no due
+ * date to sort on; each has been owed since it appeared, and the passing of time
+ * will never move it up the list — so they go first, and a busy morning cannot
+ * bury the getting-started steps.
  *
  * ⚠️ **What can still be saved leads belated.** The two kinds of overdue differ
  * in what can be done, and only the occurrence tells them apart: an overdue user
@@ -149,12 +159,15 @@ export type ReminderBucket = "belated" | "today" | "available" | "coming";
  * rows. That is why `occurrenceDate` has to travel with the row: `dueDate` alone
  * cannot recover it, the action not being a column.
  *
- * **Each list reads in the order of the dates it shows** *(2026-09-11)*. A
- * question displays the occasion it asks about, not its own deadline
- * (`countdownDate`), so ordering on `dueDate` made the numbers on screen jump
- * about — found on a device after an import, where every row was individually
- * right. Available and both halves of belated sort on the date each row shows;
- * coming, read as a schedule of arrivals, sorts on when it lands.
+ * **Each section is ordered by the date that moves a row out of it** *(owner,
+ * 2026-09-11)*: Today by due date, the day a row turns belated; the later
+ * sections by the day it enters Today. Belated has nowhere further to go, so it
+ * sorts on the date each row shows (`countdownDate`). The countdown a row shows
+ * in each section is that same date — {@link reminderCountdownOf} — so the
+ * numbers on screen read in order.
+ *
+ * *Later* is not everything beyond a week: a `system` row only exists inside the
+ * engine's display window, while a reminder the user wrote can be months out.
  *
  * Every comparison is whole civil days ({@link daysUntil}), never elapsed
  * milliseconds, so the buckets flip at the viewer's local midnight exactly as
@@ -167,14 +180,12 @@ export function bucketReminders<R extends ReminderTiming>(
 ): {
   belated: R[];
   today: R[];
-  available: R[];
-  coming: R[];
+  next7: R[];
+  later: R[];
   done: R[];
-  snoozed: R[];
-  /** belated + today — what "done for the day" measures. */
+  /** belated + today — everything that can be done now, and what "done for
+   *  the day" measures. */
   owed: number;
-  /** owed + available — everything that could possibly be done right now. */
-  actionable: number;
 } {
   const { open, done, snoozed } = partitionReminders(reminders, now);
   const todayCivilDate = todayCivil(now);
@@ -185,87 +196,96 @@ export function bucketReminders<R extends ReminderTiming>(
   const salvageable: R[] = [];
   const gone: R[] = [];
   const dateless: R[] = [];
-  const dueToday: R[] = [];
-  const available: R[] = [];
-  const coming: R[] = [];
+  const dated: R[] = [];
+  const next7: R[] = [];
+  const later: R[] = [];
 
-  for (const reminder of open) {
-    const { activeFrom, dueDate, occurrenceDate } = reminder;
-    if (
-      activeFrom !== null &&
-      activeFrom !== undefined &&
-      daysTo(activeFrom) > 0
-    ) {
-      coming.push(reminder);
-    } else if (dueDate === null) {
-      dateless.push(reminder);
-    } else {
-      const untilDue = daysTo(dueDate);
-      if (untilDue > 0) available.push(reminder);
-      else if (untilDue === 0) dueToday.push(reminder);
-      else if (
-        occurrenceDate !== null &&
-        occurrenceDate !== undefined &&
-        daysTo(occurrenceDate) < 0
-      )
-        gone.push(reminder);
-      else salvageable.push(reminder);
+  // Snoozed rows are not on Today, so they join the later sections by the day
+  // they come back.
+  for (const reminder of [...open, ...snoozed]) {
+    const lands = landingDayOf(reminder);
+    const untilLands = lands === null ? 0 : daysTo(lands);
+    if (untilLands > 0) {
+      (untilLands <= NEXT_DAYS ? next7 : later).push(reminder);
+      continue;
     }
+    const { dueDate, occurrenceDate } = reminder;
+    if (dueDate === null) dateless.push(reminder);
+    else if (daysTo(dueDate) >= 0) dated.push(reminder);
+    else if (
+      occurrenceDate !== null &&
+      occurrenceDate !== undefined &&
+      daysTo(occurrenceDate) < 0
+    )
+      gone.push(reminder);
+    else salvageable.push(reminder);
   }
 
-  // Each list reads in the order of the dates it shows. `open` arrives
-  // soonest-due-first, but a question shows its occasion rather than its
-  // deadline, so on due dates alone the screen read "in 10 days" above "in 5
-  // days". The sort is stable, so rows showing the same day keep their deadline
-  // order. `coming` is read as a schedule of arrivals, not of deadlines, so it
-  // sorts on the date it will land.
+  // Every sort is stable, so rows on the same day keep the order they arrived in.
   const shown = (r: R) => r.countdownDate ?? r.dueDate ?? 0;
   const byShown = (a: R, b: R) => shown(a) - shown(b);
-  available.sort(byShown);
+  const byLanding = (a: R, b: R) =>
+    (landingDayOf(a) ?? 0) - (landingDayOf(b) ?? 0);
   salvageable.sort(byShown);
   gone.sort(byShown);
-  coming.sort((a, b) => (a.activeFrom ?? 0) - (b.activeFrom ?? 0));
+  dated.sort((a, b) => (a.dueDate ?? 0) - (b.dueDate ?? 0));
+  next7.sort(byLanding);
+  later.sort(byLanding);
 
   const belated = [...salvageable, ...gone];
-  const today = [...dateless, ...dueToday];
-  const owed = belated.length + today.length;
+  const today = [...dateless, ...dated];
   return {
     belated,
     today,
-    available,
-    coming,
+    next7,
+    later,
     done,
-    snoozed,
-    owed,
-    actionable: owed + available.length,
+    owed: belated.length + today.length,
   };
 }
 
+/** What a row's trailing countdown counts to, and in which words — see
+ *  {@link reminderCountdownOf}. */
+export type ReminderCountdown =
+  | { kind: "due"; date: number }
+  | { kind: "back"; date: number }
+  | { kind: "coming"; date: number }
+  | { kind: "shown"; date: number };
+
 /**
- * The *coming* bucket grouped by the day each row lands, ascending — one group
- * per distinct activation date, so the expander reads as a schedule rather than
- * a wall.
+ * What a row's trailing countdown says in the section it is in: the date that
+ * section sorts it by, and which words to put that date in. The words are the
+ * clients' (`formatDueCountdown`, `formatBackIn`, `formatComingIn` and
+ * `formatDueIn` in `@leapsake/schema`); the date is chosen here, once for both,
+ * so the number a row shows and its place in the list cannot disagree.
  *
- * Grouping and not labelling: a group carries its `activeFrom` and the client
- * formats it (`formatDueIn`), because the distance is a moving number and a
- * written-in "next month" would be wrong by tomorrow.
+ * - **today** — its deadline, as *due*: "Due in 5 days". A question shows its
+ *   deadline too, not its occasion *(owner, 2026-09-11)* — *due* is what keeps
+ *   it from reading as the birthday, which its detail screen still names.
+ * - **next7 / later** — the day it enters Today: *back* for a row that was put
+ *   off, plain for one whose display has not started.
+ * - **belated / done** — the date the row shows, as it always has.
  *
- * Rows with no activation date cannot be in this bucket, so they cannot reach
- * here; the fallback exists only to keep the function total.
+ * `null` when there is nothing to count to — a dateless row.
  */
-export function groupComingByActivation<R extends ReminderTiming>(
-  coming: readonly R[],
-): { activeFrom: number; reminders: R[] }[] {
-  const groups = new Map<number, R[]>();
-  for (const reminder of coming) {
-    const at = reminder.activeFrom ?? 0;
-    const group = groups.get(at);
-    if (group === undefined) groups.set(at, [reminder]);
-    else group.push(reminder);
+export function reminderCountdownOf(
+  reminder: ReminderTiming,
+  section: ReminderSection,
+): ReminderCountdown | null {
+  if (section === "today")
+    return reminder.dueDate === null
+      ? null
+      : { kind: "due", date: reminder.dueDate };
+  if (section === "next7" || section === "later") {
+    const lands = landingDayOf(reminder);
+    if (lands === null) return null;
+    return {
+      kind: lands === reminder.snoozedUntil ? "back" : "coming",
+      date: lands,
+    };
   }
-  return [...groups.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([activeFrom, reminders]) => ({ activeFrom, reminders }));
+  const shown = reminder.countdownDate ?? reminder.dueDate;
+  return shown === null ? null : { kind: "shown", date: shown };
 }
 
 /** The person or pet a `🎁 gift` reminder is about. Core's `GiftReminderTarget` satisfies it. */
