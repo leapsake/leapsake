@@ -4,6 +4,7 @@ import {
   CATALOG,
   CATALOG_VERSION,
   canonicalRecurrenceJson,
+  classificationFor,
   createHolidayResolver,
   isoFromCivil,
   parseRecurrence,
@@ -50,6 +51,18 @@ describe("catalog integrity", () => {
     ]);
   });
 
+  it("gives every live entry a display name nothing else shares", () => {
+    // A name has to identify its holiday on its own: search returns a bare
+    // title, and the browse list is flat. Two entries reading "Thanksgiving"
+    // are two rows a user cannot tell apart — which is what `ca-thanksgiving`
+    // is named "Canadian Thanksgiving" to avoid. Grouping by region will help,
+    // but a name that only works inside its group is still the wrong name.
+    const names = CATALOG.filter((e) => e.retiredAt === undefined).map(
+      (e) => e.name,
+    );
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   it("gives every entry a greeting, for the reminder copy", () => {
     for (const entry of CATALOG) {
       expect(entry.greeting.trim().length).toBeGreaterThan(0);
@@ -80,6 +93,49 @@ describe("catalog dates", () => {
     expect(on("us-fathers-day", 2026)).toEqual(["2026-06-21"]);
     expect(on("us-memorial-day", 2026)).toEqual(["2026-05-25"]);
     expect(on("us-labor-day", 2026)).toEqual(["2026-09-07"]);
+    expect(on("us-mlk-day", 2026)).toEqual(["2026-01-19"]);
+    expect(on("us-presidents-day", 2026)).toEqual(["2026-02-16"]);
+    expect(on("uk-remembrance-sunday", 2026)).toEqual(["2026-11-08"]);
+  });
+
+  it("puts three different holidays on the second Monday in October", () => {
+    // Columbus Day, Indigenous Peoples' Day and Canadian Thanksgiving all land
+    // here, and none of them is a variant of another. A regression that deduped
+    // by date rather than by `familyId` would silently drop two of the three.
+    expect(on("us-columbus-day", 2026)).toEqual(["2026-10-12"]);
+    expect(on("us-indigenous-peoples-day", 2026)).toEqual(["2026-10-12"]);
+    expect(on("ca-thanksgiving", 2026)).toEqual(["2026-10-12"]);
+  });
+
+  it("resolves the new fixed entries", () => {
+    expect(on("orthodox-christmas", 2026)).toEqual(["2026-01-07"]);
+    expect(on("au-australia-day", 2026)).toEqual(["2026-01-26"]);
+    expect(on("intl-womens-day", 2026)).toEqual(["2026-03-08"]);
+    expect(on("ie-st-patricks", 2026)).toEqual(["2026-03-17"]);
+    expect(on("intl-workers-day", 2026)).toEqual(["2026-05-01"]);
+    expect(on("mx-cinco-de-mayo", 2026)).toEqual(["2026-05-05"]);
+    expect(on("ca-canada-day", 2026)).toEqual(["2026-07-01"]);
+    expect(on("fr-bastille-day", 2026)).toEqual(["2026-07-14"]);
+    expect(on("mx-independence-day", 2026)).toEqual(["2026-09-16"]);
+    expect(on("mx-dia-de-muertos", 2026)).toEqual(["2026-11-01"]);
+    expect(on("us-veterans-day", 2026)).toEqual(["2026-11-11"]);
+    expect(on("ca-remembrance-day", 2026)).toEqual(["2026-11-11"]);
+    expect(on("uk-boxing-day", 2026)).toEqual(["2026-12-26"]);
+    expect(on("new-years-eve", 2026)).toEqual(["2026-12-31"]);
+  });
+
+  it("derives Mothering Sunday from Easter, not from a weekday rule", () => {
+    // The fourth Sunday of Lent, Easter − 21. Easter 2026 is 5 April.
+    expect(on("uk-mothering-sunday", 2026)).toEqual(["2026-03-15"]);
+  });
+
+  it("derives the Lantern Festival from Lunar New Year's table", () => {
+    // The 15th day of the first month — LNY + 14 — so it inherits the table's
+    // corrections and its horizon instead of needing a second table.
+    expect(on("lunar-new-year", 2027)).toEqual(["2027-02-06"]);
+    expect(on("lantern-festival", 2027)).toEqual(["2027-02-20"]);
+    // Inherited horizon: no base occurrence, so no derived one.
+    expect(on("lantern-festival", 2099)).toEqual([]);
   });
 
   it("resolves Easter and derives Good Friday from it", () => {
@@ -152,6 +208,68 @@ describe("catalog dates", () => {
   });
 });
 
+/** Every slug in one `familyId`, sorted — the picker's dedup unit. */
+function family(id: string): string[] {
+  return CATALOG.filter((e) => e.familyId === id)
+    .map((e) => e.slug)
+    .sort();
+}
+
+describe("catalog classification", () => {
+  it("classifies every entry", () => {
+    for (const entry of CATALOG) {
+      expect(classificationFor(entry.slug)).not.toBeNull();
+    }
+  });
+
+  it("answers null for a slug this bundle does not carry", () => {
+    // A user-defined holiday, or a catalog entry that arrived over sync from a
+    // newer bundle. Callers group these under "Other"; the one thing that must
+    // not happen is a throw, since this runs while rendering the browse list.
+    expect(classificationFor("a-holiday-someone-invented")).toBeNull();
+  });
+
+  it("groups a secular holiday by region and every other one by tradition", () => {
+    // The rule the browse list sections on. National days group as "United
+    // States"; religious ones group as "Jewish", because that is how someone
+    // picking holidays for a particular person reasons about them.
+    expect(classificationFor("us-thanksgiving")?.groupKey).toBe("us");
+    expect(classificationFor("fr-bastille-day")?.groupKey).toBe("fr");
+    expect(classificationFor("intl-womens-day")?.groupKey).toBe("global");
+    expect(classificationFor("hanukkah")?.groupKey).toBe("jewish");
+    expect(classificationFor("christmas")?.groupKey).toBe("christian");
+    expect(classificationFor("lunar-new-year")?.groupKey).toBe("chinese");
+  });
+
+  it("keeps a religious holiday's region global, so diaspora is not stranded", () => {
+    // Pinning a tradition's holidays to one country would be wrong for everyone
+    // who keeps them elsewhere, and would bury them for a US user.
+    for (const entry of CATALOG) {
+      if (entry.tradition === "secular") continue;
+      if (entry.region !== "global") {
+        expect(entry.familyId).toBeDefined();
+      }
+    }
+  });
+
+  it("families group the same idea, never two holidays one person keeps apart", () => {
+    // Mother's Day: the README's own example — same idea, unrelated rules.
+    expect(family("mothers-day")).toEqual([
+      "uk-mothering-sunday",
+      "us-mothers-day",
+    ]);
+    // The Armistice lineage. Memorial Day is a day of remembrance and is
+    // deliberately absent: a US user keeps it and Veterans Day separately, so
+    // letting the picker collapse them would hide a holiday they observe.
+    expect(family("remembrance")).toEqual([
+      "ca-remembrance-day",
+      "uk-remembrance-sunday",
+      "us-veterans-day",
+    ]);
+    expect(family("christmas")).toEqual(["christmas", "orthodox-christmas"]);
+  });
+});
+
 describe("catalog serialization", () => {
   // ASCII unit/record separators, written as escapes so this file stays plain
   // text: a literal control byte in the source makes git treat it as binary,
@@ -188,7 +306,7 @@ describe("catalog serialization", () => {
       ].join(FIELD),
     ).join(RECORD);
     expect(createHash("sha256").update(payload).digest("hex")).toBe(
-      "44f6d06defec148823fb00b5748f596235e30ec214b1bb66bd0a71a7c73b0360",
+      "ec1913c4c71b1463d260d8faf143020389decbcdb68e9745e8b11bbdcbecf624",
     );
   });
 

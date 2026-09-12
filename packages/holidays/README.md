@@ -94,6 +94,38 @@ Two edges between catalog entries, not to be conflated: **family** (`us-mothers-
 (Good Friday = Easter − 2 — a directed, acyclic computation dependency). Keep one recurrence rule
 per entry; variants are separate entries.
 
+Three v1 slugs predate the rule being applied consistently — `christmas`, `hanukkah`,
+`lunar-new-year`. **They cannot be renamed**: the slug *is* the identity a row's UUID derives
+from, so a rename orphans every observance pointing at it. `orthodox-christmas` therefore sits
+beside a bare `christmas`. Leave the asymmetry; it is cheaper than the migration that removes it.
+
+## Classification is bundle-side, and the group key is derived
+
+`region` and `tradition` on a catalog entry exist to **group the browse list**, and they stop at
+the bundle — they are not columns on the synced `holidays` row. That cost no migration and adds
+nothing to what every device stores and syncs; callers join them back on by slug through
+`classificationFor`.
+
+The group key is **derived, not authored**: `tradition === "secular" ? region : tradition`.
+National days group as "United States" and "France", religious ones as "Jewish" and "Hindu" —
+which is how someone picking holidays *for a particular person* reasons about them, rather than by
+the calendar mechanism underneath. Two rules keep it honest:
+
+- **Every religious holiday is `region: "global"`.** A tradition travels with its diaspora, so
+  pinning Diwali to India would be wrong for everyone who keeps it elsewhere, and would bury it.
+- **`tradition` is provenance, never an assertion about a person.** That Diwali is `hindu` says
+  where the holiday comes from; who observes it is what `observances` is for. The inference
+  constraints above still hold.
+
+The trade is a narrow skew window: an entry arriving over sync from a **newer** bundle has no
+classification on this build and groups under "Other" until the app updates. That is the same
+degradation `parseRecurrence` already takes — data syncs, code does not — and it self-heals.
+Promoting classification to a column later is strictly additive; nothing here forecloses it.
+
+**Display names must stand alone.** Search returns a bare title and the browse list is flat, so a
+name that is only unambiguous inside its group is the wrong name — hence "Canadian Thanksgiving".
+A catalog test pins this.
+
 ## Recurrence: rules where they are exact, tables where they are not
 
 One interface — `occurrencesFor(holidayId, year) → CivilDate[]` — backed by arithmetic rules for

@@ -35,6 +35,11 @@ describe("holiday catalog seed", () => {
     name: "Test Holiday",
     greeting: "a Happy Test",
     recurrence: { type: "fixed" as const, month: 3, day: 1 },
+    // Classification is bundle-side and never reaches a row, so it is
+    // irrelevant to everything this file asserts — but it is required on an
+    // entry, so the stand-in carries a value.
+    tradition: "secular" as const,
+    region: "global" as const,
     authoredAt: Date.UTC(2026, 0, 1),
     ...over,
   });
