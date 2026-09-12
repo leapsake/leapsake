@@ -88,6 +88,8 @@ import type {
 } from "@leapsake/schema";
 import {
   baseRole,
+  civilFromDueMs,
+  daysUntil,
   entityLabel,
   genderedVariant,
   impliedGender,
@@ -98,6 +100,7 @@ import {
   kindDefs,
   parseHashtags,
   parseMentions,
+  planOffers,
   relationshipPairLabel,
   splitName,
   resolveObservanceReminderSchedule,
@@ -2080,14 +2083,18 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
                 ],
           );
 
-        // The offers come from the kind defaults rather than from stored rows on
-        // purpose. A prompt exists precisely because the milestone has none, so
-        // `resolveReminderSchedule(kind, [])` is not a shortcut here — it is the
-        // same answer the resolver would give, reached without a second read.
+        // The offers are what the question can still offer **today**
+        // (`planOffers`): the kind's set, pre-ticked from any earlier answer — a
+        // question asked again after a partial one shows what was chosen — and
+        // filtered to what still fits, so a question answered five days out
+        // never offers to post a card. The engine reads the same function to
+        // decide whether to ask at all, so the row and this screen cannot
+        // disagree about whether there is a question.
         //
-        // One label lookup per outstanding prompt. There are only ever a handful
-        // — a prompt stands for eight weeks per occasion, once — so this stays
-        // cheap even though the lookup may be an encrypted read.
+        // Two reads per outstanding prompt, its label and its stored rules.
+        // There are only ever a handful — a prompt stands for weeks per
+        // occasion, once a year at most — so this stays cheap even though the
+        // label may be an encrypted read.
         const plans: PlanReminderTarget[] = await Promise.all(
           targets
             .filter((t) => t.action === "plan" && t.milestone !== undefined)
@@ -2108,7 +2115,25 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
                 t.milestone!.kind,
               )),
               occurrenceDate: t.occurrenceDate ?? null,
-              offers: resolveReminderSchedule(t.milestone!.kind, []).rules,
+              offers: await (async () => {
+                const kind = t.milestone!.kind;
+                const { rules } = resolveReminderSchedule(
+                  kind,
+                  await reminderRules.listForBearer(
+                    "milestone",
+                    t.milestone!.id,
+                  ),
+                );
+                // A plan row always carries its occasion; without one there is
+                // no distance to filter by, and the whole set is the honest answer.
+                return t.occurrenceDate == null
+                  ? planOffers(kind, rules, Number.POSITIVE_INFINITY)
+                  : planOffers(
+                      kind,
+                      rules,
+                      daysUntil(todayCivil(), civilFromDueMs(t.occurrenceDate)),
+                    );
+              })(),
             })),
         );
 

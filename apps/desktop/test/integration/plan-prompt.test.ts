@@ -115,6 +115,20 @@ describe("the plan prompt, end to end through core", () => {
     );
   });
 
+  // Learned of five days out, the question cannot offer to post anything — the
+  // post date is too close — but a gift or a card can still be handed over in
+  // person. The screen offers exactly what the engine asked about.
+  it("offers only what still fits when it arrives late", async () => {
+    await personWithBirthday(5);
+
+    const [target] = (await core.reminders.targets()).plans;
+    expect(target.offers.map((o) => o.action)).toEqual([
+      "get:gift",
+      "get:card",
+      "wish",
+    ]);
+  });
+
   it("turns a ticked card into a card reminder at its own due date", async () => {
     // Twenty days out, and the app has only just learned of it: the question is
     // not overdue, it is due on the last day to post — you can't be late for
