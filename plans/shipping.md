@@ -20,10 +20,10 @@ must start **now**, in parallel with Part 1 — not when Part 1 finishes.
 
 # Part 1 — Before iOS GA
 
-Steps 1–3 and 6 are code; 4, 5 and 7 are process and store paperwork. Step 3 is down to one line
-of release plumbing — its custody assertions landed on 2026-09-09 — and **step 6 is the one piece
-of product work left**, added on 2026-09-11. 5 is the one nothing in the repo can check for you. If
-it is not on this list, it does not block GA.
+Steps 1–3 are code; 4–6 are process and store paperwork. **The code is done bar one line of
+release plumbing** — step 3's custody assertions landed on 2026-09-09 — so **4 and 5 are now the
+long pole**, and 5 is the one nothing in the repo can check for you. If it is not on this list,
+it does not block GA.
 
 ## 1 — Export
 
@@ -227,16 +227,7 @@ every beta that shipped — and stops there, because nothing more is required to
 - Screenshots, age rating, support URL — the `final` rung's own manual list.
 - ⚠️ The version string is **spent permanently** once submitted.
 
-## 6 — Home and snooze redesign
-
-Decided 2026-09-11, before submission rather than after: Available folds into Today, Coming becomes
-*Next 7 days* then *Later*, one "Remind me in…" replaces every *not now* with nothing retired by
-being put off, and a reminder notifies on its due day and on every day it enters Today. The steps
-are [`home-and-snooze.md`](./home-and-snooze.md).
-
-**Acceptance:** that file's steps landed and deleted; `test:e2e` green on iOS again.
-
-## 7 — Submit
+## 6 — Submit
 
 TestFlight → App Store review; the `final` rung is the same path one step further on.
 
