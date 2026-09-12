@@ -416,47 +416,53 @@ describe("bucketReminders", () => {
         timed("gift", { dueIn: 8, occurrenceIn: 20, activeIn: -22 }),
         timed("today", { dueIn: 0, occurrenceIn: 0 }),
         // Its post date blew, but the birthday is still four days off.
-        timed("past-due", { dueIn: -3, occurrenceIn: 4, activeIn: -17 }),
+        timed("missed-post", { dueIn: -3, occurrenceIn: 4, activeIn: -17 }),
         // The birthday itself has gone.
-        timed("belated", { dueIn: -1, occurrenceIn: -1 }),
+        timed("gone", { dueIn: -1, occurrenceIn: -1 }),
         // A wish for a birthday three weeks out — not on display yet.
         timed("coming", { dueIn: 21, occurrenceIn: 21 }),
       ],
       NOW,
     );
 
-    expect(result.pastDue.map((r) => r.id)).toEqual(["past-due"]);
-    expect(result.belated.map((r) => r.id)).toEqual(["belated"]);
+    expect(result.belated.map((r) => r.id)).toEqual(["missed-post", "gone"]);
     expect(result.today.map((r) => r.id)).toEqual(["today"]);
     expect(result.available.map((r) => r.id)).toEqual(["gift"]);
     expect(result.coming.map((r) => r.id)).toEqual(["coming"]);
   });
 
   // The one distinction that cannot be made from `dueDate` alone, and the reason
-  // the occurrence has to travel with the row.
-  it("tells past due from belated only by the occurrence", () => {
+  // the occurrence has to travel with the row: what can still be saved leads.
+  it("puts what can still be saved ahead of what has passed", () => {
     const result = bucketReminders(
       [
+        timed("occasion-gone", { dueIn: -3, occurrenceIn: -1 }),
         timed("still-salvageable", { dueIn: -2, occurrenceIn: 5 }),
-        timed("occasion-gone", { dueIn: -2, occurrenceIn: -1 }),
       ],
       NOW,
     );
 
-    expect(result.pastDue.map((r) => r.id)).toEqual(["still-salvageable"]);
-    expect(result.belated.map((r) => r.id)).toEqual(["occasion-gone"]);
+    expect(result.belated.map((r) => r.id)).toEqual([
+      "still-salvageable",
+      "occasion-gone",
+    ]);
   });
 
-  // "Call the dentist" a day late is not belated: nothing has passed, and it is
-  // exactly as doable as it was yesterday.
-  it("never calls a row with no occasion belated", () => {
+  // "Call the dentist" a day late has not passed anything: it is exactly as
+  // doable as it was yesterday, so it sorts with the salvageable rows.
+  it("counts an overdue row with no occasion as salvageable", () => {
     const result = bucketReminders(
-      [timed("overdue-user-reminder", { dueIn: -9 })],
+      [
+        timed("occasion-gone", { dueIn: -9, occurrenceIn: -1 }),
+        timed("overdue-user-reminder", { dueIn: -2 }),
+      ],
       NOW,
     );
 
-    expect(result.pastDue.map((r) => r.id)).toEqual(["overdue-user-reminder"]);
-    expect(result.belated).toEqual([]);
+    expect(result.belated.map((r) => r.id)).toEqual([
+      "overdue-user-reminder",
+      "occasion-gone",
+    ]);
   });
 
   // Decision (owner, 2026-09-04): a nudge is owed, not merely available.
@@ -465,6 +471,20 @@ describe("bucketReminders", () => {
 
     expect(result.today.map((r) => r.id)).toEqual(["nudge"]);
     expect(result.owed).toBe(1);
+  });
+
+  // Decision (owner, 2026-09-11): the dateless rows lead today, so a busy
+  // morning cannot bury the getting-started steps.
+  it("leads today with the dateless rows", () => {
+    const result = bucketReminders(
+      [
+        timed("due-today", { dueIn: 0, occurrenceIn: 0 }),
+        reminder("nudge", {}),
+      ],
+      NOW,
+    );
+
+    expect(result.today.map((r) => r.id)).toEqual(["nudge", "due-today"]);
   });
 
   // The whole point of the split: a month-long errand must not make the day
@@ -534,7 +554,7 @@ describe("bucketReminders", () => {
     );
 
     expect(result.today.map((r) => r.id)).toEqual(["today"]);
-    expect(result.pastDue).toEqual([]);
+    expect(result.belated).toEqual([]);
   });
 
   it("does not mutate its input", () => {

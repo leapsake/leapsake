@@ -78,19 +78,15 @@ export interface ReminderTiming extends ReminderStanding {
    */
   activeFrom?: number | null;
   /**
-   * The occasion this row counts down to, if it has one. It is what separates
-   * *past due* from *belated*; see {@link bucketReminders}.
+   * The occasion this row counts down to, if it has one. It is what puts an
+   * overdue row that can still be saved ahead of one whose occasion has gone;
+   * see {@link bucketReminders}.
    */
   occurrenceDate?: number | null;
 }
 
 /** Which part of the reminders list a row belongs in. */
-export type ReminderBucket =
-  | "past-due"
-  | "belated"
-  | "today"
-  | "available"
-  | "coming";
+export type ReminderBucket = "belated" | "today" | "available" | "coming";
 
 /**
  * The reminders list, split the way the screen shows it — the display half of
@@ -100,24 +96,26 @@ export type ReminderBucket =
  *
  * The problem it solves: one flat list of everything open makes a month-long
  * gift errand indistinguishable from the wish owed this morning, so there is no
- * way to clear the screen and feel finished. Five buckets, split by **due
+ * way to clear the screen and feel finished. Four buckets, split by **due
  * date**, with activity deciding only whether a row is on the main screen at
  * all:
  *
- * - **past due** — the deadline blew while the occasion is still ahead. Acting
- *   now still has the most value of anything on the screen (the card missed its
- *   post date, but the birthday is Tuesday, so pay for express), which is the
- *   argument for putting it first.
- * - **belated** — the occasion itself has gone. Prominent, but below past due:
- *   nothing can be recovered here, only acknowledged.
- * - **today** — due today, plus every dateless row (see below).
+ * - **belated** — everything overdue, in two kinds under one heading *(owner,
+ *   2026-09-11)*: first a deadline that blew while the occasion is still ahead
+ *   (the card missed its post date, but the birthday is Tuesday, so pay for
+ *   express), because acting on it still has the most value of anything on the
+ *   screen; then the occasions that have gone, where only acknowledgment is
+ *   left. They were two sections once. Each row's countdown already says which
+ *   it is, so a second heading only asked the reader to learn the difference
+ *   before reading a single row.
+ * - **today** — every dateless row first, then what is due today (see below).
  * - **available** — on display, but due later. A month-long gift lives here the
  *   whole time. It is visible, it is tickable, and it deliberately does **not**
  *   count against being done today.
  * - **coming** — not active yet. Behind an expander, ordered by when it lands.
  *
- * ⚠️ **`owed` is what "done for the day" measures** — past due + belated +
- * today, and nothing else. That separation is the whole point: a gift project
+ * ⚠️ **`owed` is what "done for the day" measures** — belated + today, and
+ * nothing else. That separation is the whole point: a gift project
  * that sits on screen for a month must never make the day unfinishable. Both
  * readings are returned, `owed` and `actionable`, so the copy can say which kind
  * of done was reached; which one it celebrates is the client's call.
@@ -128,11 +126,18 @@ export type ReminderBucket =
  * `available`. The consequence is deliberate and known: a nudge that waits for
  * an account rather than for days keeps the day unfinishable while it stands.
  *
- * ⚠️ **A row with no occurrence is never belated.** An overdue user reminder is
- * still salvageable — nothing has *passed* — so it reads as past due. Belated
- * requires a known occasion that has gone, which is why `occurrenceDate` has to
- * travel with the row: `dueDate` alone cannot recover it, the action not being a
- * column.
+ * **They lead it** *(owner, 2026-09-11)*. A dateless row has been owed since it
+ * appeared, longer than anything merely due today, and it is the one kind of row
+ * the passing of time will never move up the list — so a busy morning used to
+ * bury the getting-started steps beneath it. Nothing is special-cased to get
+ * there: onboarding is simply dateless, and anything overdue still sits above
+ * the lot, in belated.
+ *
+ * ⚠️ **What can still be saved leads belated.** The two kinds of overdue differ
+ * in what can be done, and only the occurrence tells them apart: an overdue user
+ * reminder has none — nothing has *passed* — so it sorts with the salvageable
+ * rows. That is why `occurrenceDate` has to travel with the row: `dueDate` alone
+ * cannot recover it, the action not being a column.
  *
  * Every comparison is whole civil days ({@link daysUntil}), never elapsed
  * milliseconds, so the buckets flip at the viewer's local midnight exactly as
@@ -143,14 +148,13 @@ export function bucketReminders<R extends ReminderTiming>(
   reminders: readonly R[],
   now: number = Date.now(),
 ): {
-  pastDue: R[];
   belated: R[];
   today: R[];
   available: R[];
   coming: R[];
   done: R[];
   snoozed: R[];
-  /** past due + belated + today — what "done for the day" measures. */
+  /** belated + today — what "done for the day" measures. */
   owed: number;
   /** owed + available — everything that could possibly be done right now. */
   actionable: number;
@@ -159,9 +163,12 @@ export function bucketReminders<R extends ReminderTiming>(
   const todayCivilDate = todayCivil(now);
   const daysTo = (ms: number) => daysUntil(todayCivilDate, civilFromDueMs(ms));
 
-  const pastDue: R[] = [];
-  const belated: R[] = [];
-  const today: R[] = [];
+  // Belated and today are each built from two halves, so that the half that
+  // leads is decided here rather than by whatever order the rows arrived in.
+  const salvageable: R[] = [];
+  const gone: R[] = [];
+  const dateless: R[] = [];
+  const dueToday: R[] = [];
   const available: R[] = [];
   const coming: R[] = [];
 
@@ -174,29 +181,30 @@ export function bucketReminders<R extends ReminderTiming>(
     ) {
       coming.push(reminder);
     } else if (dueDate === null) {
-      today.push(reminder);
+      dateless.push(reminder);
     } else {
       const untilDue = daysTo(dueDate);
       if (untilDue > 0) available.push(reminder);
-      else if (untilDue === 0) today.push(reminder);
+      else if (untilDue === 0) dueToday.push(reminder);
       else if (
         occurrenceDate !== null &&
         occurrenceDate !== undefined &&
         daysTo(occurrenceDate) < 0
       )
-        belated.push(reminder);
-      else pastDue.push(reminder);
+        gone.push(reminder);
+      else salvageable.push(reminder);
     }
   }
 
-  // `open` arrives soonest-due-first and the buckets preserve it, so only
+  // `open` arrives soonest-due-first and each half preserves it, so only
   // `coming` needs its own order: it is read as a schedule of arrivals, not of
   // deadlines, so it sorts on the date it will land.
   coming.sort((a, b) => (a.activeFrom ?? 0) - (b.activeFrom ?? 0));
 
-  const owed = pastDue.length + belated.length + today.length;
+  const belated = [...salvageable, ...gone];
+  const today = [...dateless, ...dueToday];
+  const owed = belated.length + today.length;
   return {
-    pastDue,
     belated,
     today,
     available,

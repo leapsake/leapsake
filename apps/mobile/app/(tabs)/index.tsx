@@ -30,7 +30,6 @@ const TEXT: Record<ReminderSection, string> & {
   allClear: string;
   chevron: string;
 } = {
-  "past-due": "Past due",
   belated: "Belated",
   today: "Today",
   available: "Available",
@@ -48,8 +47,8 @@ const TEXT: Record<ReminderSection, string> & {
 
 /**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
- * group's `index` route. A list of reminders **split by when**: past due,
- * belated and today lead (what is *owed*), then available, then coming and
+ * group's `index` route. A list of reminders **split by when**: belated and
+ * today lead (what is *owed*), then available, then coming and
  * completed folded away behind their own headings. The reasoning for the split —
  * and for why only the owed sections decide whether the day is finished — is on
  * `bucketReminders`; the flat-list shape it renders as is in

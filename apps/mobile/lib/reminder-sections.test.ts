@@ -45,9 +45,10 @@ describe("reminderListItems", () => {
       { collapsed: none, now: NOW },
     );
 
-    // No belated, coming or completed rows, so no headings for them.
+    // No coming or completed rows, so no headings for them. An overdue row
+    // whose occasion is still ahead is belated too — one section, not two.
     expect(items(list)).toEqual([
-      "# past-due",
+      "# belated",
       "late",
       "# today",
       "now",

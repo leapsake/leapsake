@@ -1027,8 +1027,9 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
  * once done, logging what was given). Derived from the engine's own walk, so the
  * CTA appears on exactly the reminders it minted.
  *
- * `listInWindow`, not `list`: the screen buckets by *when*, and past due, belated
- * and coming are not derivable from stored rows alone (see `bucketReminders`).
+ * `listInWindow`, not `list`: the screen buckets by *when*, and which overdue rows
+ * can still be saved, and what is coming, are not derivable from stored rows
+ * alone (see `bucketReminders`).
  */
 async function remindersLoader() {
   const [reminders, targets, duplicatesNudgeId] = await Promise.all([

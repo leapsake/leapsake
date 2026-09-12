@@ -6,7 +6,6 @@ import { type ReminderTiming, bucketReminders } from "@leapsake/view-models";
  * by being ticked rather than by the passing of time.
  */
 export type ReminderSection =
-  | "past-due"
   | "belated"
   | "today"
   | "available"
@@ -14,13 +13,12 @@ export type ReminderSection =
   | "done";
 
 /**
- * Top to bottom. Past due leads because its deadline blew while the occasion is
- * still ahead — the most salvageable thing on the screen; belated follows,
- * prominent but unrecoverable. Coming and done sink below everything that is
+ * Top to bottom. Belated leads — everything overdue, the still-salvageable
+ * first (a deadline that blew while the occasion is still ahead), then the
+ * occasions that have gone. Coming and done sink below everything that is
  * actually asked of you today.
  */
 const SECTION_ORDER: readonly ReminderSection[] = [
-  "past-due",
   "belated",
   "today",
   "available",
@@ -95,7 +93,6 @@ export function reminderListItems<R extends ReminderTiming & { id: string }>(
   // The buckets arrive in display order and are read back in `SECTION_ORDER`,
   // which is the same order — named once here so the two cannot drift.
   const bySection = new Map<ReminderSection, readonly R[]>([
-    ["past-due", buckets.pastDue],
     ["belated", buckets.belated],
     ["today", buckets.today],
     ["available", buckets.available],
@@ -105,8 +102,8 @@ export function reminderListItems<R extends ReminderTiming & { id: string }>(
 
   const items: ReminderListItem<R>[] = [];
   for (const section of SECTION_ORDER) {
-    // The owed sections are past due, belated and today; once all three are
-    // behind us, say so where they would have been.
+    // The owed sections are belated and today; once both are behind us, say so
+    // where they would have been.
     if (section === "available" && buckets.owed === 0 && reminders.length > 0)
       items.push({
         kind: "note",

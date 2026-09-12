@@ -28,7 +28,6 @@ import { rowAffordanceFor, showsRemove } from "../lib/reminder-row";
 const TEXT = {
   title: "Reminders",
   add: "Add reminder",
-  pastDue: "Past due",
   belated: "Belated",
   today: "Today",
   available: "Available",
@@ -202,7 +201,7 @@ function ReminderRow({
 /**
  * The Reminders screen — the app's home, split by **when**.
  *
- * Four headed lists lead — past due, belated, today, available — then *coming*
+ * Three headed lists lead — belated, today, available — then *coming*
  * and *completed* in disclosures. The reasoning for the split, and for which of
  * them "done for the day" counts, is on `bucketReminders`; this screen owns only
  * how it looks. Copy is kept in one table below so the later message-catalog
@@ -226,7 +225,7 @@ export function ReminderList() {
   const linkPartnerTargetById = new Map(
     targets.linkPartners.map((t) => [t.reminderId, t]),
   );
-  const { pastDue, belated, today, available, coming, done, owed, actionable } =
+  const { belated, today, available, coming, done, owed, actionable } =
     bucketReminders(reminders);
 
   const row = (reminder: ReminderInWindow, withNudgeCta = true) => (
@@ -258,11 +257,9 @@ export function ReminderList() {
         <Link to="/reminders/new">{TEXT.add}</Link>
       </p>
 
-      {/* Past due leads: its deadline blew but the occasion is still ahead, so
-          acting now has more value than anything else on the screen. Belated
-          follows — prominent, but nothing there can be recovered, only
-          acknowledged. */}
-      {section(TEXT.pastDue, pastDue)}
+      {/* Belated leads: everything overdue, the still-salvageable first — a
+          deadline that blew while the occasion is still ahead — then the
+          occasions that have gone. Today follows, its dateless rows on top. */}
       {section(TEXT.belated, belated)}
       {section(TEXT.today, today)}
 
