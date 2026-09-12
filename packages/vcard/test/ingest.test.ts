@@ -347,7 +347,7 @@ describe("ingestContacts — pets, tags and the self claim", () => {
           birthday: { year: 2019, month: 4, day: 12 },
           related: [
             {
-              name: "Jane Wainwright",
+              name: "William Bailey",
               role: "owner",
               roleNote: null,
               otherUid: null,
@@ -583,9 +583,9 @@ describe("ingestContacts — edges between two cards", () => {
           name: { firstName: "Jimmy", middleName: null, lastName: "" },
           related: [
             refRelated({
-              name: "Jane Wainwright",
+              name: "William Bailey",
               role: "owner",
-              otherUid: "jane",
+              otherUid: "billy",
             }),
             {
               name: "Dr. Campbell",
@@ -597,7 +597,7 @@ describe("ingestContacts — edges between two cards", () => {
           ],
         }),
       },
-      { action: "create", contact: contact({ uid: "jane" }) },
+      { action: "create", contact: contact({ uid: "billy" }) },
     ]);
 
     // The bug this guards: `addRelated` used to hardcode `"person"`, so a pet

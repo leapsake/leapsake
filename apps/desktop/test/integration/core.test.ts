@@ -151,7 +151,7 @@ describe("createCore — cascade soft-delete", () => {
 
   it("cascades a pet delete across tags, relationships, and milestones", async () => {
     const owner = await core.people.create(
-      { firstName: "Jane", lastName: "Wainwright" },
+      { firstName: "William", lastName: "Bailey" },
       [],
     );
     const jimmy = await core.pets.create({ name: "Jimmy" }, ["GoodBoy"]);

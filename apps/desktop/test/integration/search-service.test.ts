@@ -985,9 +985,9 @@ describe("searchService — entities that exist only as a relationship", () => {
   });
 
   it("finds an attached pet through its owner", async () => {
-    const ernie = await people.create({
-      firstName: "Ernie",
-      lastName: "Bishop",
+    const billy = await people.create({
+      firstName: "William",
+      lastName: "Bailey",
     });
     const jimmy = await pets.create({
       name: "Jimmy",
@@ -995,7 +995,7 @@ describe("searchService — entities that exist only as a relationship", () => {
     });
     await relationships.create({
       aType: "person",
-      aId: ernie.id,
+      aId: billy.id,
       aRole: "owner",
       bType: "pet",
       bId: jimmy.id,
@@ -1003,7 +1003,7 @@ describe("searchService — entities that exist only as a relationship", () => {
     });
 
     const hits = await search.query("jimmy");
-    expect(hits.map((h) => h.entityId)).toEqual([ernie.id]);
+    expect(hits.map((h) => h.entityId)).toEqual([billy.id]);
   });
 
   it("returns her in her own right once she is published", async () => {

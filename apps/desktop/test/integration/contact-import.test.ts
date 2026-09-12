@@ -601,6 +601,7 @@ describe("core.import.commit — edges between two cards", () => {
    */
   it("writes a pet's own relations against the pet, not against a person", async () => {
     const JIMMY = "cccccccc-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
+    const BILLY = "b111ab11-1c4b-4f2a-9d3e-6a7b8c9d0e1f";
     const result = await core.import.commit([
       {
         action: "create",
@@ -610,12 +611,19 @@ describe("core.import.commit — edges between two cards", () => {
           name: { firstName: "Jimmy", middleName: null, lastName: "" },
           displayName: "Jimmy",
           related: [
-            related({ name: "Jane Wainwright", role: "owner", otherUid: JANE }),
+            related({ name: "William Bailey", role: "owner", otherUid: BILLY }),
             related({ name: "Dr. Campbell", role: "other", roleNote: "vet" }),
           ],
         }),
       },
-      { action: "create", contact: contact({ uid: JANE }) },
+      {
+        action: "create",
+        contact: contact({
+          uid: BILLY,
+          name: { firstName: "William", middleName: null, lastName: "Bailey" },
+          displayName: "William Bailey",
+        }),
+      },
     ]);
     expect(result).toMatchObject({ created: 2, errors: [] });
 
@@ -623,10 +631,10 @@ describe("core.import.commit — edges between two cards", () => {
     const edges = await core.relationships.listForEntity("pet", jimmy.id);
     expect(edges).toHaveLength(2);
     expect(edges.map((e) => e.otherRole).sort()).toEqual(["other", "owner"]);
-    // The owner is the real published person, not a second stub of her.
+    // The owner is the real published person, not a second stub of him.
     const owner = edges.find((e) => e.otherRole === "owner")!;
     expect(owner).toMatchObject({
-      otherLabel: "Jane Wainwright",
+      otherLabel: "William Bailey",
       otherStanding: "published",
     });
   });

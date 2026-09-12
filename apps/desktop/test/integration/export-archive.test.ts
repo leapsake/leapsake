@@ -236,8 +236,8 @@ describe("core.export.archive", () => {
   });
 
   it("gives a pet a card of its own, with its owner and its birthday", async () => {
-    const jane = await core.people.create(
-      { firstName: "Jane", lastName: "Wainwright" },
+    const billy = await core.people.create(
+      { firstName: "William", lastName: "Bailey" },
       [],
     );
     const jimmy = await core.pets.create({ name: "Jimmy", gender: "male" }, [
@@ -245,7 +245,7 @@ describe("core.export.archive", () => {
     ]);
     await core.relationships.create({
       aType: "person",
-      aId: jane.id,
+      aId: billy.id,
       aRole: "owner",
       bType: "pet",
       bId: jimmy.id,

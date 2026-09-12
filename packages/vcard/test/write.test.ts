@@ -758,7 +758,7 @@ describe("writeVCards — pets", () => {
         displayName: "Jimmy",
         related: [
           related({
-            name: "Jane Wainwright",
+            name: "William Bailey",
             role: "owner",
             otherUid: "eeeeeeee-1c4b-4f2a-9d3e-6a7b8c9d0e1f",
           }),
