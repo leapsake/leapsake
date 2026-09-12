@@ -24,6 +24,18 @@ The OS pending set is **derived state**, rebuilt from reminder rows on every rec
 this package persists "the next digest fires on 15 August" — `planNotifications` recomputes the
 whole desired set from scratch every call, keyed on `now`.
 
+## Which days notify _(owner, 2026-09-11)_
+
+A reminder notifies on its **due day** — the one that matters most — and on **every day it enters
+Today**: the day it goes on display (`activeFrom`) or the day a snooze ends, whichever is later. A
+day that is both is one notification. So putting a row off schedules its own return the moment it
+is set, with no new plumbing: the post-write reconcile already runs then.
+
+⚠️ **A snoozed row stays in the plan.** It used to be dropped while snoozed, which cancelled its
+due-day notification until some later reconcile re-added it — and on a device nobody opened in
+between, never. Completed, deleted and onboarding rows stay silent. The rule is one function,
+`notifyDaysOf` in `src/planner.ts`.
+
 ## The horizon is the caller's, the budget is this package's
 
 `planNotifications` applies no horizon filter of its own — how far ahead to look is a property of
@@ -32,7 +44,7 @@ what the composition root hands it. Historically that made the horizon ~30 days 
 from stored rows could only reach that far. That was a bug, not a design: notifications
 are only ever scheduled while the app is running, so a device left unopened worked through 30 days
 of plan and then went quiet — failing exactly the user a reminder app exists for. Callers now pass
-a year's worth via `listNotifiableReminders`, which computes the reminders that *will* exist
+a year's worth via `listNotifiableReminders`, which computes the reminders that _will_ exist
 without writing them (see `@leapsake/reminders`' `NOTIFICATION_WINDOW_DAYS`).
 
 What this package does own is the **budget**: both modes are capped to the soonest
@@ -63,10 +75,10 @@ asked for is about to stop working; re-engagement tells them they'd get more out
 
 ## `digest` vs `each` — same schedule, different tap targets
 
-Every reminder due on a given day fires at the same `deliveryMinute` in either mode: `each` is not
-more timely, it is _digest, exploded, with a tap target per item_. `planNotifications` reflects
-that directly — both modes derive from the same eligible-reminder set and the same per-day
-grouping; `each` just skips the bundling step. Digest copy (`digestCopy` in `planner.ts`) is
+Every reminder notifying on a given day fires at the same `deliveryMinute` in either mode: `each`
+is not more timely, it is _digest, exploded, with a tap target per item_. `planNotifications`
+reflects that directly — both modes derive from the same (reminder, day) pairs `notifyDaysOf`
+yields; `each` just skips the bundling step. Digest copy (`digestCopy` in `planner.ts`) is
 computed at plan time and is **provisional wording** — free to change without touching the
 reconcile mechanics, which only care about the `title`/`body` shape, not their content.
 

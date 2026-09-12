@@ -94,32 +94,103 @@ describe("planNotifications", () => {
     });
   });
 
-  it("excludes completed, deleted, currently-snoozed, dateless, and onboarding rows", () => {
+  it("stays silent for completed, deleted and onboarding rows, and an unsnoozed dateless one", () => {
     const dueDay = due({ year: 2026, month: 8, day: 20 });
     const reminders: NotifiableReminder[] = [
       reminder({ id: "keep", dueDate: dueDay }),
       reminder({ id: "no-date", dueDate: null }),
       reminder({ id: "done", dueDate: dueDay, completedAt: NOW }),
       reminder({ id: "gone", dueDate: dueDay, deletedAt: NOW }),
-      reminder({
-        id: "snoozed-future",
-        dueDate: dueDay,
-        snoozedUntil: NOW + 1000,
-      }),
-      // A snooze that has already elapsed no longer suppresses the reminder.
-      reminder({
-        id: "snoozed-past",
-        dueDate: dueDay,
-        snoozedUntil: NOW - 1000,
-      }),
       reminder({ id: ONBOARDING_REMINDERS[0].id, dueDate: dueDay }),
     ];
 
     const result = planNotifications(reminders, POLICY_EACH, NOW);
 
-    expect(result.map((n) => n.reminderId).sort()).toEqual(
-      ["keep", "snoozed-past"].sort(),
-    );
+    expect(result.map((n) => n.reminderId)).toEqual(["keep"]);
+  });
+
+  it("notifies on the day a row goes on display and again on its due day", () => {
+    const r = reminder({
+      id: "gift",
+      activeFrom: due({ year: 2026, month: 8, day: 16 }),
+      dueDate: due({ year: 2026, month: 8, day: 20 }),
+    });
+
+    const result = planNotifications([r], POLICY_EACH, NOW);
+
+    expect(result.map((n) => [n.id, n.fireAt])).toEqual([
+      ["each:gift:2026-08-16", localInstant(2026, 8, 16, 9, 0)],
+      ["each:gift:2026-08-20", localInstant(2026, 8, 20, 9, 0)],
+    ]);
+  });
+
+  it("notifies once when a row goes on display on its own due day", () => {
+    const day = due({ year: 2026, month: 8, day: 20 });
+    const r = reminder({ id: "wish", activeFrom: day, dueDate: day });
+
+    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
+      "each:wish:2026-08-20",
+    ]);
+  });
+
+  // The regression this replaced: a snoozed row used to be dropped outright,
+  // which silently cancelled its due-day notification.
+  it("keeps a snoozed row, notifying the day it comes back and its due day", () => {
+    const r = reminder({
+      id: "gift",
+      activeFrom: due({ year: 2026, month: 8, day: 10 }),
+      snoozedUntil: due({ year: 2026, month: 8, day: 17 }),
+      dueDate: due({ year: 2026, month: 8, day: 20 }),
+    });
+
+    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
+      "each:gift:2026-08-17",
+      "each:gift:2026-08-20",
+    ]);
+  });
+
+  it("notifies a dateless row on the day its snooze ends", () => {
+    const r = reminder({
+      id: "question",
+      dueDate: null,
+      snoozedUntil: due({ year: 2026, month: 8, day: 18 }),
+    });
+
+    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
+      "each:question:2026-08-18",
+    ]);
+  });
+
+  it("ignores a snooze that has already ended", () => {
+    const r = reminder({
+      id: "r1",
+      snoozedUntil: due({ year: 2026, month: 8, day: 12 }),
+      dueDate: due({ year: 2026, month: 8, day: 20 }),
+    });
+
+    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
+      "each:r1:2026-08-20",
+    ]);
+  });
+
+  it("digest bundles one row's return with another's due day, counting each once", () => {
+    const day: CivilDate = { year: 2026, month: 8, day: 18 };
+    const reminders = [
+      reminder({
+        id: "back",
+        snoozedUntil: due(day),
+        dueDate: due({ year: 2026, month: 8, day: 25 }),
+      }),
+      reminder({ id: "due", activeFrom: due(day), dueDate: due(day) }),
+    ];
+
+    const result = planNotifications(reminders, POLICY_DIGEST, NOW);
+
+    expect(result.map((n) => n.id)).toEqual([
+      "digest:2026-08-18",
+      "digest:2026-08-25",
+    ]);
+    expect(result[0].title).toBe("2 reminders today");
   });
 
   it("each mode caps to the soonest NOTIFICATION_BUDGET, notice included", () => {

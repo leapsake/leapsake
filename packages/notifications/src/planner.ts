@@ -12,7 +12,7 @@
  * bounded for the common case. A far-future `user` reminder just adds one more candidate, in
  * either mode; the budget in {@link planNotifications} is the backstop.
  */
-import { civilFromDueMs, reminderLabel } from "@leapsake/schema";
+import { civilFromDueMs, daysUntil, reminderLabel } from "@leapsake/schema";
 import type { CivilDate } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/reminders";
 
@@ -22,7 +22,7 @@ import { onboardingRouteOf } from "@leapsake/reminders";
 export type NotificationMode = "off" | "digest" | "each";
 
 /** The narrow slice of a `Reminder` row {@link planNotifications} reads —
- *  everything the "a reminder notifies iff…" rule needs, and nothing a repo
+ *  everything {@link notifyDaysOf}'s rule needs, and nothing a repo
  *  read wouldn't already have to hand. */
 export interface NotifiableReminder {
   id: string;
@@ -30,7 +30,14 @@ export interface NotifiableReminder {
   body: string | null;
   /** Epoch-ms UTC midnight of the civil due day; `null` = no due date. */
   dueDate: number | null;
+  /**
+   * Epoch-ms UTC midnight of the civil day this row goes on display. `null` or
+   * absent means already on display — a dateless nudge, or a row the caller
+   * does not window.
+   */
+  activeFrom?: number | null;
   completedAt: number | null;
+  /** Epoch-ms UTC midnight of the civil day a snooze ends; `null` = not snoozed. */
   snoozedUntil: number | null;
   deletedAt: number | null;
 }
@@ -91,8 +98,9 @@ export interface PlanOptions {
  * what is scheduled, cancel and schedule the delta" (see {@link reconcile}
  * for the other half).
  *
- * `off` yields nothing. `digest` bundles every notifying reminder due on the
- * same civil day into one notification at `policy.deliveryMinute`, its copy
+ * `off` yields nothing. Which reminders notify on which days is
+ * {@link notifyDaysOf}'s decision. `digest` bundles every reminder notifying on
+ * the same civil day into one notification at `policy.deliveryMinute`, its copy
  * computed now (see {@link digestCopy}) — going stale only if the underlying
  * data changes before the next reconcile. `each` explodes the same content
  * into one notification per reminder, at the *same* `deliveryMinute` — it is
@@ -132,11 +140,13 @@ export function planNotifications(
   if (policy.mode === "off") return [];
   const budget = options.budget ?? NOTIFICATION_BUDGET;
 
-  const eligible = reminders.filter((r) => isNotifiable(r, now));
+  const days = reminders.flatMap((reminder) =>
+    notifyDaysOf(reminder).map((day) => ({ reminder, day })),
+  );
   const planned =
     policy.mode === "digest"
-      ? planDigest(eligible, policy)
-      : planEach(eligible, policy);
+      ? planDigest(days, policy)
+      : planEach(days, policy);
 
   const live = planned.filter((n) => n.fireAt > now);
   live.sort((a, b) => a.fireAt - b.fireAt);
@@ -191,7 +201,7 @@ const TRIPWIRE_ID = "tripwire";
  * counter, no suppression state, no cooldown to get wrong.
  *
  * **Why it is allowed to notify at all**, when onboarding nudges deliberately
- * are not (see {@link isNotifiable}): this reports that something the user
+ * are not (see {@link notifyDaysOf}): this reports that something the user
  * explicitly asked for is about to stop working. That is a service notice, not
  * re-engagement — the distinction to hold the line on if more app-generated
  * notifications are ever proposed.
@@ -230,21 +240,66 @@ function tripwireFor(
 }
 
 /**
- * "A reminder notifies iff it has a non-null `dueDate`, is not completed, is
- * not currently snoozed, is not soft-deleted, and `onboardingRouteOf(id) ===
- * null`" (the plan's exact rule) — the single place that predicate is
- * evaluated, so the planner and any future caller can't drift from it.
- * "Currently snoozed" mirrors `@leapsake/view-models`' `isSnoozed`:
- * `snoozedUntil !== null && snoozedUntil > now`.
+ * The civil days a reminder notifies on — the single place "which reminders
+ * notify, and when" is decided, so the two modes and any future caller can't
+ * drift from it.
+ *
+ * **Two kinds of day** *(owner, 2026-09-11)*:
+ *
+ * - its **due day** — the more important of the two, and the only one a
+ *   reminder used to have;
+ * - every day it **enters Today**: the day it goes on display (`activeFrom`) or
+ *   the day a snooze ends, whichever is later. A snooze is how a row re-enters
+ *   Today, so putting one off schedules its own return the moment it is set —
+ *   the post-write reconcile already runs then.
+ *
+ * A day that is both is one notification, not two. A dateless row has no due
+ * day and was on display from the start, so it notifies only when a snooze
+ * brings it back.
+ *
+ * ⚠️ **A snoozed row stays in the plan.** It used to be dropped outright while
+ * snoozed, which cancelled its due-day notification until some later reconcile
+ * happened to re-add it — and on a device nobody opened in between, never. Only
+ * the days before the snooze ends are dropped now.
+ *
+ * Nothing for a completed or soft-deleted row, and nothing for an onboarding
+ * nudge (`onboardingRouteOf(id) !== null`), which deliberately stays silent —
+ * {@link tripwireFor} holds the line between a nudge and a service notice. Days
+ * already gone are {@link planNotifications}' to drop, not this function's.
  */
-function isNotifiable(r: NotifiableReminder, now: number): boolean {
-  return (
-    r.dueDate !== null &&
-    r.completedAt === null &&
-    r.deletedAt === null &&
-    !(r.snoozedUntil !== null && r.snoozedUntil > now) &&
-    onboardingRouteOf(r.id) === null
-  );
+function notifyDaysOf(r: NotifiableReminder): CivilDate[] {
+  if (
+    r.completedAt !== null ||
+    r.deletedAt !== null ||
+    onboardingRouteOf(r.id) !== null
+  )
+    return [];
+
+  const snoozeEnd =
+    r.snoozedUntil === null ? null : civilFromDueMs(r.snoozedUntil);
+  const shown =
+    r.activeFrom === null || r.activeFrom === undefined
+      ? null
+      : civilFromDueMs(r.activeFrom);
+  const entersToday =
+    snoozeEnd !== null && (shown === null || daysUntil(shown, snoozeEnd) > 0)
+      ? snoozeEnd
+      : shown;
+  const due = r.dueDate === null ? null : civilFromDueMs(r.dueDate);
+
+  const days = new Map<string, CivilDate>();
+  for (const day of [entersToday, due]) {
+    if (day === null) continue;
+    if (snoozeEnd !== null && daysUntil(snoozeEnd, day) < 0) continue;
+    days.set(isoOf(day), day);
+  }
+  return [...days.values()];
+}
+
+/** One reminder on one of the days it notifies on — what both modes plan from. */
+interface NotifyingDay {
+  reminder: NotifiableReminder;
+  day: CivilDate;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -256,20 +311,20 @@ function isoOf(date: CivilDate): string {
 }
 
 function planDigest(
-  reminders: readonly NotifiableReminder[],
+  days: readonly NotifyingDay[],
   policy: NotificationPolicy,
 ): DesiredNotification[] {
   const byDay = new Map<
     string,
     { day: CivilDate; reminders: NotifiableReminder[] }
   >();
-  for (const r of reminders) {
-    // Non-null by construction — isNotifiable required it.
-    const day = civilFromDueMs(r.dueDate as number);
+  // A reminder appears at most once per day already — `notifyDaysOf` merges a
+  // day that is both its due day and the day it enters Today.
+  for (const { reminder, day } of days) {
     const key = isoOf(day);
     const bucket = byDay.get(key);
-    if (bucket === undefined) byDay.set(key, { day, reminders: [r] });
-    else bucket.reminders.push(r);
+    if (bucket === undefined) byDay.set(key, { day, reminders: [reminder] });
+    else bucket.reminders.push(reminder);
   }
 
   return [...byDay.entries()]
@@ -291,18 +346,17 @@ function planDigest(
 /** Ordering and the budget are {@link planNotifications}' job now — both modes
  *  need the same treatment, so neither does it itself. */
 function planEach(
-  reminders: readonly NotifiableReminder[],
+  days: readonly NotifyingDay[],
   policy: NotificationPolicy,
 ): DesiredNotification[] {
-  return reminders.map((r) => ({
-    id: `each:${r.id}`,
-    fireAt: fireAtFor(
-      civilFromDueMs(r.dueDate as number),
-      policy.deliveryMinute,
-    ),
+  return days.map(({ reminder, day }) => ({
+    // The day is part of the id because one reminder can now notify twice —
+    // the day it enters Today and its due day.
+    id: `each:${reminder.id}:${isoOf(day)}`,
+    fireAt: fireAtFor(day, policy.deliveryMinute),
     title: "Leapsake",
-    body: reminderLabel(r),
-    reminderId: r.id,
+    body: reminderLabel(reminder),
+    reminderId: reminder.id,
   }));
 }
 
