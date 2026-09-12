@@ -61,7 +61,7 @@ function makeHarness() {
       const custom = schedules.get(m.id);
       return custom === undefined
         ? resolveReminderSchedule(m.kind, [])
-        : { rules: custom, source: "stored" as const };
+        : { rules: custom, source: "stored" as const, writtenAt: null };
     },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
@@ -132,6 +132,7 @@ function birthday(
     year: null,
     month: occ.month,
     day: occ.day,
+    createdAt: 0,
   };
 }
 
@@ -149,6 +150,7 @@ function death(
     year: null,
     month: occ.month,
     day: occ.day,
+    createdAt: 0,
   };
 }
 

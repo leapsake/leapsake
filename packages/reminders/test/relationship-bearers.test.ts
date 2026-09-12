@@ -119,6 +119,7 @@ function milestone(
     year: null,
     month: occ.month,
     day: occ.day,
+    createdAt: 0,
   };
 }
 

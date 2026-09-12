@@ -139,8 +139,9 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         year: number | null;
         month: number | null;
         day: number | null;
+        created_at: number;
       }>(
-        `SELECT id, kind, bearer_type, bearer_id, year, month, day
+        `SELECT id, kind, bearer_type, bearer_id, year, month, day, created_at
            FROM milestones
           WHERE deleted_at IS NULL AND month IS NOT NULL AND day IS NOT NULL`,
       );
@@ -152,6 +153,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         year: r.year,
         month: r.month,
         day: r.day,
+        createdAt: r.created_at,
       }));
     },
 

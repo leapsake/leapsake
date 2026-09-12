@@ -55,7 +55,11 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => [] },
-    resolveSchedule: async () => ({ rules: [], source: "stored" as const }),
+    resolveSchedule: async () => ({
+      rules: [],
+      source: "stored" as const,
+      writtenAt: null,
+    }),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {
@@ -674,6 +678,7 @@ function birthday(
     year: null,
     month: occ.month,
     day: occ.day,
+    createdAt: 0,
   };
 }
 

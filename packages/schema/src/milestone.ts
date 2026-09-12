@@ -445,6 +445,15 @@ export type ReminderScheduleSource = "stored" | "kind-default";
 export interface ResolvedReminderSchedule {
   rules: ReminderRuleInput[];
   source: ReminderScheduleSource;
+  /**
+   * When the stored rules were written — epoch ms, UTC — or null for a kind
+   * default. Every save replaces the whole set (`replaceForBearer`), so the
+   * newest row's `createdAt` is when the user last answered for this occasion:
+   * what decides whether an errand was chosen too late for its own deadline
+   * ({@link effectiveOffsetDays}) and whether an answer was a partial one
+   * ({@link isPartialAnswer}).
+   */
+  writtenAt: number | null;
 }
 
 /**
@@ -489,6 +498,8 @@ export function resolveReminderSchedule(
   return {
     rules: [...rules].sort((a, b) => b.offsetDays - a.offsetDays),
     source,
+    writtenAt:
+      stored.length > 0 ? Math.max(...stored.map((r) => r.createdAt)) : null,
   };
 }
 
@@ -744,6 +755,13 @@ export interface RemindEligibleMilestone {
   year: number | null;
   month: number | null;
   day: number | null;
+  /**
+   * When the milestone was recorded — epoch ms, UTC. The day the app *learned*
+   * of the occasion, which is what keeps a deadline that had already passed by
+   * then from counting against the user ({@link planTiming}), and an occasion
+   * that had already been from being reminded at all.
+   */
+  createdAt: number;
 }
 
 /**
