@@ -217,7 +217,6 @@ function reminder(over: Partial<Reminder> = {}): Reminder {
     completedAt: null,
     dueDate: null,
     snoozedUntil: null,
-    snoozeCount: 0,
     source: "user",
     ...stamps,
     ...over,

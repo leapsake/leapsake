@@ -18,27 +18,21 @@ export interface RemindersRepo extends EntityRepo<Reminder> {
    * Toggle completion: stamp `completedAt` with the current time when completing,
    * clear it back to null when reopening. Routes through the standard `update`, so
    * the row's clock advances and the change syncs like any other edit.
+   *
+   * **Completing clears any snooze** *(owner, 2026-09-11)*. A finished reminder
+   * is done, and a snooze left behind would hide it again the moment it was
+   * reopened — for as long as a clock nobody could see still had to run.
    */
   setCompleted(id: string, completed: boolean): Promise<Reminder | undefined>;
   /**
-   * Put a reminder off until `until`, and record that it happened: sets
-   * `snoozedUntil` and increments `snoozeCount` in one statement.
+   * Put a reminder off until the civil day `until` (epoch-ms UTC midnight, like a
+   * due date). Nothing is counted: no reminder retires by being put off, so the
+   * day it comes back is the whole of what a snooze records.
    *
-   * This is the **only** write that touches `snoozeCount`, which is why it can't
-   * ride `update` — the count is engine-owned and absent from
-   * {@link updateReminderInputSchema}, so no caller can reset its own nag budget
-   * or skip ahead. The increment is evaluated by SQLite (`snooze_count + 1`)
-   * rather than read-modify-written in TypeScript, so two snoozes can never read
-   * the same value and lose one.
-   *
-   * A **completed** row is allowed and inert: display gives completion
-   * precedence over snooze, so putting off a finished reminder changes nothing a
-   * user sees. A missing or soft-deleted id returns undefined, writing nothing.
-   *
-   * The date is the caller's: `until` is validated as a date but never judged
-   * against a schedule (see {@link snoozeUntilSchema}). Note that the count
-   * increments on every call regardless — so a budget spends even on a snooze
-   * that lands in the past.
+   * The day is the caller's, checked only as an integer (see
+   * {@link snoozeUntilSchema}); which rows may be put off and how far is
+   * `@leapsake/reminders`' `snoozeTargetOf`, applied before this is called. A
+   * missing or soft-deleted id returns undefined, writing nothing.
    */
   snooze(id: string, until: number): Promise<Reminder | undefined>;
 }
@@ -80,9 +74,8 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
         body,
         completedAt: null,
         dueDate,
-        // A reminder is never born snoozed, so `create` takes no input for either.
+        // A reminder is never born snoozed, so `create` takes no input for it.
         snoozedUntil: null,
-        snoozeCount: 0,
         source,
         createdAt: now,
         updatedAt: now,
@@ -94,22 +87,16 @@ export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
       base.update(id, updateReminderInputSchema.parse(input)),
 
     setCompleted: (id, completed) =>
-      base.update(id, { completedAt: completed ? Date.now() : null }),
+      base.update(
+        id,
+        completed
+          ? { completedAt: Date.now(), snoozedUntil: null }
+          : { completedAt: null },
+      ),
 
-    async snooze(id, until) {
-      // One statement, so the increment is SQLite's and not a read-modify-write.
-      // `updated_at` advances like any ordinary edit, which is what carries the
-      // snooze to other devices; the strictly-newer `MAX(?, updated_at + 1)`
-      // idiom is for tombstones alone (see `softDeleteWhere`).
-      await driver.run(
-        `UPDATE reminders
-            SET snoozed_until = ?, snooze_count = snooze_count + 1, updated_at = ?
-          WHERE id = ? AND deleted_at IS NULL`,
-        [snoozeUntilSchema.parse(until), Date.now(), id],
-      );
-      // Re-read rather than assemble: `get` decodes through the same codec as
-      // every other read, so the returned row is schema-validated, not assumed.
-      return base.get(id);
-    },
+    // `async`, so a malformed `until` rejects the returned promise rather than
+    // throwing before the caller has one to await.
+    snooze: async (id, until) =>
+      base.update(id, { snoozedUntil: snoozeUntilSchema.parse(until) }),
   };
 }

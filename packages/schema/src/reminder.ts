@@ -32,11 +32,11 @@ export type ReminderSource = z.infer<typeof reminderSourceSchema>;
  * {@link Mentioning} rows (a relationship pointing at an entity id, **not** a
  * tagging — a mention names a specific pre-existing entity, never a shared label).
  *
- * {@link reminderSchema}'s `snoozedUntil`/`snoozeCount` are **snooze**: put this off,
- * ask me later. Generic to every reminder — the onboarding nudges are only the first
- * consumer, and `source` is what tells the two cases apart. They record *what
- * happened*, never what to do next; migration 28 is the authority on why that
- * distinction is load-bearing and how it can be broken by accident.
+ * {@link reminderSchema}'s `snoozedUntil` is **snooze**: put this off, remind me
+ * later — generic to every reminder, whatever made it. It records *what happened*
+ * (the day the user chose), never what to do next; migration 28 is the authority on
+ * why that distinction is load-bearing, and migration 37 on why the count that once
+ * sat beside it is gone.
  *
  * Same sync-safe substrate as every domain row (see AGENTS.md): client UUID id,
  * epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via whole-row LWW.
@@ -50,8 +50,7 @@ export const reminderSchema = z
     body: z.string().min(1).nullable(),
     completedAt: z.number().int().nullable(), // epoch ms, UTC; null = open
     dueDate: z.number().int().nullable(), // epoch-ms UTC midnight of the civil due day; null = no due date
-    snoozedUntil: z.number().int().nullable(), // epoch ms, UTC; null = not snoozed
-    snoozeCount: z.number().int().nonnegative(), // how many times it has been put off
+    snoozedUntil: z.number().int().nullable(), // epoch-ms UTC midnight of the civil day the snooze ends; null = not snoozed
     source: reminderSourceSchema,
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
@@ -107,11 +106,6 @@ export type CreateReminderInput = z.infer<typeof createReminderInputSchema>;
  * Editable fields when updating a reminder: the text, the completion stamp, and
  * the snooze clock. The repository merges this onto the stored row and re-validates
  * the whole row, so the title-or-body rule still holds after a partial update.
- *
- * `snoozeCount` is **deliberately absent**. It is engine-owned — `remindersRepo.snooze`
- * is the only write that touches it, and it only ever increments, so a caller can
- * neither reset its own nag budget nor skip ahead. Only `snoozedUntil` is a
- * patchable field.
  */
 export const updateReminderInputSchema = z.object({
   ...textShape,
@@ -123,20 +117,24 @@ export const updateReminderInputSchema = z.object({
 export type UpdateReminderInput = z.infer<typeof updateReminderInputSchema>;
 
 /**
- * The date a snooze runs to — epoch ms, UTC. The single authority on what a valid
- * `until` is, shared by the desktop IPC boundary and `remindersRepo.snooze` so the
- * two can't disagree.
+ * The day a snooze runs to, as `remindersRepo.snooze` stores it — epoch-ms UTC
+ * midnight of a civil day, like a due date.
  *
- * **Any date passes, deliberately.** Snooze is generic (see {@link reminderSchema}),
- * so the policy that picked this date — which reminders may be put off, and for how
- * long — belongs to the caller, not here; a reminder with no policy at all is the
- * ordinary case. A date already in the past is simply an inert snooze, which is the
- * right outcome for a badly-chosen “hide until Tuesday”. What this *does* stop is a
- * non-integer: the column is INTEGER but SQLite is loosely typed, so an unchecked
- * string would be stored happily and then fail row validation on every subsequent
- * read of that reminder.
+ * **Any integer passes here, deliberately.** Which rows may be put off, and how
+ * far, is `@leapsake/reminders`' `snoozeTargetOf`, which the one caller consults
+ * first; this only guards the column. That matters because the column is INTEGER
+ * but SQLite is loosely typed, so an unchecked string would be stored happily and
+ * then fail row validation on every subsequent read of that reminder.
  */
 export const snoozeUntilSchema = z.number().int();
+
+/**
+ * How many days "remind me in…" puts a row off for — a whole number, at least one.
+ * The shape the desktop IPC boundary checks a snooze request against, so a
+ * renderer can ask for a day count and nothing else; whether *this* row may be put
+ * off that far is decided behind it, by `snoozeTargetOf`.
+ */
+export const snoozeDaysSchema = z.number().int().min(1);
 
 /**
  * The display label for a reminder as a **plain string**: its title, else the
@@ -174,8 +172,7 @@ export function isReminderEditable(r: { source: ReminderSource }): boolean {
  * sync (`packages/reminders/README.md` → *Merge safety*; `merge.ts` for the rule).
  *
  * History is a **decision someone took about this row**: putting it off
- * (`snoozedUntil`, and `snoozeCount` which outlives the clock), finishing it
- * (`completedAt`), or dismissing it (`deletedAt` — including the engine's own
+ * (`snoozedUntil`), finishing it (`completedAt`), or dismissing it (`deletedAt` — including the engine's own
  * retirement, which is equally irreplaceable since it records a signal the peer
  * has not seen). A `user` row is history by construction: nothing minted it. The
  * check is inert there in practice — user reminders get random UUIDs, so two
@@ -193,7 +190,6 @@ export function reminderHasHistory(r: Reminder): boolean {
     r.deletedAt !== null ||
     r.completedAt !== null ||
     r.snoozedUntil !== null ||
-    r.snoozeCount > 0 ||
     r.source === "user"
   );
 }

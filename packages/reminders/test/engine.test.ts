@@ -752,7 +752,6 @@ describe("listNotifiableReminders", () => {
       completedAt: null,
       dueDate: dueDateMs(daysOut(3)),
       snoozedUntil: null,
-      snoozeCount: 0,
       source: "user",
       createdAt: 0,
       updatedAt: 0,

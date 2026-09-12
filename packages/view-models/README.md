@@ -27,7 +27,8 @@ structurally assignable, each client keeps its own type on the way out, and this
 off the data layer — the same posture `@leapsake/ui` takes with core's types.
 
 **The clock is a parameter, never a read.** `partitionReminders` is the first derivation here
-that depends on the current time (it holds snoozed reminders back until theirs passes), and it
+that depends on the current time (it holds a snoozed reminder back until the day its snooze
+ends), and it
 takes `now` so the split stays deterministic and testable; the `Date.now()` default is caller
 convenience. Any future time-dependent derivation does the same — a function that reads the
 clock itself cannot be tested without faking a global.
@@ -35,7 +36,7 @@ clock itself cannot be tested without faking a global.
 **Time-dependent derivations compare civil days, never elapsed milliseconds.**
 `bucketReminders` splits the open list into past due, belated, today, available and coming;
 every comparison in it goes through `daysUntil` over the two ends read as calendar dates, so
-the buckets flip at the *viewer's* local midnight rather than 24 hours after some instant —
+the buckets flip at the _viewer's_ local midnight rather than 24 hours after some instant —
 the same arithmetic the reminder engine's own window does, and the reason the two can never
 disagree about what "today" means.
 
@@ -57,6 +58,7 @@ that to its own router path and its own user-visible label, because the two rout
 same screen differently and the label is translatable text.
 
 `reminderActionsOf` widens that seam from one call to action to the _list_ of things a row
-offers — do it, not now, don't ask again — with the CTA as one entry in it. The same division
-holds: this package decides which are offered and when a snooze runs to; “Not now” and “Don't
-ask again” are copy, so they stay with the client.
+offers — do it, remind me in…, don't ask again — with the CTA as one entry in it. The same
+division holds: this package decides which are offered and for how many days
+(`SNOOZE_PRESET_DAYS`); “Remind me tomorrow” and “Don't ask again” are copy, so they stay with
+the client.

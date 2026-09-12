@@ -1,7 +1,8 @@
-import { ONBOARDING_REMINDERS, snoozePolicyOf } from "@leapsake/reminders";
+import { ONBOARDING_REMINDERS } from "@leapsake/reminders";
 import { dueDateMs, todayCivil } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import {
+  SNOOZE_PRESET_DAYS,
   bucketReminders,
   groupComingByActivation,
   partitionReminders,
@@ -15,7 +16,7 @@ const reminder = (
     completedAt?: number | null;
     dueDate?: number | null;
     snoozedUntil?: number | null;
-    snoozeCount?: number;
+    activeFrom?: number | null;
     createdAt?: number;
   },
 ) => ({
@@ -23,7 +24,7 @@ const reminder = (
   completedAt: standing.completedAt ?? null,
   dueDate: standing.dueDate ?? null,
   snoozedUntil: standing.snoozedUntil ?? null,
-  snoozeCount: standing.snoozeCount ?? 0,
+  activeFrom: standing.activeFrom ?? null,
   createdAt: standing.createdAt ?? 0,
 });
 
@@ -99,14 +100,21 @@ describe("partitionReminders", () => {
     expect(snoozed).toEqual([]);
   });
 
-  it("treats the exact moment the clock arrives as open, not snoozed", () => {
+  // A snooze ends on a civil day, so it is compared in whole days: the row is
+  // back from the viewer's local midnight, whatever the hour it was put off.
+  it("holds a row back until the start of the day its snooze ends, and no longer", () => {
+    const noon = Date.parse("2026-06-01T12:00:00");
+    const today = dueDateMs(todayCivil(noon));
     const { open, snoozed } = partitionReminders(
-      [reminder("due-now", { snoozedUntil: day(5) })],
-      day(5),
+      [
+        reminder("back-today", { snoozedUntil: today }),
+        reminder("back-tomorrow", { snoozedUntil: today + day(1) }),
+      ],
+      noon,
     );
 
-    expect(open.map((r) => r.id)).toEqual(["due-now"]);
-    expect(snoozed).toEqual([]);
+    expect(open.map((r) => r.id)).toEqual(["back-today"]);
+    expect(snoozed.map((r) => r.id)).toEqual(["back-tomorrow"]);
   });
 
   it("lets completion win over snooze", () => {
@@ -212,71 +220,91 @@ describe("reminderCtaOf, for a prompt", () => {
 
 describe("reminderActionsOf", () => {
   const NOW = day(100);
+  const TODAY = dueDateMs(todayCivil(NOW));
   const onboarding = ONBOARDING_REMINDERS[0];
-  // How many times a step will come back is the engine's dial, so these fixtures
-  // ask the policy which nudge is which instead of pinning today's numbers: one
-  // with budget left after a single "not now", and a count past anyone's budget.
-  const repeatable = ONBOARDING_REMINDERS.filter(
-    (r) => snoozePolicyOf({ id: r.id, snoozeCount: 1 }, NOW) !== null,
-  )[0];
-  const SPENT = 99;
-  const kinds = (id: string, snoozeCount = 0) =>
-    reminderActionsOf(reminder(id, { snoozeCount }), {}, NOW).map(
-      (a) => a.kind,
+  const SNOOZES = SNOOZE_PRESET_DAYS.map((days) => ({ kind: "snooze", days }));
+  type Row = Parameters<typeof reminderActionsOf>[0];
+  const kinds = (r: Row, context = {}) =>
+    reminderActionsOf(r, context, NOW).map((a) => a.kind);
+  const snoozeDays = (r: Row) =>
+    reminderActionsOf(r, {}, NOW).flatMap((a) =>
+      a.kind === "snooze" ? [a.days] : [],
     );
 
-  it("offers nothing on an ordinary reminder", () => {
-    expect(reminderActionsOf(reminder("plain", {}), {}, NOW)).toEqual([]);
+  // Any row, whatever made it, can be put off *(owner, 2026-09-11)*.
+  it("offers an ordinary reminder its put-offs and nothing else", () => {
+    expect(kinds(reminder("plain", {}))).toEqual([
+      "snooze",
+      "snooze",
+      "snooze",
+    ]);
   });
 
-  it("offers a fresh nudge its CTA and a snooze, but no dismiss", () => {
-    expect(kinds(onboarding.id)).toEqual(["cta", "snooze"]);
+  it("offers one snooze per preset, as a day count", () => {
+    expect(snoozeDays(reminder("plain", {}))).toEqual(SNOOZE_PRESET_DAYS);
   });
 
-  it("adds dismiss once the nudge has been put off before", () => {
-    expect(kinds(repeatable.id, 1)).toEqual(["cta", "snooze", "dismiss"]);
+  it("offers only the presets that land by the due date", () => {
+    expect(snoozeDays(reminder("soon", { dueDate: TODAY + day(2) }))).toEqual([
+      1,
+    ]);
+    expect(snoozeDays(reminder("later", { dueDate: TODAY + day(7) }))).toEqual([
+      1, 3, 7,
+    ]);
   });
 
-  it("keeps dismiss but drops snooze once the repetitions are spent", () => {
+  it("offers no snooze on a row due today, or belated", () => {
+    expect(snoozeDays(reminder("today", { dueDate: TODAY }))).toEqual([]);
+    expect(snoozeDays(reminder("late", { dueDate: TODAY - day(1) }))).toEqual(
+      [],
+    );
+  });
+
+  // Putting off something that is not on Today yet would change nothing.
+  it("offers no snooze on a row not on display yet", () => {
     expect(
-      snoozePolicyOf({ id: onboarding.id, snoozeCount: SPENT }, NOW),
-    ).toBeNull();
-
-    expect(kinds(onboarding.id, SPENT)).toEqual(["cta", "dismiss"]);
+      snoozeDays(
+        reminder("coming", {
+          dueDate: TODAY + day(10),
+          activeFrom: TODAY + day(3),
+        }),
+      ),
+    ).toEqual([]);
   });
 
-  it("carries the policy's own date, rather than deriving it again", () => {
-    const policy = snoozePolicyOf({ id: onboarding.id, snoozeCount: 0 }, NOW);
-
-    expect(
-      reminderActionsOf(reminder(onboarding.id, {}), {}, NOW),
-    ).toContainEqual({ kind: "snooze", until: policy?.until });
+  // *Don't ask again* used to wait for a first "not now"; with nothing retiring
+  // by being put off, it is offered from the start *(owner, 2026-09-11)*.
+  it("offers a nudge its CTA, the put-offs, and don't ask again from the first encounter", () => {
+    expect(kinds(reminder(onboarding.id, {}))).toEqual([
+      "cta",
+      "snooze",
+      "snooze",
+      "snooze",
+      "dismiss",
+    ]);
   });
 
-  it("passes the duplicates CTA through with nothing alongside it", () => {
+  it("passes the duplicates CTA through, the put-offs beside it", () => {
     expect(
       reminderActionsOf(
         reminder("nudge", {}),
         { isDuplicatesNudge: true },
         NOW,
       ),
-    ).toEqual([{ kind: "cta", cta: { kind: "duplicates" } }]);
+    ).toEqual([{ kind: "cta", cta: { kind: "duplicates" } }, ...SNOOZES]);
   });
 
-  it("passes a gift CTA through, flip and all, with nothing alongside it", () => {
+  it("passes a gift CTA through, flip and all, the put-offs beside it", () => {
     const giftTarget = { recipientType: "person" as const, recipientId: "p1" };
 
     expect(
-      reminderActionsOf(
-        reminder("gift", { snoozeCount: 2 }),
-        { giftTarget },
-        NOW,
-      ),
+      reminderActionsOf(reminder("gift", {}), { giftTarget }, NOW),
     ).toEqual([
       {
         kind: "cta",
         cta: { kind: "gift", action: "see-gifts", ...giftTarget },
       },
+      ...SNOOZES,
     ]);
     expect(
       reminderActionsOf(
@@ -295,12 +323,15 @@ describe("reminderActionsOf", () => {
   // ⚠️ The trade this prompt makes only pays off if the common answer is cheaper
   // than ignoring a row was, so "just the day" is offered beside the CTA rather
   // than living behind it.
-  it("offers a prompt its CTA, the one-tap answer, and a snooze", () => {
-    expect(
-      reminderActionsOf(reminder("prompt", {}), { planTarget }, NOW).map(
-        (a) => a.kind,
-      ),
-    ).toEqual(["cta", "answer-plan", "snooze"]);
+  it("offers a prompt its CTA, the one-tap answer, the put-offs and don't ask again", () => {
+    expect(kinds(reminder("prompt", {}), { planTarget })).toEqual([
+      "cta",
+      "answer-plan",
+      "snooze",
+      "snooze",
+      "snooze",
+      "dismiss",
+    ]);
   });
 
   // It writes the **full** offer set with only `wish` on — not just the tick.
@@ -322,21 +353,6 @@ describe("reminderActionsOf", () => {
         { action: "call", label: null, offsetDays: 0, enabled: false },
       ],
     });
-  });
-
-  // A question the user does not want to answer needs a permanent out, on the
-  // same terms a nudge gets one: withheld on the first encounter so it is never
-  // a trap, offered from the second.
-  it("withholds `don't ask again` from a prompt until it has been put off once", () => {
-    const kindsOf = (snoozeCount: number) =>
-      reminderActionsOf(
-        reminder("prompt", { snoozeCount }),
-        { planTarget },
-        NOW,
-      ).map((a) => a.kind);
-
-    expect(kindsOf(0)).not.toContain("dismiss");
-    expect(kindsOf(1)).toContain("dismiss");
   });
 
   // The collect prompt. A wish for someone with no phone, no email and no handle
@@ -366,19 +382,15 @@ describe("reminderActionsOf", () => {
       NOW,
     ).map((a) => a.kind);
 
-    // A link, and nothing that stands between the user and Done — no snooze
-    // budget, no dismissal, nothing to answer first.
-    expect(kinds).toEqual(["cta"]);
+    // A link, and the put-offs every row has — nothing that stands between the
+    // user and Done, and nothing to answer first.
+    expect(kinds).toEqual(["cta", "snooze", "snooze", "snooze"]);
   });
 
   it("stops offering to put off a reminder that is already done", () => {
-    expect(
-      reminderActionsOf(
-        reminder(repeatable.id, { completedAt: day(4), snoozeCount: 1 }),
-        {},
-        NOW,
-      ).map((a) => a.kind),
-    ).toEqual(["cta"]);
+    expect(kinds(reminder(onboarding.id, { completedAt: day(4) }))).toEqual([
+      "cta",
+    ]);
   });
 });
 

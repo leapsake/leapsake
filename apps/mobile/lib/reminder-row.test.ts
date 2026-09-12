@@ -17,25 +17,32 @@ const NOW = 1_800_000_000_000;
 const idFor = (route: string) =>
   ONBOARDING_REMINDERS.find((r) => r.route === route)!.id;
 
-/** A reminder as far as `reminderActionsOf` reads one. */
-const reminder = (
-  id: string,
-  snoozeCount = 0,
-  completedAt: number | null = null,
-) => ({ id, completedAt, snoozeCount });
+/** A reminder as far as `reminderActionsOf` reads one — dateless, so every
+ *  "Remind me in…" preset fits. */
+const reminder = (id: string, completedAt: number | null = null) => ({
+  id,
+  completedAt,
+});
 
 const actionsFor = (
   id: string,
-  snoozeCount = 0,
   completedAt: number | null = null,
   context = {},
-) => reminderActionsOf(reminder(id, snoozeCount, completedAt), context, NOW);
+) => reminderActionsOf(reminder(id, completedAt), context, NOW);
 
-/** What a row offers, run through this client's mapping — the pairing under test.
- *  Pinned to `NOW`, because a snooze's label now counts the days to the date it
- *  carries and a wall-clock reading would make the copy drift under the test. */
+/** What a row offers, run through this client's mapping — the pairing under test. */
 const offersFor = (actions: ReminderRowAction[]) =>
-  actions.map((action) => offerFor(action, NOW));
+  actions.map((action) => offerFor(action));
+
+/** The three "Remind me in…" buttons a row with no deadline offers. Each says
+ *  how long it lasts: "Not now" alone never distinguished an afternoon from
+ *  forever — the ambiguity "Don't ask again" was introduced to fix at the other
+ *  end. */
+const REMIND_ME = [
+  { kind: "snooze", days: 1, label: "Remind me tomorrow" },
+  { kind: "snooze", days: 3, label: "Remind me in 3 days" },
+  { kind: "snooze", days: 7, label: "Remind me next week" },
+];
 
 const giftContext = {
   giftTarget: { recipientType: "person" as const, recipientId: "p1" },
@@ -59,62 +66,26 @@ const planContext = {
 };
 
 describe("offerFor", () => {
-  it("renders a nudge's three offers in order — do it, not now, don't ask again", () => {
-    // Every step accepts at least two "not now"s, so at a count of 1 this one
-    // still offers snooze *and* has earned its dismiss — the full shape.
-    const actions = actionsFor(idFor("about-you"), 1);
-
-    expect(offersFor(actions)).toEqual([
-      {
-        kind: "navigate",
-        path: "/about-you",
-        label: "Get started ›",
-      },
-      // The put-off says how long it lasts. "Not now" alone never distinguished
-      // an afternoon from forever — the same ambiguity the sibling below was
-      // introduced to fix at the other end. Six days because that is *this*
-      // step's dial: they differ per step so that rows put off together don't
-      // come back together, and the label is rendered from the date the policy
-      // handed over rather than from a constant here.
-      {
-        kind: "snooze",
-        until: expect.any(Number),
-        label: "Not now — ask in 6 days",
-      },
+  it("renders a nudge's offers in order — do it, remind me in…, don't ask again", () => {
+    expect(offersFor(actionsFor(idFor("about-you")))).toEqual([
+      { kind: "navigate", path: "/about-you", label: "Get started ›" },
+      ...REMIND_ME,
       { kind: "dismiss", label: "Don’t ask again" },
     ]);
   });
 
-  it("drops the snooze once the step has spent its repetitions, keeping dismiss", () => {
-    // A count past any step's budget — deliberately dial-independent, since what
-    // is under test is this client's mapping, not the number itself. The row can
-    // no longer be put off but must still be endable.
-    const actions = actionsFor(idFor("connect-sync"), 99);
-
-    expect(offersFor(actions)).toEqual([
-      { kind: "navigate", path: "/settings", label: "Sign in ›" },
-      { kind: "dismiss", label: "Don’t ask again" },
-    ]);
-  });
-
-  it("offers only do-it and not-now on a first encounter", () => {
-    // The binary first choice: nothing here can permanently silence the nudge.
-    const actions = actionsFor(idFor("connect-sync"));
-
-    expect(offersFor(actions).map((o) => o.kind)).toEqual([
-      "navigate",
-      "snooze",
-    ]);
-  });
-
-  it("hands the snooze the exact date the action carried", () => {
-    // The guard against a second derivation: whatever the policy chose is what
-    // reaches the write, so the copy and the stored clock can never disagree.
+  it("hands each snooze the day count its action carried", () => {
+    // Core turns the count into a day when the write is made, by the rule that
+    // offered it — so nothing here derives a date.
     const actions = actionsFor(idFor("import"));
-    const offered = actions.find((a) => a.kind === "snooze")!;
-    const rendered = offersFor(actions).find((o) => o.kind === "snooze")!;
+    const offered = actions.flatMap((a) =>
+      a.kind === "snooze" ? [a.days] : [],
+    );
+    const rendered = offersFor(actions).flatMap((o) =>
+      o.kind === "snooze" ? [o.days] : [],
+    );
 
-    expect(rendered.until).toBe(offered.until);
+    expect(rendered).toEqual(offered);
   });
 
   it("maps every onboarding route to a path", () => {
@@ -152,18 +123,20 @@ describe("offerFor", () => {
   });
 
   it("maps the duplicates row's CTA", () => {
-    const actions = actionsFor("dupes", 0, null, { isDuplicatesNudge: true });
+    const actions = actionsFor("dupes", null, { isDuplicatesNudge: true });
 
     expect(offersFor(actions)).toEqual([
       { kind: "navigate", path: "/duplicates", label: "Review ›" },
+      ...REMIND_ME,
     ]);
   });
 
   it("maps a gift row's CTA, whose target flips once it's done", () => {
-    expect(offersFor(actionsFor("gift", 0, null, giftContext))).toEqual([
+    expect(offersFor(actionsFor("gift", null, giftContext))).toEqual([
       { kind: "navigate", path: "/people/p1", label: "See their gifts ›" },
+      ...REMIND_ME,
     ]);
-    expect(offersFor(actionsFor("gift", 0, NOW, giftContext))).toEqual([
+    expect(offersFor(actionsFor("gift", NOW, giftContext))).toEqual([
       {
         kind: "navigate",
         // `given=1`, because this hand-off is the one that means "already
@@ -207,11 +180,11 @@ describe("offerFor", () => {
     });
   });
 
-  // ⚠️ The prompt's CTA navigates **nowhere**. Mobile's Home row is a checkbox
-  // and a link, so the offer set is rendered on the detail screen this offer
-  // already belongs to, rather than on a screen further in.
+  // ⚠️ The prompt's CTA navigates **nowhere**. Mobile's Home row is a link, so
+  // the offer set is rendered on the detail screen this offer already belongs
+  // to, rather than on a screen further in.
   it("answers a prompt in place, with the one-tap answer beside it", () => {
-    expect(offersFor(actionsFor("prompt", 0, null, planContext))).toEqual([
+    expect(offersFor(actionsFor("prompt", null, planContext))).toEqual([
       { kind: "answer-prompt", label: "Choose below" },
       {
         kind: "answer-plan",
@@ -223,16 +196,13 @@ describe("offerFor", () => {
         ],
         label: "Just the day",
       },
-      {
-        kind: "snooze",
-        until: expect.any(Number),
-        label: "Not now — ask in 7 days",
-      },
+      ...REMIND_ME,
+      { kind: "dismiss", label: "Don’t ask again" },
     ]);
   });
 
-  it("offers nothing at all on an ordinary reminder", () => {
-    expect(offersFor(actionsFor("user-written"))).toEqual([]);
+  it("offers an ordinary reminder only its put-offs", () => {
+    expect(offersFor(actionsFor("user-written"))).toEqual(REMIND_ME);
   });
 });
 
@@ -242,40 +212,29 @@ describe("isAnsweredInline", () => {
   // the day" writes exactly what Save writes with the offers untouched. Drawn as
   // buttons they were two more blue words for one outcome, one of them inert.
   it("claims the prompt's CTA and its one-tap answer, and nothing else", () => {
-    const actions = actionsFor("prompt", 1, null, planContext);
+    const actions = actionsFor("prompt", null, planContext);
 
     expect(actions.filter(isAnsweredInline).map((a) => a.kind)).toEqual([
       "cta",
       "answer-plan",
     ]);
-    // What survives is the pair of escapes — which is the whole of what the
-    // screen still needs to draw beside Save.
+    // What survives is the escapes — which is the whole of what the screen still
+    // needs to draw beside Save.
     expect(
       actions.filter((a) => !isAnsweredInline(a)).map((a) => a.kind),
-    ).toEqual(["snooze", "dismiss"]);
+    ).toEqual(["snooze", "snooze", "snooze", "dismiss"]);
   });
 
   it("leaves an ordinary nudge's offers alone", () => {
     // A nudge's CTA goes somewhere real; only a `plan` prompt is answered here.
-    const actions = actionsFor(idFor("about-you"), 1);
-
-    expect(actions.some(isAnsweredInline)).toBe(false);
+    expect(actionsFor(idFor("about-you")).some(isAnsweredInline)).toBe(false);
   });
 });
 
 describe("showsDelete", () => {
-  it("withholds Delete from an open nudge on its first encounter", () => {
-    // The first encounter is a genuinely binary choice — do it, or not now.
-    // Delete is the permanent option under a label that hides what it does.
-    const actions = actionsFor(idFor("connect-sync"));
-
-    expect(actions.map((a) => a.kind)).toEqual(["cta", "snooze"]);
-    expect(showsDelete(actions, false)).toBe(false);
-  });
-
-  it("withholds Delete once the nudge offers its own dismiss", () => {
+  it("withholds Delete from an open nudge, which offers its own dismiss", () => {
     // Otherwise the screen shows two buttons for the one tombstone.
-    const actions = actionsFor(idFor("connect-sync"), 1);
+    const actions = actionsFor(idFor("connect-sync"));
 
     expect(actions.map((a) => a.kind)).toContain("dismiss");
     expect(showsDelete(actions, false)).toBe(false);
@@ -284,23 +243,23 @@ describe("showsDelete", () => {
   it("keeps Delete on a completed nudge, whose offers collapse to the CTA", () => {
     // Without this, marking a nudge done would strand it at the foot of the list
     // with no way to be rid of it.
-    const actions = actionsFor(idFor("connect-sync"), 1, NOW);
+    const actions = actionsFor(idFor("connect-sync"), NOW);
 
     expect(actions.map((a) => a.kind)).toEqual(["cta"]);
     expect(showsDelete(actions, true)).toBe(true);
   });
 
-  it("keeps Delete on an ordinary reminder, which offers nothing", () => {
+  it("keeps Delete on an ordinary reminder, which offers only put-offs", () => {
     expect(showsDelete(actionsFor("user-written"), false)).toBe(true);
   });
 
   it("keeps Delete on gift and duplicates reminders", () => {
-    expect(showsDelete(actionsFor("gift", 0, null, giftContext), false)).toBe(
+    expect(showsDelete(actionsFor("gift", null, giftContext), false)).toBe(
       true,
     );
     expect(
       showsDelete(
-        actionsFor("dupes", 0, null, { isDuplicatesNudge: true }),
+        actionsFor("dupes", null, { isDuplicatesNudge: true }),
         false,
       ),
     ).toBe(true);
@@ -309,7 +268,7 @@ describe("showsDelete", () => {
 
 describe("removalCopyFor", () => {
   it("asks whether to stop asking, on a nudge", () => {
-    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1));
+    const copy = removalCopyFor(actionsFor(idFor("connect-sync")));
 
     expect(copy.title).toBe("Stop asking about this?");
     expect(copy.confirm).toBe("Don’t ask again");
@@ -321,7 +280,7 @@ describe("removalCopyFor", () => {
   it("still says the honest thing on a completed nudge, reached via Delete", () => {
     // The copy branches on the reminder, not on which affordance was tapped, so
     // the one remaining route to the tombstone can't bypass it.
-    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), 1, NOW));
+    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), NOW));
 
     expect(copy.title).toBe("Stop asking about this?");
   });
@@ -329,7 +288,7 @@ describe("removalCopyFor", () => {
   // A prompt is the same shape of thing as a nudge: a question Leapsake asked
   // unbidden, whose removal has always been a permanent tombstone.
   it("says the honest thing on a prompt too", () => {
-    const copy = removalCopyFor(actionsFor("prompt", 1, null, planContext));
+    const copy = removalCopyFor(actionsFor("prompt", null, planContext));
 
     expect(copy.title).toBe("Stop asking about this?");
     expect(copy.confirm).toBe("Don’t ask again");
@@ -344,11 +303,11 @@ describe("removalCopyFor", () => {
   });
 
   it("asks about deletion on gift and duplicates rows", () => {
-    expect(removalCopyFor(actionsFor("gift", 0, null, giftContext)).title).toBe(
+    expect(removalCopyFor(actionsFor("gift", null, giftContext)).title).toBe(
       "Delete reminder",
     );
     expect(
-      removalCopyFor(actionsFor("dupes", 0, null, { isDuplicatesNudge: true }))
+      removalCopyFor(actionsFor("dupes", null, { isDuplicatesNudge: true }))
         .title,
     ).toBe("Delete reminder");
   });

@@ -26,7 +26,7 @@ export {
   onboardingRouteOf,
   partnershipNudgeId,
   regenerateSystemReminders,
-  snoozePolicyOf,
+  snoozeTargetOf,
 } from "./engine.js";
 export type {
   HolidayBearerType,
@@ -35,7 +35,6 @@ export type {
   OnboardingRoute,
   ReminderEngineDeps,
   ReminderWindowFacts,
-  SnoozePolicy,
   SystemReminderStore,
   SystemReminderTarget,
   UndatedPartnership,

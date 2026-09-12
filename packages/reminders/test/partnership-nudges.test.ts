@@ -5,7 +5,7 @@ import {
   type UndatedPartnership,
   partnershipNudgeId,
   regenerateSystemReminders,
-  snoozePolicyOf,
+  snoozeTargetOf,
 } from "../src/index.js";
 
 /**
@@ -66,10 +66,10 @@ function makeHarness() {
     setUndated: (next: UndatedPartnership[]) => {
       undated = next;
     },
-    /** Stand in for the user pressing *not now* `n` times. */
-    snooze: (id: string, n: number) => {
+    /** Stand in for the user putting the row off until tomorrow. */
+    snooze: (id: string) => {
       const row = rows.get(id);
-      if (row) rows.set(id, { ...row, snoozeCount: n });
+      if (row) rows.set(id, { ...row, snoozedUntil: Date.now() + 86_400_000 });
     },
     live: () => [...rows.values()].filter((r) => r.deletedAt === null),
   };
@@ -138,27 +138,21 @@ describe("the partnership question", () => {
   });
 
   // ⚠️ The wall. A dateless row is *owed*, so one that could not be put off would
-  // keep the day unfinishable for as long as the user declined to answer.
-  it("can be put off, and stops coming back after two", async () => {
+  // keep the day unfinishable for as long as the user declined to answer. And
+  // being put off never retires it *(owner, 2026-09-11)*: only the answer, or
+  // the user's own *don't ask again*, does.
+  it("can be put off, and is never retired for it", async () => {
     h.setUndated([spouse]);
     await regenerateSystemReminders(h.deps);
     const id = partnershipNudgeId("r1", "wedding");
-    const now = Date.now();
 
-    expect(
-      snoozePolicyOf({ id, snoozeCount: 0, isPartnershipNudge: true }, now),
-    ).not.toBeNull();
-    expect(
-      snoozePolicyOf({ id, snoozeCount: 1, isPartnershipNudge: true }, now),
-    ).not.toBeNull();
-    // Spent: no more snooze offered, and the row itself leaves below.
-    expect(
-      snoozePolicyOf({ id, snoozeCount: 2, isPartnershipNudge: true }, now),
-    ).toBeNull();
+    expect(snoozeTargetOf(h.rows.get(id)!, 1, Date.now())).not.toBeNull();
 
-    h.snooze(id, 2);
-    await regenerateSystemReminders(h.deps);
-    expect(h.live()).toHaveLength(0);
+    for (let i = 0; i < 5; i++) {
+      h.snooze(id);
+      await regenerateSystemReminders(h.deps);
+    }
+    expect(h.live().map((r) => r.id)).toEqual([id]);
   });
 
   // Omitting the port prunes what a previous reconcile minted — the same

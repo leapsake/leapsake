@@ -828,7 +828,7 @@ export const migrations: Migration[] = [
       // re-prompt **policy** must stay derived: a step's `duration` is applied by a
       // pure function at the moment the user snoozes, and the give-up decision is
       // re-derived from `snooze_count` against the step's `repetitions` on every
-      // reconcile. Never persist “this step's next prompt is on 15 August” — doing
+      // reconcile. (That budget is gone: migration 37 dropped the count.) Never persist “this step's next prompt is on 15 August” — doing
       // so bakes today's policy into rows you can no longer reach, and every future
       // tweak then needs a data migration to match.
       //
@@ -1119,6 +1119,29 @@ export const migrations: Migration[] = [
           entity_id   TEXT,
           linked_at   INTEGER NOT NULL
         );
+      `);
+    },
+  },
+  {
+    version: 37,
+    async up(driver) {
+      // **Snooze stops counting** *(owner, 2026-09-11)*. `snooze_count` was the
+      // nag budget migration 28 added: the engine read it on every reconcile and
+      // retired a nudge or a question once it had been put off enough times.
+      // Nothing retires by being put off any more — a row goes when it is done,
+      // when its condition is met, or on an explicit *don't ask again* — so the
+      // count has no reader left, and goes.
+      //
+      // `snoozed_until` changes meaning in the same step, from an instant to a
+      // civil day encoded like `due_date` (UTC midnight): "remind me tomorrow"
+      // means the start of tomorrow. Flooring a live snooze to its UTC day keeps
+      // it within a day of what was asked for, which is all the precision a day
+      // has; clearing them instead would bring back rows someone had just put off.
+      await driver.exec(`
+        ALTER TABLE reminders DROP COLUMN snooze_count;
+        UPDATE reminders
+           SET snoozed_until = snoozed_until - (snoozed_until % 86400000)
+         WHERE snoozed_until IS NOT NULL;
       `);
     },
   },

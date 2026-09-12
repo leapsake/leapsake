@@ -13,7 +13,6 @@ const base = {
   completedAt: null,
   dueDate: null,
   snoozedUntil: null,
-  snoozeCount: 0,
   source: "user" as const,
   createdAt: 1,
   updatedAt: 1,
@@ -93,8 +92,6 @@ describe("reminderHasHistory", () => {
 
   it("is true once someone has decided something about the row", () => {
     expect(reminderHasHistory(minted({ snoozedUntil: 123 }))).toBe(true);
-    // The count outlives the clock: a spent snooze is still history.
-    expect(reminderHasHistory(minted({ snoozeCount: 1 }))).toBe(true);
     expect(reminderHasHistory(minted({ completedAt: 123 }))).toBe(true);
     expect(reminderHasHistory(minted({ deletedAt: 123 }))).toBe(true);
   });

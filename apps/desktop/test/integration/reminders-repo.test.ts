@@ -23,40 +23,33 @@ afterEach(() => {
   cleanup();
 });
 
-/** The raw snooze columns as SQLite holds them, to catch a codec that renamed wrong. */
-function snoozeColumns(d: SqliteDriver, id: string) {
-  return d.get<{ snoozed_until: number | null; snooze_count: number }>(
-    "SELECT snoozed_until, snooze_count FROM reminders WHERE id = ?",
+/** The raw snooze column as SQLite holds it, to catch a codec that renamed wrong. */
+function snoozeColumn(d: SqliteDriver, id: string) {
+  return d.get<{ snoozed_until: number | null }>(
+    "SELECT snoozed_until FROM reminders WHERE id = ?",
     [id],
   );
 }
 
-describe("remindersRepo snooze columns", () => {
+describe("remindersRepo snooze column", () => {
   it("creates a reminder un-snoozed", async () => {
     const r = await repo.create({ title: "Call mom" });
 
     expect(r.snoozedUntil).toBeNull();
-    expect(r.snoozeCount).toBe(0);
-    expect(await snoozeColumns(driver, r.id)).toEqual({
-      snoozed_until: null,
-      snooze_count: 0,
-    });
+    expect(await snoozeColumn(driver, r.id)).toEqual({ snoozed_until: null });
   });
 
-  it("round-trips a snooze clock through update, and across a reopen", async () => {
+  it("round-trips a snooze through update, and across a reopen", async () => {
     const until = Date.UTC(2026, 7, 15);
     const r = await repo.create({ title: "Book the dentist" });
 
     const updated = await repo.update(r.id, { snoozedUntil: until });
     expect(updated?.snoozedUntil).toBe(until);
-    expect(await snoozeColumns(driver, r.id)).toMatchObject({
-      snoozed_until: until,
-    });
+    expect(await snoozeColumn(driver, r.id)).toEqual({ snoozed_until: until });
 
     // A fresh connection to the same file decodes the same value.
     const onReopen = await createRemindersRepo(reopen()).get(r.id);
     expect(onReopen?.snoozedUntil).toBe(until);
-    expect(onReopen?.snoozeCount).toBe(0);
 
     // Clearing it back to null is an ordinary patch, not a special case.
     expect(
@@ -64,44 +57,25 @@ describe("remindersRepo snooze columns", () => {
     ).toBe(null);
   });
 
-  it("keeps snoozeCount out of the update input — it is engine-owned", async () => {
-    const r = await repo.create({ title: "Water the plants" });
-
-    // The repo parses its input, so an unknown key is stripped rather than written.
-    const updated = await repo.update(r.id, {
-      snoozeCount: 7,
-    } as never);
-
-    expect(updated?.snoozeCount).toBe(0);
-    expect(await snoozeColumns(driver, r.id)).toMatchObject({
-      snooze_count: 0,
-    });
-  });
-
-  it("snooze sets the clock and spends one repetition of the budget", async () => {
+  // Nothing is counted any more: no reminder retires by being put off, so the
+  // day it comes back is the whole of what a snooze records.
+  it("snooze sets the day it comes back, and nothing else", async () => {
     const until = Date.UTC(2026, 7, 15);
     const r = await repo.create({ title: "Book the dentist" });
 
     const snoozed = await repo.snooze(r.id, until);
 
     expect(snoozed?.snoozedUntil).toBe(until);
-    expect(snoozed?.snoozeCount).toBe(1);
-    expect(await snoozeColumns(driver, r.id)).toEqual({
-      snoozed_until: until,
-      snooze_count: 1,
-    });
+    expect(await snoozeColumn(driver, r.id)).toEqual({ snoozed_until: until });
   });
 
-  it("counts every snooze, and the latest clock wins", async () => {
-    const first = Date.UTC(2026, 7, 15);
-    const second = Date.UTC(2026, 8, 1);
+  it("lets the latest snooze win", async () => {
     const r = await repo.create({ title: "Renew the passport" });
 
-    await repo.snooze(r.id, first);
-    const again = await repo.snooze(r.id, second);
+    await repo.snooze(r.id, Date.UTC(2026, 7, 15));
+    const again = await repo.snooze(r.id, Date.UTC(2026, 8, 1));
 
-    expect(again?.snoozeCount).toBe(2);
-    expect(again?.snoozedUntil).toBe(second);
+    expect(again?.snoozedUntil).toBe(Date.UTC(2026, 8, 1));
   });
 
   it("advances updatedAt, so a snooze travels like any other edit", async () => {
@@ -117,7 +91,6 @@ describe("remindersRepo snooze columns", () => {
       completedAt: null,
       dueDate: null,
       snoozedUntil: null,
-      snoozeCount: 0,
       source: "user",
       createdAt: stale,
       updatedAt: stale,
@@ -131,16 +104,11 @@ describe("remindersRepo snooze columns", () => {
     expect(await repo.listChangedSince(stale)).toContainEqual(snoozed);
   });
 
-  it("stores a past `until` verbatim, and still spends the budget", async () => {
-    // Whether a date is sensible is the caller's policy, not the repo's — but
-    // the count increments either way, so no client can snooze for free.
+  it("stores a past day verbatim — which rows may be put off is the caller's rule", async () => {
     const r = await repo.create({ title: "Call the plumber" });
     const past = Date.UTC(2020, 0, 1);
 
-    const snoozed = await repo.snooze(r.id, past);
-
-    expect(snoozed?.snoozedUntil).toBe(past);
-    expect(snoozed?.snoozeCount).toBe(1);
+    expect((await repo.snooze(r.id, past))?.snoozedUntil).toBe(past);
   });
 
   it("rejects a non-integer `until` and writes nothing", async () => {
@@ -150,11 +118,7 @@ describe("remindersRepo snooze columns", () => {
 
     // The guard that matters: had it been written, every later read of this row
     // would fail validation instead.
-    expect(await snoozeColumns(driver, r.id)).toEqual({
-      snoozed_until: null,
-      snooze_count: 0,
-    });
-    expect((await repo.get(r.id))?.snoozeCount).toBe(0);
+    expect(await snoozeColumn(driver, r.id)).toEqual({ snoozed_until: null });
   });
 
   it("returns undefined for a missing id", async () => {
@@ -166,19 +130,31 @@ describe("remindersRepo snooze columns", () => {
     await repo.softDelete(r.id);
 
     expect(await repo.snooze(r.id, Date.UTC(2026, 7, 15))).toBeUndefined();
-    expect(await snoozeColumns(driver, r.id)).toEqual({
-      snoozed_until: null,
-      snooze_count: 0,
-    });
+    expect(await snoozeColumn(driver, r.id)).toEqual({ snoozed_until: null });
   });
 
-  it("carries both columns through a sync encode/decode to another device", async () => {
+  // A finished reminder is done, and a snooze left behind would hide it again the
+  // moment it was reopened — for as long as a clock nobody could see still ran.
+  it("clears the snooze when a reminder is completed, and it stays clear on reopen", async () => {
+    const r = await repo.create({ title: "Renew the passport" });
+    await repo.snooze(r.id, Date.UTC(2026, 8, 1));
+
+    const done = await repo.setCompleted(r.id, true);
+    expect(done?.completedAt).not.toBeNull();
+    expect(done?.snoozedUntil).toBeNull();
+
+    const reopened = await repo.setCompleted(r.id, false);
+    expect(reopened?.completedAt).toBeNull();
+    expect(reopened?.snoozedUntil).toBeNull();
+  });
+
+  it("carries the column through a sync encode/decode to another device", async () => {
     const peer = makeEncryptedTestDriver();
     try {
       await runMigrations(peer.driver);
       const peerRepo = createRemindersRepo(peer.driver);
 
-      // A row already snoozed twice, so neither column can pass by defaulting.
+      // A row already snoozed, so the column cannot pass by defaulting.
       const now = Date.now();
       const row: Reminder = {
         id: crypto.randomUUID(),
@@ -187,7 +163,6 @@ describe("remindersRepo snooze columns", () => {
         completedAt: null,
         dueDate: null,
         snoozedUntil: Date.UTC(2026, 8, 1),
-        snoozeCount: 2,
         source: "user",
         createdAt: now,
         updatedAt: now,
@@ -203,9 +178,8 @@ describe("remindersRepo snooze columns", () => {
       for (const remote of outbound) await peerRepo.upsertFromRemote(remote);
 
       expect(await peerRepo.get(row.id)).toEqual(row);
-      expect(await snoozeColumns(peer.driver, row.id)).toEqual({
+      expect(await snoozeColumn(peer.driver, row.id)).toEqual({
         snoozed_until: row.snoozedUntil,
-        snooze_count: 2,
       });
     } finally {
       peer.cleanup();
@@ -218,7 +192,7 @@ describe("remindersRepo snooze columns", () => {
  * Every device mints the onboarding nudges independently under the same
  * deterministic id, so a device that mints *before* it pulls carries the newer
  * `updated_at` — and used to undo the peer's dismissal and reset its snooze
- * count (slice 8). `reminderHasHistory` is what stops it.
+ * (slice 8). `reminderHasHistory` is what stops it.
  */
 describe("remindersRepo — an untouched row never wins a merge", () => {
   /** The id both devices mint independently; the value is immaterial, the sharing isn't. */
@@ -232,7 +206,6 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
     completedAt: null,
     dueDate: null,
     snoozedUntil: null,
-    snoozeCount: 0,
     source: "system",
     createdAt: at,
     updatedAt: at,
@@ -253,16 +226,15 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
     expect(await repo.get(NUDGE_ID)).toBeUndefined(); // still off Home
   });
 
-  it("keeps a local snooze, clock and count, when a peer pushes a newer mint", async () => {
+  it("keeps a local snooze when a peer pushes a newer mint", async () => {
     const until = Date.UTC(2026, 7, 15);
     await repo.insert(minted(1000));
     await repo.snooze(NUDGE_ID, until);
 
     await repo.upsertFromRemote(minted(Date.now() + 60_000));
 
-    const row = await repo.get(NUDGE_ID);
-    expect(row?.snoozedUntil).toBe(until);
-    expect(row?.snoozeCount).toBe(1); // not reset to 0 — the slice-8 symptom
+    // Not reset to null — the slice-8 symptom.
+    expect((await repo.get(NUDGE_ID))?.snoozedUntil).toBe(until);
   });
 
   it("still takes a peer's decision over a local mint", async () => {
@@ -270,12 +242,10 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
     // dismissal wins even though the local mint's clock is newer.
     await repo.insert(minted(9000));
 
-    await repo.upsertFromRemote(
-      minted(1000, { deletedAt: 1000, snoozeCount: 1 }),
-    );
+    await repo.upsertFromRemote(minted(1000, { deletedAt: 1000 }));
 
     expect(await repo.get(NUDGE_ID)).toBeUndefined();
-    expect((await repo.getIncludingDeleted(NUDGE_ID))?.snoozeCount).toBe(1);
+    expect((await repo.getIncludingDeleted(NUDGE_ID))?.deletedAt).toBe(1000);
   });
 
   it("leaves two rows that both carry history on plain LWW", async () => {
@@ -285,14 +255,9 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
     // The peer snoozed a minute later by its own clock (`snooze` stamps the real
     // one locally); last writer still wins between two decisions.
     await repo.upsertFromRemote(
-      minted(Date.now() + 60_000, {
-        snoozedUntil: Date.UTC(2026, 8, 1),
-        snoozeCount: 2,
-      }),
+      minted(Date.now() + 60_000, { snoozedUntil: Date.UTC(2026, 8, 1) }),
     );
 
-    const row = await repo.get(NUDGE_ID);
-    expect(row?.snoozedUntil).toBe(Date.UTC(2026, 8, 1));
-    expect(row?.snoozeCount).toBe(2);
+    expect((await repo.get(NUDGE_ID))?.snoozedUntil).toBe(Date.UTC(2026, 8, 1));
   });
 });

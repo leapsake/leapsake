@@ -16,6 +16,7 @@ import {
   type CivilDate,
   compareReminderDue,
   daysUntil,
+  dueDateMs,
   reminderLabel,
   todayCivil,
 } from "@leapsake/schema";
@@ -222,9 +223,9 @@ describe("onboarding reminders (end to end through core)", () => {
       );
     });
 
-    it("survives two 'not now's, which would have retired any other step", async () => {
-      // The extra repetition, through the real store and the real write method:
-      // this is the one step that must never be wrongly silenced.
+    // *(owner, 2026-09-11)*: only its condition, or the user's own "don't ask
+    // again", retires a step — through the real store and the real write method.
+    it("is never retired for being put off, however often", async () => {
       await core.people.create(
         { firstName: "Mary", middleName: null, lastName: "L", gender: null },
         [],
@@ -233,23 +234,17 @@ describe("onboarding reminders (end to end through core)", () => {
       const nudge = async () =>
         (await systemReminders()).find((r) => r.id === id);
 
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < 4; i++) {
         const offered = reminderActionsOf((await nudge())!);
         const snooze = offered.find((a) => a.kind === "snooze")!;
-        await core.reminders.snooze(id, snooze.until);
+        await core.reminders.snooze(id, snooze.days);
+        await core.reminders.regenerateSystem();
       }
-      await core.reminders.regenerateSystem();
-      expect(await nudge()).toBeDefined();
 
-      // The third spends the budget, and snooze stops being offered with it.
-      const last = reminderActionsOf((await nudge())!);
-      expect(last.find((a) => a.kind === "snooze")).toBeDefined();
-      await core.reminders.snooze(
-        id,
-        last.find((a) => a.kind === "snooze")!.until,
+      expect(await nudge()).toBeDefined();
+      expect(reminderActionsOf((await nudge())!).map((a) => a.kind)).toContain(
+        "snooze",
       );
-      await core.reminders.regenerateSystem();
-      expect(await nudge()).toBeUndefined();
     });
   });
 
@@ -265,69 +260,46 @@ describe("onboarding reminders (end to end through core)", () => {
     expect((await systemReminders()).map((r) => r.id)).not.toContain(id);
   });
 
-  it("snoozes a nudge with the date its own offered action carried", async () => {
-    // The seam the clients will use, end to end and without re-deriving policy:
-    // the action list hands over an `until`, that exact value goes to the one
-    // write method, and the row disappears from the open list until it passes.
+  it("snoozes a nudge by the day count its offered action carried", async () => {
+    // The seam the clients use, end to end: the action list hands over a day
+    // count, core turns it into the start of that day, and the row leaves the
+    // open list until then.
     await core.reminders.regenerateSystem();
     const id = idFor("connect-sync");
     const before = (await systemReminders()).find((r) => r.id === id)!;
 
-    const offered = reminderActionsOf(before);
-    const snooze = offered.find((a) => a.kind === "snooze")!;
-    expect(snooze).toBeDefined();
+    const snooze = reminderActionsOf(before).find((a) => a.kind === "snooze")!;
+    expect(snooze).toEqual({ kind: "snooze", days: 1 });
 
-    await core.reminders.snooze(id, snooze.until);
+    await core.reminders.snooze(id, snooze.days);
 
     const after = (await systemReminders()).find((r) => r.id === id)!;
-    expect(after.snoozedUntil).toBe(snooze.until);
-    expect(after.snoozeCount).toBe(1);
+    expect(after.snoozedUntil).toBe(dueDateMs(todayCivil()) + 86_400_000);
 
-    // Hidden now, back once the clock passes — a deferral, never a delete.
+    // Hidden now, back once that day comes — a deferral, never a delete.
     expect(
       partitionReminders(await systemReminders()).open.map((r) => r.id),
     ).not.toContain(id);
     expect(
-      partitionReminders(await systemReminders(), snooze.until + 1).open.map(
-        (r) => r.id,
-      ),
+      partitionReminders(
+        await systemReminders(),
+        Date.now() + 2 * 86_400_000,
+      ).open.map((r) => r.id),
     ).toContain(id);
   });
 
-  it("offers 'don't ask again' only after the nudge has been put off once", async () => {
+  it("offers 'don't ask again' from the first encounter", async () => {
     await core.reminders.regenerateSystem();
     const id = idFor("connect-sync");
-    const nudge = async () =>
-      (await systemReminders()).find((r) => r.id === id)!;
+    const nudge = (await systemReminders()).find((r) => r.id === id)!;
 
-    // First encounter is a binary choice: do it, or not now.
-    expect(reminderActionsOf(await nudge()).map((a) => a.kind)).toEqual([
+    expect(reminderActionsOf(nudge).map((a) => a.kind)).toEqual([
       "cta",
       "snooze",
-    ]);
-
-    await core.reminders.snooze(id, Date.now() + 86_400_000);
-
-    // Having declined once, the user now knows what they'd be ending.
-    expect(reminderActionsOf(await nudge()).map((a) => a.kind)).toContain(
+      "snooze",
+      "snooze",
       "dismiss",
-    );
-  });
-
-  it("stops offering snooze once the step has spent its repetitions", async () => {
-    // connect-sync gets two repetitions, so the second "not now" exhausts it:
-    // the budget really is spent by the write, not merely displayed as spent.
-    await core.reminders.regenerateSystem();
-    const id = idFor("connect-sync");
-
-    await core.reminders.snooze(id, Date.now() + 86_400_000);
-    await core.reminders.snooze(id, Date.now() + 86_400_000);
-    const spent = (await systemReminders()).find((r) => r.id === id)!;
-
-    const kinds = reminderActionsOf(spent).map((a) => a.kind);
-    expect(kinds).not.toContain("snooze");
-    // But it stays endable — dismiss outlives snooze.
-    expect(kinds).toContain("dismiss");
+    ]);
   });
 
   it("coexists with a birthday reminder in one reconcile (neither family prunes the other)", async () => {

@@ -1,7 +1,7 @@
 import {
   type OnboardingRoute,
   onboardingRouteOf,
-  snoozePolicyOf,
+  snoozeTargetOf,
 } from "@leapsake/reminders";
 import {
   type GiftPartyType,
@@ -30,9 +30,9 @@ export interface ReminderStanding {
  *
  * **Snoozed** reminders are held back until their clock passes. Precedence:
  * completion wins over snooze, so a reminder you put off and then finished is
- * `done`, not pending. A row is snoozed while `snoozedUntil > now` — strictly
- * greater, so the moment the clock arrives it is open again rather than spending
- * a millisecond in limbo. `dueDate` is untouched by any of this: an un-snoozed
+ * `done`, not pending. A row is snoozed until the civil day in `snoozedUntil`
+ * begins — compared in whole days, like every other date here, so it is back from
+ * the viewer's local midnight on that day. `dueDate` is untouched by any of this: an un-snoozed
  * row sorts among the open ones exactly as it always did, because the hide is a
  * filter and never a re-ranking.
  *
@@ -55,7 +55,10 @@ export function partitionReminders<R extends ReminderStanding>(
   now: number = Date.now(),
 ): { open: R[]; done: R[]; snoozed: R[] } {
   const active = reminders.filter((r) => r.completedAt === null);
-  const isSnoozed = (r: R) => r.snoozedUntil !== null && r.snoozedUntil > now;
+  const today = todayCivil(now);
+  const isSnoozed = (r: R) =>
+    r.snoozedUntil !== null &&
+    daysUntil(today, civilFromDueMs(r.snoozedUntil)) > 0;
 
   return {
     open: active.filter((r) => !isSnoozed(r)).sort(compareReminderDue),
@@ -446,14 +449,22 @@ export function reminderCtaOf(
  * function mapping a CTA to its own path and copy, and a flattened union would
  * make every one of those need a type guard to get a `ReminderCta` back out.
  *
- * `snooze` carries the date it would run to, so the client hands it straight to
- * the one write method and nobody derives the schedule twice.
+ * `snooze` carries a day count, not a date: the write turns it into the day it
+ * lands on by the same rule that decided it could be offered, so nobody derives
+ * the schedule twice.
  */
 export type ReminderRowAction =
   | { kind: "cta"; cta: ReminderCta }
   | { kind: "answer-plan"; milestoneId: string; schedule: ReminderRuleInput[] }
-  | { kind: "snooze"; until: number }
+  | { kind: "snooze"; days: number }
   | { kind: "dismiss" };
+
+/**
+ * The "Remind me in…" choices every client offers, in days — tomorrow, in three
+ * days, next week *(owner, 2026-09-11)*. Presets, not the rule: `snoozeTargetOf`
+ * takes any whole number of days, so a user-chosen duration is one more entry.
+ */
+export const SNOOZE_PRESET_DAYS: readonly number[] = [1, 3, 7];
 
 /**
  * A stable key for one offered action, for clients rendering the list.
@@ -465,13 +476,16 @@ export type ReminderRowAction =
  * and a key chosen locally is a key that drifts.
  */
 export function reminderActionKey(action: ReminderRowAction): string {
-  return action.kind === "cta" ? `cta:${action.cta.kind}` : action.kind;
+  if (action.kind === "cta") return `cta:${action.cta.kind}`;
+  // Likewise up to three snoozes, one per preset.
+  if (action.kind === "snooze") return `snooze:${action.days}`;
+  return action.kind;
 }
 
 /**
  * Everything a reminder row offers, in the order it should be offered: **do it**
  * ({@link reminderCtaOf}'s call to action), **just the day** (a prompt's one-tap
- * answer), **not now** (snooze), **don't ask again** (dismiss) — which is also
+ * answer), **remind me in…** (snooze), **don't ask again** (dismiss) — which is also
  * order of escalating finality. An ordinary reminder offers none of them and
  * gets an empty list.
  *
@@ -483,28 +497,24 @@ export function reminderActionKey(action: ReminderRowAction): string {
  * `wish` enabled, never just the tick, so it counts as answered for the same
  * reason the form does (see {@link reminderCtaOf}).
  *
- * **Snooze** comes from `snoozePolicyOf`, which answers "can this still be put
- * off" and "until when" in one evaluation, so the offer and its date can never
- * disagree. `null` from it means no entry — for either of two reasons this
- * function neither knows nor needs: the row is not an onboarding nudge, or the
- * step has spent its repetitions and is about to retire. The dials it reads (how
- * many days, how many repetitions) stay private to `@leapsake/reminders`; the
- * `until` here is that function's answer verbatim, never a recomputation, so the
- * copy can honestly say “ask me in 3 days” and changing the dial changes both.
+ * **Remind me in…** is one `snooze` entry per {@link SNOOZE_PRESET_DAYS} preset
+ * that `snoozeTargetOf` allows — on any row, whatever made it *(owner,
+ * 2026-09-11)*. That rule leaves out a row due today or belated, and any preset
+ * that would land past the due date, so a row due in two days offers *tomorrow*
+ * alone. A row not on display yet offers none: putting off something that is not
+ * on Today would change nothing.
  *
- * **Dismiss** is withheld until the row has been put off at least once. First
- * encounter stays a binary choice — do it or not now — because a permanent
- * "never ask me again" offered before the user knows what they are declining is
- * a trap for exactly the layperson this product is for. It appears from the
- * second encounter on, and it *outlives* snooze: a step that has exhausted its
- * repetitions offers no snooze but must still be endable.
+ * **Dismiss** — *don't ask again* — is offered from the first encounter *(owner,
+ * 2026-09-11)*. It used to be withheld until the row had been put off once, so a
+ * permanent choice was never the first a layperson saw; the confirmation that
+ * follows it says plainly what it does, and with nothing retiring by being put
+ * off, it is the one way a question goes for good.
  *
- * It is offered on **onboarding nudges only**, though, not on every put-off row.
- * Ordinary reminders already have this affordance by another route — the row's
- * own remove action, which has always been a permanent tombstone. A second
- * entry here would be a second way to render the same button. Whether a snoozed
- * *user* reminder should grow one is a real question, and it belongs to whoever
- * builds snooze-for-user-reminders, not to this function pre-empting them.
+ * It is offered on the rows Leapsake asked unbidden — onboarding nudges, `plan`
+ * prompts and partnership questions — not on every row. Ordinary reminders
+ * already have this affordance by another route: the row's own remove action,
+ * which has always been a permanent tombstone for that occurrence. A second entry
+ * here would be a second way to render the same button.
  *
  * A **completed** reminder offers its CTA and nothing else: putting off a row
  * you have just finished is incoherent, and completion winning over snooze is
@@ -517,9 +527,10 @@ export function reminderActionsOf(
   reminder: {
     id: string;
     completedAt: number | null;
-    snoozeCount: number;
-    /** A prompt's own deadline — `snoozePolicyOf` clamps "not now" to it. */
+    /** The row's deadline — no snooze may land past it. */
     dueDate?: number | null;
+    /** When it goes on display; a row not on display yet offers no snooze. */
+    activeFrom?: number | null;
   },
   context: {
     /** Set when this is a `🎁 gift` reminder — who it's about. */
@@ -573,24 +584,22 @@ export function reminderActionsOf(
       cta: { kind: "link-partner", ...context.linkPartnerTarget },
     });
 
-  const policy = snoozePolicyOf(
-    {
-      ...reminder,
-      isPlanPrompt: cta?.kind === "plan",
-      isPartnershipNudge: cta?.kind === "partnership",
-    },
-    now,
-  );
-  if (policy !== null) actions.push({ kind: "snooze", until: policy.until });
+  const notOnDisplayYet =
+    reminder.activeFrom !== null &&
+    reminder.activeFrom !== undefined &&
+    daysUntil(todayCivil(now), civilFromDueMs(reminder.activeFrom)) > 0;
+  if (!notOnDisplayYet)
+    for (const days of SNOOZE_PRESET_DAYS)
+      if (snoozeTargetOf(reminder, days, now) !== null)
+        actions.push({ kind: "snooze", days });
   // A prompt earns `dismiss` on the same terms a nudge does. It is the only
   // permanent out from a question the user does not want to answer, and — unlike
   // an ordinary reminder, whose own Remove already is one — a row the client
   // renders as a prompt needs it under an honest label.
   if (
-    (cta?.kind === "onboarding" ||
-      cta?.kind === "plan" ||
-      cta?.kind === "partnership") &&
-    reminder.snoozeCount >= 1
+    cta?.kind === "onboarding" ||
+    cta?.kind === "plan" ||
+    cta?.kind === "partnership"
   )
     actions.push({ kind: "dismiss" });
   return actions;

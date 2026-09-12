@@ -40,12 +40,8 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
   };
 
 /**
- * The copy for the two actions that aren't a call to action — deliberately
- * plain. The offered `snooze` carries the date it runs to, so “Not now (ask me
- * in 3 days)” is available for free; it is not spent here because saying a date
- * in words means either splicing a pre-formatted English fragment into a
- * sentence or hand-rolling a plural rule in a screen that has no message
- * catalog. Cheap to spend once these screens move into `@leapsake/ui`.
+ * The copy for the actions that aren't a call to action — deliberately plain.
+ * Snooze's words are {@link remindMeLabel}'s, since there is one per day count.
  */
 const ACTION_LABELS = {
   // The prompt's one-tap answer, and the reason it is a button on the row rather
@@ -53,9 +49,20 @@ const ACTION_LABELS = {
   // — *nothing special, just remind me on the day* — and the whole trade the
   // prompt makes rests on that answer being cheaper than ignoring a row was.
   answerPlan: "Just the day",
-  snooze: "Not now",
   dismiss: "Don’t ask again",
 } as const;
+
+/**
+ * The words on a “Remind me in…” button, for any whole number of days — the same
+ * three mobile uses. It costs one hand-rolled plural in a screen with no message
+ * catalog, which is the price of offering more than one choice; it moves into
+ * `@leapsake/ui` with these screens.
+ */
+function remindMeLabel(days: number): string {
+  if (days === 1) return "Remind me tomorrow";
+  if (days === 7) return "Remind me next week";
+  return `Remind me in ${days} days`;
+}
 
 /**
  * A reminder's CTA decision (see {@link reminderCtaOf}, which holds the *why* of
@@ -127,7 +134,7 @@ export function ctaLinkFor(cta: ReminderCta): { path: string; label: string } {
  */
 export type RowAffordance =
   | { kind: "link"; to: string; label: string }
-  | { kind: "snooze"; to: string; until: number; label: string }
+  | { kind: "snooze"; to: string; days: number; label: string }
   | {
       kind: "answer-plan";
       to: string;
@@ -139,10 +146,8 @@ export type RowAffordance =
  * What one {@link ReminderRowAction} looks like on desktop — the path, the copy
  * and how it is submitted — so the row component renders and decides nothing.
  *
- * A snooze's `until` is passed through **verbatim**. It is the date
- * `snoozePolicyOf` chose and the offered action carried; recomputing it here
- * would be a second evaluation that disagrees with the first whenever a dial
- * changes.
+ * A snooze passes its day count through **verbatim**; which day that lands on is
+ * core's to decide when the write is made, by the rule that offered it.
  *
  * Dismiss deliberately shares the remove route. Deleting a system reminder has
  * always been the permanent “never ask again” — `reconcile` doesn't resurrect a
@@ -175,8 +180,8 @@ export function rowAffordanceFor(
       return {
         kind: "snooze",
         to: `/reminders/${reminderId}/snooze`,
-        until: action.until,
-        label: ACTION_LABELS.snooze,
+        days: action.days,
+        label: remindMeLabel(action.days),
       };
     case "dismiss":
       return {

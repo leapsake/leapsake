@@ -10,26 +10,26 @@ scoped. The composition root wires the repos.
 
 ## Where to look
 
-| You want | Read |
-|---|---|
-| How reconcile decides what to insert, refresh, or tombstone | `computeDesired` + `reconcile` in `src/engine.ts` |
-| What makes two reminders for one occasion different reminders | `ReminderAction` and `actionKeyOf` in `@leapsake/schema`, and *Identity* below |
-| When a reminder goes on display, and when it stops | `isWithinWindow` in `src/engine.ts` |
-| How long a given errand sits on the list | `activeDays` on `actionDefs`, in `@leapsake/schema` |
-| How far ahead the *list* looks, versus the *notification schedule* | `DISPLAY_WINDOW_DAYS` and `NOTIFICATION_WINDOW_DAYS` in `src/engine.ts` |
-| What a row can say about its own timing once it leaves the engine | `ReminderWindowFacts` in `src/engine.ts` |
-| Why a row can display copy it does not store | `renderTitle` / `derivedTitle` in `src/engine.ts`, and *Derived copy* below |
-| What a detail screen should read instead of the stored row | `getReminderInWindow` in `src/engine.ts` |
-| Why a not-yet-active reminder can still be ticked | `materializeReminder` in `src/engine.ts` |
-| The onboarding nudge definitions and their copy | `ONBOARDING_STEPS` in `src/engine.ts` |
-| How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
-| Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
-| When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
-| What a question can still offer, and when a late one is due | `planOffers` and `planTiming` in `@leapsake/schema`, and *You can't be late…* below |
-| Why `first-date` and `wedding` ask only about your own | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
-| Why a reminder asks for a date instead of giving one | the `partnerships` port in `ReminderEngineDeps`, and *Collecting what is missing* below |
-| Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
-| Why a schedule has two levels and not four | `resolveReminderSchedule` in `@leapsake/schema`, and *Schedules* below |
+| You want                                                              | Read                                                                                    |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| How reconcile decides what to insert, refresh, or tombstone           | `computeDesired` + `reconcile` in `src/engine.ts`                                       |
+| What makes two reminders for one occasion different reminders         | `ReminderAction` and `actionKeyOf` in `@leapsake/schema`, and _Identity_ below          |
+| When a reminder goes on display, and when it stops                    | `isWithinWindow` in `src/engine.ts`                                                     |
+| How long a given errand sits on the list                              | `activeDays` on `actionDefs`, in `@leapsake/schema`                                     |
+| How far ahead the _list_ looks, versus the _notification schedule_    | `DISPLAY_WINDOW_DAYS` and `NOTIFICATION_WINDOW_DAYS` in `src/engine.ts`                 |
+| What a row can say about its own timing once it leaves the engine     | `ReminderWindowFacts` in `src/engine.ts`                                                |
+| Why a row can display copy it does not store                          | `renderTitle` / `derivedTitle` in `src/engine.ts`, and _Derived copy_ below             |
+| What a detail screen should read instead of the stored row            | `getReminderInWindow` in `src/engine.ts`                                                |
+| Why a not-yet-active reminder can still be ticked                     | `materializeReminder` in `src/engine.ts`                                                |
+| The onboarding nudge definitions and their copy                       | `ONBOARDING_STEPS` in `src/engine.ts`                                                   |
+| Which rows may be put off, and how far                                | `snoozeTargetOf` in `src/engine.ts`, and _Putting a step off never retires it_ below    |
+| Why an unconfigured occasion gets a question instead of errands       | the `plan` synthesis in `computeDesired`, and _The prompt_ below                        |
+| When that question is asked                                           | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers                   |
+| What a question can still offer, and when a late one is due           | `planOffers` and `planTiming` in `@leapsake/schema`, and _You can't be late…_ below     |
+| Why `first-date` and `wedding` ask only about your own                | `prompt.onlyOwnPartnership` in `kindDefs`, and _Who gets asked_ below                   |
+| Why a reminder asks for a date instead of giving one                  | the `partnerships` port in `ReminderEngineDeps`, and _Collecting what is missing_ below |
+| Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps`                                 |
+| Why a schedule has two levels and not four                            | `resolveReminderSchedule` in `@leapsake/schema`, and _Schedules_ below                  |
 
 ## Identity — what makes two reminders different reminders
 
@@ -51,15 +51,15 @@ branches on; the **qualifier is open**, because it is `gift`/`card` today and co
 id from `@leapsake/contact-links` later, and `@leapsake/schema` neither has nor wants that
 dependency. It is validated by shape, not by membership in a list. The action stays one free-text
 column and one segment of a hashed name, so this needed no schema change — and nothing anywhere
-*parses* a reminder id, so an action carrying a colon of its own costs nothing.
+_parses_ a reminder id, so an action carrying a colon of its own costs nothing.
 
-⚠️ **A channel qualifier is not what that openness is for, and is not coming soon** *(owner,
-2026-09-05)*. `call` and `message:sms` were offered as errands of their own until then, and are
+⚠️ **A channel qualifier is not what that openness is for, and is not coming soon** _(owner,
+2026-09-05)_. `call` and `message:sms` were offered as errands of their own until then, and are
 not any more: how you reach someone is an **affordance on the acknowledgment** — a button on
 "wish them a happy birthday", rendered from their contact methods when the reminder fires — not a
 row you schedule weeks ahead. The read behind those buttons is `reminders.targets` in
 `@leapsake/core`, which also answers the case where there are none: a wish for someone unreachable
-offers to collect a way in. ⚠️ *A nudge, never a wall* binds there — the reminder stays completable
+offers to collect a way in. ⚠️ _A nudge, never a wall_ binds there — the reminder stays completable
 by someone who never adds one. They keep their `actionDefs`
 entries so a rule stored under one still renders its real copy, and they are excluded from
 `SCHEDULABLE_ACTIONS`, which is the list every picker reads. The distinction that matters here is
@@ -73,7 +73,7 @@ of the four method tables is four columns, a cross-table write on every change, 
 that can leave two preferred methods or none. And **a picker for platform-qualified actions** —
 scheduling `post:instagram` rather than the shipped set — is not merely unbuilt but not wanted,
 since the UI offers generic actions and renders channels as buttons instead. ⚠️ The shipped contact
-affordances are *not* that picker: a `wish` row's buttons come from the methods a person **has**,
+affordances are _not_ that picker: a `wish` row's buttons come from the methods a person **has**,
 things to do now, which is a different thing from scheduling an errand — and deliberately so, since
 a contact method must never reach identity.
 
@@ -86,10 +86,10 @@ Two rules that fall out of it, both easy to break:
   where a throw aborts the transaction and leaves the whole list unreconciled. An action from a
   later version renders dull copy instead.
 - **`other` keys on its label** (`actionKeyOf`), because its action carries no information at all
-  — the errand *is* the free text. Two custom rows were the most reachable form of the collapse,
+  — the errand _is_ the free text. Two custom rows were the most reachable form of the collapse,
   since the editor visibly invites a second one.
 
-### Nothing merely *true about* a reminder may reach its identity
+### Nothing merely _true about_ a reminder may reach its identity
 
 Copy is derived at render; identity is not. If adding a phone number moved a row from `wish` to
 `message:sms`, the old id would be tombstoned — permanently, since reconcile never resurrects one
@@ -97,7 +97,7 @@ Copy is derived at render; identity is not. If adding a phone number moved a row
 reminder, different words, is already the pattern: `isSelf` flips "Wish @You a happy birthday" to
 "It's your birthday!" without touching the row's identity.
 
-The one place editing a rule *does* re-key it is renaming an `other` — deliberate, since the label
+The one place editing a rule _does_ re-key it is renaming an `other` — deliberate, since the label
 is that reminder's entire content, and the reason the derived cases must stay out of the key.
 
 ### A duplicate has to be caught as a set
@@ -128,9 +128,8 @@ same clock as a card for a birthday.
 Two numbers, and each lives where its variation is. A `wish` is `offset 0, active 0` and arrives on
 the morning it is owed. A `get:gift` is `active 30` whatever the occasion, because a gift is a project.
 
-**The numbers themselves are data, not architecture** — the same posture as the snooze dials below,
-and for the same reason. They are one owner's estimates and expect to be corrected against real
-use; changing one is editing a literal in `actionDefs`, never touching logic. If the eight-week
+**The numbers themselves are data, not architecture.** They are one owner's estimates and expect to
+be corrected against real use; changing one is editing a literal in `actionDefs`, never touching logic. If the eight-week
 prompt in a later increment feels too early, the dial to turn is `get:gift`'s `activeDays`, because
 that is where the pressure actually comes from.
 
@@ -144,17 +143,17 @@ The new window closes on the **occurrence** rather than on the rule's own due da
 grace tail (`BELATED_DAYS`). That single change names both failure modes, with nothing stored and
 nothing extra computed — both fall out of the arithmetic the aliveness test already does:
 
-| state | test | means |
-|---|---|---|
+| state        | test                                       | means                                                                                                                              |
+| ------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **past due** | `daysUntilDue < 0`, occurrence still ahead | the deadline blew but it is **still salvageable** — the card missed its post date, but the birthday is Tuesday, so pay for express |
-| **belated** | `daysUntilOccurrence < 0` | the occasion has passed; only acknowledgment is left |
+| **belated**  | `daysUntilOccurrence < 0`                  | the occasion has passed; only acknowledgment is left                                                                               |
 
-It falls out per action with no configuration. A day-of action's due date *is* the occurrence, so it
+It falls out per action with no configuration. A day-of action's due date _is_ the occurrence, so it
 can never be past due and goes straight to belated; a `send:card` at `offset 7` is past due for up to a
 week first. `BELATED_DAYS` bounds **only** the belated tail — past due needs no dial of its own,
 because the occurrence bounds it.
 
-**Both show under one heading, *Belated*** *(owner, 2026-09-11)*. Two sections asked the reader to
+**Both show under one heading, _Belated_** _(owner, 2026-09-11)_. Two sections asked the reader to
 learn a distinction before reading a row that already states it — "due 3 days ago" against
 "birthday was yesterday". `bucketReminders` keeps the distinction only to put what can still be
 saved first.
@@ -164,9 +163,9 @@ due twelve days before a birthday stays on your list right up to the birthday, r
 on the day its own deadline slipped.
 
 Reaching the belated state needed one thing the date math could not do. A recurring occurrence rolls
-to *next year* the morning after it passes, so nothing looking forward can ever report "yesterday" —
+to _next year_ the morning after it passes, so nothing looking forward can ever report "yesterday" —
 hence `recentOccurrence` in `@leapsake/schema`, walked alongside `nextOccurrence`. It answers
-strictly *before* today, so the two are disjoint and no occurrence is ever considered twice. The
+strictly _before_ today, so the two are disjoint and no occurrence is ever considered twice. The
 holiday resolver takes the same short look back, so the two dated families agree about what
 "missed" means.
 
@@ -190,13 +189,13 @@ Two rules the derivation depends on, both easy to break by accident:
   called with. The window parameter decides whether a row is in the set at all; substituting
   it would make every previewed row claim to be already active.
 - **A row with no occurrence is never belated.** An overdue user reminder is still
-  salvageable — nothing has *passed* — so it reads as past due. Belated needs a known
+  salvageable — nothing has _passed_ — so it reads as past due. Belated needs a known
   occasion that has gone.
 
 ### Derived copy — what a row shows is not always what it stores
 
 A reminder's title is stored, and it has to be: `reminders` is one flat table a client can read
-without the engine. But some of what a title should *say* is not knowable when the row is minted.
+without the engine. But some of what a title should _say_ is not knowable when the row is minted.
 Whether the occasion has since **passed** is the first case, and it is the pattern for the rest.
 
 So the row stores the **plain** wording and the belated wording is put on at the read.
@@ -208,7 +207,7 @@ callers, one function, so the two forms cannot drift into two different sentence
 Deriving it is not a nicety. `reconcile` refreshes a row whose title has drifted, so a stored
 belated wording would cost an update — and a sync — for **every** dated reminder the morning after
 its occasion. `reconcile` is deliberately a no-op in steady state, and a title that expires
-overnight would end that. The same argument is what keeps the *next* thing off the stored row: how
+overnight would end that. The same argument is what keeps the _next_ thing off the stored row: how
 the user can actually reach someone changes with every contact-method edit, and none of those edits
 should touch a reminder.
 
@@ -224,18 +223,18 @@ Three rules the derivation depends on, all easy to break by accident:
   the whole truth and the caller should fall back to it.
 - **A greeting with no belated form keeps the plain one.** `belatedGreeting` is a second phrase in
   `kindDefs`, not a rule applied to the first, because there is no such rule: "a happy birthday"
-  takes *belated* in the middle, "congratulations" at the front, and "Eid Mubarak" nowhere at all.
+  takes _belated_ in the middle, "congratulations" at the front, and "Eid Mubarak" nowhere at all.
   Absent means unchanged, which reads as slightly odd rather than as mangled — the right way round.
   Holidays carry none today: a holiday's greeting is a stored column seeded from the catalog, so a
   second phrase there is a migration.
 
 ### Three windows, and why none of them is the others
 
-| window | asks | answer |
-|---|---|---|
-| `activeDays` (per action) | what should be a **row** today | the errand's own run-up |
-| `DISPLAY_WINDOW_DAYS` | what is worth **previewing** to someone looking at the list | 30 days |
-| `NOTIFICATION_WINDOW_DAYS` | what could come due before the schedule is **rebuilt** | a year |
+| window                     | asks                                                        | answer                  |
+| -------------------------- | ----------------------------------------------------------- | ----------------------- |
+| `activeDays` (per action)  | what should be a **row** today                              | the errand's own run-up |
+| `DISPLAY_WINDOW_DAYS`      | what is worth **previewing** to someone looking at the list | 30 days                 |
+| `NOTIFICATION_WINDOW_DAYS` | what could come due before the schedule is **rebuilt**      | a year                  |
 
 One walk (`computeDesired`) serves all three, parameterised by `ActiveDaysOf` — a second
 implementation of the id derivation or the window filter would drift the day either changed.
@@ -244,7 +243,7 @@ materialization walk already minted would fall out of the read that feeds the sc
 test asserts it.
 
 Previewing is not the same as forbidding. **Everything can be done early** — the window
-governs when the app *prompts* you, never what you are allowed to do — so a preview row is
+governs when the app _prompts_ you, never what you are allowed to do — so a preview row is
 tickable, and `materializeReminder` mints the row being ticked. ⚠️ Doing so **retires the
 errand for the year**: the next reconcile does not want that row yet and prunes it to a
 tombstone, which is never resurrected. That is the intended reading, and it is permanent.
@@ -272,7 +271,7 @@ well it is bucketed.
 So an occasion with no rules of its own mints exactly one reminder, and that reminder is a
 **question**. Answering it writes ordinary `reminder_rules`, and the engine takes it from there.
 
-The point is *when* it asks. Configuring forty people up front is work nobody will do, and it
+The point is _when_ it asks. Configuring forty people up front is work nobody will do, and it
 demands a judgement — is Violet a card person? — at the one moment you have no context for it. Asked
 eight weeks out, with the occasion named, it is a five-second decision you are equipped to make.
 
@@ -284,7 +283,7 @@ the old rows were to ignore** — and ignoring a row is free. A prompt you must 
 answer, forty times a year, is the first-run wizard this package already rejected, wearing a better
 hat.
 
-Hence the one-tap *just the day*: the answer most people give most of the time, so it is a button on
+Hence the one-tap _just the day_: the answer most people give most of the time, so it is a button on
 the row rather than a control on a form. It writes the same full offer set the form does.
 
 ### Nothing about the timing is chosen
@@ -300,7 +299,7 @@ prompt slides earlier by itself, with no second constant to keep in step. ⚠️
 out to feel too early, **the dial to turn is `get:gift`'s `activeDays`, not the prompt's** — that is
 where the pressure actually comes from, and where the arithmetic reads it.
 
-### You can't be late for something the app has only just learned *(owner, 2026-09-11)*
+### You can't be late for something the app has only just learned _(owner, 2026-09-11)_
 
 The timing above assumes the app knew about the occasion all along. An import breaks that: forty
 people arrive at once, and every occasion inside its own eight-week lead used to arrive with its
@@ -347,34 +346,33 @@ being read as the birthday.
 - **An ignored prompt stays answerable** past its own deadline, as belated, for as long as it has
   more than the wish to offer; then it retires and the wish rides on. A late answer works; the
   chosen actions materialise with compressed windows, and any that could no longer make their own
-  deadline slide (see *You can't be late…* above).
+  deadline slide (see _You can't be late…_ above).
 - ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the question returns
   every year. So an answer writes the **full offer set**, `enabled: false` rows included, and
-  rows-existing is the "answered" marker. No new column — and it doubles as the record of *what was
-  offered*, which a future offer-set differ will need.
+  rows-existing is the "answered" marker. No new column — and it doubles as the record of _what was
+  offered_, which a future offer-set differ will need.
 
 ### An unanswered question must never become a wall
 
 An ignored prompt is alive from its due date until its choices run out — up to six weeks in
-*belated*, and therefore in `owed`. Left there it would make the day unfinishable, for every person
-you have. *A nudge, never a wall* binds here as hard as anywhere, so the prompt takes the escape the
-onboarding nudges take: two *not now*s, then *don't ask again*, on the same floor of two and for the
-same reason recorded below.
+_belated_, and therefore in `owed`. Left there it would make the day unfinishable, for every person
+you have. _A nudge, never a wall_ binds here as hard as anywhere, so a prompt can be put off like
+any row before its deadline, and _don't ask again_ is on offer from the first sight of it.
 
-⚠️ Its snooze is **clamped to its own due date while that is still ahead**. The deadline is a real
-one — the last day on which ticking "get a gift" still leaves the gift its run-up — so a plain
-week's *not now* offered just before it would silently forfeit the long-lead options. Past it there
-is nothing left to protect, and all that matters is keeping the question answerable, so it snoozes
-the full period.
+⚠️ **No snooze lands past its due date** (`snoozeTargetOf`). The deadline is a real one — the last
+day on which ticking "get a gift" still leaves the gift its run-up — so a _remind me next week_
+offered just before it would silently forfeit the long-lead options; only the choices that land by
+the deadline are offered. Once the prompt is belated it cannot be put off at all: what is left is to
+answer it, or to say _don't ask again_.
 
 ### Who gets asked, where that is narrower than which kinds ask
 
-`first-date` and `wedding` ask only about a **romantic partnership the user is in** *(owner,
-2026-09-05)*; every other prompting kind asks about everyone's. Two decisions are stacked there, and
+`first-date` and `wedding` ask only about a **romantic partnership the user is in** _(owner,
+2026-09-05)_; every other prompting kind asks about everyone's. Two decisions are stacked there, and
 they are worth keeping apart.
 
 That they ask at all is a volume argument in reverse: both kinds ship every action **off**, so
-without a question a wedding or a first date you record generates *nothing at all*, which makes
+without a question a wedding or a first date you record generates _nothing at all_, which makes
 recording one pointless.
 
 That they ask **narrowly** turns on what the app is doing when it asks. Wishing someone else a happy
@@ -385,7 +383,7 @@ showing. Someone else's stays fully remindable; it just has to be asked for, on 
 schedule editor, rather than raised unprompted.
 
 ⚠️ **This reverses an earlier reading from the same day**, which had `wedding` asking about
-everyone's on the grounds that third parties do mark the occasion. That is true of the *wish* and
+everyone's on the grounds that third parties do mark the occasion. That is true of the _wish_ and
 not of the volunteered errands, and the two were being conflated.
 
 **"The user's own" has three storage shapes, and all three count**: borne by the relationship, borne
@@ -400,7 +398,7 @@ to prevent is asking about other people's, and a wiring mistake defaulting the o
 restore that everywhere at once.
 
 ⚠️ **It reads data the user may not have entered**, which is the accepted cost. A first date is
-usually recorded on the *partner*, not on the relationship, so the check looks for a stored
+usually recorded on the _partner_, not on the relationship, so the check looks for a stored
 `spouse`/`partner` edge (`isRomanticRole`, which takes the gendered variants through `baseRole`)
 between them and the self-person. No self-person, or no role set, means no question — silence in
 exactly the case that wanted asking. The alternative was asking about everyone, and between a
@@ -417,13 +415,13 @@ milestone. One value, two meanings, and the losing one was silent on both sides.
 
 The fix is that a relationship now has a name: both endpoints (`relationshipPairLabel` — "Harry &
 Tilly"), or, when the self-person is one end, **the other end**, since "Wish You & Violet a happy
-anniversary" is not a thing to tell anyone. `null` again means only *gone*.
+anniversary" is not a thing to tell anyone. `null` again means only _gone_.
 
 Two consequences worth holding on to:
 
 - **`isSelf` is asked about every bearer type, not just people.** A relationship you are one end of
-  is "about you", which is what makes your own anniversary's prompt say *your own*. It stays
-  distinct from `isOwnPartnership` above: your wife is not *you*, and conflating them would give her
+  is "about you", which is what makes your own anniversary's prompt say _your own_. It stays
+  distinct from `isOwnPartnership` above: your wife is not _you_, and conflating them would give her
   birthday "It's your birthday!".
 - ⚠️ **A relationship-borne row carries no mention backlink.** Its label is either two entities or an
   entity the loop does not hold the id of, and a mention token names exactly one. The row is plain
@@ -465,7 +463,7 @@ is the **shipped default** for that kind (`kindDefs[kind].defaultReminderSchedul
 `resolveObservanceReminderSchedule` therefore resolve all-or-nothing: stored rows win wholesale,
 because there is exactly one level a user can write.
 
-### There are no per-person and no per-kind defaults *(owner, 2026-09-05)*
+### There are no per-person and no per-kind defaults _(owner, 2026-09-05)_
 
 An earlier design had four levels — this occasion, this person, all birthdays, the shipped default —
 resolved per action, with the winning level shown on the row. It was cut before any of it was built.
@@ -473,9 +471,9 @@ The reasoning is recorded because it is an easy idea to have again.
 
 A per-person default has to hold across **everything that person has**: their birthday and Arbor Day
 alike. Those are not the same occasion and do not carry the same weight, so "for Violet: a gift, a
-card and a call" is a rule that pretends they do. The variation that matters is between *occasions*,
+card and a call" is a rule that pretends they do. The variation that matters is between _occasions_,
 which is what the occasion level already expresses — and where someone genuinely does want the same
-treatment everywhere, saying so per occasion is a handful of taps rather than a system. A per-*kind*
+treatment everywhere, saying so per occasion is a handful of taps rather than a system. A per-_kind_
 default ("all birthdays") loses the same argument one size up: the people in a life vary more than
 one setting can absorb.
 
@@ -484,20 +482,20 @@ lookup:
 
 - Resolution would have to become **per action**. All-or-nothing is correct only while one level
   exists; with two, setting a person default would silently wipe an occasion's schedule.
-- Every writer would have to emit a **complete** set. An action a set omits would fall *through* to
+- Every writer would have to emit a **complete** set. An action a set omits would fall _through_ to
   the level above and switch itself back **on** — so the schedule editor's Remove button, which
-  means *off* today, would quietly come to mean *inherit*.
+  means _off_ today, would quietly come to mean _inherit_.
 - Existing partial rule sets would need a migration to keep the meaning they were saved with.
 - A "kind" level is the one bearer that is not a row, so `bearerId` would have to stop being a
   `z.uuid()` and start accepting a keyword.
 
 None of that exists and none of it is coming. `reminderRuleBearerTypeSchema` stays
 `milestone | observance` — its "adding one is a Zod-only change" note is about a new kind of
-*occasion*, not a new level — and every bearer stays a real row with a real id.
+_occasion_, not a new level — and every bearer stays a real row with a real id.
 
 ### ⚠️ Do not model rule dependencies
 
-"Get the gift 3–7 days before the card goes in the post" is a real thought while you are *choosing*
+"Get the gift 3–7 days before the card goes in the post" is a real thought while you are _choosing_
 offsets, and it must not survive into the data. Literal dependencies need ordering, cycle detection,
 and an answer for what happens when the depended-on rule is disabled — all to express something set
 once. Do the arithmetic wherever the numbers are chosen and store plain offsets. "Where in the world
@@ -505,7 +503,7 @@ is it going" is an input to that arithmetic, never a runtime lookup.
 
 ### ⚠️ A redundant action is suppressed in the read, never in the desired set
 
-`wish` means *some acknowledgment, unspecified*, so a specific day-of action arguably makes it
+`wish` means _some acknowledgment, unspecified_, so a specific day-of action arguably makes it
 redundant. If that is ever built, suppress it **where the row is rendered**. Dropping it from the
 desired set instead reaches the worst failure this package has: `reconcile` retires an unwanted row
 by soft delete and never resurrects a tombstone, and a system reminder's id is keyed on the
@@ -524,7 +522,7 @@ something it does not. You recorded a spouse; the app does not know your anniver
 will not teach it one. So it asks — once, in the place you already look, worded by what it does
 know.
 
-The general principle, which is the same one *a nudge, never a wall* serves from the other side:
+The general principle, which is the same one _a nudge, never a wall_ serves from the other side:
 **incomplete data is a normal state, not a blocked one.** A reminder about someone you cannot reach
 still fires, and offers to collect a way. An anniversary of your own with nobody attached still
 fires. Nothing waits for a complete record, and every row is a place to complete one.
@@ -549,17 +547,17 @@ anniversary**, a `partner` is missing a **first date** (`isRomanticRole` and `ba
 anniversary is has the app inventing a marriage — a worse failure than silence, and the reason the
 kind travels on the row rather than being guessed at the far end.
 
-The tense follows from the same fact: an anniversary *comes round* ("when **is**"), a first date
+The tense follows from the same fact: an anniversary _comes round_ ("when **is**"), a first date
 happened once ("when **was**").
 
 ### Two things that would make it re-ask, and do not
 
-- ⚠️ **A date recorded on *either* bearer counts as known.** A wedding lives on the person until its
+- ⚠️ **A date recorded on _either_ bearer counts as known.** A wedding lives on the person until its
   other party exists and on the relationship afterwards — `MilestoneRebind` is the flow between them
   — so checking one bearer would re-ask for a date already given. That is the worst thing a
   collection nudge can do, and the check reads both.
 - **The id carries the kind, not just the relationship.** Dismissing "when was your first date?" is
-  a dismissal of *that question*; a couple who later marry are still asked their anniversary.
+  a dismissal of _that question_; a couple who later marry are still asked their anniversary.
 
 ### The same question from the other side
 
@@ -569,18 +567,18 @@ and they are duals: the partnership question knows the couple and wants the date
 wedding knows the date and wants the couple, and offers to collect it
 (`linkPartners` in `@leapsake/core`).
 
-⚠️ **Weddings only.** A `first-date` or a `met` stored on a person *is* about that person, so asking
+⚠️ **Weddings only.** A `first-date` or a `met` stored on a person _is_ about that person, so asking
 who it is with would be asking a question whose answer is already the row.
 
 ⚠️ **That one costs no row.** It is an affordance on a reminder that already exists — like the
 contact-collection CTA — so it is not weighed against the compounding rule above, which is about
 rows that ask for screen space of their own.
 
-⚠️ **And it is the one offer shown *beside* a row's main action rather than instead of it** *(owner,
-2026-09-05)*. A row offers the highest-ranked call to action that applies, and this one sits below
+⚠️ **And it is the one offer shown _beside_ a row's main action rather than instead of it** _(owner,
+2026-09-05)_. A row offers the highest-ranked call to action that applies, and this one sits below
 both the question and the gift — so it used to surface only where nothing outranked it: the day-of
 wish, a few days a year. Answer the prompt with only "get a gift" and it never appeared at all.
-Doubling up is safe here precisely because it completes a *record* rather than doing the errand, so
+Doubling up is safe here precisely because it completes a _record_ rather than doing the errand, so
 it never competes with the row's own point. Two CTAs on one row is also why `reminderActionKey`
 exists: `kind` alone stopped being unique, and duplicate React keys reconcile wrongly rather than
 loudly.
@@ -593,20 +591,20 @@ tidying.
 
 ### The question's wording, and the possessive that was a factual error
 
-"How do you want to **mark** X?" became "What do you want to **do for** X?" *(owner, 2026-09-05)*.
+"How do you want to **mark** X?" became "What do you want to **do for** X?" _(owner, 2026-09-05)_.
 "Mark" was picked to stay neutral across every action the question offers, and that neutrality is
 what made it vague: it never said what was being asked, so the row had to be opened to find out.
 
 ⚠️ **The bigger fix was the possessive.** The template is written in the third person about a second
 party — "@Violet's first date" — and for a shared occasion that is not vague, it is **wrong**. A first
-date is not Violet's; it is *yours, with Violet*, and the possessive states that she had one with
+date is not Violet's; it is _yours, with Violet_, and the possessive states that she had one with
 somebody else. Three shapes, all in `planQuestion` in `@leapsake/schema`:
 
-| | Reads |
-|---|---|
-| The subject is you | "your own wedding anniversary" |
+|                        | Reads                              |
+| ---------------------- | ---------------------------------- |
+| The subject is you     | "your own wedding anniversary"     |
 | The occasion is shared | "your first date **with @Violet**" |
-| Anyone else's | "@Harry's birthday" |
+| Anyone else's          | "@Harry's birthday"                |
 
 Shared is decided two ways, and both are needed: a **gated** kind's bearer being someone else (the
 gate has already established the partnership is the user's), or any milestone borne by a
@@ -621,10 +619,11 @@ centralised to prevent.
 
 ### It has to be escapable
 
-A dateless row is *owed*, and owed rows gate "done for the day" — so a question that could not be
-put off would keep the day unfinishable for as long as the user declined to answer it. It takes the
-onboarding nudges' floor: two *not now*s, then it retires itself. ⚠️ Retirement is a tombstone and
-the id carries no year, so — exactly as for the onboarding nudges — a dismissal is **permanent**.
+A dateless row is _owed_, and owed rows gate "done for the day" — so a question that could not be
+put off would keep the day unfinishable for as long as the user declined to answer it. It can be put
+off like any row, and being put off never retires it — only its answer does, or _don't ask again_.
+⚠️ That is a tombstone and the id carries no year, so — exactly as for the onboarding nudges — a
+dismissal is **permanent**.
 
 Its answer is one tap from the row: the CTA opens the milestone form already on the kind the
 question asked about (`?kind=`, guarded by `isMilestoneKind` since it arrives from a URL). A
@@ -633,7 +632,7 @@ was just asked it.
 
 ## The onboarding nudges — the product design behind them
 
-The mechanics are documented on the code. This section records the *reasoning*, which the code
+The mechanics are documented on the code. This section records the _reasoning_, which the code
 cannot carry and which took several drafts to get right.
 
 ### Standing nudges, not a Day-1 flow
@@ -648,76 +647,59 @@ The corollary is a rule worth keeping: **a nudge, never a wall.** A forced setup
 violates the layperson/no-hoops principle and would forfeit the zero-setup first run that is the
 point of the Unauthenticated state.
 
-### The steps have unequal stakes, and that asymmetry sets the dials
+### Putting a step off never retires it _(owner, 2026-09-11)_
 
-Wrongly *nagging* costs annoyance the user can dismiss. Wrongly *silencing* a step costs
-something that gives **no signal it happened** — the user simply never learns the feature exists,
-and nothing surfaces to tell anyone. The two errors are not symmetric, so where a step's budget
-is unclear it gets another repetition rather than fewer.
+A step goes when its condition is met or when the user says _don't ask again_ — never because it
+was put off some number of times. Each step used to carry a budget of *not now*s and a snooze length
+of its own, and retired itself once the budget ran out; both were cut. The budget made the gentle
+option quietly permanent, and how long to wait is now the user's to say: every row, whatever made
+it, offers the same _Remind me tomorrow / in 3 days / next week_ (`snoozeTargetOf` here, the presets
+in `@leapsake/view-models`), always to the start of that day.
 
-Two consequences, both already enforced in code:
+_Don't ask again_ is offered from the first sighting. It used to be withheld until the row had been
+put off once, so a permanent choice was never the first a layperson saw; the confirmation that
+follows it says plainly what it does, and it is now the only way a step goes for good undone.
 
-- **The floor is two *not now*s, never one** *(owner, 2026-08-01)*. At 1 the gentle-looking
-  option is the permanent one, and *don't ask again* — withheld on a first encounter precisely so
-  a permanent choice is never a trap — is then never offered at all. Read `snoozeRepetitions` as
-  *not nows accepted*, not *times it returns*; the two readings differ by one.
-- **The dials are data, not architecture.** Changing one is editing a literal. Expect to correct
-  them once real usage disagrees.
-
-Exactly one step sits above the floor: **the account invitation**, at three. It is the step whose
-wrong-silencing leaves a user's data in the clear with nothing to signal it, so it is where the
-asymmetry above is actually spent.
-
-### No two steps come back on the same day *(2026-09-10)*
-
-The durations were all 3, so a user who put off three rows on one afternoon got all three back on
-one morning — Home refilling in a single go with exactly what they had just cleared, which reads
-as the app not having listened. They are now all different, and the returns spread out with no
-scheduler and nothing stored.
-
-The spread is not arbitrary: **the number tracks how long the answer is likely to stay no.**
-*I have no second device* survives a week; *I don't want my address book in here* is a considered
-position rather than a matter of timing; *not now* to notifications is the one answer that turns
-over without the user changing their mind, because a birthday getting closer is what makes it
-concrete. So sign-in waits longest and notifications comes back soonest, with the account
-invitation shortest of the considered "no"s because it is the step that can least afford to be
-forgotten.
+The asymmetry that set the old dials still holds — wrongly _silencing_ a step costs more than
+wrongly nagging, because the user never learns the feature exists and nothing surfaces to tell
+anyone — and it now argues for keeping a step alive until someone answers it, rather than for
+tuning how often it comes back.
 
 ### The account invitation, and the fork it is half of
 
 `create-account` is the step that gets a user from Unauthenticated to Authenticated — the state
 that turns encryption on. Three decisions in it are easy to get wrong on a re-read:
 
-- **It promises access, not safety.** An Unauthenticated store is plaintext with *no keys*, so
+- **It promises access, not safety.** An Unauthenticated store is plaintext with _no keys_, so
   there is nothing yet to be locked out of; an account protects access, and a **backup** is what
   protects against losing the device (`plans/encryption/model.md` §7.2.1). Calling it a data-loss
   fix was the old plan's mistake for two drafts, and the copy still has to hold this line.
 - **It waits for data, not for days.** `applies: hasEntitiesBesidesSelf && !hasAccount`. Gating on data is
   what puts the invitation in front of someone who imported 200 contacts on day one — the moment
   the account matters most, and exactly the moment an elapsed-time floor would mute it. "Day 2 or
-  3" is the expected *effect* of the data gate, not a second condition. If a floor is ever wanted
+  3" is the expected _effect_ of the data gate, not a second condition. If a floor is ever wanted
   it needs no new column: `sync-devices` is minted at the first reconcile, so its `createdAt`
   **is** the install date.
 - **It is one half of a fork, not a second similar offer.** The other half is `sync-devices`,
-  which stands from day one and is worded *sign in*. The two mistakes cost wildly different
+  which stands from day one and is worded _sign in_. The two mistakes cost wildly different
   amounts: signing in when you should have created self-corrects (the lookup branches you to
   signup), whereas creating when you should have signed in was, until the account merge landed
-  *(2026-08-08)*, a one-way street. Ordering alone cannot fix that — both rows are on Home
+  _(2026-08-08)_, a one-way street. Ordering alone cannot fix that — both rows are on Home
   together — so the **wording carries the load**, and "connect to sync" was our vocabulary rather
   than the returning user's.
 
 `sync-devices` therefore retires on **`hasAccount || syncConnected`**, not on a bound relay alone.
 Both nudges deep-link to the same Settings screen, and retiring only on `relayUrl` left a user who
-created a *local-only* account being nudged toward a flow that could no longer satisfy it.
+created a _local-only_ account being nudged toward a flow that could no longer satisfy it.
 
-The stronger guard — the create screen itself opening with *"do you already have an account on
-another device?"* — was weighed and deferred to v0.2 with the Settings decomposition. It catches
+The stronger guard — the create screen itself opening with _"do you already have an account on
+another device?"_ — was weighed and deferred to v0.2 with the Settings decomposition. It catches
 every route in, including Settings visited directly, but it is not worth the launch clock now that
 the wrong turn is recoverable.
 
-### A step that waits on another step isn't standing on its own *(2026-09-10)*
+### A step that waits on another step isn't standing on its own _(2026-09-10)_
 
-`pick-self` read `hasEntities && !hasSelf` and asked *"which of these is you?"* — a question that
+`pick-self` read `hasEntities && !hasSelf` and asked _"which of these is you?"_ — a question that
 can only be asked of a list, and so a step that could only appear once the user had already done
 something else. Two things were wrong with that, and they compounded.
 
@@ -725,7 +707,7 @@ It made the step **dependent**: nothing about knowing who you are requires anyon
 yet the app could not ask until somebody did. And it made the first person a **punishment** —
 adding one retired the getting-started nudge and raised three in its place (account, pick-self,
 notifications), so the reward for a first action was a longer list than before. That is exactly
-the compounding *the rule that stops this eating the home screen* warns about, arriving through
+the compounding _the rule that stops this eating the home screen_ warns about, arriving through
 the onboarding family rather than the collection one.
 
 The fix was to change the question rather than the schedule. **"Tell us about yourself"** is
@@ -734,18 +716,18 @@ a typeahead when there are people, the offer to import when there are none, and 
 underneath either way. So the condition became `!hasSelf` and nothing else, and the step now
 stands from day one beside the import invitation — two rows, each answerable without the other.
 
-⚠️ **That is what forced `hasEntitiesBesidesSelf`.** Answering *who are you* creates a person, and
+⚠️ **That is what forced `hasEntitiesBesidesSelf`.** Answering _who are you_ creates a person, and
 under a plain `hasEntities` that would have retired the invitation to import — permanently, by
 tombstone — for having answered a different question. It is also the truer signal: a store holding
 nothing but your own name is an empty personal CRM, and the steps that wait for "data worth
-protecting" or "something to be notified about" mean data about *other people*. It replaced
+protecting" or "something to be notified about" mean data about _other people_. It replaced
 `hasEntities` outright; nothing else was left using it.
 
 ### Store what happened, never what to do next
 
-State is two columns on `reminders`, not a decision table. *Did the user do it?* stays **derived**
+State is one column on `reminders` (`snoozed_until`) and its tombstone, not a decision table. _Did the user do it?_ stays **derived**
 from the store — `hasAnyEntity`, `isSyncConnected`, `hasSelf`, `hasAccount` — so it cannot drift
-from reality. Only what the user *answered* is recorded. One verb, one write method.
+from reality. Only what the user _answered_ is recorded. One verb, one write method.
 
 `isSyncConnected` and `hasAccount` are two reads of one account singleton and stay separate
 deliberately: the account exists as soon as one is created, but `relayUrl` is set only when it is
@@ -755,9 +737,9 @@ both custody nudges hinge on.
 This is also why **retirement is permanent**: it is a `softDelete` tombstone, so a step does not
 re-appear if its condition later reverts (the user deletes all their people). That is the correct
 "don't re-nag" semantic, and it is the same path whether a step retired because its condition was
-met or because it exhausted its budget.
+met or because the user dismissed it.
 
-### Onboarding defer *is* reminder snooze
+### Onboarding defer _is_ reminder snooze
 
 There are not two kinds of "later". Collapsing them was the change that made the whole design
 work: the snooze mechanism the reminder surface already needed is exactly the mechanism
@@ -778,16 +760,16 @@ device that turns notifications on retires the row for everybody.
 
 ⚠️ **It is not a shortcut, it is the only expressible condition today.** Onboarding rows sync,
 and `reconcile` tombstones any active `system` row the desired set does not want —
-*permanently*. So a device computing "does not apply" kills the row for its peers, and
+_permanently_. So a device computing "does not apply" kills the row for its peers, and
 namespacing the id per device only moves the problem: device one prunes device two's row for
 the same reason. Nor could the desired set be built per device, because a device that has never
 been asked has **no row to be enumerated from**, and the `device` table is account-bound
 (migration 14) while this nudge fires in the accountless first-run state. There is nothing to
 enumerate by construction until multi-device brings a registry that spans it.
 
-Two things for whoever picks this up: the family needs a per-device notion *before* the nudge
+Two things for whoever picks this up: the family needs a per-device notion _before_ the nudge
 can have one, and the new ids must honour the old fixed id's tombstone once — otherwise a user
-who said *don't ask again* is asked again on the upgrade.
+who said _don't ask again_ is asked again on the upgrade.
 
 ### Known limitation
 

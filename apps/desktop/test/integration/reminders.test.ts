@@ -5,9 +5,12 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { createTagsRepo } from "@leapsake/data";
+import { dueDateMs, todayCivil } from "@leapsake/schema";
 import { partitionReminders } from "@leapsake/view-models";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
+
+const DAY_MS = 86_400_000;
 
 let driver: SqliteDriver;
 let cleanup: () => void;
@@ -96,15 +99,16 @@ describe("core.reminders", () => {
     expect(sink!.deleted_at).not.toBeNull();
   });
 
-  it("snooze sets the clock and increments the count together", async () => {
-    const until = Date.UTC(2026, 7, 15);
+  it("puts a reminder off to the start of the day `days` out", async () => {
     const r = await core.reminders.create({ title: "book the dentist" });
 
-    const snoozed = await core.reminders.snooze(r.id, until);
+    const snoozed = await core.reminders.snooze(r.id, 3);
 
-    expect(snoozed?.snoozedUntil).toBe(until);
-    expect(snoozed?.snoozeCount).toBe(1);
-    expect((await core.reminders.get(r.id))?.snoozeCount).toBe(1);
+    expect(snoozed?.snoozedUntil).toBe(dueDateMs(todayCivil()) + 3 * DAY_MS);
+    // Held back until that day begins.
+    expect(
+      partitionReminders(await core.reminders.list()).snoozed.map((x) => x.id),
+    ).toEqual([r.id]);
   });
 
   it("snoozes an automatic reminder, which update refuses to touch", async () => {
@@ -120,48 +124,52 @@ describe("core.reminders", () => {
       core.reminders.update(r.id, { title: "mine now" }),
     ).rejects.toThrow(/can't be edited/);
 
-    const snoozed = await core.reminders.snooze(r.id, Date.UTC(2026, 7, 15));
-    expect(snoozed?.snoozeCount).toBe(1);
+    const snoozed = await core.reminders.snooze(r.id, 1);
+    expect(snoozed?.snoozedUntil).not.toBeNull();
   });
 
-  it("keeps snoozeCount unwritable through update", async () => {
-    const r = await core.reminders.create({ title: "water the plants" });
-    await core.reminders.snooze(r.id, Date.UTC(2026, 7, 15));
+  // The due date is a real deadline: a snooze may land on it, never past it.
+  it("refuses to put a dated reminder off past its due date", async () => {
+    const r = await core.reminders.create({
+      title: "post the card",
+      dueDate: dueDateMs(todayCivil()) + 2 * DAY_MS,
+    });
 
-    // The nag budget is the engine's: a caller can move the clock but can't
-    // rewind the count that decides when a nudge gives up.
-    const updated = await core.reminders.update(r.id, {
-      snoozedUntil: null,
-      snoozeCount: 0,
-    } as never);
-
-    expect(updated?.snoozedUntil).toBeNull();
-    expect(updated?.snoozeCount).toBe(1);
-  });
-
-  it("snoozes a completed reminder without effect — completion wins", async () => {
-    const r = await core.reminders.create({ title: "ship it" });
-    await core.reminders.setCompleted(r.id, true);
-
-    const snoozed = await core.reminders.snooze(r.id, Date.now() + 86_400_000);
-    expect(snoozed?.snoozeCount).toBe(1);
-
-    // Still sorted as done, not held back as pending.
-    const { done, snoozed: hidden } = partitionReminders(
-      await core.reminders.list(),
+    await expect(core.reminders.snooze(r.id, 3)).rejects.toThrow(
+      /cannot be put off/,
     );
-    expect(done.map((x) => x.id)).toEqual([r.id]);
-    expect(hidden).toEqual([]);
+    expect((await core.reminders.snooze(r.id, 2))?.snoozedUntil).toBe(
+      r.dueDate,
+    );
+  });
+
+  it("refuses a reminder that is due today, or done", async () => {
+    const due = await core.reminders.create({
+      title: "call the plumber",
+      dueDate: dueDateMs(todayCivil()),
+    });
+    await expect(core.reminders.snooze(due.id, 1)).rejects.toThrow();
+
+    const done = await core.reminders.create({ title: "ship it" });
+    await core.reminders.setCompleted(done.id, true);
+    await expect(core.reminders.snooze(done.id, 1)).rejects.toThrow();
+  });
+
+  it("clears the snooze when the reminder is completed", async () => {
+    const r = await core.reminders.create({ title: "water the plants" });
+    await core.reminders.snooze(r.id, 1);
+
+    expect((await core.reminders.setCompleted(r.id, true))?.snoozedUntil).toBe(
+      null,
+    );
   });
 
   it("returns undefined for a missing or deleted reminder", async () => {
     const r = await core.reminders.create({ title: "cancel it" });
     await core.reminders.softDelete(r.id);
 
-    expect(await core.reminders.snooze(r.id, Date.now())).toBeUndefined();
-    expect(
-      await core.reminders.snooze(crypto.randomUUID(), Date.now()),
-    ).toBeUndefined();
+    expect(await core.reminders.snooze(r.id, 1)).toBeUndefined();
+    expect(await core.reminders.snooze(crypto.randomUUID(), 1)).toBeUndefined();
   });
 
   it("shares a #tag with a person via the same taggings graph", async () => {

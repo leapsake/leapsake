@@ -21,7 +21,6 @@ import {
   SYSTEM_REMINDER_NAMESPACE,
   listRemindersInWindow,
   regenerateSystemReminders,
-  snoozePolicyOf,
 } from "../src/index.js";
 
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
@@ -475,44 +474,5 @@ describe("an answer given late", () => {
     h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()).toHaveLength(0);
-  });
-});
-
-describe("snoozePolicyOf, for a prompt", () => {
-  const NOW = dueDateMs(TODAY) + 9 * 60 * 60 * 1000; // 9am today
-  const prompt = (over: { snoozeCount?: number; dueDate?: number } = {}) => ({
-    id: "not-an-onboarding-id",
-    snoozeCount: 0,
-    isPlanPrompt: true,
-    ...over,
-  });
-
-  it("offers nothing to an ordinary reminder", () => {
-    expect(snoozePolicyOf({ id: "whatever", snoozeCount: 0 }, NOW)).toBeNull();
-  });
-
-  // ⚠️ The due date is a real deadline, not a preference: a plain week's "not
-  // now" offered before it would silently forfeit the long-lead options. So the
-  // first one lands exactly on the deadline instead.
-  it("clamps to the due date while the deadline is still ahead", () => {
-    const dueDate = NOW + 3 * DAY_MS;
-    expect(snoozePolicyOf(prompt({ dueDate }), NOW)).toEqual({
-      until: dueDate,
-    });
-  });
-
-  // Past it there is nothing left to protect, and the only thing that matters is
-  // keeping the question answerable to the occurrence.
-  it("snoozes the full period once the deadline has passed", () => {
-    const dueDate = NOW - 3 * DAY_MS;
-    const policy = snoozePolicyOf(prompt({ dueDate }), NOW);
-    expect(policy?.until).toBe(NOW + 7 * DAY_MS);
-  });
-
-  // The floor is two "not now"s, never one — at one, the gentle-looking option
-  // is the permanent one and "don't ask again" is never offered at all.
-  it("runs out after two, so `don't ask again` is reachable", () => {
-    expect(snoozePolicyOf(prompt({ snoozeCount: 1 }), NOW)).not.toBeNull();
-    expect(snoozePolicyOf(prompt({ snoozeCount: 2 }), NOW)).toBeNull();
   });
 });

@@ -123,6 +123,7 @@ import {
   materializeReminder,
   partnershipNudgeId,
   regenerateSystemReminders,
+  snoozeTargetOf,
 } from "@leapsake/reminders";
 // The onboarding-nudge id-convention, surfaced through core (the apps' single
 // entry point) so a client can map a Home reminder's id to its CTA route without
@@ -2010,24 +2011,30 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
             await materializeReminder(systemReminderDeps(), id);
           return reminders.setCompleted(id, completed);
         }),
-      // Put this off, ask me later: sets the snooze clock and spends one
-      // repetition of the nag budget, atomically. One generic verb for both
-      // cases — a user hiding their own reminder, and the product accepting
-      // "not now" on an onboarding nudge — because the row write is identical
-      // and only the choice of date differs.
+      // "Remind me in `days` days." The caller asks for a day count and this
+      // decides the day, from the row as the list shows it, by the one rule the
+      // offers are drawn from too (`snoozeTargetOf`) — so no caller can pick a
+      // day, or put off a row that rule refuses. A refusal throws rather than
+      // quietly writing nothing: every offer already passed the same rule, so
+      // reaching it means a stale screen, which should say so.
       //
-      // That date is the **caller's**: the offered action already carries the
-      // one `snoozePolicyOf` returned, so re-deriving it here would be a second
-      // evaluation that disagrees with the copy the user just read whenever a
-      // dial changes. Most reminders have no policy at all, so there is nothing
-      // to validate against in the general case.
+      // Materializes first, exactly as `setCompleted` does: a `system` row can be
+      // on Today before the reconcile that stores it has run.
       //
       // Deliberately skips `isReminderEditable`, the way `setCompleted` does:
-      // snoozing is not a content edit, so it stays open on `system` rows —
-      // which is the whole point, those being its first consumer. Text is
-      // untouched, so no tags/mentions to re-derive.
-      snooze: (id: string, until: number): Promise<Reminder | undefined> =>
-        driver.transaction(() => reminders.snooze(id, until)),
+      // snoozing is not a content edit, so it stays open on `system` rows. Text
+      // is untouched, so no tags/mentions to re-derive.
+      snooze: (id: string, days: number): Promise<Reminder | undefined> =>
+        driver.transaction(async () => {
+          const row = await getInWindow(id);
+          if (row === undefined) return undefined;
+          const until = snoozeTargetOf(row, days, Date.now());
+          if (until === null)
+            throw new Error(`reminder ${id} cannot be put off ${days} days`);
+          if ((await reminders.get(id)) === undefined)
+            await materializeReminder(systemReminderDeps(), id);
+          return reminders.snooze(id, until);
+        }),
       softDelete: (id: string): Promise<void> =>
         driver.transaction(async () => {
           await reminders.softDelete(id);
@@ -2223,7 +2230,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     // the substrate only — no planner, no OS calls. Every method is scoped by
     // an explicit deviceId rather than an ambient "this device", so a
     // cross-device settings UI can read/edit any device's row, exactly like
-    // `reminders.snooze(id, until)` takes an explicit id.
+    // `reminders.snooze(id, days)` takes an explicit id.
     notificationSettings: {
       get: (deviceId: string): Promise<NotificationSettings | undefined> =>
         notificationSettings.get(deviceId),

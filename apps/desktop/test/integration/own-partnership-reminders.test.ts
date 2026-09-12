@@ -480,7 +480,6 @@ describe("the spouse offer, shown beside the row's own action", () => {
       {
         id: prompt!.id,
         completedAt: prompt!.completedAt,
-        snoozeCount: prompt!.snoozeCount,
         dueDate: prompt!.dueDate,
       },
       {

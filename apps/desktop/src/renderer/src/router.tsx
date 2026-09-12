@@ -1108,19 +1108,18 @@ async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
 }
 
 /**
- * Put a reminder off — posted by the list row's "Not now" fetcher, so the list
- * revalidates and the row drops out of the open bucket in place.
+ * Put a reminder off — posted by one of the list row's "Remind me…" fetchers, so
+ * the list revalidates and the row drops out of Today in place.
  *
- * The date is the caller's: it is the one the offered action carried, straight
- * from the snooze policy, so nothing here re-derives a schedule. The main
- * process re-validates it at the IPC boundary, which is what stops a mangled
- * form value from reaching the INTEGER column.
+ * It posts a day count, the one the offered action carried; core turns it into
+ * the day the row comes back. The main process re-validates it at the IPC
+ * boundary, which is what stops a mangled form value from reaching core.
  */
 async function reminderSnoozeAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   await window.api.reminders.snooze(
     params.id as string,
-    Number(formData.get("until")),
+    Number(formData.get("days")),
   );
   return null;
 }

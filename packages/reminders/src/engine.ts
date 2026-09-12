@@ -629,49 +629,17 @@ interface OnboardingSignals {
 }
 
 /** One first-run nudge: a stable `key` (folded into its deterministic id), the
- *  copy shown on Home, the abstract CTA `route`, `applies` — true while the
- *  step's condition is still unmet, i.e. while the nudge should exist — and the
- *  two snooze dials below. */
+ *  copy shown on Home, the abstract CTA `route`, and `applies` — true while the
+ *  step's condition is still unmet, i.e. while the nudge should exist.
+ *
+ *  It carries no snooze dials *(owner, 2026-09-11)*: a nudge is put off with the
+ *  same "Remind me in…" as every other row ({@link snoozeTargetOf}), and nothing
+ *  retires by being put off. */
 interface OnboardingStep {
   key: string;
   title: string;
   route: OnboardingRoute;
   applies(s: OnboardingSignals): boolean;
-  /**
-   * How long a "not now" puts this step off for, in whole days off {@link DAY_MS} —
-   * so a snooze runs for a fixed span from the moment it is taken, not to a civil
-   * calendar date. That is the right arithmetic for a hide-until instant, and it
-   * needs no civil-date math.
-   *
-   * **No two steps share a value** *(2026-09-10)*. They were all 3, which meant a
-   * user who put off three rows on the same afternoon got all three back on the
-   * same morning — Home refilling in one go with exactly what they had just
-   * cleared, which reads as the app not having listened. Distinct spans spread the
-   * returns out on their own, with no scheduler and nothing stored.
-   *
-   * The number tracks **how long the answer is likely to stay no**, which is why
-   * the spread is meaningful rather than merely arithmetic: "I have no second
-   * device" survives a week, while "not now" to notifications is the one answer
-   * that turns over without the user changing their mind, because a birthday
-   * getting closer is what makes it concrete. Each step's own reasoning is beside
-   * its dial.
-   */
-  snoozeDurationDays: number;
-  /**
-   * How many *"not now"s* this step will accept before it gives up and retires
-   * itself for good — so it comes back `snoozeRepetitions - 1` times. A step set
-   * to **1** therefore never returns: the first "not now" spends the budget and
-   * the next reconcile tombstones the row before its clock is ever read.
-   *
-   * That is why the floor is **2** for every step *(owner, 2026-08-01)*: at 1 the
-   * gentle-looking option is the permanent one, and "don't ask again" — which is
-   * withheld on a first encounter precisely so a permanent choice is never a
-   * trap — is then never offered at all, because it appears only on a second
-   * sighting. Read the number as *not nows accepted*, not *times it returns*;
-   * the two readings differ by one and the plan's §3 table is written the other
-   * way round. See {@link snoozePolicyOf}.
-   */
-  snoozeRepetitions: number;
 }
 
 /**
@@ -684,17 +652,8 @@ interface OnboardingStep {
  * **Permanent retirement is intentional:** retirement is a `softDelete` tombstone,
  * so a step does **not** re-appear if its condition later reverts (e.g. the user
  * deletes all their people). That is the correct "don't re-nag" onboarding
- * semantic — see {@link computeAndReconcile}. A step retires either because its
- * condition was met or because it ran out of {@link OnboardingStep.snoozeRepetitions};
- * both go through that one path.
- *
- * **The two snooze dials below are provisional numbers, not architecture.** They are
- * data on purpose, so changing one is editing a literal here rather than touching
- * logic. The reasoning behind the values is that the steps have unequal stakes:
- * wrongly nagging costs annoyance the user can dismiss, while wrongly silencing a
- * step costs something that gives no signal it happened — so where a step's budget
- * is unclear, it gets another repetition rather than fewer. Expect to correct them
- * once real usage disagrees.
+ * semantic — see {@link computeAndReconcile}. A step retires when its condition is
+ * met or when the user says *don't ask again*; putting it off never retires it.
  *
  * **Array order is display priority** (first = shown highest on Home). Sign-in
  * leads: a returning user already on another device should get back into their
@@ -728,12 +687,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // by tombstone like any unmet step, and retirement is permanent — flipping
     // back on will not resurrect it in a profile that already saw it.
     applies: (s) => flag("multiDevice") && !s.syncConnected && !s.hasAccount,
-    // A user who says "not now" here almost certainly has no other device, so
-    // asking once more and then dropping it is the whole budget — and the longest
-    // wait of the five before it spends it, because "I don't own a second device"
-    // is not an answer that changes over a weekend.
-    snoozeDurationDays: 7,
-    snoozeRepetitions: 2,
   },
   {
     // **The account invitation** — the other half of the fork above, and the step
@@ -754,13 +707,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🔐 Set up your login to protect the data on this device",
     route: "create-account",
     applies: (s) => s.hasEntitiesBesidesSelf && !s.hasAccount,
-    // **The one step that gets more than the floor.** Wrongly nagging costs
-    // annoyance a user can dismiss; wrongly silencing this one leaves their data
-    // in the clear with no signal that it happened — so it is the step where the
-    // unequal-stakes rule above buys an extra repetition, and the shortest wait
-    // of the three considered "no"s to spend it with.
-    snoozeDurationDays: 4,
-    snoozeRepetitions: 3,
   },
   {
     /**
@@ -790,12 +736,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "📇 Import your contacts to get started",
     route: "import",
     applies: (s) => !s.hasEntitiesBesidesSelf,
-    // Skipping this costs little: an empty app is self-evidently empty, and the
-    // nudge has nothing to add once the user starts adding people. "I don't want
-    // my address book in here" is a considered position rather than a matter of
-    // timing, so it is asked again slowly.
-    snoozeDurationDays: 5,
-    snoozeRepetitions: 2,
   },
   {
     /**
@@ -817,13 +757,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🙋 Tell us about yourself",
     route: "about-you",
     applies: (s) => !s.hasSelf,
-    // At the floor, like everything except the account invitation: nothing else
-    // tells the user that gifts (and, later, kinship) are quietly less useful
-    // until this is set, but nothing is lost silently either — an unset self is
-    // recoverable at any time from its own screen. Nothing about it becomes more
-    // pressing with time, so it waits nearly as long as the sign-in row.
-    snoozeDurationDays: 6,
-    snoozeRepetitions: 2,
   },
   {
     /**
@@ -862,14 +795,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "🔔 Turn on notifications so reminders reach you",
     route: "enable-notifications",
     applies: (s) => s.hasEntitiesBesidesSelf && !s.hasNotificationPolicy,
-    // At the floor. Silencing this wrongly costs the least of any step here:
-    // every reminder it would have delivered is still on Home, and Settings
-    // offers the switch for as long as the app exists. It comes back soonest all
-    // the same — it is the one step whose "no" turns into "yes" without the user
-    // changing their mind, because a birthday getting closer is what makes it
-    // concrete.
-    snoozeDurationDays: 3,
-    snoozeRepetitions: 2,
   },
 ];
 
@@ -878,22 +803,6 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
  *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
 function onboardingId(key: string): string {
   return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
-}
-
-/** The step a reminder id belongs to — {@link onboardingId} read backwards — or
- *  `undefined` for any other reminder (user, milestone, holiday, duplicates). */
-function onboardingStepOf(id: string): OnboardingStep | undefined {
-  return ONBOARDING_STEPS.find((step) => onboardingId(step.key) === id);
-}
-
-/** Whether a step has used up its {@link OnboardingStep.snoozeRepetitions}. The
- *  single place that comparison is made, so "is snooze still offered" and "does
- *  the engine still want this row" can never answer it differently. */
-function hasSpentItsSnoozes(
-  step: OnboardingStep,
-  snoozeCount: number,
-): boolean {
-  return snoozeCount >= step.snoozeRepetitions;
 }
 
 /**
@@ -966,18 +875,6 @@ function partnershipNudgeTitle(p: UndatedPartnership): string {
     : `\u{1F49E} When was your first date with ${who}?`;
 }
 
-/**
- * How long a partnership question waits after a *not now*, and how many times it
- * comes back before retiring for good.
- *
- * The onboarding nudges' floor, and for their reason: putting something off twice
- * is a soft no, and a third asking is nagging. Deliberately **not** the onboarding
- * dials themselves — those are a first-run budget and this is not first-run work,
- * so they are free to move apart.
- */
-const PARTNERSHIP_SNOOZE_DAYS = 3;
-const PARTNERSHIP_SNOOZE_REPETITIONS = 2;
-
 function duplicatesTitle(n: number): string {
   return n === 1
     ? "🔗 Two people might be the same — review"
@@ -1035,101 +932,44 @@ export function onboardingRouteOf(id: string): OnboardingRoute | null {
 }
 
 /**
- * How long a `plan` prompt is put off for, and how many times.
+ * Where "remind me in `days` days" lands for this row — the **start** of that
+ * civil day, encoded like a due date (epoch-ms UTC midnight) — or `null` when the
+ * row may not be put off that far. The one rule every snooze offer and every
+ * snooze write is checked against *(owner, 2026-09-11)*:
  *
- * The prompt is the first row outside onboarding to offer *not now*, and it
- * needs one for a reason the other reminders do not have: it is a **question**,
- * and an unanswered question stays alive until its choices run out — so an
- * ignored one would sit in *belated*, and therefore in `owed`, for up to six
- * weeks between its due date and the last day it can offer more than the wish.
- * That is a wall, and the README's rule is *a nudge, never a wall*.
+ * - **Any row, whatever made it.** A birthday errand, a holiday, a question, an
+ *   onboarding nudge and a reminder the user wrote are all put off the same way.
+ * - **Never a row that is due today or belated.** Putting one off would only move
+ *   it into *belated*, or deeper into it.
+ * - **Never past the due date.** The due date is a real deadline — for a gift
+ *   errand, the last day it still has its full run-up — so a snooze may land *on*
+ *   it but not after it. A dateless row has no deadline and no cap.
+ * - **Nothing retires by being put off**, however often. A row goes when it is
+ *   done, when its condition is met, or when the user says *don't ask again* —
+ *   never because a budget of *not now*s ran out. That budget, and the per-step
+ *   dials it was spent against, were removed here.
  *
- * Two repetitions is the same floor the onboarding steps take, for the same
- * reason recorded there: at one, the gentle-looking option is the permanent one,
- * and *don't ask again* — withheld on a first encounter so a permanent choice is
- * never a trap — would never be offered at all.
+ * **A civil day, not an instant.** "Tomorrow" means the start of tomorrow, not
+ * this time tomorrow, so a row put off at 9pm is back on Today when the app opens
+ * the next morning — and every date the list buckets on is then one encoding.
  *
- * Data, not architecture. Changing either is editing a literal.
+ * **Any whole number of days, not a preset**, so letting the user choose one is a
+ * change to the offer and none to this. Pure, and `now` is a parameter: it is
+ * applied when the user asks, never inside a reconcile.
  */
-const PLAN_PROMPT_SNOOZE_DAYS = 7;
-const PLAN_PROMPT_SNOOZE_REPETITIONS = 2;
-
-/** The outcome of snoozing a reminder right now. */
-export interface SnoozePolicy {
-  /** When the snooze would run to — epoch ms, UTC. */
-  until: number;
-}
-
-/**
- * Whether a reminder can still be put off, and if so until when — **one**
- * evaluation answering both, so the offer and its date can never disagree.
- *
- * `null` means *don't offer snooze*, for either of two reasons the caller does not
- * need to tell apart: the reminder is neither an onboarding nudge nor a `plan`
- * prompt (a user, milestone, holiday or duplicates row — putting an ordinary
- * reminder off is its own unbuilt affordance), or it has spent its repetitions
- * and is about to retire. Otherwise the answer carries the target date, so the
- * offered action can hand it straight to the one write method and the copy can
- * say *"ask me in 3 days"* with no second derivation.
- *
- * ⚠️ **A prompt's snooze is clamped to its own due date, while that is still
- * ahead.** The due date is a real deadline, not a preference: it is the last day
- * on which ticking "get a gift" still leaves the gift its full run-up, so a
- * plain seven-day *not now* offered a week before it would silently forfeit the
- * long-lead options. Past the deadline there is nothing left to protect and the
- * only thing that matters is keeping the question answerable to the occurrence,
- * so it snoozes the full period. A first *not now* from *available* therefore
- * lands exactly on the due date, which is also the honest thing for it to mean.
- *
- * Pure, and `now` is a parameter rather than a clock read: the policy is applied
- * at the moment the user asks, never inside a reconcile, which runs on a schedule
- * and must leave an existing snooze alone.
- *
- * It lives here, beside {@link ONBOARDING_STEPS}, because the dials it reads are
- * module-private — the same seam `@leapsake/view-models` already crosses for
- * {@link onboardingRouteOf}.
- */
-export function snoozePolicyOf(
-  reminder: {
-    id: string;
-    snoozeCount: number;
-    /** The prompt's own deadline, for the clamp above. */
-    dueDate?: number | null;
-    /** Whether this row is a `plan` prompt — the caller knows, the id cannot say. */
-    isPlanPrompt?: boolean;
-    /**
-     * Whether this row is a partnership question. Told rather than derived, for
-     * the same reason as `isPlanPrompt` and unlike the onboarding steps: those
-     * have a fixed key set whose ids can be precomputed, while this one's id is a
-     * hash of a relationship the engine cannot enumerate from an id alone.
-     */
-    isPartnershipNudge?: boolean;
-  },
+export function snoozeTargetOf(
+  reminder: { completedAt: number | null; dueDate?: number | null },
+  days: number,
   now: number,
-): SnoozePolicy | null {
-  const step = onboardingStepOf(reminder.id);
-  if (step !== undefined) {
-    if (hasSpentItsSnoozes(step, reminder.snoozeCount)) return null;
-    return { until: now + step.snoozeDurationDays * DAY_MS };
-  }
-  if (reminder.isPartnershipNudge === true) {
-    // A dateless row is *owed*, so an un-snoozeable one would keep the day
-    // unfinishable for as long as the user declined to answer it — a wall, and
-    // the thing this family must never become. Two *not now*s, then it retires
-    // itself through the desired set above.
-    if (reminder.snoozeCount >= PARTNERSHIP_SNOOZE_REPETITIONS) return null;
-    return { until: now + PARTNERSHIP_SNOOZE_DAYS * DAY_MS };
-  }
-  if (reminder.isPlanPrompt !== true) return null;
-  if (reminder.snoozeCount >= PLAN_PROMPT_SNOOZE_REPETITIONS) return null;
-  const until = now + PLAN_PROMPT_SNOOZE_DAYS * DAY_MS;
+): number | null {
+  if (!Number.isInteger(days) || days < 1) return null;
+  if (reminder.completedAt !== null) return null;
+  const today = dueDateMs(todayCivil(now));
+  const target = today + days * DAY_MS;
   const due = reminder.dueDate;
-  return {
-    until:
-      due !== null && due !== undefined && due > now
-        ? Math.min(until, due)
-        : until,
-  };
+  if (due === null || due === undefined) return target;
+  if (due <= today) return null;
+  return target <= due ? target : null;
 }
 
 /**
@@ -1548,7 +1388,6 @@ function insertDesired(
     dueDate: want.dueDate,
     // Minted un-snoozed; snoozing is a user act, never a reconcile one.
     snoozedUntil: null,
-    snoozeCount: 0,
     source: "system",
     // Back off `createdAt` by the row's display rank so dateless rows sort
     // in priority order on Home (newest-first tiebreak); dated milestone
@@ -1574,7 +1413,6 @@ function synthesize(want: DesiredReminder): Reminder {
     completedAt: null,
     dueDate: want.dueDate,
     snoozedUntil: null,
-    snoozeCount: 0,
     source: "system",
     createdAt: 0,
     updatedAt: 0,
@@ -1926,8 +1764,7 @@ async function computeDesired(
   // unmet is desired (→ inserted); once met it drops out (→ pruned = softDelete).
   // Because prune tombstones the row, a retired step never re-appears even if its
   // condition later reverts (the user deletes all their people) — the intended
-  // "don't re-nag" semantic. Running out of snoozes drops a step out of the set
-  // the same way, so giving up needs no deletion path of its own. Only when the
+  // "don't re-nag" semantic. Putting a step off never retires it. Only when the
   // caller injects the port (clients do; engine unit tests may not) — otherwise
   // no onboarding rows join the set.
   if (deps.onboarding !== undefined) {
@@ -1941,16 +1778,6 @@ async function computeDesired(
     for (const [index, step] of ONBOARDING_STEPS.entries()) {
       if (!step.applies(signals)) continue;
       const id = onboardingId(step.key);
-      // A step that has been put off as many times as it is willing to come back
-      // stops being desired, and the prune below retires it the same way a met
-      // condition does. The row is absent on a first run, and `snoozeCount` only
-      // ever moves on a live row, so an absent row has spent nothing.
-      const existing = await deps.reminders.getIncludingDeleted(id);
-      if (
-        existing !== undefined &&
-        hasSpentItsSnoozes(step, existing.snoozeCount)
-      )
-        continue;
       // `index` is the step's display priority (0 = first); realized as a
       // `createdAt` back-off below so the nudges sort in array order on Home.
       // Dateless, so already on display and counting down to nothing.
@@ -1988,17 +1815,11 @@ async function computeDesired(
   // The user's own partnerships with no date on them — the fifth family, and the
   // only one that asks *for* something rather than reminding of it. Ranked last:
   // it is the least urgent row on the screen by construction, since nothing is
-  // coming up. Retires by the ordinary prune the moment the date exists, and by
-  // the same spent-snoozes path the onboarding nudges use when it does not.
+  // coming up. Retires by the ordinary prune the moment the date exists, or by
+  // the user's own *don't ask again*.
   if (deps.partnerships !== undefined) {
     for (const [index, p] of (await deps.partnerships.undated()).entries()) {
       const id = partnershipNudgeId(p.relationshipId, p.kind);
-      const existing = await deps.reminders.getIncludingDeleted(id);
-      if (
-        existing !== undefined &&
-        existing.snoozeCount >= PARTNERSHIP_SNOOZE_REPETITIONS
-      )
-        continue;
       desired.set(id, {
         id,
         title: partnershipNudgeTitle(p),

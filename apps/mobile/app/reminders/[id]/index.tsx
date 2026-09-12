@@ -227,13 +227,12 @@ export default function ReminderDetailScreen() {
     );
   }
 
-  /** Put this reminder off until the date its offered action carried — handed
-   *  straight through, so nothing here re-derives a schedule. `snooze` spends the
-   *  repetition itself, so there is no count to send. A put-off reminder drops out
-   *  of the list, so we leave with it rather than sit on a detail for a row the
-   *  user just asked not to see. */
-  function snooze(until: number) {
-    core.reminders.snooze(id, until).then(
+  /** Put this reminder off by the day count its offered action carried — core
+   *  turns that into the day it comes back, by the rule that offered it, so
+   *  nothing here derives a date. A put-off reminder leaves Today, so we leave
+   *  with it rather than sit on a detail for a row the user just put off. */
+  function snooze(days: number) {
+    core.reminders.snooze(id, days).then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.snooze, String(e)),
     );
@@ -473,7 +472,7 @@ export default function ReminderDetailScreen() {
                   if (offer.kind === "navigate") router.push(offer.path);
                   else if (offer.kind === "answer-plan")
                     answer(offer.milestoneId, offer.schedule);
-                  else if (offer.kind === "snooze") snooze(offer.until);
+                  else if (offer.kind === "snooze") snooze(offer.days);
                   else if (offer.kind === "dismiss") confirmDelete();
                   // `answer-prompt` reaches no branch and needs none: it is the
                   // CTA that points at this screen's own form, and `offered` has

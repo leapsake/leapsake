@@ -36,10 +36,10 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
  * right, not because they were inherited. Which onboarding routes get a named
  * label and which share the generic one is {@link ONBOARDING_LABEL}'s business.
  *
- * The offered `snooze` carries the date it runs to, and {@link snoozeLabel}
- * spends it: “Not now” alone never said whether the row was going away for an
- * afternoon or for good, which is the same ambiguity “Don't ask again” was
- * introduced to fix at the other end. One hand-rolled plural is the whole cost.
+ * Each offered `snooze` names how long it lasts ({@link remindMeLabel}): “Not
+ * now” alone never said whether the row was going away for an afternoon or for
+ * good, which is the same ambiguity “Don't ask again” was introduced to fix at
+ * the other end. One hand-rolled plural is the whole cost.
  */
 const OFFER_LABELS = {
   onboarding: "Get started ›",
@@ -82,14 +82,12 @@ const OFFER_LABELS = {
   dismiss: "Don’t ask again",
 } as const;
 
-/** How long a put-off lasts, in the button that does it. Rounded to whole days
- *  from the date the policy already chose — never recomputed, so the words and
- *  the stored clock cannot disagree. */
-function snoozeLabel(until: number, now: number): string {
-  const days = Math.max(1, Math.round((until - now) / 86_400_000));
-  return days === 1
-    ? "Not now — ask tomorrow"
-    : `Not now — ask in ${days} days`;
+/** The words on a “Remind me in…” button, for any whole number of days — so a
+ *  user-chosen duration later reuses them rather than growing a second set. */
+function remindMeLabel(days: number): string {
+  if (days === 1) return "Remind me tomorrow";
+  if (days === 7) return "Remind me next week";
+  return `Remind me in ${days} days`;
 }
 
 /**
@@ -109,7 +107,7 @@ export type RowOffer =
       schedule: ReminderRuleInput[];
       label: string;
     }
-  | { kind: "snooze"; until: number; label: string }
+  | { kind: "snooze"; days: number; label: string }
   | { kind: "dismiss"; label: string };
 
 /**
@@ -223,14 +221,10 @@ function ctaOffer(cta: ReminderCta): RowOffer {
  * What one {@link ReminderRowAction} looks like on mobile, so the row component
  * renders and decides nothing.
  *
- * A snooze's `until` is passed through **verbatim**. It is the date the snooze
- * policy chose and the offered action carried; recomputing it here would be a
- * second evaluation that disagrees with the first whenever a dial changes.
+ * A snooze passes its day count through **verbatim**; which day that lands on is
+ * core's to decide when the write is made, by the rule that offered it.
  */
-export function offerFor(
-  action: ReminderRowAction,
-  now: number = Date.now(),
-): RowOffer {
+export function offerFor(action: ReminderRowAction): RowOffer {
   switch (action.kind) {
     case "cta":
       return ctaOffer(action.cta);
@@ -244,8 +238,8 @@ export function offerFor(
     case "snooze":
       return {
         kind: "snooze",
-        until: action.until,
-        label: snoozeLabel(action.until, now),
+        days: action.days,
+        label: remindMeLabel(action.days),
       };
     case "dismiss":
       return { kind: "dismiss", label: OFFER_LABELS.dismiss };

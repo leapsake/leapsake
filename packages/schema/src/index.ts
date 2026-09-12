@@ -55,6 +55,7 @@ export {
   createReminderInputSchema,
   updateReminderInputSchema,
   snoozeUntilSchema,
+  snoozeDaysSchema,
   reminderLabel,
   isReminderEditable,
   reminderHasHistory,

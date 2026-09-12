@@ -168,13 +168,13 @@ function ReminderRow({
             ) : affordance.kind === "snooze" ? (
               // A post, not a link: the row has to leave the list once it's put
               // off, and a fetcher submission revalidates this screen's loader
-              // in place. The date is the one the offered action carried.
+              // in place. The day count is the one the offered action carried.
               <snoozeFetcher.Form
                 method="post"
                 action={affordance.to}
                 style={{ display: "inline" }}
               >
-                <input type="hidden" name="until" value={affordance.until} />
+                <input type="hidden" name="days" value={affordance.days} />
                 <button type="submit">{affordance.label}</button>
               </snoozeFetcher.Form>
             ) : (
