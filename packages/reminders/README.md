@@ -25,6 +25,7 @@ scoped. The composition root wires the repos.
 | How snooze budgets are read | `snoozePolicyOf`, beside `ONBOARDING_STEPS` |
 | Why an unconfigured occasion gets a question instead of errands | the `plan` synthesis in `computeDesired`, and *The prompt* below |
 | When that question is asked | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers |
+| What a question can still offer, and when a late one is due | `planOffers` and `planTiming` in `@leapsake/schema`, and *You can't be late…* below |
 | Why `first-date` and `wedding` ask only about your own | `prompt.onlyOwnPartnership` in `kindDefs`, and *Who gets asked* below |
 | Why a reminder asks for a date instead of giving one | the `partnerships` port in `ReminderEngineDeps`, and *Collecting what is missing* below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps` |
@@ -152,6 +153,11 @@ It falls out per action with no configuration. A day-of action's due date *is* t
 can never be past due and goes straight to belated; a `send:card` at `offset 7` is past due for up to a
 week first. `BELATED_DAYS` bounds **only** the belated tail — past due needs no dial of its own,
 because the occurrence bounds it.
+
+**Both show under one heading, *Belated*** *(owner, 2026-09-11)*. Two sections asked the reader to
+learn a distinction before reading a row that already states it — "due 3 days ago" against
+"birthday was yesterday". `bucketReminders` keeps the distinction only to put what can still be
+saved first.
 
 Holding the window open to the occurrence is also what keeps a long errand honest: an unbought gift
 due twelve days before a birthday stays on your list right up to the birthday, rather than vanishing
@@ -294,14 +300,54 @@ prompt slides earlier by itself, with no second constant to keep in step. ⚠️
 out to feel too early, **the dial to turn is `get:gift`'s `activeDays`, not the prompt's** — that is
 where the pressure actually comes from, and where the arithmetic reads it.
 
+### You can't be late for something the app has only just learned *(owner, 2026-09-11)*
+
+The timing above assumes the app knew about the occasion all along. An import breaks that: forty
+people arrive at once, and every occasion inside its own eight-week lead used to arrive with its
+question already overdue — "37 days ago" on a birthday five days off, a wall of them, burying the
+getting-started steps. Nothing had been missed; the app had only just been told.
+
+So every deadline is measured from the day the app **learned** of the occasion — the milestone's
+`createdAt`, or, for an errand, when its rules were written (`writtenAt`):
+
+- **A question offers only what still fits** (`planOffers`, `fitsAt`). Posting needs
+  `OFFER_NOTICE_DAYS` before its post date; a gift or a card can still be handed over in person,
+  the day before (`latestOffsetDays`); the day-of wish is always possible. The screen that answers
+  the question reads the same function, so it never offers something the row was not asking about.
+- **A late question is due when the user would start losing an option** (`planTiming`) — the last
+  day the soonest-to-expire of its remaining offers is still on offer — and is on display from the
+  day it arrived. Ignoring it past that genuinely costs something, which is what makes calling it
+  overdue honest.
+- **A question with one answer is not asked**, and an ignored one **retires once only the wish is
+  left** rather than lingering to the occasion. The wish it leaves behind is already on the
+  schedule.
+- **An errand chosen too late for its own deadline slides** to the latest it can still be done
+  (`effectiveOffsetDays`): a gift ticked five days out is due the day before. A post date does not
+  move.
+- **An answer that could not be offered everything covers its own year only** (`isPartialAnswer`).
+  The question returns for the next occurrence, on its usual timing, with everything on offer and
+  last year's choice pre-ticked.
+- **An occasion that had already passed when it was added is not reminded at all** — not even with
+  a belated wish.
+
+⚠️ **None of it is stored.** Every date is derived from the occurrence, the learned date and the
+kind, so it is stable across reconciles and a steady-state reconcile still writes nothing. And the
+next occurrence is always far enough out for the usual timing, so a late arrival corrects one year
+and leaves nothing to clean up.
+
+A question's row also counts down to the **occasion** rather than to its own deadline
+(`countdownDate` on `ReminderWindowFacts`): its due date is when to decide by, and "in 2 weeks" was
+being read as the birthday.
+
 ### Answered, unanswered, and answered-with-nothing
 
 - **Unanswered is not silence.** An ignored prompt leaves the occasion riding its kind defaults,
   which is `wish` day-of. You never lose the birthday, and that guarantee is what makes the question
   safe to ignore.
-- **An ignored prompt stays answerable.** The window closes on the *occurrence*, not on the
-  prompt's own deadline, so it survives as past due right up to the day. A late answer works; the
-  chosen actions simply materialise with compressed windows, which is honest.
+- **An ignored prompt stays answerable** past its own deadline, as belated, for as long as it has
+  more than the wish to offer; then it retires and the wish rides on. A late answer works; the
+  chosen actions materialise with compressed windows, and any that could no longer make their own
+  deadline slide (see *You can't be late…* above).
 - ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the question returns
   every year. So an answer writes the **full offer set**, `enabled: false` rows included, and
   rows-existing is the "answered" marker. No new column — and it doubles as the record of *what was
@@ -309,9 +355,9 @@ where the pressure actually comes from, and where the arithmetic reads it.
 
 ### An unanswered question must never become a wall
 
-An ignored prompt is alive from its due date to the occurrence — six weeks in *past due*, and
-therefore six weeks in `owed`. Left there it would make the day unfinishable, for every person you
-have. *A nudge, never a wall* binds here as hard as anywhere, so the prompt takes the escape the
+An ignored prompt is alive from its due date until its choices run out — up to six weeks in
+*belated*, and therefore in `owed`. Left there it would make the day unfinishable, for every person
+you have. *A nudge, never a wall* binds here as hard as anywhere, so the prompt takes the escape the
 onboarding nudges take: two *not now*s, then *don't ask again*, on the same floor of two and for the
 same reason recorded below.
 
@@ -397,10 +443,15 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
   retires the row by soft delete, `reconcile` never resurrects a tombstone, and the id is keyed on
   the occurrence year. Undoing that needs a runtime hard delete, which no repo has and which a
   peer's tombstone would re-pull on the next sync. The prompt returns next year.
-- **A row's trailing countdown is its own deadline, not the occasion** — the same convention every
-  reminder row uses, and six weeks earlier than the birthday. The surfaces that ask the question say
-  when the occasion actually is; the row does not, so a reader could take "in 2 weeks" for the
-  birthday. Worth watching in real use.
+- **Every schedule save re-stamps `writtenAt`.** `replaceForBearer` rewrites the whole set, so
+  saving from the schedule editor inside an occasion's late window counts as a late answer: errands
+  may slide for that year, and a set missing an offer that no longer fitted asks again next year,
+  once.
+- **Editing a milestone's date is not "newly learned".** Only `createdAt` counts, so moving a
+  birthday to next week can produce a question that is overdue at once. `updatedAt` would be wrong
+  for it — any edit at all would reset it.
+- **Holiday errands do not slide.** The observance walk has no learned date wired in. Its shipped
+  rules are all off, so nothing reaches this today.
 - **Not every kind prompts.** `death` must not — a checkbox list of ways to recognise a death
   anniversary is exactly the wrong object, and its single quiet `remember` is already right. The
   same reasoning excludes any kind offering one action: a question with one answer is not a

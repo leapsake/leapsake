@@ -1039,10 +1039,10 @@ export function onboardingRouteOf(id: string): OnboardingRoute | null {
  *
  * The prompt is the first row outside onboarding to offer *not now*, and it
  * needs one for a reason the other reminders do not have: it is a **question**,
- * and an unanswered question stays alive to the occurrence — so an ignored one
- * would sit in *past due*, and therefore in `owed`, for the whole six weeks
- * between its due date and the birthday. That is a wall, and the README's rule
- * is *a nudge, never a wall*.
+ * and an unanswered question stays alive until its choices run out — so an
+ * ignored one would sit in *belated*, and therefore in `owed`, for up to six
+ * weeks between its due date and the last day it can offer more than the wish.
+ * That is a wall, and the README's rule is *a nudge, never a wall*.
  *
  * Two repetitions is the same floor the onboarding steps take, for the same
  * reason recorded there: at one, the gentle-looking option is the permanent one,
@@ -1168,6 +1168,10 @@ export function snoozePolicyOf(
  * A day-of action (offset 0) can never be past due — its due date *is* the
  * occurrence — so it goes straight from due to belated. It falls out per action
  * with no configuration.
+ *
+ * Both states display under one heading, *Belated* *(owner, 2026-09-11)*; the
+ * distinction survives only to put what can still be saved first (see
+ * `bucketReminders` in `@leapsake/view-models`).
  *
  * `activeDays` is a parameter rather than a lookup because two callers want
  * different answers from the same walk: materialization asks "what should be a
