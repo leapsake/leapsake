@@ -83,6 +83,12 @@ export interface ReminderTiming extends ReminderStanding {
    * see {@link bucketReminders}.
    */
   occurrenceDate?: number | null;
+  /**
+   * The date the row's countdown shows, where that is not `dueDate` — a `plan`
+   * question shows the occasion it asks about. It is what the list sorts on, so
+   * the numbers on screen read in order; see {@link bucketReminders}.
+   */
+  countdownDate?: number | null;
 }
 
 /** Which part of the reminders list a row belongs in. */
@@ -138,6 +144,13 @@ export type ReminderBucket = "belated" | "today" | "available" | "coming";
  * reminder has none — nothing has *passed* — so it sorts with the salvageable
  * rows. That is why `occurrenceDate` has to travel with the row: `dueDate` alone
  * cannot recover it, the action not being a column.
+ *
+ * **Each list reads in the order of the dates it shows** *(2026-09-11)*. A
+ * question displays the occasion it asks about, not its own deadline
+ * (`countdownDate`), so ordering on `dueDate` made the numbers on screen jump
+ * about — found on a device after an import, where every row was individually
+ * right. Available and both halves of belated sort on the date each row shows;
+ * coming, read as a schedule of arrivals, sorts on when it lands.
  *
  * Every comparison is whole civil days ({@link daysUntil}), never elapsed
  * milliseconds, so the buckets flip at the viewer's local midnight exactly as
@@ -196,9 +209,17 @@ export function bucketReminders<R extends ReminderTiming>(
     }
   }
 
-  // `open` arrives soonest-due-first and each half preserves it, so only
-  // `coming` needs its own order: it is read as a schedule of arrivals, not of
-  // deadlines, so it sorts on the date it will land.
+  // Each list reads in the order of the dates it shows. `open` arrives
+  // soonest-due-first, but a question shows its occasion rather than its
+  // deadline, so on due dates alone the screen read "in 10 days" above "in 5
+  // days". The sort is stable, so rows showing the same day keep their deadline
+  // order. `coming` is read as a schedule of arrivals, not of deadlines, so it
+  // sorts on the date it will land.
+  const shown = (r: R) => r.countdownDate ?? r.dueDate ?? 0;
+  const byShown = (a: R, b: R) => shown(a) - shown(b);
+  available.sort(byShown);
+  salvageable.sort(byShown);
+  gone.sort(byShown);
   coming.sort((a, b) => (a.activeFrom ?? 0) - (b.activeFrom ?? 0));
 
   const belated = [...salvageable, ...gone];

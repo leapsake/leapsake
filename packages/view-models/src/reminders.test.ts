@@ -396,6 +396,8 @@ const timed = (
     dueIn: number;
     occurrenceIn?: number;
     activeIn?: number;
+    /** What the row's countdown shows, where that is not its due date. */
+    countdownIn?: number;
     completedAt?: number | null;
   },
 ) => ({
@@ -406,6 +408,9 @@ const timed = (
   activeFrom: dayOut(dates.activeIn ?? dates.dueIn),
   occurrenceDate:
     dates.occurrenceIn === undefined ? null : dayOut(dates.occurrenceIn),
+  ...(dates.countdownIn === undefined
+    ? {}
+    : { countdownDate: dayOut(dates.countdownIn) }),
 });
 
 describe("bucketReminders", () => {
@@ -541,6 +546,38 @@ describe("bucketReminders", () => {
     expect(result.coming.map((r) => r.id)).toEqual([
       "lands-first",
       "lands-second",
+    ]);
+  });
+
+  // A question shows its occasion, not its deadline, so the list sorts on the
+  // date each row shows — otherwise it reads "in 10 days" above "in 5 days".
+  it("orders by the date each row shows, not by its deadline", () => {
+    const result = bucketReminders(
+      [
+        // Due tomorrow, asking about a birthday ten days out.
+        timed("question-10", {
+          dueIn: 1,
+          occurrenceIn: 10,
+          countdownIn: 10,
+          activeIn: -3,
+        }),
+        // Due in two days, asking about a birthday five days out.
+        timed("question-5", {
+          dueIn: 2,
+          occurrenceIn: 5,
+          countdownIn: 5,
+          activeIn: -3,
+        }),
+        // An errand, which shows its own deadline: eight days out.
+        timed("gift-8", { dueIn: 8, occurrenceIn: 20, activeIn: -22 }),
+      ],
+      NOW,
+    );
+
+    expect(result.available.map((r) => r.id)).toEqual([
+      "question-5",
+      "gift-8",
+      "question-10",
     ]);
   });
 
