@@ -91,12 +91,12 @@ const TEXT: Record<ReminderSection, string> & {
  * row rendered; the screen that renders them now fetches them instead.
  *
  * It reads `listInWindow` rather than `list`: the sections turn on two dates
- * only the engine can supply, and *coming* rows are not rows yet at all.
+ * only the engine can supply, and rows not on display yet are not rows at all.
  *
- * Snoozed reminders show nowhere. The bucketing hands back a snoozed bucket and
- * this screen deliberately ignores it: a surface for it would hand the user a
- * way to *complete* a snoozed row, which reopens the still-open question of
- * whether reopening should clear a running clock (`plans/v0-2.md`).
+ * A snoozed reminder waits in *Next 7 days* or *Later*, counting down to the day
+ * it comes back, and its detail screen offers everything it did before it was
+ * put off. Completing it clears the snooze, so reopening it brings it straight
+ * back to Today rather than behind a clock nobody could see.
  */
 export default function RemindersScreen() {
   const core = useCore();

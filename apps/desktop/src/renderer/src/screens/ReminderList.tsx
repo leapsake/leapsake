@@ -68,7 +68,7 @@ function countdownText(countdown: ReminderCountdown): string {
 
 /**
  * One reminder row: a done/reopen toggle, the reminder's heading, whatever the
- * row offers (do it · not now · don't ask again), its edit/remove links, and —
+ * row offers (do it · remind me in… · don't ask again), its edit/remove links, and —
  * when the reminder has both — its body shown underneath as details. The title
  * leads; if there's no title the body *is* the heading, so it isn't repeated
  * below. Inline `#tags` in either field link to their tag pages.
@@ -120,7 +120,7 @@ function ReminderRow({
   const countdown = reminderCountdownOf(reminder, section);
   // Everything this row offers, in offer order — the view-model is the only
   // authority on *what* is offered; this screen owns only how it looks. An
-  // ordinary reminder (milestone / birthday / user) offers nothing.
+  // ordinary reminder (milestone / birthday / user) offers only its put-offs.
   const actions = reminderActionsOf(reminder, {
     giftTarget,
     isDuplicatesNudge,
@@ -170,10 +170,10 @@ function ReminderRow({
       )}
       {actions.map((action) => {
         const affordance = rowAffordanceFor(action, reminder.id);
-        // Each kind is offered at most once per row, so it keys them.
         return (
           // A row can carry two CTAs (its own, plus an offer to complete the
-          // record), so the key has to reach past `kind` to stay unique.
+          // record) and up to three put-offs, so the key has to reach past
+          // `kind` to stay unique.
           <Fragment key={reminderActionKey(action)}>
             {affordance.kind === "answer-plan" ? (
               // ⚠️ One tap, on the row, with no screen in between. The prompt
