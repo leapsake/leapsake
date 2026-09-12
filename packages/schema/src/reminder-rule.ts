@@ -274,6 +274,18 @@ export interface ReminderActionDef {
    */
   activeDays: number;
   /**
+   * The latest this errand can still be done, in days before the occasion, when
+   * it is started too late for its own offset — the deadline a late start slides
+   * to (`effectiveOffsetDays` in `milestone.ts`), and how long a question keeps
+   * offering it (`fitsAt`).
+   *
+   * Set only where there is a later way to do the thing: a gift or a card bought
+   * too late to post can still be **handed over in person**, the day before
+   * *(owner, 2026-09-11; to become configurable)*. Absent means the rule's own
+   * offset is a hard deadline — a post date does not move.
+   */
+  latestOffsetDays?: number;
+  /**
    * The reminder copy this action produces, e.g.
    * `` ({subject}) => `Get ${subject} a gift` ``. Most actions ignore the
    * occasion entirely — a gift is a gift — but {@link ReminderCopyContext.greeting}
@@ -325,6 +337,8 @@ export const actionDefs = {
     // that genuinely wants weeks, and it is the reason `activeDays` had to exist
     // at all.
     activeDays: 30,
+    // Too late to post it, you can still hand it over — the day before.
+    latestOffsetDays: 1,
     template: ({ subject }) => `Get ${subject} a gift`,
   },
   "get:card": {
@@ -337,6 +351,8 @@ export const actionDefs = {
     // before it, one `card` action had to mean both and could only have one
     // due date.
     activeDays: 30,
+    // As `get:gift`: a card can be handed over in person the day before.
+    latestOffsetDays: 1,
     template: ({ subject }) => `Get a card for ${subject}`,
   },
   "send:card": {

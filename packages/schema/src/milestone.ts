@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   type KnownReminderAction,
+  type ReminderAction,
   type ReminderRule,
   type ReminderRuleInput,
   actionDefOf,
@@ -517,6 +518,171 @@ export function promptOffsetDays(kind: MilestoneKind): number {
       (d) => d.offsetDays + actionDefOf(d.action).activeDays,
     ),
   );
+}
+
+/**
+ * How much notice an action needs to still be **offered** — the fewest days
+ * that must remain before its latest possible deadline ({@link latestOffsetDays})
+ * for ticking it to be a promise the user can keep.
+ *
+ * Two *(owner, 2026-09-11)*: a card that has to be in the post tomorrow is
+ * technically possible and not worth offering. The same number decides when an
+ * errand chosen at the last minute slides to a later deadline
+ * ({@link effectiveOffsetDays}). Data, not architecture.
+ */
+export const OFFER_NOTICE_DAYS = 2;
+
+/**
+ * The latest an action can still be done, in days before the occasion: its own
+ * `offsetDays`, unless the action can slide to a later deadline when started
+ * late (`latestOffsetDays` on its definition — a gift or a card handed over in
+ * person). Never later than its own offset: sliding only ever buys time.
+ */
+export function latestOffsetDays(
+  action: ReminderAction,
+  offsetDays: number,
+): number {
+  const slide = actionDefOf(action).latestOffsetDays;
+  return slide === undefined ? offsetDays : Math.min(offsetDays, slide);
+}
+
+/**
+ * Whether an action can still be offered for an occasion `daysUntilOccurrence`
+ * days away. A day-of action fits right up to the occasion — there is always
+ * time to reach out on the day. Anything else fits while its latest possible
+ * deadline is at least {@link OFFER_NOTICE_DAYS} away.
+ *
+ * With a birthday's numbers: posting fits while the birthday is 9+ days away
+ * (the post date is a week before, plus notice), getting a gift or a card while
+ * it is 3+ (in person the day before, plus notice), and wishing always.
+ */
+export function fitsAt(
+  action: ReminderAction,
+  offsetDays: number,
+  daysUntilOccurrence: number,
+): boolean {
+  const latest = latestOffsetDays(action, offsetDays);
+  return latest === 0
+    ? daysUntilOccurrence >= 0
+    : daysUntilOccurrence - latest >= OFFER_NOTICE_DAYS;
+}
+
+/**
+ * What a kind's question offers for an occasion `daysUntilOccurrence` days
+ * away: the kind's offer set, taking each action's offset and tick from
+ * `storedRules` where the occasion already has them (a question asked again
+ * shows last year's answer), and **only what still fits** ({@link fitsAt}).
+ * Furthest lead first, like {@link resolveReminderSchedule}.
+ *
+ * The engine and the screen that answers the question both read this, so the
+ * row can never be minted for a question the screen then offers nothing on. A
+ * question offering fewer than two actions is not a question, and is not asked.
+ */
+export function planOffers(
+  kind: MilestoneKind,
+  storedRules: readonly ReminderRuleInput[],
+  daysUntilOccurrence: number,
+): ReminderRuleInput[] {
+  const stored = new Map(storedRules.map((r) => [r.action, r]));
+  return kindDefs[kind].defaultReminderSchedule
+    .map(
+      (d): ReminderRuleInput =>
+        stored.get(d.action) ?? {
+          action: d.action,
+          label: null,
+          offsetDays: d.offsetDays,
+          enabled: d.enabledByDefault,
+        },
+    )
+    .filter((r) => fitsAt(r.action, r.offsetDays, daysUntilOccurrence))
+    .sort((a, b) => b.offsetDays - a.offsetDays);
+}
+
+/** When a question comes due, and whether it arrived too late for the usual timing. */
+export interface PlanTiming {
+  /** Days before the occasion the question comes due. */
+  dueOffsetDays: number;
+  /**
+   * Whether the app learned of the occasion too late for the usual timing. A
+   * late question goes on display the day the app learned of the occasion,
+   * rather than a fortnight before its due date.
+   */
+  late: boolean;
+}
+
+/**
+ * When the question about an occasion comes due, given that the app learned of
+ * the occasion `learnedDaysOut` days before it.
+ *
+ * Normally at {@link promptOffsetDays}. But **you can't be late for something
+ * the app has only just learned** *(owner, 2026-09-11)*: when that deadline
+ * would leave less than {@link OFFER_NOTICE_DAYS} — an import, a person added a
+ * month before their birthday — the question is instead due **when the user
+ * would start losing an option**: the last day the soonest-to-expire of its
+ * remaining offers is still on offer. Ignoring it past that genuinely loses
+ * something, which is what makes being overdue honest.
+ *
+ * Only offers that expire before the occasion count, so a question left with
+ * nothing but day-of offers is due on the day itself. An offer whose last day
+ * is the day the app learned of the occasion is still offered but does not set
+ * the deadline, or the question would be overdue the morning after it arrived.
+ */
+export function planTiming(
+  kind: MilestoneKind,
+  storedRules: readonly ReminderRuleInput[],
+  learnedDaysOut: number,
+): PlanTiming {
+  const usual = promptOffsetDays(kind);
+  if (learnedDaysOut - usual >= OFFER_NOTICE_DAYS)
+    return { dueOffsetDays: usual, late: false };
+  const lastDays = planOffers(kind, storedRules, learnedDaysOut)
+    .map((r) => latestOffsetDays(r.action, r.offsetDays))
+    .filter((latest) => latest > 0)
+    .map((latest) => latest + OFFER_NOTICE_DAYS)
+    .filter((lastDay) => lastDay < learnedDaysOut);
+  return { dueOffsetDays: Math.max(0, ...lastDays), late: true };
+}
+
+/**
+ * Whether a stored schedule answered a question that could no longer offer
+ * everything — written `writtenDaysOut` days before the occasion it answered,
+ * when some of the kind's offers no longer fit. Such an answer covers **that
+ * year only** *(owner, 2026-09-11)*: the question comes back for the next
+ * occurrence, on its usual timing and with everything on offer, and stops once
+ * it is answered in time.
+ */
+export function isPartialAnswer(
+  kind: MilestoneKind,
+  storedRules: readonly ReminderRuleInput[],
+  writtenDaysOut: number,
+): boolean {
+  if (kindDefs[kind].prompt === undefined) return false;
+  return (
+    planOffers(kind, storedRules, writtenDaysOut).length <
+    kindDefs[kind].defaultReminderSchedule.length
+  );
+}
+
+/**
+ * The deadline an errand actually has for one occurrence, in days before it,
+ * given that its rule was written `learnedDaysOut` days before that occurrence.
+ *
+ * Its own `offsetDays`, unless that left less than {@link OFFER_NOTICE_DAYS} —
+ * **you can't be late for something you only just chose.** Then it slides to the
+ * latest the action can still be done ({@link latestOffsetDays}): a gift chosen
+ * five days out is due the day before, in person. An action with no later
+ * deadline (posting) keeps its own, and a rule written after the occasion is
+ * left alone. The next occurrence is always far enough out for the usual
+ * deadline, so this corrects one year and leaves nothing to clean up.
+ */
+export function effectiveOffsetDays(
+  action: ReminderAction,
+  offsetDays: number,
+  learnedDaysOut: number,
+): number {
+  if (learnedDaysOut < 0 || learnedDaysOut - offsetDays >= OFFER_NOTICE_DAYS)
+    return offsetDays;
+  return latestOffsetDays(action, offsetDays);
 }
 
 /**
