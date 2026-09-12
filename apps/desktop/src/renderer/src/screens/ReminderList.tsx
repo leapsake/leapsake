@@ -127,7 +127,8 @@ function ReminderRow({
       {reminder.dueDate !== null && (
         <>
           <small style={{ color: "#666" }}>
-            {formatDueIn(reminder.dueDate)}
+            {/* A question counts down to the occasion, not to when to decide by. */}
+            {formatDueIn(reminder.countdownDate ?? reminder.dueDate)}
           </small>{" "}
         </>
       )}

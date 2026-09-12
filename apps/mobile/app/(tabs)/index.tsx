@@ -255,7 +255,10 @@ function ReminderRow({ reminder }: { reminder: ReminderInWindow }) {
         )}
         {reminder.dueDate !== null && (
           <View style={styles.rowMeta}>
-            <Text style={styles.muted}>{formatDueIn(reminder.dueDate)}</Text>
+            {/* A question counts down to the occasion, not to when to decide by. */}
+            <Text style={styles.muted}>
+              {formatDueIn(reminder.countdownDate ?? reminder.dueDate)}
+            </Text>
           </View>
         )}
       </View>
