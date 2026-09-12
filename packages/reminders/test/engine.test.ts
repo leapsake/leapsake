@@ -763,6 +763,41 @@ describe("listNotifiableReminders", () => {
     expect(notifiable.map((r) => r.source).sort()).toEqual(["system", "user"]);
   });
 
+  // *(owner, 2026-09-11)*: a dated reminder the user wrote goes on display on its
+  // due date, so it waits in the later sections and enters Today — and notifies —
+  // on the day it names. Undated, it is on display at once.
+  it("puts a dated user reminder on display on its due date, an undated one at once", async () => {
+    const h = makeHarness();
+    const written = {
+      body: null,
+      completedAt: null,
+      snoozedUntil: null,
+      source: "user" as const,
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+    };
+    h.rows.set("dated", {
+      ...written,
+      id: "dated",
+      title: "Book flights",
+      dueDate: dueDateMs(daysOut(3)),
+    });
+    h.rows.set("undated", {
+      ...written,
+      id: "undated",
+      title: "Call the dentist",
+      dueDate: null,
+    });
+
+    const byId = new Map(
+      (await listRemindersInWindow(h.deps, 30)).map((r) => [r.id, r]),
+    );
+
+    expect(byId.get("dated")?.activeFrom).toBe(dueDateMs(daysOut(3)));
+    expect(byId.get("undated")?.activeFrom).toBeNull();
+  });
+
   // The window is a parameter so every caller can ask its own question of the
   // same walk: one uniform horizon here, each action's own window there.
   it("narrows to a shorter horizon when asked for one", async () => {

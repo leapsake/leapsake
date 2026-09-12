@@ -1158,8 +1158,8 @@ export const DISPLAY_WINDOW_DAYS = 30;
 export interface ReminderWindowFacts {
   /**
    * When this row goes on display — see {@link DesiredReminder.activeFrom}. Null
-   * means *already on display*: a dateless nudge, or a user reminder, which is a
-   * row from the moment it is written and has no run-up.
+   * means *already on display*: a dateless nudge, or an undated user reminder. A
+   * dated user reminder has no run-up and goes on display on its due date.
    */
   activeFrom: number | null;
   /** The occasion it counts down to, or null when it has none (user rows, nudges). */
@@ -1268,7 +1268,12 @@ export async function listRemindersInWindow(
     ...rows,
     ...userRows.map((row) => ({
       ...row,
-      activeFrom: null,
+      // A dated reminder the user wrote goes on display **on its due date**
+      // *(owner, 2026-09-11)*, waiting in the list's later sections until then
+      // — one written for next month does not sit on Today for a month, and it
+      // enters Today (and so notifies) on the day it names. Undated, it is on
+      // display from the moment it is written.
+      activeFrom: row.dueDate,
       occurrenceDate: null,
       countdownDate: row.dueDate,
       materialized: true,

@@ -76,8 +76,9 @@ export function partitionReminders<R extends ReminderStanding>(
 export interface ReminderTiming extends ReminderStanding {
   /**
    * When this row goes on display. Null (or absent) means **already on
-   * display** — a dateless nudge, or a user reminder, which is a row from the
-   * moment it is written.
+   * display** — a dateless nudge, or an undated user reminder, which is on
+   * display from the moment it is written. A dated user reminder goes on display
+   * on its due date.
    */
   activeFrom?: number | null;
   /**
