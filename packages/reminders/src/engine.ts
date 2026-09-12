@@ -15,11 +15,15 @@ import {
   dueDateMs,
   kindDefs,
   mentionToken,
+  effectiveOffsetDays,
+  isPartialAnswer,
+  planOffers,
   planQuestion,
+  planTiming,
   nextOccurrence,
-  promptOffsetDays,
   recentOccurrence,
   reminderRuleLabel,
+  todayCivil,
   verbOf,
 } from "@leapsake/schema";
 
@@ -349,6 +353,13 @@ interface DesiredReminder {
    * it, so without this the screen cannot tell them apart.
    */
   occurrenceDate: number | null;
+  /**
+   * What the row's trailing countdown counts to, where that is not `dueDate`:
+   * the **occasion**, for a `plan` question *(owner, 2026-09-11)*. A question's
+   * due date is when to decide by, weeks before the occasion, and a row reading
+   * "in 2 weeks" was taken for the birthday itself. Absent means `dueDate`.
+   */
+  countdownDate?: number;
   /**
    * Display-priority rank among **dateless** rows: 0 = highest (shown first),
    * realized as a small `createdAt` back-off at insert so the client's
@@ -1190,6 +1201,19 @@ type ActiveDaysOf = (action: ReminderAction) => number;
 const ownActiveDays: ActiveDaysOf = (action) => actionDefOf(action).activeDays;
 
 /**
+ * A rule with the deadline and run-up it actually has for one occurrence —
+ * which a late arrival can move away from the ones it was written with (see
+ * `planTiming` and `effectiveOffsetDays` in `@leapsake/schema`).
+ */
+interface TimedRule {
+  rule: ReminderRuleInput;
+  /** Days before the occurrence this reminder comes due. */
+  offsetDays: number;
+  /** Days before its due date it goes on display. */
+  runUp: number;
+}
+
+/**
  * Compute the set of `system` reminders that *should* exist for `today` and
  * reconcile the store to it, **idempotently** and **tombstone-respectingly**:
  *
@@ -1297,6 +1321,12 @@ export interface ReminderWindowFacts {
   /** The occasion it counts down to, or null when it has none (user rows, nudges). */
   occurrenceDate: number | null;
   /**
+   * What the row's trailing countdown should count to: the occasion for a `plan`
+   * question, the due date for everything else, null when there is neither. See
+   * {@link DesiredReminder.countdownDate}.
+   */
+  countdownDate: number | null;
+  /**
    * Whether a row actually exists in the store. `false` marks a **preview** —
    * synthesized below, beyond the materialization horizon — which has no state to
    * edit, nothing to remove, and no tags or mentions to join.
@@ -1396,6 +1426,7 @@ export async function listRemindersInWindow(
       ...row,
       activeFrom: null,
       occurrenceDate: null,
+      countdownDate: row.dueDate,
       materialized: true,
     })),
   ];
@@ -1453,6 +1484,7 @@ function factsOf(
   return {
     activeFrom: want.activeFrom,
     occurrenceDate: want.occurrenceDate,
+    countdownDate: want.countdownDate ?? want.dueDate,
     materialized,
   };
 }
@@ -1573,52 +1605,125 @@ async function computeDesired(
     // skipped entirely when nothing is in window. Same ordering as the holiday
     // walk below, for the same reason.
     const resolved = await deps.resolveSchedule(m);
+    // **You can't be late for something the app has only just learned**
+    // *(owner, 2026-09-11)*. The day it learned of this occasion — and of the
+    // answer for it, a later day once the user has chosen — is what the
+    // deadlines below are measured from: a question arriving inside its own lead
+    // time is timed from it (`planTiming`), an errand chosen too late for its
+    // own deadline slides (`effectiveOffsetDays`), and an occasion that had
+    // already been is not reminded at all.
+    const learned = todayCivil(m.createdAt);
+    const answered =
+      resolved.writtenAt === null ? learned : todayCivil(resolved.writtenAt);
     // **The engine never guesses.** An occasion with no rules of its own gets a
     // question rather than errands: one `plan` row, well ahead of everything the
-    // question offers, asking how the user wants to mark it. Answering writes
+    // question offers, asking what the user wants to do for it. Answering writes
     // ordinary rules, which flips the source to `stored`, which is what stops it
-    // being asked again.
+    // being asked again — unless the answer was a **partial** one, given too
+    // late to be offered everything. That covers its own year only, and the
+    // question comes back for the occurrences after it (`isPartialAnswer`).
     //
     // Synthesized as an ordinary rule rather than as a branch of its own, so it
     // inherits the window filter, the id derivation, the copy layer, the insert
     // /refresh/prune and the tombstone guard below with no second code path.
     // Whether a kind asks at all is `kindDefs[kind].prompt`; when it is due is
-    // derived from what it offers (`promptOffsetDays`), never chosen.
+    // derived from what it offers and when the app learned of the occasion
+    // (`planTiming`), never chosen.
     //
     // A kind may also narrow *who* it asks (`prompt.onlyOwnPartnership`, which
     // only `first-date` sets). The check is a port call, so it is made last and
     // only when a prompt would otherwise be minted — the common case never pays
     // for it.
     const prompt = kindDefs[m.kind].prompt;
-    const wantsPrompt =
-      resolved.source === "kind-default" &&
-      prompt !== undefined &&
-      (prompt.onlyOwnPartnership !== true ||
+    // Which occurrences may be asked about: every one while the occasion is
+    // unanswered, only those after the one a partial answer covered, else none.
+    let asksAfter: CivilDate | "always" | null = null;
+    if (prompt !== undefined) {
+      if (resolved.source === "kind-default") asksAfter = "always";
+      else {
+        const answeredFor = nextOccurrence(m.kind, m, answered);
+        if (
+          answeredFor !== null &&
+          isPartialAnswer(
+            m.kind,
+            resolved.rules,
+            daysUntil(answered, answeredFor),
+          )
+        )
+          asksAfter = answeredFor;
+      }
+    }
+    const asksAbout = (occ: CivilDate) =>
+      asksAfter === "always" ||
+      (asksAfter !== null && daysUntil(asksAfter, occ) > 0);
+    const mayAsk =
+      occurrences.some(asksAbout) &&
+      (prompt?.onlyOwnPartnership !== true ||
         (deps.isOwnPartnership !== undefined &&
           (await deps.isOwnPartnership(m.bearerType, m.bearerId))));
-    const schedule: ReminderRuleInput[] =
-      wantsPrompt && prompt !== undefined
-        ? [
-            {
-              action: "plan",
-              label: null,
-              offsetDays: promptOffsetDays(m.kind),
-              enabled: true,
-            },
-            ...resolved.rules,
-          ]
-        : resolved.rules;
     let subject: string | undefined;
     let bearerIsSelf = false;
 
     for (const occ of occurrences) {
+      const learnedDaysOut = daysUntil(learned, occ);
+      // An occasion that had already been when the app learned of it — a
+      // birthday the day before an import — was never the user's to act on.
+      if (learnedDaysOut < 0) continue;
       const days = daysUntil(deps.today, occ);
-      // The rules that actually want a reminder for this occurrence today:
-      // enabled, and alive on their own action's window.
-      const rules = schedule.filter(
-        (r) =>
-          r.enabled &&
-          isWithinWindow(days, r.offsetDays, activeDaysOf(r.action)),
+
+      // Each enabled rule, with the deadline and run-up it actually has for this
+      // occurrence — not always the ones it was written with.
+      const timed: TimedRule[] = [];
+      // A question is asked only while it still has a choice to offer. One with
+      // a single answer is not a question, so an ignored one retires once its
+      // options run out rather than lingering to the occasion; the day-of wish
+      // it leaves behind is already on the schedule.
+      if (
+        mayAsk &&
+        asksAbout(occ) &&
+        planOffers(m.kind, resolved.rules, days).length >= 2
+      ) {
+        const timing = planTiming(m.kind, resolved.rules, learnedDaysOut);
+        timed.push({
+          rule: {
+            action: "plan",
+            label: null,
+            offsetDays: timing.dueOffsetDays,
+            enabled: true,
+          },
+          offsetDays: timing.dueOffsetDays,
+          // A late question is on display from the day the app learned of the
+          // occasion, however far ahead of its due date that is.
+          runUp: timing.late
+            ? Math.max(
+                ownActiveDays("plan"),
+                learnedDaysOut - timing.dueOffsetDays,
+              )
+            : ownActiveDays("plan"),
+        });
+      }
+      for (const rule of resolved.rules) {
+        if (!rule.enabled) continue;
+        timed.push({
+          rule,
+          offsetDays: effectiveOffsetDays(
+            rule.action,
+            rule.offsetDays,
+            daysUntil(answered, occ),
+          ),
+          runUp: ownActiveDays(rule.action),
+        });
+      }
+      // The rules that actually want a reminder for this occurrence today: alive
+      // on the walk's window, or on the row's own run-up where that is wider — a
+      // late question's can be, and a row this walk would materialize must never
+      // fall outside the preview walk that feeds the screen.
+      const rules = timed.filter((t) =>
+        isWithinWindow(
+          days,
+          t.offsetDays,
+          Math.max(activeDaysOf(t.rule.action), t.runUp),
+        ),
       );
       if (rules.length === 0) continue;
 
@@ -1650,7 +1755,7 @@ async function computeDesired(
             : false;
       }
 
-      for (const rule of rules) {
+      for (const { rule, offsetDays, runUp } of rules) {
         const id = deterministicUuid(
           SYSTEM_REMINDER_NAMESPACE,
           occurrenceName(m.id, occ.year, actionKeyOf(rule)),
@@ -1687,10 +1792,11 @@ async function computeDesired(
             m.kind,
           ),
         };
-        // Due `offsetDays` before the occurrence (day-of when 0); stored as UTC
-        // midnight of that civil day, so plain integer subtraction is exact. A
-        // belated row's due date is simply in the past, which is honest.
-        const dueDate = dueDateMs(occ) - rule.offsetDays * DAY_MS;
+        // Due `offsetDays` before the occurrence (day-of when 0) — the deadline
+        // this occurrence actually has, which may not be the rule's own; stored
+        // as UTC midnight of that civil day, so plain integer subtraction is
+        // exact. A belated row's due date is simply in the past, which is honest.
+        const dueDate = dueDateMs(occ) - offsetDays * DAY_MS;
         desired.set(id, {
           id,
           // The **plain** form, always: what is stored must not be a sentence
@@ -1699,8 +1805,12 @@ async function computeDesired(
           copy,
           belated: days < 0,
           dueDate,
-          activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
+          activeFrom: dueDate - runUp * DAY_MS,
           occurrenceDate: dueDateMs(occ),
+          // A question counts down to the occasion, not to when to decide by.
+          ...(verbOf(rule.action) === "plan"
+            ? { countdownDate: dueDateMs(occ) }
+            : {}),
           target: {
             action: rule.action,
             bearerType: m.bearerType,

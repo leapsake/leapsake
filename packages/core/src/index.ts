@@ -1435,6 +1435,7 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         ...stored,
         activeFrom: null,
         occurrenceDate: null,
+        countdownDate: stored.dueDate,
         materialized: true,
       });
     }

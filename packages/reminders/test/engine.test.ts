@@ -164,13 +164,11 @@ describe("regenerateSystemReminders", () => {
   it("creates a dated birthday reminder on the day itself", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
 
-    // Two rows, and this is what an *unconfigured* birthday looks like: the
-    // day-of wish its kind defaults enable, and the `plan` prompt that stands
-    // because it has no rules of its own. The prompt came due six weeks ago and
-    // is long past due by now; it is still answerable right up to the day, which
-    // is the whole reason its window closes on the occurrence.
+    // One row: the day-of wish an *unconfigured* birthday's kind defaults
+    // enable. Its `plan` prompt has retired by the day itself — the wish is all
+    // that is left to choose, and a question with one answer is not asked.
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 2, updated: 0, removed: 0 });
+    expect(result).toEqual({ created: 1, updated: 0, removed: 0 });
 
     const reminder = h
       .activeSystem()

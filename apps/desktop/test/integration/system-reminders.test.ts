@@ -16,7 +16,7 @@ import {
   reminderLabel,
   todayCivil,
 } from "@leapsake/schema";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 let driver: SqliteDriver;
@@ -91,12 +91,11 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // core.milestones.create reconciles the birthday reminders in the same call,
     // so the reminder is live immediately — no explicit regenerateSystem needed.
     //
-    // Two rows, because nobody has configured this birthday: the day-of wish its
-    // kind defaults enable, and the `plan` prompt asking how to mark it. The
-    // prompt came due six weeks ago and is long past due, but stays answerable
-    // right up to the day.
+    // One row: the day-of wish an unconfigured birthday's kind defaults enable.
+    // No `plan` prompt — on the day itself the wish is all there is left to
+    // choose, and a question with one answer is not asked.
     const rows = await systemReminders();
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     const reminder = rows.find((r) => r.title?.startsWith("🎉") === true)!;
     // The subject is wrapped in an inline mention token carrying the person id, so
     // the name links to her page; the plain-text label strips back to her name.
@@ -275,7 +274,49 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     // The engine used to drop a reminder the morning after its day, so a missed
     // birthday vanished without ever saying it had been missed. End to end now:
     // yesterday is still there (belated, dated in the past), three days ago is not.
-    const p = await core.people.create(
+    //
+    // Both are recorded a week ago, under a clock set back to then. A birthday
+    // the app only learned of once it had passed is not reminded at all (the
+    // next test); this one is about the belated tail, so the app has to have
+    // known in time. Only `Date` is faked, so the driver's own timers still run.
+    const yesterday = civilDaysFromToday(-1);
+    const longGone = civilDaysFromToday(-3);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(Date.now() - 7 * 86_400_000);
+      for (const [firstName, lastName, occ] of [
+        ["Pete", "Bailey", yesterday],
+        ["Marty", "Hatch", longGone],
+      ] as const) {
+        const person = await core.people.create(
+          { firstName, middleName: null, lastName, gender: null },
+          [],
+        );
+        await core.milestones.create({
+          kind: "birthday",
+          bearerType: "person",
+          bearerId: person.id,
+          month: occ.month,
+          day: occ.day,
+          reminderSchedule: WISH_ONLY,
+        });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+    await core.reminders.regenerateSystem();
+
+    // Just Pete's — Marty's birthday is past the belated tail.
+    const rows = await systemReminders();
+    expect(rows).toHaveLength(1);
+    expect(daysUntil(todayCivil(), civilFromDueMs(rows[0].dueDate!))).toBe(-1);
+  });
+
+  // **You can't be late for something the app has only just learned**: a
+  // birthday that had already passed when it was added was never the user's to
+  // act on, so it is not reminded — not even belatedly.
+  it("does not remind a birthday that had passed before it was added", async () => {
+    const pete = await core.people.create(
       { firstName: "Pete", middleName: null, lastName: "Bailey", gender: null },
       [],
     );
@@ -283,37 +324,13 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     await core.milestones.create({
       kind: "birthday",
       bearerType: "person",
-      bearerId: p.id,
+      bearerId: pete.id,
       month: yesterday.month,
       day: yesterday.day,
       reminderSchedule: WISH_ONLY,
     });
 
-    const [belated] = await systemReminders();
-    expect(belated).toBeDefined();
-    expect(daysUntil(todayCivil(), civilFromDueMs(belated.dueDate!))).toBe(-1);
-
-    const longGone = civilDaysFromToday(-3);
-    await core.milestones.create({
-      kind: "birthday",
-      bearerType: "person",
-      bearerId: (
-        await core.people.create(
-          {
-            firstName: "Marty",
-            middleName: null,
-            lastName: "Hatch",
-            gender: null,
-          },
-          [],
-        )
-      ).id,
-      month: longGone.month,
-      day: longGone.day,
-      reminderSchedule: WISH_ONLY,
-    });
-    // Still just Pete's — Marty's birthday is past the belated tail.
-    expect(await systemReminders()).toHaveLength(1);
+    expect(await systemReminders()).toHaveLength(0);
   });
 
   it("mints the SAME reminder id on two independent devices (cross-device dedup)", async () => {

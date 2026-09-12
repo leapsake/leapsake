@@ -737,9 +737,10 @@ describe("onboarding + milestone families coexist", () => {
     h.deps.resolveLabel = async () => "Violet";
 
     const result = await regenerateSystemReminders(h.deps);
-    // Three onboarding nudges + the birthday's two rows — its day-of wish and,
-    // as an unconfigured occasion, its `plan` prompt — none pruning the others.
-    expect(result).toEqual({ created: 5, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(5);
+    // Three onboarding nudges + the birthday's day-of wish, none pruning the
+    // others. No `plan` prompt: on the day itself the wish is all that is left
+    // to choose, and a question with one answer is not asked.
+    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(4);
   });
 });

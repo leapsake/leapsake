@@ -116,11 +116,11 @@ describe("the plan prompt, end to end through core", () => {
   });
 
   it("turns a ticked card into a card reminder at its own due date", async () => {
-    // Twenty days out: the prompt is past its own deadline but still standing —
-    // its window closes on the occurrence, not on its due date, so a late answer
-    // works and the chosen errands simply materialise with compressed windows.
-    // A card is due a week before the birthday with a fortnight's run-up, so it
-    // is on display the moment it is ticked.
+    // Twenty days out, and the app has only just learned of it: the question is
+    // not overdue, it is due on the last day to post — you can't be late for
+    // something the app has only just learned. A card is due a week before the
+    // birthday with a fortnight's run-up, so it is on display the moment it is
+    // ticked.
     const { milestone } = await personWithBirthday(20);
     const [target] = (await core.reminders.targets()).plans;
     expect(target).toBeDefined();
@@ -187,14 +187,12 @@ describe("the plan prompt, end to end through core", () => {
   });
 
   // An ignored prompt is not silence. This is the guarantee that makes the
-  // question safe to ignore — *a nudge, never a wall*.
-  it("still produces the day-of wish when the prompt is ignored", async () => {
+  // question safe to ignore — *a nudge, never a wall*. By the day itself the
+  // question has retired, the wish being all there is left to choose.
+  it("leaves the day-of wish standing once the question has retired", async () => {
     await personWithBirthday(0);
 
     const labels = (await systemReminders()).map(reminderLabel);
-    expect(labels).toContain("🎉 Wish @Violet Bick a happy birthday");
-    expect(labels).toContain(
-      "🗓 What do you want to do for @Violet Bick's birthday?",
-    );
+    expect(labels).toEqual(["🎉 Wish @Violet Bick a happy birthday"]);
   });
 });

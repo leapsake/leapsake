@@ -5,9 +5,11 @@ import {
   type RemindEligibleMilestone,
   type Reminder,
   type ReminderRuleInput,
+  OFFER_NOTICE_DAYS,
   actionDefs,
   civilFromDueMs,
   dueDateMs,
+  kindDefs,
   mentionToken,
   promptOffsetDays,
   resolveReminderSchedule,
@@ -38,6 +40,21 @@ const DUE_DAYS = promptOffsetDays("birthday"); // 42 today: gift's 12 + 30
 const ACTIVE_DAYS = actionDefs.plan.activeDays; // 14
 const APPEARS_DAYS = DUE_DAYS + ACTIVE_DAYS; // 56 — eight weeks
 
+/** A late gift or card is handed over in person — the day before. */
+const IN_PERSON = actionDefs["get:gift"].latestOffsetDays; // 1
+/** The last day, in days before a birthday, posting is still offered. */
+const LAST_TO_POST =
+  kindDefs.birthday.defaultReminderSchedule.find(
+    (d) => d.action === "send:card",
+  )!.offsetDays + OFFER_NOTICE_DAYS; // 9
+/** The last day, in days before a birthday, shopping is still offered. */
+const LAST_TO_SHOP = IN_PERSON + OFFER_NOTICE_DAYS; // 3
+
+/** Local noon on a civil day — what a row written that day carries as `createdAt`. */
+function at(day: CivilDate): number {
+  return new Date(day.year, day.month - 1, day.day, 12).getTime();
+}
+
 /** As {@link makeHarness} in `engine.test.ts`, narrowed to what a prompt needs. */
 function makeHarness() {
   const rows = new Map<string, Reminder>();
@@ -46,6 +63,7 @@ function makeHarness() {
   let selfPersonId: string | null = null;
   const labels = new Map<string, string>([["p1", "Violet"]]);
   const schedules = new Map<string, ReminderRuleInput[]>();
+  const writtenAts = new Map<string, number>();
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
@@ -55,7 +73,11 @@ function makeHarness() {
       const custom = schedules.get(m.id);
       return custom === undefined
         ? resolveReminderSchedule(m.kind, [])
-        : { rules: custom, source: "stored" as const, writtenAt: null };
+        : {
+            rules: custom,
+            source: "stored" as const,
+            writtenAt: writtenAts.get(m.id) ?? null,
+          };
     },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
@@ -91,8 +113,14 @@ function makeHarness() {
     setMilestones: (next: RemindEligibleMilestone[]) => {
       milestones = next;
     },
-    setSchedule: (milestoneId: string, rules: ReminderRuleInput[]) => {
+    /** Stand in for stored rules, saved at `writtenAt` (default: long ago). */
+    setSchedule: (
+      milestoneId: string,
+      rules: ReminderRuleInput[],
+      writtenAt?: number,
+    ) => {
       schedules.set(milestoneId, rules);
+      if (writtenAt !== undefined) writtenAts.set(milestoneId, writtenAt);
     },
     setSelf: (personId: string | null) => {
       selfPersonId = personId;
@@ -222,22 +250,27 @@ describe("the plan prompt", () => {
   });
 
   // An ignored prompt is not silence: the occasion still rides its kind
-  // defaults, so you never lose the birthday.
+  // defaults, so you never lose the birthday. By the day itself the question
+  // has retired — only the wish is left to choose — and the wish stands.
   it("leaves the day-of wish standing when it is ignored", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(0))]);
+    h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
     await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(1);
 
+    h.setToday(daysOut(APPEARS_DAYS));
+    await regenerateSystemReminders(h.deps);
     const titles = h.activeSystem().map((r) => r.title);
     expect(titles).toContain(
       `🎉 Wish ${mentionToken("Violet", "person", "p1")} a happy birthday`,
     );
-    expect(h.prompts()).toHaveLength(1);
+    expect(h.prompts()).toHaveLength(0);
   });
 
-  // The window closes on the *occurrence*, not on the prompt's own deadline, so
-  // a late answer still works — the chosen actions simply materialise with
-  // compressed windows, which is honest.
-  it("survives its own deadline, and retires on the belated tail", async () => {
+  // Ignoring a question is worth being nudged about, so it survives its own
+  // deadline — overdue, and still answerable, the chosen actions simply
+  // materialising with compressed windows. It retires once it has nothing left
+  // to offer but the wish, rather than lingering to the occasion.
+  it("survives its own deadline, and retires once only the wish is left", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
     await regenerateSystemReminders(h.deps);
     const id = h.prompts()[0].id;
@@ -247,15 +280,28 @@ describe("the plan prompt", () => {
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()[0].id).toBe(id); // same row, past due
 
-    // The morning after the birthday: still answerable, briefly.
-    h.setToday(daysOut(APPEARS_DAYS + 1));
+    // The last day a gift can still be offered: still asked.
+    h.setToday(daysOut(APPEARS_DAYS - LAST_TO_SHOP));
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()).toHaveLength(1);
 
-    // And then gone.
-    h.setToday(daysOut(APPEARS_DAYS + 5));
+    // The day after, only the wish is left: gone.
+    h.setToday(daysOut(APPEARS_DAYS - LAST_TO_SHOP + 1));
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()).toHaveLength(0);
+  });
+
+  // A question's due date is when to decide by, six weeks early; a row reading
+  // "in 2 weeks" was taken for the birthday. It counts down to the occasion.
+  it("counts down to the occasion, not to when to decide by", async () => {
+    const occ = daysOut(APPEARS_DAYS);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    await regenerateSystemReminders(h.deps);
+
+    const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    const prompt = rows.find((r) => r.id === h.prompts()[0].id)!;
+    expect(prompt.countdownDate).toBe(dueDateMs(occ));
+    expect(prompt.dueDate).not.toBe(dueDateMs(occ));
   });
 
   // Same branch, same reason as the birthday wish: keyed on a fact about the
@@ -281,6 +327,154 @@ describe("the plan prompt", () => {
 
     const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
     expect(rows.map((r) => r.id)).toContain(h.prompts()[0].id);
+  });
+});
+
+/** The milestone as the app would hold it had it learned of it today. */
+const learnedToday = (m: RemindEligibleMilestone): RemindEligibleMilestone => ({
+  ...m,
+  createdAt: at(TODAY),
+});
+
+// **You can't be late for something the app has only just learned** *(owner,
+// 2026-09-11)*. The import case: forty people arrive at once, and every
+// occasion inside its own lead time used to arrive already overdue.
+describe("an occasion the app learns about late", () => {
+  let h: ReturnType<typeof makeHarness>;
+  beforeEach(() => {
+    h = makeHarness();
+  });
+
+  // Three weeks out, the usual question would have been due three weeks ago.
+  // It is due instead when the user would start losing an option — the last
+  // day to post.
+  it("asks without being overdue, due on the last day to post", async () => {
+    const occ = daysOut(20);
+    h.setMilestones([learnedToday(birthday("m1", "p1", occ))]);
+    await regenerateSystemReminders(h.deps);
+
+    const [prompt] = h.prompts();
+    expect(prompt.dueDate).toBe(dueDateMs(occ) - LAST_TO_POST * DAY_MS);
+    expect(prompt.dueDate!).toBeGreaterThan(dueDateMs(TODAY));
+  });
+
+  it("is due on the last day to shop, when posting is already out", async () => {
+    const occ = daysOut(5);
+    h.setMilestones([learnedToday(birthday("m1", "p1", occ))]);
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.prompts()[0].dueDate).toBe(dueDateMs(occ) - LAST_TO_SHOP * DAY_MS);
+  });
+
+  it("is on display from the day it arrives", async () => {
+    h.setMilestones([learnedToday(birthday("m1", "p1", daysOut(20)))]);
+    await regenerateSystemReminders(h.deps);
+
+    const rows = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
+    const prompt = rows.find((r) => r.id === h.prompts()[0].id)!;
+    expect(prompt.activeFrom!).toBeLessThanOrEqual(dueDateMs(TODAY));
+  });
+
+  // Overdue is still honest once ignoring it has cost something.
+  it("becomes overdue once it has cost an option", async () => {
+    h.setMilestones([learnedToday(birthday("m1", "p1", daysOut(20)))]);
+    await regenerateSystemReminders(h.deps);
+    const id = h.prompts()[0].id;
+
+    const later = daysOut(20 - LAST_TO_POST + 1);
+    h.setToday(later);
+    await regenerateSystemReminders(h.deps);
+    const [prompt] = h.prompts();
+    expect(prompt.id).toBe(id);
+    expect(prompt.dueDate!).toBeLessThan(dueDateMs(later));
+  });
+
+  it("is not asked when only the wish is left", async () => {
+    h.setMilestones([learnedToday(birthday("m1", "p1", daysOut(1)))]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(0);
+  });
+
+  // A birthday the day before the import was never the user's to act on.
+  it("does not remind an occasion that had already been", async () => {
+    const occ = daysOut(-1);
+    // Known of all along, it is a belated wish…
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem()).toHaveLength(1);
+
+    // …but learned of today, it is nothing at all.
+    const fresh = makeHarness();
+    fresh.setMilestones([learnedToday(birthday("m1", "p1", occ))]);
+    await regenerateSystemReminders(fresh.deps);
+    expect(fresh.activeSystem()).toHaveLength(0);
+  });
+});
+
+describe("an answer given late", () => {
+  let h: ReturnType<typeof makeHarness>;
+  beforeEach(() => {
+    h = makeHarness();
+  });
+
+  const giftAndWish: ReminderRuleInput[] = [
+    { action: "get:gift", offsetDays: 12, enabled: true },
+    { action: "wish", offsetDays: 0, enabled: true },
+  ];
+  const giftOf = () =>
+    h.activeSystem().find((r) => r.title?.includes("a gift") === true)!;
+
+  // Chosen five days out, a gift cannot make its twelve-day deadline. It slides
+  // to the day before, to be handed over in person — you can't be late for
+  // something you only just chose.
+  it("slides a last-minute gift to the day before", async () => {
+    const occ = daysOut(5);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", giftAndWish, at(TODAY));
+    await regenerateSystemReminders(h.deps);
+
+    expect(giftOf().dueDate).toBe(dueDateMs(occ) - IN_PERSON! * DAY_MS);
+  });
+
+  it("keeps the deadline of a gift chosen in time", async () => {
+    const occ = daysOut(20);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", giftAndWish, at(TODAY));
+    await regenerateSystemReminders(h.deps);
+
+    expect(giftOf().dueDate).toBe(dueDateMs(occ) - 12 * DAY_MS);
+  });
+
+  // Offered only what still fitted, a late answer covers its own year; the
+  // question comes back for the next, eight weeks ahead, with everything on
+  // offer.
+  it("asks again the next year when it could not offer everything", async () => {
+    const occ = daysOut(5);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", giftAndWish, at(TODAY));
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(0);
+
+    const next: CivilDate = { ...occ, year: occ.year + 1 };
+    h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts().map((p) => p.id)).toEqual([
+      deterministicUuid(
+        SYSTEM_REMINDER_NAMESPACE,
+        `milestone:m1:${next.year}:plan`,
+      ),
+    ]);
+  });
+
+  it("does not ask again after an answer given in time", async () => {
+    const occ = daysOut(APPEARS_DAYS);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", giftAndWish, at(TODAY));
+
+    const next: CivilDate = { ...occ, year: occ.year + 1 };
+    h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(0);
   });
 });
 
