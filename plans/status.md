@@ -20,7 +20,8 @@ again, `test:e2e` on iOS included: all seven flows, both doors, custody assertio
 for each step.** ① All step 3 still owes: the catalog as a **`requires:` check** in `ios.mjs`
 rather than a `manual:` sentence. ② **Public repo**, full-history secret scan first. ③ **The App
 Store Connect fields nothing in the repo can check** — privacy URL, a *published* App Privacy
-questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
+questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Home and snooze
+redesign** — [`home-and-snooze.md`](./home-and-snooze.md). ⑤ **Submit**, then **GA**.
 
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
