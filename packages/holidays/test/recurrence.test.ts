@@ -227,6 +227,7 @@ describe("parseRecurrence", () => {
       { type: "fixed", month: 12, day: 25, onInvalidDate: "skip" },
       { type: "nth-weekday", month: 11, weekday: 4, nth: 4 },
       { type: "computed", algorithm: "western-easter" },
+      { type: "computed", algorithm: "orthodox-easter" },
       { type: "offset", from: "western-easter", days: -2 },
       { type: "table", dates: ["2026-12-05"] },
     ];
@@ -253,7 +254,11 @@ describe("parseRecurrence", () => {
       '{"type":"fixed","month":12}',
       '{"type":"nth-weekday","month":11,"weekday":9,"nth":4}',
       '{"type":"nth-weekday","month":11,"weekday":4,"nth":0}',
-      '{"type":"computed","algorithm":"orthodox-easter"}',
+      // An algorithm no build implements yet. This slot used to hold
+      // "orthodox-easter", which has since shipped — so it had to be replaced
+      // rather than deleted: the case it covers is a rule written by a *newer*
+      // build, and that case needs a name this build genuinely does not know.
+      '{"type":"computed","algorithm":"coptic-easter"}',
       '{"type":"offset","from":"","days":1}',
       '{"type":"table","dates":["2026-13-05"]}',
       '{"type":"table","dates":[42]}',

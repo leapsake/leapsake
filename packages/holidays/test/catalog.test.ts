@@ -22,6 +22,11 @@ function on(slug: string, year: number): string[] {
   return strict.occurrencesFor(slug, year).map(isoFromCivil);
 }
 
+/** Whole days from one `YYYY-MM-DD` to another. */
+function daysBetween(from: string, to: string): number {
+  return (Date.parse(to) - Date.parse(from)) / 86400000;
+}
+
 describe("catalog integrity", () => {
   it("has unique slugs", () => {
     expect(bySlug.size).toBe(CATALOG.length);
@@ -143,9 +148,92 @@ describe("catalog dates", () => {
     expect(on("western-good-friday", 2026)).toEqual(["2026-04-03"]);
   });
 
+  it("resolves Orthodox Easter on its own rule, not Western Easter's", () => {
+    // Published dates. The two reckonings diverge by up to five weeks — a week
+    // in 2026, five in 2027 — so a regression that quietly resolved this entry
+    // with the Western computus would still look plausible in some years.
+    expect(on("orthodox-easter", 2026)).toEqual(["2026-04-12"]);
+    expect(on("orthodox-easter", 2027)).toEqual(["2027-05-02"]);
+    expect(on("orthodox-easter", 2028)).toEqual(["2028-04-16"]);
+    expect(on("orthodox-easter", 2030)).toEqual(["2030-04-28"]);
+    expect(on("western-easter", 2026)).toEqual(["2026-04-05"]);
+    expect(on("orthodox-good-friday", 2026)).toEqual(["2026-04-10"]);
+  });
+
+  it("converts Orthodox Easter out of the Julian calendar exactly", () => {
+    // The Julian/Gregorian gap is 13 days until 2100 and 14 after it. This date
+    // is on the far side of that step, so it fails if the conversion is ever
+    // "simplified" into adding a constant — a `computed` rule has no horizon at
+    // which it stops answering, so it would just be wrong forever.
+    expect(on("orthodox-easter", 2100)).toEqual(["2100-05-02"]);
+  });
+
   it("resolves the lunisolar entries from their tables", () => {
     expect(on("hanukkah", 2026)).toEqual(["2026-12-05"]);
     expect(on("lunar-new-year", 2027)).toEqual(["2027-02-06"]);
+    expect(on("rosh-hashanah", 2026)).toEqual(["2026-09-12"]);
+    expect(on("yom-kippur", 2026)).toEqual(["2026-09-21"]);
+    expect(on("sukkot", 2026)).toEqual(["2026-09-26"]);
+    expect(on("passover", 2027)).toEqual(["2027-04-22"]);
+  });
+
+  it("holds the Tishrei entries in their fixed relationship, every year", () => {
+    // 1, 10 and 15 Tishrei: Yom Kippur is always 9 days after Rosh Hashanah and
+    // Sukkot always 14. Checking the whole table catches a transcription slip in
+    // any single year, which spot-checking one year cannot — and it would catch
+    // a table accidentally authored on the "eve of" convention while its
+    // neighbours use the daytime one.
+    for (let year = 2026; year <= 2056; year++) {
+      const [rosh] = on("rosh-hashanah", year);
+      const [kippur] = on("yom-kippur", year);
+      const [sukkot] = on("sukkot", year);
+      expect(daysBetween(rosh, kippur)).toBe(9);
+      expect(daysBetween(rosh, sukkot)).toBe(14);
+    }
+  });
+
+  it("does not wish anyone a happy Yom Kippur", () => {
+    // The greeting field carries its own article precisely so an occasion can
+    // decline "a Happy". A day of atonement taking the birthday voice is the
+    // kind of tone-deafness that is worse than a missing holiday.
+    expect(bySlug.get("yom-kippur")?.greeting.toLowerCase()).not.toContain(
+      "happy",
+    );
+    expect(bySlug.get("rosh-hashanah")?.greeting).toBe("Shana Tova");
+  });
+
+  it("resolves the Chinese entries from their tables", () => {
+    expect(on("dragon-boat-festival", 2026)).toEqual(["2026-06-19"]);
+    expect(on("dragon-boat-festival", 2027)).toEqual(["2027-06-09"]);
+    expect(on("mid-autumn-festival", 2026)).toEqual(["2026-09-25"]);
+    expect(on("mid-autumn-festival", 2027)).toEqual(["2027-09-15"]);
+  });
+
+  it("keeps the Chinese entries inside the window their month implies", () => {
+    // The failure mode worth guarding here is a leap-month misnumbering, which
+    // moves a holiday by a whole lunar month rather than by a day. Both windows
+    // are only a little wider than one lunation, so a month-sized error lands
+    // outside them — where an off-by-one-day error would not, and is instead
+    // covered by the two independent derivations agreeing.
+    for (const [slug, from, to] of [
+      ["dragon-boat-festival", "05-25", "06-26"],
+      ["mid-autumn-festival", "09-05", "10-07"],
+    ] as const) {
+      for (let year = 2026; year <= 2056; year++) {
+        const [date] = on(slug, year);
+        const monthDay = (date ?? "").slice(5);
+        expect(
+          monthDay >= from && monthDay <= to,
+          `${slug} ${year} resolved to ${date}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("carries the multi-day durations the Hebrew entries need", () => {
+    expect(bySlug.get("rosh-hashanah")?.durationDays).toBe(2);
+    expect(bySlug.get("sukkot")?.durationDays).toBe(7);
+    expect(bySlug.get("passover")?.durationDays).toBe(8);
   });
 
   it("pins the lunisolar dates that a rule would get wrong", () => {
@@ -169,16 +257,20 @@ describe("catalog dates", () => {
     expect(on("lunar-new-year", 2030)).toEqual(["2030-02-03"]);
   });
 
-  it("carries both lunisolar tables to the ~30-year horizon", () => {
+  it("carries every lunisolar table to the ~30-year horizon", () => {
     // Research §2.8 asks for ~30 years. The failure mode this guards is silent:
     // a table that quietly runs out stops generating reminders rather than
-    // erroring, so nothing else would notice.
-    for (const slug of ["hanukkah", "lunar-new-year"]) {
-      const entry = bySlug.get(slug);
-      if (entry?.recurrence.type !== "table")
-        throw new Error(`${slug} is not a table`);
+    // erroring, so nothing else would notice. Written over every `table` entry
+    // rather than a hardcoded list, so a new one cannot be added short.
+    const tables = CATALOG.filter((e) => e.recurrence.type === "table");
+    expect(tables.length).toBeGreaterThanOrEqual(6);
+    for (const entry of tables) {
+      if (entry.recurrence.type !== "table") continue;
       const last = entry.recurrence.dates.at(-1) ?? "";
-      expect(Number(last.slice(0, 4))).toBeGreaterThanOrEqual(2056);
+      expect(
+        Number(last.slice(0, 4)),
+        `${entry.slug} runs out at ${last}`,
+      ).toBeGreaterThanOrEqual(2056);
     }
   });
 
@@ -306,7 +398,7 @@ describe("catalog serialization", () => {
       ].join(FIELD),
     ).join(RECORD);
     expect(createHash("sha256").update(payload).digest("hex")).toBe(
-      "ec1913c4c71b1463d260d8faf143020389decbcdb68e9745e8b11bbdcbecf624",
+      "3aff5b51ea924e49113b95b8522912956135d082953cb632ce44a45518af15a9",
     );
   });
 

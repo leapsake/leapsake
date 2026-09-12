@@ -135,10 +135,17 @@ depend on moon _sighting_ and differ by country and authority; Hebrew and Chines
 algorithmic but heavy). Callers never learn which mechanism answered.
 
 It **degrades honestly**: past the table horizon a holiday stops producing occurrences rather
-than producing wrong ones. The two tables (Hanukkah, Lunar New Year) are derived from the source
-calendars' own rules and cross-checked against an independent implementation; they run to
-**2056**. Extend them before ~2050 by **re-deriving, never extrapolating** — see the note in
-`src/catalog.ts`.
+than producing wrong ones. The **eight** tables — five Hebrew (Hanukkah, Rosh Hashanah, Yom Kippur,
+Sukkot, Passover) and three Chinese (Lunar New Year, Dragon Boat, Mid-Autumn) — are each derived
+from the source calendars' own rules and cross-checked against a second, independent
+implementation; they run to **2056**. Extend them before ~2050 by **re-deriving, never
+extrapolating** — see the note in `src/catalog.ts`.
+
+The Hebrew set is *exact* (that calendar is arithmetic), and the implementation behind it
+reproduces the originally-authored Hanukkah table entry for entry. The Chinese set rests on Meeus'
+new-moon series in UTC+8, gated on reproducing all 30 Lunar New Year dates — including the two
+borderline years where ICU alone disagrees, which is precisely why ICU is trusted for leap-month
+*structure* and never for a boundary. Neither set rests on a single source, and neither should.
 
 > **Why catalog breadth is load-bearing, and the escape hatch is not a substitute.** A
 > user-defined holiday can realistically only express simple recurrence. Nobody will hand-author

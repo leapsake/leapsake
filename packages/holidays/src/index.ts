@@ -30,6 +30,7 @@ export {
   isoFromCivil,
   nthWeekdayOf,
   occurrencesInYear,
+  orthodoxEaster,
   parseRecurrence,
   shiftDays,
   westernEaster,

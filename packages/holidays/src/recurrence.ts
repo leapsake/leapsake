@@ -49,8 +49,16 @@ export type NthWeekday = 1 | 2 | 3 | 4 | 5 | -1;
  */
 export type InvalidDatePolicy = "clamp" | "skip";
 
-/** The algorithms {@link ComputedRecurrence} can name. */
-export type ComputedAlgorithm = "western-easter";
+/**
+ * The algorithms {@link ComputedRecurrence} can name.
+ *
+ * Adding one is a **forward-incompatible** change by design: a build that
+ * predates the value parses the rule to `null` and generates no occurrences,
+ * rather than guessing. That is the rule-type-skew case research §3 accepts —
+ * data syncs, code does not — and it is why a new algorithm must never reuse an
+ * existing name with changed behaviour.
+ */
+export type ComputedAlgorithm = "western-easter" | "orthodox-easter";
 
 export interface FixedRecurrence {
   type: "fixed";
@@ -151,6 +159,59 @@ export function westernEaster(year: number): CivilDate {
   return { year, month: Math.floor(n / 31), day: (n % 31) + 1 };
 }
 
+/** RD (fixed-day) number of 2000-01-01 — the anchor both converters below use. */
+const RD_2000 = 730120;
+
+/** The civil (proleptic Gregorian) date of a fixed-day number. */
+function civilFromFixed(rd: number): CivilDate {
+  const d = new Date(Date.UTC(2000, 0, 1) + (rd - RD_2000) * 86400000);
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+  };
+}
+
+/** The fixed-day number of a date in the **Julian** calendar. */
+function fixedFromJulian(year: number, month: number, day: number): number {
+  // Julian leap years are simply every fourth, with no century rule.
+  const correction = month <= 2 ? 0 : year % 4 === 0 ? -1 : -2;
+  return (
+    -2 +
+    365 * (year - 1) +
+    Math.floor((year - 1) / 4) +
+    Math.floor((367 * month - 362) / 12) +
+    correction +
+    day
+  );
+}
+
+/**
+ * The Gregorian date of Orthodox (Julian-reckoned) Easter Sunday, by Meeus'
+ * Julian algorithm — which answers in the *Julian* calendar, so the result is
+ * converted through a fixed-day number rather than by adding a constant.
+ *
+ * **The constant would be the bug.** Julian and Gregorian are 13 days apart only
+ * until 2100, when the gap becomes 14; a hard-coded `+13` produces confidently
+ * wrong dates from then on with nothing to signal it. Going via
+ * {@link fixedFromJulian} is exact for every year instead, which matters because
+ * a `computed` rule — unlike a `table` — has no horizon at which it stops
+ * answering.
+ *
+ * Orthodox Easter is its own entry with its own rule, never a variant of
+ * {@link westernEaster} (research §2.13). The two diverge by up to five weeks.
+ */
+export function orthodoxEaster(year: number): CivilDate {
+  const a = year % 4;
+  const b = year % 7;
+  const c = year % 19;
+  const d = (19 * c + 15) % 30;
+  const e = (2 * a + 4 * b - d + 34) % 7;
+  const month = Math.floor((d + e + 114) / 31);
+  const day = ((d + e + 114) % 31) + 1;
+  return civilFromFixed(fixedFromJulian(year, month, day));
+}
+
 /**
  * The date of the `nth` `weekday` of a month, or `null` when the month has no
  * such occurrence (a 5th Monday in a month with only four).
@@ -207,7 +268,14 @@ export function occurrencesInYear(
       return date === null ? [] : [date];
     }
     case "computed":
-      return [westernEaster(year)];
+      // Exhaustive on purpose: a new algorithm must fail to compile here rather
+      // than fall through to Easter and ship a confidently wrong date.
+      switch (rule.algorithm) {
+        case "western-easter":
+          return [westernEaster(year)];
+        case "orthodox-easter":
+          return [orthodoxEaster(year)];
+      }
     case "offset": {
       // Widen the search a year either side before shifting: an offset that
       // crosses a year boundary (Good Friday from an Easter in the next year, a
@@ -346,7 +414,12 @@ export function parseRecurrence(json: string): HolidayRecurrence | null {
       };
     }
     case "computed": {
-      if (r.algorithm !== "western-easter") return null;
+      if (
+        r.algorithm !== "western-easter" &&
+        r.algorithm !== "orthodox-easter"
+      ) {
+        return null;
+      }
       return { type: "computed", algorithm: r.algorithm };
     }
     case "offset": {

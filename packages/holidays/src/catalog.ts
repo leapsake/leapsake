@@ -162,16 +162,16 @@ const V3 = authored("2026-09-11");
  * Bump on any change to {@link CATALOG}. Integer, not semver — see the module
  * doc.
  */
-export const CATALOG_VERSION = 3;
+export const CATALOG_VERSION = 4;
 
 /**
  * ## The lunisolar tables
  *
- * The two `table` entries below (Hanukkah, Lunar New Year) run to **2056**, the
- * ~30-year horizon research §2.8 asks for. Past it they stop producing
- * occurrences rather than producing wrong ones — the honest degradation the
- * `table` shape exists for. **Extend them before ~2050**, and re-derive rather
- * than extrapolate: neither sequence has a period that can be continued by eye.
+ * Every `table` entry below runs to **2056**, the ~30-year horizon research §2.8
+ * asks for. Past it they stop producing occurrences rather than producing wrong
+ * ones — the honest degradation the `table` shape exists for. **Extend them
+ * before ~2050**, and re-derive rather than extrapolate: none of these sequences
+ * has a period that can be continued by eye.
  *
  * They are here rather than deferred because research §2.9 is explicit that the
  * precomputed path must be proven end-to-end early — a user cannot hand-author
@@ -187,10 +187,17 @@ export const CATALOG_VERSION = 3;
  * missing one — it produces a confidently-wrong reminder on a day that matters
  * to someone — so no date rests on a single source.
  *
- * - **Hanukkah** is 25 Kislev. The Hebrew calendar is *purely arithmetic* (molad
- *   plus the four dehiyyot), so these dates are **exact**, with no observational
- *   or borderline cases. The independent computation and ICU agree on all 41
- *   years checked, and reproduce 2023–2026 as published.
+ * - **The Hebrew entries** — Hanukkah (25 Kislev), Rosh Hashanah (1 Tishrei),
+ *   Yom Kippur (10 Tishrei), Sukkot (15 Tishrei) and Passover (15 Nisan) — come
+ *   from one arithmetic implementation of the Hebrew calendar (molad plus the
+ *   four dehiyyot), so these dates are **exact**, with no observational or
+ *   borderline cases. ICU agrees on every date in all five tables. The
+ *   implementation additionally reproduces the Hanukkah table authored at V2
+ *   entry for entry, which is what validates it against data already checked.
+ *
+ *   All five carry the **daytime** date, matching Hanukkah's original
+ *   convention: the festival begins at sunset the evening before, so published
+ *   "eve of" dates are one day earlier. Do not mix the two conventions.
  * - **Lunar New Year** is the first day of the first Chinese month, which
  *   depends on true astronomical new moons evaluated in **China Standard Time
  *   (UTC+8)**: month 11 is the month containing the December solstice, a leap
@@ -200,6 +207,16 @@ export const CATALOG_VERSION = 3;
  *   published, **including 2034**, where the naive "second new moon after the
  *   solstice" shortcut gives 2034-01-20 and the leap-month rule correctly gives
  *   2034-02-19 (the well-known 2033 anomaly).
+ * - **Dragon Boat (5/5) and Mid-Autumn (8/15)** hang off the same Chinese month
+ *   boundaries and were derived the same way: Meeus' new-moon series in UTC+8
+ *   for the boundary dates, with ICU supplying only which ordinal month carries
+ *   which number — the leap structure, an integer. That derivation was **gated
+ *   on reproducing all 30 Lunar New Year dates above**, including 2027 and 2030
+ *   where ICU alone disagrees, so it demonstrably resolves the precision ICU
+ *   loses. Across 2026–2056 the two implementations then agree on every month-5
+ *   and month-8 boundary, so these tables rest on two sources rather than one.
+ *   A leap-month misnumbering would shift a date by a whole lunar month, not a
+ *   day; the catalog test guards that with a window check per entry.
  *
  * Two Lunar New Year dates are astronomically **borderline** — the new moon
  * falls within minutes of local midnight, so the civil date turns on precision
@@ -589,6 +606,30 @@ export const CATALOG: readonly HolidayEntry[] = [
     authoredAt: V3,
   },
 
+  {
+    slug: "orthodox-easter",
+    name: "Orthodox Easter",
+    greeting: "a Happy Easter",
+    // Its own rule, never a variant of the Western one — the two diverge by up
+    // to five weeks. A build older than this algorithm parses the rule to `null`
+    // and generates nothing, which is the designed skew behaviour.
+    recurrence: { type: "computed", algorithm: "orthodox-easter" },
+    tradition: "christian",
+    region: "global",
+    familyId: "easter",
+    authoredAt: V3,
+  },
+  {
+    slug: "orthodox-good-friday",
+    name: "Orthodox Good Friday",
+    greeting: "a blessed Good Friday",
+    recurrence: { type: "offset", from: "orthodox-easter", days: -2 },
+    tradition: "christian",
+    region: "global",
+    familyId: "easter",
+    authoredAt: V3,
+  },
+
   // ── Lunisolar (precomputed) — see the warning above ───────────────────────
   {
     slug: "hanukkah",
@@ -637,6 +678,195 @@ export const CATALOG: readonly HolidayEntry[] = [
     region: "global",
     durationDays: 8,
     authoredAt: V2,
+  },
+  {
+    slug: "rosh-hashanah",
+    name: "Rosh Hashanah",
+    // Article-less on purpose: the greeting is a phrase, not a modifier —
+    // "Wish @Grandma Shana Tova". This is what `greeting` carrying its own
+    // article exists for.
+    greeting: "Shana Tova",
+    // 1 Tishrei, daytime.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2026-09-12",
+        "2027-10-02",
+        "2028-09-21",
+        "2029-09-10",
+        "2030-09-28",
+        "2031-09-18",
+        "2032-09-06",
+        "2033-09-24",
+        "2034-09-14",
+        "2035-10-04",
+        "2036-09-22",
+        "2037-09-10",
+        "2038-09-30",
+        "2039-09-19",
+        "2040-09-08",
+        "2041-09-26",
+        "2042-09-15",
+        "2043-10-05",
+        "2044-09-22",
+        "2045-09-12",
+        "2046-10-01",
+        "2047-09-21",
+        "2048-09-08",
+        "2049-09-27",
+        "2050-09-17",
+        "2051-09-07",
+        "2052-09-24",
+        "2053-09-13",
+        "2054-10-03",
+        "2055-09-23",
+        "2056-09-11",
+      ],
+    },
+    tradition: "jewish",
+    region: "global",
+    durationDays: 2,
+    authoredAt: V3,
+  },
+  {
+    slug: "yom-kippur",
+    name: "Yom Kippur",
+    // Not a happy occasion, and "Happy Yom Kippur" is the kind of tone-deafness
+    // a reminders app must never put in someone's mouth. "An easy fast" is the
+    // idiom.
+    greeting: "an easy fast",
+    // 10 Tishrei, daytime.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2026-09-21",
+        "2027-10-11",
+        "2028-09-30",
+        "2029-09-19",
+        "2030-10-07",
+        "2031-09-27",
+        "2032-09-15",
+        "2033-10-03",
+        "2034-09-23",
+        "2035-10-13",
+        "2036-10-01",
+        "2037-09-19",
+        "2038-10-09",
+        "2039-09-28",
+        "2040-09-17",
+        "2041-10-05",
+        "2042-09-24",
+        "2043-10-14",
+        "2044-10-01",
+        "2045-09-21",
+        "2046-10-10",
+        "2047-09-30",
+        "2048-09-17",
+        "2049-10-06",
+        "2050-09-26",
+        "2051-09-16",
+        "2052-10-03",
+        "2053-09-22",
+        "2054-10-12",
+        "2055-10-02",
+        "2056-09-20",
+      ],
+    },
+    tradition: "jewish",
+    region: "global",
+    authoredAt: V3,
+  },
+  {
+    slug: "sukkot",
+    name: "Sukkot",
+    greeting: "a Happy Sukkot",
+    // 15 Tishrei, daytime.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2026-09-26",
+        "2027-10-16",
+        "2028-10-05",
+        "2029-09-24",
+        "2030-10-12",
+        "2031-10-02",
+        "2032-09-20",
+        "2033-10-08",
+        "2034-09-28",
+        "2035-10-18",
+        "2036-10-06",
+        "2037-09-24",
+        "2038-10-14",
+        "2039-10-03",
+        "2040-09-22",
+        "2041-10-10",
+        "2042-09-29",
+        "2043-10-19",
+        "2044-10-06",
+        "2045-09-26",
+        "2046-10-15",
+        "2047-10-05",
+        "2048-09-22",
+        "2049-10-11",
+        "2050-10-01",
+        "2051-09-21",
+        "2052-10-08",
+        "2053-09-27",
+        "2054-10-17",
+        "2055-10-07",
+        "2056-09-25",
+      ],
+    },
+    tradition: "jewish",
+    region: "global",
+    durationDays: 7,
+    authoredAt: V3,
+  },
+  {
+    slug: "passover",
+    name: "Passover",
+    greeting: "a Happy Passover",
+    // 15 Nisan, daytime. Eight days is the diaspora reckoning; seven is kept in
+    // Israel. Display only — the occurrence anchors to the start either way.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2027-04-22",
+        "2028-04-11",
+        "2029-03-31",
+        "2030-04-18",
+        "2031-04-08",
+        "2032-03-27",
+        "2033-04-14",
+        "2034-04-04",
+        "2035-04-24",
+        "2036-04-12",
+        "2037-03-31",
+        "2038-04-20",
+        "2039-04-09",
+        "2040-03-29",
+        "2041-04-16",
+        "2042-04-05",
+        "2043-04-25",
+        "2044-04-12",
+        "2045-04-02",
+        "2046-04-21",
+        "2047-04-11",
+        "2048-03-29",
+        "2049-04-17",
+        "2050-04-07",
+        "2051-03-28",
+        "2052-04-14",
+        "2053-04-03",
+        "2054-04-23",
+        "2055-04-13",
+        "2056-04-01",
+      ],
+    },
+    tradition: "jewish",
+    region: "global",
+    durationDays: 8,
+    authoredAt: V3,
   },
   {
     slug: "lunar-new-year",
@@ -693,6 +923,97 @@ export const CATALOG: readonly HolidayEntry[] = [
     // it means it inherits Lunar New Year's horizon and its corrections for
     // free, including the 2034 leap-month case.
     recurrence: { type: "offset", from: "lunar-new-year", days: 14 },
+    tradition: "chinese",
+    region: "global",
+    authoredAt: V3,
+  },
+  {
+    slug: "dragon-boat-festival",
+    name: "Dragon Boat Festival",
+    greeting: "a Happy Dragon Boat Festival",
+    // 5th day of Chinese month 5. See the module doc for the derivation and the
+    // gate it had to pass.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2026-06-19",
+        "2027-06-09",
+        "2028-05-28",
+        "2029-06-16",
+        "2030-06-05",
+        "2031-06-24",
+        "2032-06-12",
+        "2033-06-01",
+        "2034-06-20",
+        "2035-06-10",
+        "2036-05-30",
+        "2037-06-18",
+        "2038-06-07",
+        "2039-05-27",
+        "2040-06-14",
+        "2041-06-03",
+        "2042-06-22",
+        "2043-06-11",
+        "2044-05-31",
+        "2045-06-19",
+        "2046-06-08",
+        "2047-05-29",
+        "2048-06-15",
+        "2049-06-04",
+        "2050-06-23",
+        "2051-06-13",
+        "2052-06-01",
+        "2053-06-20",
+        "2054-06-10",
+        "2055-05-30",
+        "2056-06-17",
+      ],
+    },
+    tradition: "chinese",
+    region: "global",
+    authoredAt: V3,
+  },
+  {
+    slug: "mid-autumn-festival",
+    name: "Mid-Autumn Festival",
+    greeting: "a Happy Mid-Autumn Festival",
+    // 15th day of Chinese month 8 — the harvest full moon.
+    recurrence: {
+      type: "table",
+      dates: [
+        "2026-09-25",
+        "2027-09-15",
+        "2028-10-03",
+        "2029-09-22",
+        "2030-09-12",
+        "2031-10-01",
+        "2032-09-19",
+        "2033-09-08",
+        "2034-09-27",
+        "2035-09-16",
+        "2036-10-04",
+        "2037-09-24",
+        "2038-09-13",
+        "2039-10-02",
+        "2040-09-20",
+        "2041-09-10",
+        "2042-09-28",
+        "2043-09-17",
+        "2044-10-05",
+        "2045-09-25",
+        "2046-09-15",
+        "2047-10-04",
+        "2048-09-22",
+        "2049-09-11",
+        "2050-09-30",
+        "2051-09-19",
+        "2052-09-07",
+        "2053-09-26",
+        "2054-09-16",
+        "2055-10-05",
+        "2056-09-24",
+      ],
+    },
     tradition: "chinese",
     region: "global",
     authoredAt: V3,
