@@ -110,22 +110,17 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
   },
-  // A list row with something beside its content: a leading control (a
-  // checkbox), or a trailing chevron on a row that leads somewhere. Composed
-  // with `row`, which keeps the padding and the separator. The gap is shared so
-  // every such list indents its text to the same place.
+  // A list row with something beside its content — today that is the trailing
+  // chevron on a row that leads somewhere. Composed with `row`, which keeps the
+  // padding and the separator. The gap is shared so every such list sets its
+  // text the same distance from that control.
   rowWithLead: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
   },
-  /** Sit the leading control on the first line of the text beside it. */
-  rowLeadCheckbox: {
-    marginTop: 2,
-  },
   /** A trailing chevron, centred against a row whose content may run to several
-   *  lines — the opposite of `rowLeadCheckbox`, which pins to the first line
-   *  because that is where the control it marks belongs. */
+   *  lines: it marks the whole row as a link rather than any one line of it. */
   rowChevron: {
     alignSelf: "center",
   },
@@ -191,6 +186,15 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
+  /** A section you *open*, drawn as a button rather than a heading (Home's
+   *  "Next 7 days" and "Later" — see `app/(tabs)/index.tsx` → `SECTION_CHROME`).
+   *  Composed over {@link buttonSecondary} and {@link buttonBlock}, which carry
+   *  the colour and the size; this carries only the room it needs in a list of
+   *  hairline-separated rows, which have none of their own to give. */
+  sectionButton: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
   // The second line of a list row: a muted detail on the left, actions on the right.
   rowMeta: {
     flexDirection: "row",
@@ -217,11 +221,11 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
   // A reminder detail's heading: its title, or its body when it has no title —
-  // whichever the list would have shown — carrying the completion checkbox
-  // beside it. Weight rather than a "Title" label marks it as the heading, so the
-  // thing the screen is about reads as a heading instead of as the first row of a
-  // definition list. Same size as the field values below it: the nav bar already
-  // carries the screen's large title, and a second 24pt one would shout.
+  // whichever the list would have shown. Weight rather than a "Title" label
+  // marks it as the heading, so the thing the screen is about reads as a heading
+  // instead of as the first row of a definition list. Same size as the field
+  // values below it: the nav bar already carries the screen's large title, and a
+  // second 24pt one would shout.
   reminderHeading: {
     fontSize: 17,
     fontWeight: "600",

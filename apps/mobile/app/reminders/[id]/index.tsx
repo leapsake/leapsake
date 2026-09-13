@@ -19,7 +19,6 @@ import {
 } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/core";
 import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
-import { Checkbox } from "../../../components/Checkbox";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
@@ -42,6 +41,10 @@ const FAILURE_TITLES = {
   remove: "Couldn’t delete",
 } as const;
 
+/** The completion control's two words. One button, whose label says which way it
+ *  goes — see {@link toggle}, which is one write with the boolean flipped. */
+const COMPLETION = { do: "Mark done", undo: "Reopen" } as const;
+
 /**
  * The header: a back control and nothing else.
  *
@@ -59,16 +62,23 @@ const FAILURE_TITLES = {
 const HEADER = { title: "" } as const;
 
 /**
- * Reminder detail: the reminder's heading with its completion checkbox, then its
- * remaining details, then **every** action it offers — edit, delete, plus
- * whatever its kind invites (a nudge's *do it* / *not now* / *don't ask again*, a
- * gift reminder's link to the recipient). Text shows its inline `#tags` verbatim
- * — they *are* the tags.
+ * Reminder detail: the reminder's heading, then its remaining details, then
+ * **every** action it offers — edit, delete, *mark done*, plus whatever its kind
+ * invites (a nudge's *do it* / *not now* / *don't ask again*, a gift reminder's
+ * link to the recipient). Text shows its inline `#tags` verbatim — they *are*
+ * the tags.
  *
- * The heading wears no "Title" label and there is no Status field: the reminder's
- * own words are the heading, and completion is a checkbox you tap rather than a
- * word you read. Both were a definition list describing a reminder; this is the
- * reminder.
+ * The heading wears no "Title" label and there is no Status field: the
+ * reminder's own words are the heading, and it strikes through when the thing is
+ * done. That was a definition list describing a reminder; this is the reminder.
+ *
+ * **Completion is a button among the offers, not a checkbox beside the heading**
+ * *(owner, 2026-09-13)*. A tick is a *state* you set, and it read as one — a
+ * property of the record, sitting in the margin — when finishing a reminder is
+ * the most consequential thing this screen does and belongs with the other
+ * things you can do to it. A box 24pt across was also the smallest target on a
+ * screen where every other choice is a full-width button, and the only one whose
+ * meaning you had to infer from whether it was filled.
  *
  * The list row deliberately carries none of these — it is a link and nothing
  * else, so nothing on it can destroy a reminder or silence a nudge by mistap.
@@ -205,6 +215,12 @@ export default function ReminderDetailScreen() {
   // set: whether this is a nudge is a fact about the reminder, not about which
   // of its offers this screen happens to draw.
   const offered = actions.filter((a) => !isPrompt || !isAnsweredInline(a));
+  // Whether the reminder already has a filled button of its own. A reminder
+  // offers at most one CTA and `navigate` is what picks it out, so this is the
+  // same test the offers below use — read once here because the completion
+  // button has to know too: it takes the filled style only when nothing else
+  // has claimed it, so two of them never share a screen.
+  const hasCta = offered.some((a) => offerFor(a).kind === "navigate");
   const removal = removalCopyFor(actions);
   const canEdit = isReminderEditable(reminder);
   const canDelete = showsDelete(actions, done);
@@ -280,51 +296,29 @@ export default function ReminderDetailScreen() {
     <ScrollView contentContainerStyle={styles.screen}>
       <Stack.Screen options={HEADER} />
 
-      {/* The heading, with completion beside it — the checkbox is the only thing
-          that says whether this is done now that the Status field is gone, so the
-          heading strikes through as well, exactly as the list's rows do.
-
-          ⚠️ **Only an errand gets a checkbox** (see {@link isErrand}). A tick
-          offered beside a *question* invites a fifth answer to a form that
-          already has four, and means something the write cannot honour. Offered
-          beside a *condition* it means less than that: `setCompleted` will
-          happily stamp a nudge, but the step's condition is still unmet, so the
-          next reconcile keeps wanting the row and it simply sits in Completed
-          for good — no snooze spent, no dismissal recorded, and the thing it
-          asked for still not done. Withholding the control is the fix; the write
-          stays open because the engine's own materialization uses it. */}
-      <View style={styles.rowWithLead}>
-        {isErrand && (
-          <Checkbox
-            accessibilityLabel={
-              done ? `Reopen “${label}”` : `Mark “${label}” done`
-            }
-            checked={done}
-            onPress={toggle}
-            style={styles.rowLeadCheckbox}
-          />
+      {/* The heading. It strikes through when the reminder is done — the only
+          thing on screen that says so, the Status field being gone and the
+          completion control having moved down among the offers. */}
+      <View>
+        <ReminderText
+          text={heading}
+          tags={reminder.tags}
+          mentions={reminder.mentions}
+          style={[styles.reminderHeading, strike]}
+        />
+        {/* ⚠️ The occasion's **own** date, said right under the question and
+            nowhere else on a prompt. The "Due" this screen shows every other
+            reminder is the prompt's deadline — six weeks before the occasion —
+            so on a birthday that is tomorrow it reads "41 days ago", which is
+            true of the question and false of the birthday. One line, under the
+            thing it is about, instead of two fields disagreeing. */}
+        {isPrompt && planTarget.occurrenceDate != null && (
+          <Text style={styles.promptOccasion}>
+            {kindDefs[planTarget.milestoneKind].label} ·{" "}
+            {formatDueIn(planTarget.occurrenceDate)} (
+            {isoFromDueMs(planTarget.occurrenceDate)})
+          </Text>
         )}
-        <View style={styles.rowBody}>
-          <ReminderText
-            text={heading}
-            tags={reminder.tags}
-            mentions={reminder.mentions}
-            style={[styles.reminderHeading, strike]}
-          />
-          {/* ⚠️ The occasion's **own** date, said right under the question and
-              nowhere else on a prompt. The "Due" this screen shows every other
-              reminder is the prompt's deadline — six weeks before the occasion —
-              so on a birthday that is tomorrow it reads "41 days ago", which is
-              true of the question and false of the birthday. One line, under the
-              thing it is about, instead of two fields disagreeing. */}
-          {isPrompt && planTarget.occurrenceDate != null && (
-            <Text style={styles.promptOccasion}>
-              {kindDefs[planTarget.milestoneKind].label} ·{" "}
-              {formatDueIn(planTarget.occurrenceDate)} (
-              {isoFromDueMs(planTarget.occurrenceDate)})
-            </Text>
-          )}
-        </View>
       </View>
 
       {/* The ways to reach them, right under the acknowledgment they belong to —
@@ -446,12 +440,47 @@ export default function ReminderDetailScreen() {
           </Pressable>
         </View>
       )}
-      {offered.length > 0 && (
+      {(isErrand || offered.length > 0) && (
         // Whatever the reminder offers, on its own line and in offer order —
         // which is also order of escalating finality. They sit below the standing
         // actions because they are peers of one choice and belong side by side.
         // Each kind is offered at most once, so it keys.
         <View style={styles.rowOffers}>
+          {/* Finishing it — first, because it is what the reminder is *for*, and
+              because the offers under it run from "do it" to "never ask again"
+              and this is the top of that scale.
+
+              ⚠️ **Only an errand gets one** (see {@link isErrand}). Offered on a
+              *question* it invites a fifth answer to a form that already has
+              four, and means something the write cannot honour. Offered on a
+              *condition* it means less than that: `setCompleted` will happily
+              stamp a nudge, but the step's condition is still unmet, so the next
+              reconcile keeps wanting the row and it simply sits in Completed for
+              good — no snooze spent, no dismissal recorded, and the thing it
+              asked for still not done. Withholding the control is the fix; the
+              write stays open because the engine's own materialization uses it.
+
+              It wears the filled button only when the reminder has no call to
+              action of its own ({@link hasCta}) — on a gift reminder "See their
+              gifts ›" is the thing to do next, and two filled buttons would make
+              the screen say so twice. No `accessibilityLabel`: the label on it
+              is already the whole of what it does. */}
+          {isErrand && (
+            <Pressable
+              accessibilityRole="button"
+              style={[
+                hasCta ? styles.buttonSecondary : styles.button,
+                styles.buttonBlock,
+              ]}
+              onPress={toggle}
+            >
+              <Text
+                style={hasCta ? styles.buttonSecondaryText : styles.buttonText}
+              >
+                {done ? COMPLETION.undo : COMPLETION.do}
+              </Text>
+            </Pressable>
+          )}
           {offered.map((action) => {
             const offer = offerFor(action);
             // The call to action wears the filled button; the ways out wear the

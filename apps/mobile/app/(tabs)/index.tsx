@@ -23,7 +23,6 @@ import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
 import {
-  type ReminderHeaderItem,
   type ReminderSection,
   reminderListItems,
 } from "../../lib/reminder-sections";
@@ -35,29 +34,59 @@ import { colors, styles } from "../../lib/styles";
  * Every user-visible string on this screen, in one place so the later
  * message-catalog sweep is mechanical (AGENTS.md → *User-visible text*).
  */
-const TEXT: Record<ReminderSection, string> & {
-  allDone: string;
-  chevron: string;
-} = {
-  belated: "Belated",
-  today: "Today",
-  next7: "Next 7 days",
-  later: "Later",
-  done: "Completed",
+const TEXT = {
   /** Nothing left on Today or in Belated — the day's finish line. */
   allDone: "All done for today. Go enjoy it.",
   /** The affordance on every row, not a word — see {@link ReminderRow}. It sits
    *  here anyway because it is drawn as text, and this is where this screen's
    *  text lives. */
   chevron: "›",
+} as const;
+
+/**
+ * How each section announces itself, and — because the two are the same
+ * decision — what it says.
+ *
+ * **The sections you open are buttons; the ones that merely name a group are
+ * headings** *(owner, 2026-09-13)*. Belated, Today and Completed are labels over
+ * rows: Belated and Today cannot be folded at all, and Completed is the archive
+ * at the foot of the list. *Next 7 days* and *Later* are neither — each is a
+ * closed door, and the only thing on the screen asking to be pressed. A heading
+ * that happens to be tappable gives no sign of it, which is exactly the
+ * complaint: *Later* looked like a caption for rows that were not there. They
+ * wear {@link styles.buttonSecondary}, the same quiet button a reminder offers
+ * its "Remind me tomorrow" on, so the one gesture the list invites looks the
+ * same wherever it appears.
+ *
+ * A button's count is **inside its label**, where a heading's sits opposite the
+ * title — a centred label with a number floated to the edge would read as two
+ * controls. That is why these are functions rather than strings: a message that
+ * takes a value is the catalog's to compose, so plural rules and word order stay
+ * the language's business rather than being glued together here (AGENTS.md →
+ * *User-visible text*).
+ *
+ * Keyed over every section, so a new one cannot be added without saying which
+ * of the two it is.
+ */
+type SectionChrome =
+  | { as: "heading"; title: string }
+  | { as: "button"; label: (count: number) => string };
+
+const SECTION_CHROME: Record<ReminderSection, SectionChrome> = {
+  belated: { as: "heading", title: "Belated" },
+  today: { as: "heading", title: "Today" },
+  next7: { as: "button", label: (count) => `Next 7 days (${count})` },
+  later: { as: "button", label: (count) => `Later (${count})` },
+  done: { as: "heading", title: "Completed" },
 };
 
 /**
  * The Reminders tab — the app's home/landing screen, so it lives at the `(tabs)`
  * group's `index` route. A list of reminders **split by when**: belated and
  * today lead (what is *owed* — everything that can be done now), then *Next 7
- * days*, with *Later* inside it, and completed, folded away behind their own
- * headings. The reasoning for the split —
+ * days*, with *Later* inside it, and completed — the two upcoming sections
+ * folded away behind buttons, completed behind its own heading (see
+ * {@link SECTION_CHROME}). The reasoning for the split —
  * and for why only the owed sections decide whether the day is finished — is on
  * `bucketReminders`; the flat-list shape it renders as is in
  * {@link reminderListItems}, and this screen owns only how it looks.
@@ -152,13 +181,25 @@ export default function RemindersScreen() {
         renderItem={({ item }) => {
           if (item.kind === "note")
             return <Text style={styles.muted}>{TEXT.allDone}</Text>;
-          if (item.kind === "header")
-            return (
+          if (item.kind === "header") {
+            const chrome = SECTION_CHROME[item.section];
+            const onToggle = () => toggleSection(item.section);
+            return chrome.as === "button" ? (
+              <SectionButton
+                label={chrome.label(item.count)}
+                collapsed={item.collapsed}
+                onToggle={onToggle}
+              />
+            ) : (
               <SectionHeader
-                item={item}
-                onToggle={() => toggleSection(item.section)}
+                title={chrome.title}
+                count={item.count}
+                collapsible={item.collapsible}
+                collapsed={item.collapsed}
+                onToggle={onToggle}
               />
             );
+          }
           return (
             <ReminderRow reminder={item.reminder} section={item.section} />
           );
@@ -172,29 +213,70 @@ export default function RemindersScreen() {
  * One section heading, with its row count. A collapsible one is the whole
  * heading, not a chevron beside it — the same reason a reminder row is one big
  * target rather than several small ones.
+ *
+ * Only the sections {@link SECTION_CHROME} calls headings arrive here; the ones
+ * you open wear {@link SectionButton} instead.
  */
 function SectionHeader({
-  item,
+  title,
+  count,
+  collapsible,
+  collapsed,
   onToggle,
 }: {
-  item: ReminderHeaderItem;
+  title: string;
+  count: number;
+  collapsible: boolean;
+  collapsed: boolean;
   onToggle: () => void;
 }) {
   const heading = (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{TEXT[item.section]}</Text>
-      <Text style={styles.muted}>{item.count}</Text>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.muted}>{count}</Text>
     </View>
   );
-  if (!item.collapsible) return heading;
+  if (!collapsible) return heading;
   return (
     <Pressable
       accessible
       accessibilityRole="button"
-      accessibilityState={{ expanded: !item.collapsed }}
+      accessibilityState={{ expanded: !collapsed }}
       onPress={onToggle}
     >
       {heading}
+    </Pressable>
+  );
+}
+
+/**
+ * A section that opens from a button — see {@link SECTION_CHROME} for why these
+ * two are not headings.
+ *
+ * It stays a button once open, rather than turning into a heading: it is still
+ * the control that closes the section again, and a control that changes shape
+ * when you use it is one you have to re-learn. `expanded` is what says which way
+ * it will go, to a screen reader and to nothing else — the label is the same
+ * either way, because the count is the useful half and it is true in both
+ * states.
+ */
+function SectionButton({
+  label,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: !collapsed }}
+      onPress={onToggle}
+      style={[styles.buttonSecondary, styles.buttonBlock, styles.sectionButton]}
+    >
+      <Text style={styles.buttonSecondaryText}>{label}</Text>
     </Pressable>
   );
 }

@@ -1,5 +1,4 @@
 import {
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -14,49 +13,18 @@ import { colors } from "../lib/styles";
 export type CheckedState = boolean | "mixed";
 
 /**
- * A checkbox: the box and its tap target. The caller owns the state and whatever
- * write flipping it performs, so this stays usable both for a screen holding
- * selection in memory (the contacts import's select-all) and for one whose
- * "state" is a row in the database (a reminder's completion).
+ * The box alone, with no tap target or accessibility role of its own — for a row
+ * that is itself the checkbox and carries both.
  *
- * The box is 24pt, under the 44pt touch-target guidance, so `hitSlop` makes up
- * the difference here rather than at each call site.
- *
- * Where the *whole row* is the toggle, use {@link CheckboxBox} inside that row's
- * own pressable instead — a pressable nested in a pressable would claim the
- * checkbox role twice and leave a screen reader with two controls for one write.
+ * There is deliberately no standalone checkbox *control* beside this. There was
+ * one, and it had exactly two callers: a select-all on an import checklist that
+ * no longer exists, and a reminder's completion, which is a button among that
+ * reminder's other offers now (`app/reminders/[id]/index.tsx`). A tick that
+ * stands on its own turns out to be the wrong shape for this app twice over —
+ * it is a small target on screens whose every other control is full width, and
+ * it renders a decision as a property. Where a whole row toggles, the row wears
+ * the role and this draws the box.
  */
-export function Checkbox({
-  checked,
-  onPress,
-  accessibilityLabel,
-  disabled = false,
-  style,
-}: {
-  checked: CheckedState;
-  onPress: () => void;
-  accessibilityLabel?: string;
-  disabled?: boolean;
-  /** Caller-side nudges — alignment against neighbouring text, dimming. */
-  style?: StyleProp<ViewStyle>;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ checked, disabled }}
-      disabled={disabled}
-      hitSlop={8}
-      onPress={onPress}
-      style={style}
-    >
-      <CheckboxBox checked={checked} />
-    </Pressable>
-  );
-}
-
-/** The box alone, with no tap target or accessibility role of its own — for a
- *  row that is itself the checkbox and carries both. */
 export function CheckboxBox({
   checked,
   style,
