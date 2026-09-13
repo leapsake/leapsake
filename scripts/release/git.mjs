@@ -16,6 +16,18 @@ export const headSha = (root) => git(root, ["rev-parse", "HEAD"]);
 export const isClean = (root) => git(root, ["status", "--porcelain"]) === "";
 
 /**
+ * Whether this is a shallow clone — a checkout whose history, and therefore whose tag list,
+ * is deliberately incomplete.
+ *
+ * It exists for `monotonic` in `preflight.mjs`. Every other check reads the working tree,
+ * which a shallow clone represents perfectly well; that one reads *history*, and a partial
+ * answer there is worse than no answer, because an incomplete tag list is indistinguishable
+ * from a repository that has never released.
+ */
+export const isShallow = (root) =>
+  git(root, ["rev-parse", "--is-shallow-repository"]) === "true";
+
+/**
  * The commit a tag names. `rev-list -n 1` resolves annotated and lightweight tags alike,
  * where `rev-parse <tag>` would return the tag object's own sha for an annotated tag and
  * quietly fail a comparison against HEAD.

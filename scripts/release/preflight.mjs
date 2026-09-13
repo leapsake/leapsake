@@ -67,12 +67,38 @@ const tagAvailable = {
  * because the pre-release suffix is stripped for the stores, a `0.2.0-alpha.1` upload
  * spends `0.2.0` as far as they are concerned. A number that goes backwards is not
  * fixable in the next release; it is fixable only by abandoning the version.
+ *
+ * ⚠️ **Its real failure mode is an absent comparison, not a wrong one.** This check reads
+ * *history*, and every other one reads the working tree — so it is the only check a
+ * checkout can defeat by being incomplete. An unreadable tag list looks exactly like a
+ * repository that has never released, and the naive reading of that (nothing to compare
+ * against, so allow it) fails **open** on precisely the guard whose mistake is permanent.
+ *
+ * Both shapes that produce it are what a runner does *by default* — a shallow clone, and a
+ * checkout that fetched no tags — which is why this refuses instead of shrugging, and why
+ * the one legitimate empty list has to be claimed out loud with `--first-release`.
  */
-const monotonic = {
+export const monotonic = {
   name: "version increases",
-  check: ({ version, tags }) => {
+  check: ({ version, tags, shallow, firstRelease }) => {
+    if (shallow) {
+      return (
+        "this is a shallow clone, so the tag list is incomplete and what has already " +
+        "shipped cannot be known — fetch the full history and its tags before releasing " +
+        "(actions/checkout wants fetch-depth: 0)"
+      );
+    }
+
     const highest = highestVersion(tags);
-    if (highest === null) return undefined;
+    if (highest === null) {
+      return firstRelease
+        ? undefined
+        : "no release tags are visible, so there is nothing to compare against — on a " +
+            "runner that almost always means tags were never fetched (actions/checkout " +
+            "wants fetch-depth: 0), not that this is a new repository. If it really is " +
+            "the first release here, pass --first-release to say so";
+    }
+
     if (compareVersions(version, highest) > 0) return undefined;
     return `${version} does not come after ${highest} (${formatTag(highest)} is the highest tag) — store versions only ever go forward`;
   },

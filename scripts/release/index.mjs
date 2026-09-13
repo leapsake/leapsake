@@ -58,6 +58,7 @@
 //   node scripts/release/index.mjs ... --only=ios,android   default: every ready target
 //   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
 //   node scripts/release/index.mjs ... --no-provision       assume the devices are ready
+//   node scripts/release/index.mjs ... --first-release      this repo has no release tags yet
 //   node scripts/release/index.mjs --help                   the stage/target matrix
 //
 // Exit code: 2 for a usage error, 1 for a refused or failed release, 0 when every selected
@@ -73,6 +74,7 @@ import {
   createTag,
   currentBranch,
   isClean,
+  isShallow,
   listTags,
 } from "./git.mjs";
 import { FROM_TAG_CHECKS, LOCAL_CHECKS } from "./preflight.mjs";
@@ -290,6 +292,11 @@ async function main() {
     tags: allTags.filter((each) => each !== tag),
     branch: currentBranch(ROOT),
     clean: isClean(ROOT),
+    // Both are read by `monotonic`, the one check that reads history rather than the
+    // working tree: a tag list that cannot be trusted is refused rather than believed,
+    // and the single legitimate empty list is claimed by hand instead of inferred.
+    shallow: isShallow(ROOT),
+    firstRelease: opts.flags.has("first-release"),
     dryRun,
   };
 
@@ -471,11 +478,25 @@ async function main() {
     return 1;
   }
 
-  console.log(
-    mode === "local"
-      ? `\n✅ ${tag} shipped. Nothing has been pushed — when you are ready:\n   git push origin ${ctx.branch} ${tag}`
-      : `\n✅ ${tag} shipped.`,
-  );
+  if (mode !== "local") {
+    console.log(`\n✅ ${tag} shipped.`);
+  } else if (stage === "final") {
+    // The one rung whose tag outruns the thing it names. Every other rung is finished when
+    // the upload is: the artifact reached the audience the rung means. This one has only
+    // asked, and Apple answers days later — so the tag is a claim about a commit that is
+    // not true yet. An unpushed tag can still be deleted after a rejection; a pushed one
+    // is a permanent assertion that this commit is what the public got.
+    console.log(
+      `\n✅ ${tag} shipped — the build is uploaded, not released. Do not push the tag yet:\n` +
+        "   Apple has not approved it, and a rejection wants a different commit than this one.\n" +
+        "   Once the version is actually live on the App Store:\n" +
+        `   git push origin ${ctx.branch} ${tag}`,
+    );
+  } else {
+    console.log(
+      `\n✅ ${tag} shipped. Nothing has been pushed — when you are ready:\n   git push origin ${ctx.branch} ${tag}`,
+    );
+  }
   return 0;
 }
 
