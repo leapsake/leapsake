@@ -26,19 +26,27 @@ store; once an account exists it is encrypted at `stores/<accountId>/`, with the
 doors in `doors.db` beside it. The full cross-repo map is in
 [`@leapsake/key-custody`](../../packages/key-custody/README.md).
 
-**Android auto-backup is off, deliberately** — `android.allowBackup: false` in `app.json`, where
-Expo otherwise defaults it to `true`. The *restore* path was never the problem: Google Auto Backup
-takes the app's files and `shared_prefs` but **never** the OS keystore, so a restore arrives with
-an encrypted store, its doors, and no key — which lands on the unlock gate and costs one password,
-exactly as the custody model intends (`expo-secure-store` returns `null` rather than throwing on an
-invalidated key, so the boot takes its surviving-sidecar branch). What the flag is off for is the
-**other** store: a device with no account holds its data _plaintext by design_, and backup would
-ship every person, contact method and birthday to Google in readable form — not something a
-privacy product should do silently, and not something [`../../PRIVACY.md`](../../PRIVACY.md)
-describes. **The trade, stated plainly:** there is no automatic device-to-device migration, so
-replacing a phone means [`@leapsake/export`](../../packages/export/README.md) or sync. That is only
-defensible while the export path is real. If migration is ever wanted back, the narrower move is to
-keep backup on and exclude `stores/local/` via `dataExtractionRules` — not to flip this flag.
+**Cloud backup is off on both platforms, deliberately.** Android: `android.allowBackup: false` in
+`app.json`, where Expo otherwise defaults it to `true`. iOS: `plugins/with-store-backup-exclusion.js`
+marks `<Documents>/SQLite` — where expo-sqlite puts every database — as excluded, because iOS backs
+Documents up to iCloud by default and there is no JS API for the flag in `expo-file-system@56`.
+
+The _restore_ path was never the problem: neither platform backs up the OS keystore, so a restore
+arrives with an encrypted store, its doors, and no key — which lands on the unlock gate and costs
+one password, exactly as the custody model intends (`expo-secure-store` returns `null` rather than
+throwing on an invalidated key, so the boot takes its surviving-sidecar branch). What backup is off
+for is the **other** store: a device with no account holds its data _plaintext by design_, and
+backup would ship every person, contact method and birthday to Apple or Google in readable form —
+not something a privacy product should do silently, and not something
+[`../../PRIVACY.md`](../../PRIVACY.md) describes.
+
+**The trade, stated plainly:** there is no automatic device-to-device migration, so replacing a
+phone means [`@leapsake/export`](../../packages/export/README.md) or sync. That is only defensible
+while the export path is real. If migration is ever wanted back, the narrower move on both
+platforms is to exclude only `stores/local/` — `dataExtractionRules` on Android, a narrower path in
+the plugin on iOS — rather than to switch backup off wholesale. It is wholesale today because an
+exclusion rule **fails open**: a renamed slot or a new plaintext artifact silently stops matching,
+and nothing goes red. Off fails closed.
 
 ## Running
 
