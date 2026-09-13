@@ -66,25 +66,33 @@ function civilDaysFromToday(days: number): CivilDate {
 describe("onboarding reminders (end to end through core)", () => {
   it("seeds the day-one nudges on a fresh store", async () => {
     const result = await core.reminders.regenerateSystem();
-    expect(result).toEqual({ created: 3, updated: 0, removed: 0 });
+    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
 
     const rows = await systemReminders();
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     // All are dateless and map through the exported CTA convention.
     for (const r of rows) {
       expect(r.dueDate).toBeNull();
       expect(onboardingRouteOf(r.id)).not.toBeNull();
     }
-    // A fresh store holds nobody, so the account invitation (which waits for data
-    // worth protecting) and the notifications step (which waits for something to
-    // be notified about) stay away; the three answerable on day one do not.
+    // A fresh store holds nobody, so only the notifications step (which waits for
+    // something to be notified about) stays away. The account invitation is here:
+    // since 2026-09-13 it no longer waits for data, so that protecting the device
+    // is offered *before* the import rather than after it.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("import"), idFor("about-you")]),
+      new Set([
+        idFor("connect-sync"),
+        idFor("create-account"),
+        idFor("import"),
+        idFor("about-you"),
+      ]),
     );
     // Home order (through the real driver + list ordering): sign-in leads so a
-    // returning user gets back into their account before re-adding anyone.
+    // returning user gets back into their account before re-adding anyone, and
+    // protecting the device sits above importing into it.
     expect(rows.sort(compareReminderDue).map((r) => r.id)).toEqual([
       idFor("connect-sync"),
+      idFor("create-account"),
       idFor("import"),
       idFor("about-you"),
     ]);
@@ -143,10 +151,13 @@ describe("onboarding reminders (end to end through core)", () => {
     });
 
     const result = await core.reminders.regenerateSystem();
-    // Only the sign-in nudge retires; the import nudge stays (still no entities).
-    expect(result.removed).toBe(1);
+    // Both custody nudges retire together, because `enableSync` creates the
+    // account *and* binds the relay: one act satisfies both conditions. The import
+    // nudge stays (still no entities).
+    expect(result.removed).toBe(2);
     const live = await systemReminders();
     expect(live.map((r) => r.id)).not.toContain(idFor("connect-sync"));
+    expect(live.map((r) => r.id)).not.toContain(idFor("create-account"));
     expect(live.map((r) => r.id)).toContain(idFor("import"));
   });
 
@@ -179,15 +190,17 @@ describe("onboarding reminders (end to end through core)", () => {
   });
 
   describe("the account invitation", () => {
-    it("appears only once there is data, and retires the moment an account exists", async () => {
-      // A brand-new profile sees no custody invitation at all.
+    it("stands from day one, and retires the moment an account exists", async () => {
+      // It no longer waits for data *(owner, 2026-09-13)*: waiting guaranteed an
+      // import landed in a plaintext store before anyone was asked to encrypt it.
       await core.reminders.regenerateSystem();
-      expect((await systemReminders()).map((r) => r.id)).not.toContain(
+      expect((await systemReminders()).map((r) => r.id)).toContain(
         idFor("create-account"),
       );
 
-      // The first person is the data an account would protect access to — and
-      // creating one reconciles in the same call, so no explicit regenerate here.
+      // Data arriving neither summons it nor retires it — it was already standing,
+      // and only an account (or "don't ask again") takes it down. Creating a person
+      // reconciles in the same call, so no explicit regenerate here.
       await core.people.create(
         {
           firstName: "Mary",

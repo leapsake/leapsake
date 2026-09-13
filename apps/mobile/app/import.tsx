@@ -4,6 +4,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -18,7 +19,11 @@ import {
   observeDeviceContactSync,
   syncDeviceContacts,
 } from "../lib/device-contacts-sync";
-import { useCore } from "../lib/core-context";
+import { useCore, useSync } from "../lib/core-context";
+import {
+  CreateAccountForm,
+  RecoveryKeyReveal,
+} from "../components/ProtectData";
 import { styles } from "../lib/styles";
 
 /**
@@ -34,11 +39,33 @@ import { styles } from "../lib/styles";
  * Duplicates are left to the review after the import (see {@link finish}) rather
  * than flagged beforehand: it merges the two records, where a pre-import warning
  * could only offer to leave the contact out.
+ *
+ * ## The protect offer comes first *(2026-09-13)*
+ *
+ * An accountless store is **plaintext by design** (`encryption/model.md` §7.2), and
+ * this screen is the single largest write the app ever makes to it — an entire
+ * address book. Importing first and offering encryption afterwards was the shape
+ * the onboarding nudges used to guarantee, and it is the wrong way round twice
+ * over: the whole list lands in the clear, and the conversion that follows cannot
+ * scrub those bytes out of free space (`model.md` §12). So a device with no account
+ * is asked here, before a single contact is read.
+ *
+ * ⚠️ **It is an offer, not a wall.** *Import without protecting* is right there and
+ * costs one tap, because nothing may stand between opening the app and using it
+ * (`model.md` §7). The offer is the opinionated default; the skip is what keeps it
+ * a default rather than a gate.
  */
 
 type Access = "all" | "limited";
 
 type State =
+  /** Reading custody before anything else — the offer below depends on it. */
+  | { phase: "checking" }
+  /** No account: offer to encrypt this device before the address book lands. */
+  | { phase: "offer" }
+  | { phase: "protecting" }
+  /** The one-time phrase, which every caller of the form owes the user. */
+  | { phase: "revealing"; phrase: string }
   | { phase: "working" }
   | { phase: "denied" }
   | { phase: "error"; message: string }
@@ -51,10 +78,43 @@ type State =
 
 export default function ImportScreen() {
   const core = useCore();
+  const sync = useSync();
   const router = useRouter();
-  const [state, setState] = useState<State>({ phase: "working" });
+  const [state, setState] = useState<State>({ phase: "checking" });
+  // Gates the import effect below. Set by taking or declining the offer, and by
+  // the custody check when there is no offer to make.
+  const [importing, setImporting] = useState(false);
+
+  function startImport() {
+    setState({ phase: "working" });
+    setImporting(true);
+  }
+
+  // Which side of the offer this visit falls on. A store that already holds an
+  // account is encrypted, so there is nothing to ask and the import starts as it
+  // always did.
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const status = await sync.status();
+        if (!live) return;
+        if (status.hasAccount) startImport();
+        else setState({ phase: "offer" });
+      } catch {
+        // A custody read that fails must not strand the user on a screen they
+        // came here to use. Falling through to the import is the same behaviour
+        // this screen had before the offer existed.
+        if (live) startImport();
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [sync]);
 
   useEffect(() => {
+    if (!importing) return;
     let live = true;
     // Everything that lands while this screen is up is this import's result,
     // not only its own run's: see `observeDeviceContactSync` for the background
@@ -109,7 +169,7 @@ export default function ImportScreen() {
       live = false;
       stopObserving();
     };
-  }, [core]);
+  }, [core, importing]);
 
   /**
    * Leave the import. Nothing checked the contacts against people who already
@@ -129,11 +189,81 @@ export default function ImportScreen() {
     else router.dismissTo("/people");
   }
 
-  if (state.phase === "working") {
+  if (state.phase === "checking" || state.phase === "working") {
     return (
       <Screen title="Import from Contacts">
         <ActivityIndicator />
       </Screen>
+    );
+  }
+
+  if (state.phase === "offer") {
+    return (
+      <Screen title="Import from Contacts">
+        <Text style={styles.rowText}>
+          Your contacts are about to be written to this device. Right now
+          nothing here is encrypted — setting up a login encrypts it first, so
+          they land protected rather than in the clear.
+        </Text>
+        {/* Promise access, not safety — the same line the form itself takes. An
+            account protects against this device losing its security settings; it
+            does nothing about a lost or broken phone. */}
+        <Text style={styles.muted}>
+          It takes a minute and nothing is sent anywhere. You can do it later
+          from Settings instead, but the contacts imported before then will have
+          been written unencrypted.
+        </Text>
+        <Pressable
+          testID="import-protect-first"
+          accessibilityRole="button"
+          style={[styles.button, styles.buttonBlock]}
+          onPress={() => setState({ phase: "protecting" })}
+        >
+          <Text style={styles.buttonText}>Protect my data first</Text>
+        </Pressable>
+        {/* Named for what it does rather than softened into "skip", because it is
+            the choice with a consequence and the user is entitled to read it. */}
+        <Pressable
+          testID="import-without-protecting"
+          accessibilityRole="button"
+          style={[styles.buttonSecondary, styles.buttonBlock]}
+          onPress={startImport}
+        >
+          <Text style={styles.buttonSecondaryText}>
+            Import without protecting
+          </Text>
+        </Pressable>
+      </Screen>
+    );
+  }
+
+  if (state.phase === "protecting") {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Protect your data" }} />
+        <ScrollView contentContainerStyle={styles.screen}>
+          <CreateAccountForm
+            onCreated={(phrase) => setState({ phase: "revealing", phrase })}
+          />
+        </ScrollView>
+      </>
+    );
+  }
+
+  // The phrase is shown exactly once and is never derivable again, so this stands
+  // between creating the account and the import it was created for.
+  if (state.phase === "revealing") {
+    return (
+      <>
+        <Stack.Screen
+          options={{ title: "Protect your data", headerBackVisible: false }}
+        />
+        <RecoveryKeyReveal
+          recoveryKey={state.phrase}
+          escrowPending={false}
+          onDone={startImport}
+        />
+      </>
     );
   }
 

@@ -121,14 +121,15 @@ describe("onboarding reminders", () => {
 
   it("seeds the day-one nudges for a fresh store — dateless, system-sourced, exact copy", async () => {
     const result = await regenerateSystemReminders(h.deps);
-    // A fresh store has nobody in it, so the account invitation (which waits for
-    // data worth protecting) and the notifications step (which waits for
-    // something to be notified about) both stay away. The three that are
-    // answerable on day one do not: sign in, import, and say who you are.
-    expect(result).toEqual({ created: 3, updated: 0, removed: 0 });
+    // A fresh store has nobody in it, so only the notifications step (which waits
+    // for something to be notified about) stays away. The four answerable on day
+    // one do not: sign in, protect this device, import, and say who you are. The
+    // account invitation is among them deliberately — asking after the import
+    // would mean the import had already landed in a plaintext store.
+    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
 
     const rows = h.activeSystem();
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     for (const r of rows) {
       expect(r.source).toBe("system");
       expect(r.dueDate).toBeNull(); // onboarding nudges carry no due date
@@ -138,7 +139,12 @@ describe("onboarding reminders", () => {
 
     // Ids are exactly the exported convention, so client CTA lookup lines up.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("import"), idFor("about-you")]),
+      new Set([
+        idFor("connect-sync"),
+        idFor("create-account"),
+        idFor("import"),
+        idFor("about-you"),
+      ]),
     );
     expect(h.byId(idFor("import"))?.title).toBe("📇 Import your contacts");
     expect(h.byId(idFor("connect-sync"))?.title).toBe(
@@ -147,16 +153,17 @@ describe("onboarding reminders", () => {
     expect(h.byId(idFor("about-you"))?.title).toBe("🙋 Tell us about yourself");
   });
 
-  it("orders the day-one nudges: sign in, then import, then who you are", async () => {
+  it("orders the day-one nudges: sign in, protect, import, then who you are", async () => {
     await regenerateSystemReminders(h.deps);
 
-    // Home sorts open reminders with compareReminderDue; all three are dateless,
-    // so the createdAt back-off is what holds them in array order. Import leads
-    // the two that are answerable from an empty store because it is the one that
-    // fills the app; saying who you are is worth less on its own.
+    // Home sorts open reminders with compareReminderDue; all four are dateless, so
+    // the createdAt back-off is what holds them in array order. Protecting the
+    // device sits above importing into it on purpose: taken in that order the
+    // import lands in an encrypted store rather than a plaintext one.
     const ordered = h.activeSystem().sort(compareReminderDue);
     expect(ordered.map((r) => r.id)).toEqual([
       idFor("connect-sync"),
+      idFor("create-account"),
       idFor("import"),
       idFor("about-you"),
     ]);
@@ -166,7 +173,7 @@ describe("onboarding reminders", () => {
     await regenerateSystemReminders(h.deps);
     const second = await regenerateSystemReminders(h.deps);
     expect(second).toEqual({ created: 0, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(3);
+    expect(h.activeSystem()).toHaveLength(4);
   });
 
   it("retires 'import your contacts' once an entity exists, keeping the sign-in nudge", async () => {
@@ -176,9 +183,9 @@ describe("onboarding reminders", () => {
     h.signals.hasSelf = true; // ...and said who they are (retiring that one too)
     h.signals.hasNotificationPolicy = true; // ...and answered notifications (isolating this)
     const result = await regenerateSystemReminders(h.deps);
-    // The same data that retires "import your contacts" is what there is now to
-    // protect, so the account invitation arrives in the very same reconcile.
-    expect(result).toEqual({ created: 1, updated: 0, removed: 2 });
+    // Nothing is created: the account invitation has stood since day one, so
+    // arriving at data does not summon it — it is already there, unanswered.
+    expect(result).toEqual({ created: 0, updated: 0, removed: 2 });
 
     const live = h.activeSystem();
     expect(new Set(live.map((r) => r.id))).toEqual(
@@ -194,8 +201,10 @@ describe("onboarding reminders", () => {
     expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
 
     const live = h.activeSystem();
+    // The account invitation stands: a bound relay is not an account, and this
+    // store still holds none.
     expect(new Set(live.map((r) => r.id))).toEqual(
-      new Set([idFor("import"), idFor("about-you")]),
+      new Set([idFor("create-account"), idFor("import"), idFor("about-you")]),
     );
   });
 
@@ -208,7 +217,7 @@ describe("onboarding reminders", () => {
     h.signals.hasNotificationPolicy = true; // every condition met
 
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, updated: 0, removed: 3 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 4 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 
@@ -223,7 +232,11 @@ describe("onboarding reminders", () => {
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.byId(id)?.deletedAt).not.toBeNull();
     expect(new Set(h.activeSystem().map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("about-you")]),
+      new Set([
+        idFor("connect-sync"),
+        idFor("create-account"),
+        idFor("about-you"),
+      ]),
     );
   });
 
@@ -315,16 +328,12 @@ describe("onboarding reminders", () => {
   });
 
   describe("the account invitation", () => {
-    it("stays away until there is data worth protecting", async () => {
-      // A brand-new profile sees no custody invitation at all: an Unauthenticated
-      // store is plaintext with nothing in it, so there is nothing an account
-      // would protect access to yet.
-      await regenerateSystemReminders(h.deps);
-      expect(h.activeSystem().map((r) => r.id)).not.toContain(
-        idFor("create-account"),
-      );
-
-      h.signals.hasEntitiesBesidesSelf = true; // the user's first person/pet lands
+    it("stands from day one, before there is anything to protect", async () => {
+      // The reversal *(owner, 2026-09-13)*. It used to wait for
+      // `hasEntitiesBesidesSelf`, which paired with the import step's
+      // `!hasEntitiesBesidesSelf` to guarantee the address book was written in the
+      // clear *before* anyone was asked to encrypt it. Asking first is the whole
+      // point: it puts the import inside an encrypted store.
       await regenerateSystemReminders(h.deps);
 
       const invitation = h.byId(idFor("create-account"));
@@ -336,16 +345,24 @@ describe("onboarding reminders", () => {
       expect(invitation?.dueDate).toBeNull();
     });
 
-    it("arrives on the first reconcile after an import, with no elapsed-time floor", async () => {
-      // The deliberate consequence of gating on data rather than on days: a user
-      // who imports their whole address book on day one is at the moment the
-      // account matters most, and that is exactly when they are asked.
-      h.signals.hasEntitiesBesidesSelf = true;
+    it("is offered before the import, not after it", async () => {
+      // The property the reversal exists for, as a test: on the very first
+      // reconcile of an empty store both invitations are on Home together, and
+      // the account one is above it (see the ordering test). Nothing has to
+      // happen first for it to be askable.
       const result = await regenerateSystemReminders(h.deps);
       expect(result.created).toBeGreaterThan(0);
-      expect(h.activeSystem().map((r) => r.id)).toContain(
-        idFor("create-account"),
-      );
+      const ids = h.activeSystem().map((r) => r.id);
+      expect(ids).toContain(idFor("create-account"));
+      expect(ids).toContain(idFor("import"));
+    });
+
+    it("neither summons nor retires when data later arrives", async () => {
+      await regenerateSystemReminders(h.deps);
+      h.signals.hasEntitiesBesidesSelf = true; // the user's first person/pet lands
+      await regenerateSystemReminders(h.deps);
+
+      expect(h.byId(idFor("create-account"))?.deletedAt).toBeNull();
     });
 
     it("sits directly below the sign-in nudge, above everything else", async () => {
@@ -568,10 +585,10 @@ describe("onboarding + milestone families coexist", () => {
     h.deps.resolveLabel = async () => "Violet";
 
     const result = await regenerateSystemReminders(h.deps);
-    // Three onboarding nudges + the birthday's day-of wish, none pruning the
+    // Four onboarding nudges + the birthday's day-of wish, none pruning the
     // others. No `plan` prompt: on the day itself the wish is all that is left
     // to choose, and a question with one answer is not asked.
-    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(4);
+    expect(result).toEqual({ created: 5, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(5);
   });
 });

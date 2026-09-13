@@ -18,13 +18,16 @@
 #    assert specific expected text, never emptiness or counts.
 #
 #    ⚠️ It asserts one nudge's text, **not that it is the only row**, and that distinction
-#    now matters: as of 2026-09-10 a fresh store also seeds `about-you`, which asks who you
-#    are and no longer waits for anyone to exist first. `create-account` and
-#    `enable-notifications` stay away (both wait for a person besides you), and
+#    now matters twice over: as of 2026-09-10 a fresh store also seeds `about-you`, which
+#    asks who you are and no longer waits for anyone to exist first, and as of 2026-09-13
+#    `create-account` does too — it stopped waiting for data so that protecting the device
+#    is offered *before* the import rather than after it (`ONBOARDING_STEPS`). Only
+#    `enable-notifications` still stays away (it waits for a person besides you), and
 #    `sync-devices` is behind the `multiDevice` flag, which v0.1 ships off — so Home holds
-#    exactly two rows here. `import-contacts` is the one this reads because it leads them,
-#    and because it replaced `add-first-person` on the same date, which is why the asserted
-#    text changed. The reasoning did not: a specific expected string, never a count.
+#    three rows here, with `create-account` above this one. `import-contacts` is the text
+#    this reads because it is the step the flow is about, and because it replaced
+#    `add-first-person`, which is why the asserted string changed. The reasoning did not:
+#    a specific expected string, never a count.
 #
 # 2. **The at-rest gate's title is "Unlock your data"**, not the catalog's "Restore access
 #    to your data" (`lib/core-context.tsx` → `RecoveryGate`). Asserting the real string.

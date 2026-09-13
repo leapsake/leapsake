@@ -691,22 +691,37 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
     // **The account invitation** — the other half of the fork above, and the step
     // that gets a user from Unauthenticated to Authenticated (`encryption/model.md`
-    // §7.2.1). It waits for `hasEntities` because an account protects *access to
-    // data*, and there is nothing to protect until some exists.
+    // §7.2.1).
     //
-    // Not a wall-clock delay, deliberately. Gating on data rather than on days
-    // elapsed is what puts the invitation in front of someone who imported 200
-    // contacts on day one — the moment the account matters most, and exactly the
-    // moment an elapsed-time floor would mute it.
+    // **It no longer waits for data** *(owner, 2026-09-13)*. It used to read
+    // `hasEntitiesBesidesSelf && !hasAccount`, reasoning that an account protects
+    // *access to data* and there is nothing to protect until some exists. That is
+    // true as far as it goes, and it had a consequence nobody chose: the import
+    // step below applies while `!hasEntitiesBesidesSelf`, so the two were mutually
+    // exclusive **by construction** and the order was always *import first, protect
+    // second*. A user's whole address book was written into a plaintext store, and
+    // only then were they invited to encrypt it — and the conversion that follows
+    // cannot scrub those bytes out of free space (`encryption/model.md` §12).
+    // Asking first costs nothing and puts the entire import inside the encrypted
+    // store instead.
+    //
+    // **Still a nudge, never a wall.** One dateless row on Home, dismissible and
+    // put-off-able like every other, gating nothing. The zero-setup first run is
+    // untouched, which is the constraint that rules out asking any harder than
+    // this (`model.md` §7 — first-run onboarding must not force account setup).
+    //
+    // ⚠️ **The cost is a busier day one.** An empty store now shows this beside
+    // "import your contacts" and "tell us about yourself". Crowding is exactly what
+    // `about-you` was reshaped to avoid, so this is a deliberate trade rather than
+    // an oversight: the plaintext window is permanent, and a third row is not.
     //
     // The copy promises **access, not safety**: an Unauthenticated store is
-    // plaintext with no keys, so there is nothing yet to be locked out of, and a
-    // *backup* — not an account — is what survives a lost device. Saying
-    // otherwise would be a guarantee the product does not make.
+    // plaintext with no keys, and a *backup* — not an account — is what survives a
+    // lost device. Saying otherwise would be a guarantee the product does not make.
     key: "create-account",
     title: "🔐 Set up your login to protect the data on this device",
     route: "create-account",
-    applies: (s) => s.hasEntitiesBesidesSelf && !s.hasAccount,
+    applies: (s) => !s.hasAccount,
   },
   {
     /**
