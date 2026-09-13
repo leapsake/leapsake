@@ -265,10 +265,11 @@ the one irreversible step in the whole sequence. `scripts/release/targets/androi
 
 ## What the transfer costs, and why it is affordable
 
-A transfer changes the **signing principal**, and
+**This section is about iOS.** An App Store transfer changes the **signing principal**, and
 [`@leapsake/key-custody`](../packages/key-custody/README.md) → *The signing identity owns the
 enclave key* is the fact to read first: **every existing enclave key becomes unreadable, for
-everyone, at once.**
+everyone, at once.** ⚠️ **This cost does not generalize** — see *Android's transfer is free* below
+before carrying this table over to the Play move.
 
 ✅ **Confirmed against Apple, not assumed** *(2026-09-06)*. The hopeful reading — that the App ID
 keeps its original prefix so keychain access survives — is **wrong**: a transferred App ID takes
@@ -286,19 +287,48 @@ vindication that model has had:
 | **Unauthenticated** (no account) | **nothing** — there are no keys, the store is plaintext, it opens |
 | **Authenticated** | **one password entry** at the recovery gate; the phrase only if they have forgotten the password too |
 
-Three consequences, all actionable:
+Five consequences, all actionable:
 
 - **Blast radius scales with user count, so keep GA and the transfer close together.** Every day
   between them adds users who meet that gate. Step 1 running in parallel is what keeps the gap in
   days rather than months.
 - **The gate needs a sentence, timed to the transfer.** A password prompt with no explanation
   reads as a breach. Release notes at minimum; a line on the gate itself is better.
+- ⚠️ **Prove the password still works *before* the transfer, or the gate strands people.** The
+  table says "one password entry", and that is true of everyone who knows their password. It is
+  false for a user who created an account, never saved the 24 words, and has since forgotten the
+  password: the enclave opens their store silently today, so **they have no idea anything is
+  wrong**, and the transfer turns that latent state into permanent, unrecoverable loss — on a date
+  we choose, for everyone at once. Ship a release ahead of the transfer that asks for the password
+  once and checks it against the door. Whoever fails learns it while the enclave still opens
+  everything and an export is still one tap away. It is the only mitigation here that **recovers**
+  data rather than explaining its loss.
 - **Rehearse it before you rely on it.** `apps/mobile/app/dev-clear-dbkey.tsx` reproduces exactly
   this scenario — keychain key gone, store and doors intact. Both doors of it are automated now
   (Flows 7c and 7b), so the rehearsal is a suite run rather than a ceremony.
 - **macOS ships after the transfer** for the same reason. `safeStorage`'s keychain ACL is bound to
   the code signature, so shipping desktop under the personal Developer ID first would pay this
   cost a second time, on a second platform, for nothing.
+
+### Android's transfer is free, and the iOS cost must not be carried over *(2026-09-13)*
+
+**A Play transfer costs users nothing** — no gate, no password, no re-key. Play App Signing keeps
+the **app signing key** with the app, so the signature a device sees is unchanged, the Android
+Keystore entries stay valid, and `expo-secure-store` keeps reading them. Google's transfer doc
+moves the package name and "all users, statistics, data, comments, ratings" across, and issues a
+new signing key **only if the receiving account requests one** via key upgrade. So the whole rule
+is: **do not request a key upgrade at transfer time.** Asking for one would buy Android the entire
+iOS cost above, for nothing.
+
+The consequence for sequencing: **data safety does not decide where Android launches.** Launching
+from the personal account and transferring later is safe for user data — the reason Android still
+waits for the company account is the **12-tester/14-day closed-test wall**, which binds personal
+accounts created after 2023-11-13, ours included. That is a schedule cost, not a data risk, and it
+is [`android-pipeline.md`](./android-pipeline.md)'s call to make rather than this section's.
+
+**Not a transfer concern, but the Android data risk that is real:** Google Auto Backup ships an
+accountless device's *plaintext* store to Drive. Closed at the source — `android.allowBackup:
+false` — with the reasoning in [`apps/mobile/README.md`](../apps/mobile/README.md) → *Layout*.
 
 ## What must be true before the transfer will start
 
