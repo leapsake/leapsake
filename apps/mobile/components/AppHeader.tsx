@@ -74,6 +74,11 @@ const LOGO_SIZE = { full: 26, compact: 19 } as const;
  * catalogs that sit in there without a button — and every pushed screen
  * *structurally* does. No screen opts in, and none can get it wrong.
  *
+ * A screen can still opt *out*, with react-navigation's own
+ * `headerBackVisible: false` (read in `app/_layout.tsx`) — for one that offers
+ * its own single way on and would otherwise show two controls for one decision.
+ * It can only ever take the control away, so the rule above survives it.
+ *
  * That is also what makes the single row above safe rather than lucky: it is not
  * that back and a create action happen not to co-occur today, it is that the
  * navigator that grants one cannot grant the other.

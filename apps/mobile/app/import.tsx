@@ -175,7 +175,7 @@ export default function ImportScreen() {
 
   const { result, access, promptSelf } = state;
   return (
-    <Screen title="Import complete">
+    <Screen title="Import complete" hideBack>
       <Text style={styles.rowText}>
         {result.created > 0
           ? `Imported ${result.created} ${result.created === 1 ? "person" : "people"}.`
@@ -221,23 +221,55 @@ export default function ImportScreen() {
           </Pressable>
         </View>
       )}
+      {/* The one way off this screen, the header's Back being withheld here (see
+          {@link Screen}). They were two controls for one decision and only this
+          one does the work: it asks the detector what the import implicated and
+          lands on the review, where Back would drop the user wherever they
+          happened to arrive from and leave the duplicates unseen.
+
+          A **button** in both states rather than a bare word in one. The quiet
+          style is what lets "Pick yourself" lead without demoting this to a link
+          nobody is sure is tappable — and it is now the only way out, which a
+          link is the wrong shape for. */}
       <Pressable
         accessibilityRole="button"
         // Secondary once the self prompt is up, so "Pick yourself" leads.
-        style={promptSelf ? undefined : styles.button}
+        style={[
+          promptSelf ? styles.buttonSecondary : styles.button,
+          styles.buttonBlock,
+        ]}
         onPress={() => void finish(result)}
       >
-        <Text style={promptSelf ? styles.link : styles.buttonText}>Done</Text>
+        <Text
+          style={promptSelf ? styles.buttonSecondaryText : styles.buttonText}
+        >
+          Done
+        </Text>
       </Pressable>
     </Screen>
   );
 }
 
-/** A simple container for each of the screen's states. */
-function Screen({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * A simple container for each of the screen's states.
+ *
+ * `hideBack` is how the finished state ends up with exactly one way out — see
+ * the Done button above. Every **other** state keeps Back, and must: none of
+ * them offers a way on, so a screen you could not leave is a worse bargain than
+ * a redundant control.
+ */
+function Screen({
+  title,
+  hideBack = false,
+  children,
+}: {
+  title: string;
+  hideBack?: boolean;
+  children: ReactNode;
+}) {
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title, headerBackVisible: !hideBack }} />
       {children}
     </View>
   );

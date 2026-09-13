@@ -67,8 +67,18 @@ export default function RootLayout() {
                 // `back` is undefined at the root of the stack, which is what
                 // keeps a back control off the tab roots without any screen
                 // having to say so.
+                //
+                // `headerBackVisible: false` is the one way a screen opts out on
+                // top of that, and it is react-navigation's own option rather
+                // than an invention — the native header honours it too, so a
+                // screen says this once and means it whoever draws the bar. It
+                // is for a screen that offers its **own** single way on, where
+                // Back would be a second control for one decision: today only
+                // the finished state of `app/import.tsx`.
                 onBack={
-                  back === undefined ? undefined : () => navigation.goBack()
+                  back === undefined || options.headerBackVisible === false
+                    ? undefined
+                    : () => navigation.goBack()
                 }
               />
             ),
