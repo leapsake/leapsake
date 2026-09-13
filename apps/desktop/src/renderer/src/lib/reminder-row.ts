@@ -9,9 +9,15 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
     // ⚠️ Desktop has no import *screen* — import is the window-wide drag-and-drop
     // overlay (`DropImportProvider`), with no way to open it from a link. So this
     // lands on the people list, where dropping a vCard works and the create form
-    // is one click on. Mobile sends the same step to a real importer. Revisit
-    // when desktop ships (`plans/shipping.md` → Part 2).
-    import: { path: "/people", label: "Import your contacts →" },
+    // is one click on. Mobile sends the same step to a real importer.
+    //
+    // The label is the bare verb because the row's own title already spends the
+    // noun ("📇 Import your contacts"), and "Import your contacts →" beneath it
+    // said the same three words twice. The verb is currently a small overstatement
+    // — it opens a list you can drop onto, not an importer — and the intended fix
+    // is a file picker behind this link rather than longer copy *(owner,
+    // 2026-09-13)*. Revisit when desktop ships (`plans/shipping.md` → Part 2).
+    import: { path: "/people", label: "Import →" },
     // The two custody routes land on the same screen today — an accountless
     // Settings renders `CreateAccount` above `SyncSetup`, so each nudge's target
     // is already on it — but they stay two routes, not one. The labels are the
