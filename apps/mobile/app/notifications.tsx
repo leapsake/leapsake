@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import {
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -22,6 +23,16 @@ const MODE_OPTIONS: { value: NotificationMode; label: string }[] = [
   { value: "digest", label: "Digest" },
   { value: "each", label: "One per reminder" },
 ];
+
+/** The title on the alert a failed write raises. One title for the lot: every
+ *  write this screen makes is the same kind of thing — a policy row for some
+ *  device — so naming which one failed would say nothing the screen doesn't. */
+const FAILURE_TITLE = "Couldn’t save that";
+
+/** 9:00 AM, and what a device delivers at until somebody says otherwise. Named
+ *  because two places need it: the load below, and the pickers, which have to
+ *  show a time before this device has a policy row at all. */
+const DEFAULT_DELIVERY_MINUTE = 540;
 
 /** "9:00 AM" for minute 540 — matches `deliveryMinute`'s "minutes past local
  *  midnight" contract (migration 29). */
@@ -82,16 +93,49 @@ export default function NotificationsScreen() {
     ]);
     return {
       mode: mine?.mode ?? ("off" as NotificationMode),
-      deliveryMinute: mine?.deliveryMinute ?? 540,
+      deliveryMinute: mine?.deliveryMinute ?? DEFAULT_DELIVERY_MINUTE,
       others: others.filter((row) => row.id !== deviceId),
     };
   }, [core, deviceId]);
   const { data, reload } = useFocusedData(load);
+  /**
+   * What the user has just chosen, for as long as the write and the reload
+   * behind it take to make it true.
+   *
+   * ⚠️ **Without this the pickers flicker A → B → A → B**, and the cause is in
+   * `@react-native-picker/picker` rather than here. Spinning the wheel moves it
+   * natively *and* fires `onValueChange`; the picker then compares the index
+   * native landed on against the one its `selectedValue` prop still names, and
+   * when they differ commands native **back** to the prop. Every value on this
+   * screen is read from the database, so between the spin and the reload the
+   * prop still says A: the picker snaps back to it, then jumps to B when the
+   * reload finally lands. Opting in makes the trip long enough to be
+   * unmissable, since it waits on the OS permission dialog before anything is
+   * written at all.
+   *
+   * So the prop has to follow the choice *synchronously*, which is what this is
+   * — an overlay, not a copy. The screen still reads through to the stored
+   * policy, so a peer's edit arriving on a sync pull still appears (see
+   * {@link useFocusedData}); only the value being written is held here, and only
+   * until it is written.
+   */
+  const [pendingMine, setPendingMine] = useState<{
+    mode?: NotificationMode;
+    deliveryMinute?: number;
+  }>({});
+  const [pendingOthers, setPendingOthers] = useState<
+    Record<string, NotificationMode>
+  >({});
 
   // request-at-opt-in (§4): only when the picker leaves `off`, never at
-  // launch and never for a device that is already asking.
-  async function requestPermissionIfOptingIn(nextMode: NotificationMode) {
-    if (nextMode === "off" || data?.mode !== "off") return;
+  // launch and never for a device that is already asking. `wasMode` is passed
+  // rather than read back off `data`, so it is the policy in force *before* this
+  // change whatever the overlay above is currently showing.
+  async function requestPermissionIfOptingIn(
+    nextMode: NotificationMode,
+    wasMode: NotificationMode,
+  ) {
+    if (nextMode === "off" || wasMode !== "off") return;
     const result = await requestNotificationPermissionOnThisDevice({
       deviceId,
       requestPermission: async () => {
@@ -112,22 +156,59 @@ export default function NotificationsScreen() {
     mode?: NotificationMode;
     deliveryMinute?: number;
   }) {
-    if (patch.mode === "off") setPermissionNotice(null);
-    else if (patch.mode !== undefined) {
-      await requestPermissionIfOptingIn(patch.mode);
+    const wasMode = data?.mode ?? "off";
+    setPendingMine((current) => ({ ...current, ...patch }));
+    try {
+      if (patch.mode === "off") setPermissionNotice(null);
+      else if (patch.mode !== undefined) {
+        await requestPermissionIfOptingIn(patch.mode, wasMode);
+      }
+      await core.notificationSettings.setPolicy(deviceId, {
+        ...patch,
+        label: Platform.OS === "ios" ? "iPhone" : "Android phone",
+        platform: Platform.OS,
+      });
+      await reload();
+    } catch (cause) {
+      Alert.alert(FAILURE_TITLE, String(cause));
+    } finally {
+      // Back to reading the stored policy either way, and only for the fields
+      // this write carried: after a reload that *is* the value just chosen, and
+      // after a failure it is the one actually in force. A picker still showing
+      // a write that never landed would be lying rather than merely flickering.
+      setPendingMine((current) => {
+        const next = { ...current };
+        if ("mode" in patch) delete next.mode;
+        if ("deliveryMinute" in patch) delete next.deliveryMinute;
+        return next;
+      });
     }
-    await core.notificationSettings.setPolicy(deviceId, {
-      ...patch,
-      label: Platform.OS === "ios" ? "iPhone" : "Android phone",
-      platform: Platform.OS,
-    });
-    await reload();
   }
 
   async function setOtherMode(otherId: string, mode: NotificationMode) {
-    await core.notificationSettings.setPolicy(otherId, { mode });
-    await reload();
+    setPendingOthers((current) => ({ ...current, [otherId]: mode }));
+    try {
+      await core.notificationSettings.setPolicy(otherId, { mode });
+      await reload();
+    } catch (cause) {
+      Alert.alert(FAILURE_TITLE, String(cause));
+    } finally {
+      setPendingOthers((current) => {
+        const next = { ...current };
+        delete next[otherId];
+        return next;
+      });
+    }
   }
+
+  // What this device's two pickers show: the choice in flight if there is one,
+  // else the stored policy. `data` is null only before the first load, when
+  // nothing that reads these is on screen.
+  const mode = pendingMine.mode ?? data?.mode ?? "off";
+  const deliveryMinute =
+    pendingMine.deliveryMinute ??
+    data?.deliveryMinute ??
+    DEFAULT_DELIVERY_MINUTE;
 
   return (
     <>
@@ -142,14 +223,14 @@ export default function NotificationsScreen() {
           <View style={{ gap: 8 }}>
             <SelectField
               label="On this phone"
-              value={data.mode}
+              value={mode}
               options={MODE_OPTIONS}
-              onChange={(mode) => void setMine({ mode })}
+              onChange={(next) => void setMine({ mode: next })}
             />
-            {data.mode !== "off" && (
+            {mode !== "off" && (
               <SelectField
                 label="Deliver at"
-                value={String(data.deliveryMinute)}
+                value={String(deliveryMinute)}
                 options={TIME_OPTIONS}
                 onChange={(value) =>
                   void setMine({ deliveryMinute: Number(value) })
@@ -180,9 +261,9 @@ export default function NotificationsScreen() {
                   <SelectField
                     key={row.id}
                     label={row.label ?? row.platform ?? "Unknown device"}
-                    value={row.mode}
+                    value={pendingOthers[row.id] ?? row.mode}
                     options={MODE_OPTIONS}
-                    onChange={(mode) => void setOtherMode(row.id, mode)}
+                    onChange={(next) => void setOtherMode(row.id, next)}
                   />
                 ))}
               </View>
