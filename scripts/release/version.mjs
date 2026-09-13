@@ -2,9 +2,15 @@
 //
 // The rule this file exists to enforce: **a human chooses the stage, never the number.**
 // `alpha` → `beta` → `rc` → final is a ladder of tags, and the counter on each rung is
-// derived from the tags that already exist rather than typed. The one number a person
-// picks is the base `X.Y.Z` when a new release train starts, which is a decision made once
-// per train and passed explicitly (`--base=`).
+// derived from the tags that already exist rather than typed. Starting a new release train
+// is the one decision left to a person, and it is made once per train with `--base=`.
+//
+// ⚠️ **Prefer `--base=patch|minor|major` to a typed number.** A base that goes *backwards*
+// is caught by the monotonic guard; a base that goes too far **forwards** is not, and it is
+// the one unrecoverable mistake in the whole path — the stores see the numeric core, so a
+// mistyped `--base=1.1.0` spends `1.1.0` and burns every version beneath it, permanently.
+// Naming the kind of bump instead removes the number from human hands, which is the same
+// principle the rest of this file already applies to the counters.
 //
 // Everything here is pure — no git, no filesystem — so it can be tested directly
 // (`version.test.mjs`). The caller supplies the tag list.
@@ -119,6 +125,45 @@ export function highestVersion(tags) {
   return versions.length > 0 ? versions[versions.length - 1] : null;
 }
 
+/** The ways to name a new train without typing its number. */
+export const BUMP_KINDS = ["patch", "minor", "major"];
+
+/**
+ * The only three cores a release train may legitimately start on, given the one before it.
+ *
+ * Semver leaves exactly this much choice, which is what makes it a useful guard: everything
+ * outside these three is a typo rather than a decision. `0.1.0` may be followed by `0.1.1`,
+ * `0.2.0` or `1.0.0` — never by `0.11.0`, and never by `1.1.0`.
+ */
+export function successorCores(core) {
+  const parsed = parseVersion(core);
+  if (!parsed) throw new Error(`not a version: "${core}"`);
+  return {
+    patch: `${parsed.major}.${parsed.minor}.${parsed.patch + 1}`,
+    minor: `${parsed.major}.${parsed.minor + 1}.0`,
+    major: `${parsed.major + 1}.0.0`,
+  };
+}
+
+/**
+ * The core this release sits on: the manifests' own, a computed successor of it, or an
+ * explicit one.
+ *
+ * An explicit base must be a bare `X.Y.Z`. A suffix here would be a second, competing
+ * source of the rung — `--base=0.2.0-rc.1` reads as if it set the stage, and it does not.
+ */
+function resolveCore(current, base) {
+  const core = coreOf(current);
+  if (base === undefined) return core;
+  if (BUMP_KINDS.includes(base)) return successorCores(core)[base];
+  if (!/^\d+\.\d+\.\d+$/.test(base)) {
+    throw new Error(
+      `--base must be ${BUMP_KINDS.join("|")} or a bare X.Y.Z, got "${base}"`,
+    );
+  }
+  return base;
+}
+
 /**
  * The next version on a rung: the highest counter already tagged for this core and stage,
  * plus one — or `.1` when this is the first build on the rung.
@@ -131,15 +176,14 @@ export function highestVersion(tags) {
  *
  * @param current the version the manifests currently hold
  * @param stage one of {@link STAGES}
- * @param base overrides the core — the one number a human picks, once per release train
+ * @param base a {@link BUMP_KINDS} kind, or an explicit bare core — how a new train starts
  * @param tags every tag in the repo
  */
 export function nextVersion({ current, stage, base, tags = [] }) {
   if (!STAGES.includes(stage)) {
     throw new Error(`unknown stage "${stage}" (expected ${STAGES.join(", ")})`);
   }
-  const core = base ?? coreOf(current);
-  if (!parseVersion(core)) throw new Error(`not a version: "${core}"`);
+  const core = resolveCore(current, base);
   if (stage === "final") return core;
 
   let highest = 0;

@@ -5,7 +5,16 @@
 // refused is the moment the reason gets read.
 import { spawnSync } from "node:child_process";
 
-import { compareVersions, formatTag, highestVersion } from "./version.mjs";
+import {
+  BUMP_KINDS,
+  compareVersions,
+  coreOf,
+  formatTag,
+  highestVersion,
+  parseVersion,
+  releaseVersions,
+  successorCores,
+} from "./version.mjs";
 import { headSha, tagSha } from "./git.mjs";
 
 const RELEASE_BRANCH = /^release\/\d+\.\d+\.\d+$/;
@@ -100,7 +109,53 @@ export const monotonic = {
     }
 
     if (compareVersions(version, highest) > 0) return undefined;
+
+    // The commonest way to land here is not a mistake about *this* number at all: it is
+    // starting the next train without saying so, on a repository whose current core has
+    // already shipped. Diagnosing the violation without naming the remedy would leave the
+    // reader to infer `--base` at exactly the moment they are trying to ship.
+    const core = coreOf(version);
+    if (
+      parseVersion(version).prerelease.length > 0 &&
+      releaseVersions(tags).includes(core)
+    ) {
+      return `${core} has already shipped, so ${version} would go backwards — this is a new release train, and it needs a base: --base=${BUMP_KINDS.join("|")} (or an explicit X.Y.Z)`;
+    }
+
     return `${version} does not come after ${highest} (${formatTag(highest)} is the highest tag) — store versions only ever go forward`;
+  },
+};
+
+/**
+ * Where a new release train is allowed to start.
+ *
+ * `monotonic` refuses a base that goes backwards. Nothing refused one that went too far
+ * *forwards*, and that is the asymmetry worth closing: the stores see the numeric core, so
+ * an upload of `1.1.0-alpha.1` spends `1.1.0` and every version below it is gone for good.
+ * `--base=0.11.0` for `0.1.1`, or `1.1.0` for `0.1.1`, are one keystroke away and sail past
+ * every other check in this file.
+ *
+ * Semver allows exactly three successors, so anything else is a typo rather than a
+ * decision. A base equal to the current core is permitted only while that core is still
+ * unreleased, where it is a no-op restating where the train already is.
+ *
+ * A {@link BUMP_KINDS} kind needs no check: it was computed rather than typed, which is the
+ * whole reason to prefer it.
+ */
+export const baseIsSuccessor = {
+  name: "base version",
+  check: ({ base, manifestVersion, tags }) => {
+    if (base === undefined || BUMP_KINDS.includes(base)) return undefined;
+
+    const core = coreOf(manifestVersion);
+    const released = releaseVersions(tags).includes(core);
+    const legal = Object.values(successorCores(core));
+    if (!released) legal.unshift(core);
+    if (legal.includes(base)) return undefined;
+
+    return `--base=${base} is not where this can go next. ${core} is ${
+      released ? "already released" : "the train in progress"
+    }, so the choices are ${legal.join(", ")} — or name the kind and let it be computed: --base=${BUMP_KINDS.join("|")}`;
   },
 };
 
@@ -135,6 +190,9 @@ export const LOCAL_CHECKS = [
   releaseBranch,
   manifestsAgree,
   tagAvailable,
+  // Before `monotonic`, so a bad base is named as such rather than reported downstream as
+  // a complaint about the version derived from it.
+  baseIsSuccessor,
   monotonic,
 ];
 

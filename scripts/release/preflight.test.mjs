@@ -8,7 +8,7 @@
 // the empty cases are what carry the weight here, not the arithmetic.
 import { describe, expect, it } from "vitest";
 
-import { monotonic } from "./preflight.mjs";
+import { baseIsSuccessor, monotonic } from "./preflight.mjs";
 
 /** A context in the shape `runChecks` passes, defaulting to a healthy local checkout. */
 const ctx = (over = {}) => ({
@@ -69,5 +69,79 @@ describe("monotonic", () => {
         monotonic.check(ctx({ tags: [], firstRelease: true })),
       ).toBeUndefined();
     });
+  });
+
+  it("names --base when the core has already shipped", () => {
+    // Forgetting to start a new train computes a prerelease of a released core. Saying
+    // only "does not come after" would leave the reader to infer the remedy.
+    const reason = monotonic.check(
+      ctx({ version: "0.1.0-alpha.4", tags: ["v0.1.0-alpha.3", "v0.1.0"] }),
+    );
+    expect(reason).toMatch(/already shipped/);
+    expect(reason).toMatch(/--base=patch\|minor\|major/);
+  });
+});
+
+// The asymmetry this closes: `monotonic` refuses every base that goes backwards and none
+// that goes too far forwards — and forwards is the direction that cannot be undone, since
+// the stores see the numeric core and an upload spends it permanently.
+/** A repository whose 0.1.0 train is finished: the bare tag exists. */
+const shipped = (over = {}) => ({
+  manifestVersion: "0.1.0-rc.2",
+  tags: ["v0.1.0-rc.2", "v0.1.0"],
+  ...over,
+});
+
+describe("baseIsSuccessor", () => {
+  it("has nothing to say when no base was passed", () => {
+    expect(baseIsSuccessor.check(shipped({ base: undefined }))).toBeUndefined();
+  });
+
+  it("waves through a bump kind, which was computed rather than typed", () => {
+    for (const base of ["patch", "minor", "major"]) {
+      expect(baseIsSuccessor.check(shipped({ base }))).toBeUndefined();
+    }
+  });
+
+  it("accepts each of the three cores semver allows next", () => {
+    for (const base of ["0.1.1", "0.2.0", "1.0.0"]) {
+      expect(baseIsSuccessor.check(shipped({ base }))).toBeUndefined();
+    }
+  });
+
+  it("refuses a fat-fingered core that monotonic would have allowed", () => {
+    // `0.11.0` and `1.1.0` both sort *above* 0.1.0, so nothing else in the file objects.
+    for (const base of ["0.11.0", "1.1.0", "9.9.9"]) {
+      const reason = baseIsSuccessor.check(shipped({ base }));
+      expect(reason).toMatch(/is not where this can go next/);
+      expect(reason).toMatch(/0\.1\.1, 0\.2\.0, 1\.0\.0/);
+    }
+  });
+
+  it("refuses re-releasing a core that already shipped", () => {
+    expect(baseIsSuccessor.check(shipped({ base: "0.1.0" }))).toMatch(
+      /already released/,
+    );
+  });
+
+  it("allows restating the core of a train still in progress", () => {
+    // Pre-GA the manifests sit on 0.1.0 with no bare tag: naming it again is a no-op.
+    expect(
+      baseIsSuccessor.check({
+        base: "0.1.0",
+        manifestVersion: "0.1.0-beta.7",
+        tags: ["v0.1.0-beta.7"],
+      }),
+    ).toBeUndefined();
+  });
+
+  it("still bounds the jump while a train is in progress", () => {
+    expect(
+      baseIsSuccessor.check({
+        base: "1.1.0",
+        manifestVersion: "0.1.0-beta.7",
+        tags: ["v0.1.0-beta.7"],
+      }),
+    ).toMatch(/the train in progress/);
   });
 });

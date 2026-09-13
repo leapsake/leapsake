@@ -10,8 +10,9 @@
 //
 //   vX.Y.Z-alpha.N  <  vX.Y.Z-beta.N  <  vX.Y.Z-rc.N  <  vX.Y.Z
 //
-// **A human chooses the rung; the number is computed** (`version.mjs`). The base `X.Y.Z`
-// is the single exception — one decision per release train, passed as `--base=`. A tag is
+// **A human chooses the rung; the number is computed** (`version.mjs`). Starting a new
+// train is the single exception — one decision per train, passed as `--base=`, and best
+// given as `patch`/`minor`/`major` so even that number is computed rather than typed. A tag is
 // cut when a build is wanted, not on every merge: each one spends a store upload.
 //
 // **A tag covers the whole repo; the platforms it reaches are per-invocation.** Every
@@ -53,7 +54,7 @@
 // is printed at the end.
 //
 // Usage:
-//   node scripts/release/index.mjs <alpha|beta|rc|final> [--base=X.Y.Z]
+//   node scripts/release/index.mjs <alpha|beta|rc|final> [--base=patch|minor|major|X.Y.Z]
 //   node scripts/release/index.mjs --from-tag=<tag>
 //   node scripts/release/index.mjs ... --only=ios,android   default: every ready target
 //   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
@@ -126,7 +127,7 @@ const fail = (message) => {
 /** The matrix, built by asking the registry — never a table maintained alongside it. */
 function printHelp() {
   console.log(
-    "Usage: pnpm release <alpha|beta|rc|final> [--base=X.Y.Z] [--only=…] [--dry-run]",
+    "Usage: pnpm release <alpha|beta|rc|final> [--base=patch|minor|major|X.Y.Z] [--only=…] [--dry-run]",
   );
   console.log("       pnpm release --from-tag=<tag> [--only=…] [--dry-run]\n");
   console.log(
@@ -154,6 +155,11 @@ function resolveRelease({ positional, values }, { manifestVersion, tags }) {
   if (fromTag) {
     if (positional.length > 0) {
       fail(`--from-tag names the stage already; drop "${positional[0]}"`);
+    }
+    // The tag carries the whole version, so a base here has nothing to decide — and would
+    // read as if it did.
+    if (values.base !== undefined) {
+      fail(`--from-tag names the version already; drop --base=${values.base}`);
     }
     const version = parseTag(fromTag);
     if (!version) {
@@ -292,6 +298,9 @@ async function main() {
     tags: allTags.filter((each) => each !== tag),
     branch: currentBranch(ROOT),
     clean: isClean(ROOT),
+    // The raw `--base`, for `baseIsSuccessor` to judge. `version` is what it produced;
+    // this is what was asked for, and only one of the two can be a typo.
+    base: opts.values.base,
     // Both are read by `monotonic`, the one check that reads history rather than the
     // working tree: a tag list that cannot be trusted is refused rather than believed,
     // and the single legitimate empty list is claimed by hand instead of inferred.
@@ -308,6 +317,14 @@ async function main() {
   console.log(
     `  version      ${version}${version === ctx.storeVersion ? "" : `  (stores see ${ctx.storeVersion})`}`,
   );
+  // Say it out loud when the core moves. A new train is the one thing here a person chose
+  // rather than the tags deciding, so it should be visible before the suite runs rather
+  // than inferred from the version afterwards.
+  if (coreOf(manifestVersion) !== ctx.storeVersion) {
+    console.log(
+      `  train        new — ${coreOf(manifestVersion)} → ${ctx.storeVersion}`,
+    );
+  }
   console.log(`  from         ${ctx.branch} @ ${mode}`);
 
   // ── Preflight, repo-wide ────────────────────────────────────────────────────────────

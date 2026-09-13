@@ -12,6 +12,7 @@ import {
   parseTag,
   parseVersion,
   stageOf,
+  successorCores,
 } from "./version.mjs";
 
 describe("parseVersion", () => {
@@ -140,15 +141,63 @@ describe("nextVersion", () => {
     );
   });
 
-  it("takes an explicit base — the one number a human picks", () => {
+  it("takes an explicit base, for the train a kind cannot express", () => {
     expect(
       nextVersion({ current, stage: "alpha", base: "0.2.0", tags: [] }),
     ).toBe("0.2.0-alpha.1");
+  });
+
+  it("computes the core from a bump kind, so it cannot be mistyped", () => {
+    const shipped = "0.1.0-rc.2";
+    expect(
+      nextVersion({ current: shipped, stage: "alpha", base: "patch" }),
+    ).toBe("0.1.1-alpha.1");
+    expect(
+      nextVersion({ current: shipped, stage: "alpha", base: "minor" }),
+    ).toBe("0.2.0-alpha.1");
+    expect(
+      nextVersion({ current: shipped, stage: "alpha", base: "major" }),
+    ).toBe("1.0.0-alpha.1");
+  });
+
+  it("carries a bump kind through to a final release too", () => {
+    expect(
+      nextVersion({ current: "0.1.0-rc.2", stage: "final", base: "minor" }),
+    ).toBe("0.2.0");
+  });
+
+  it("refuses a base carrying a suffix, which would read as setting the rung", () => {
+    expect(() =>
+      nextVersion({ current, stage: "alpha", base: "0.2.0-rc.1" }),
+    ).toThrow(/bare X\.Y\.Z/);
   });
 
   it("refuses a stage that is not on the ladder", () => {
     expect(() => nextVersion({ current, stage: "nightly", tags: [] })).toThrow(
       /unknown stage/,
     );
+  });
+});
+
+describe("successorCores", () => {
+  it("offers the three semver allows, and nothing else", () => {
+    expect(successorCores("0.1.0")).toEqual({
+      patch: "0.1.1",
+      minor: "0.2.0",
+      major: "1.0.0",
+    });
+  });
+
+  it("resets the lower parts rather than carrying them", () => {
+    // The trap this guards: `0.4.7` → minor is `0.5.0`, never `0.5.7`.
+    expect(successorCores("0.4.7")).toEqual({
+      patch: "0.4.8",
+      minor: "0.5.0",
+      major: "1.0.0",
+    });
+  });
+
+  it("counts past nine numerically", () => {
+    expect(successorCores("0.9.9").minor).toBe("0.10.0");
   });
 });
