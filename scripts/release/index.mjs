@@ -74,11 +74,13 @@ import {
   commitAll,
   createTag,
   currentBranch,
+  headSha,
   isClean,
   isShallow,
   listTags,
 } from "./git.mjs";
 import { FROM_TAG_CHECKS, LOCAL_CHECKS } from "./preflight.mjs";
+import { NOTES_REF, recordShipment } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
 import {
   coreOf,
@@ -466,6 +468,29 @@ async function main() {
     try {
       const artifact = await target.build(ctx);
       await target.publish({ ...ctx, artifact });
+      // Record what shipped, against the commit it shipped from. This is the only moment
+      // the build number and the commit are both in hand — Apple will later name the
+      // build and nothing else, so without this the commit behind a released version is
+      // unknowable. `headSha` *is* the tagged commit here: the tag was cut above and
+      // nothing between has moved it.
+      const recorded = recordShipment(ROOT, headSha(ROOT), {
+        tag,
+        version,
+        stage,
+        target: target.id,
+        buildNumber: artifact?.buildNumber,
+        bundleId: artifact?.bundleId,
+      });
+      // Never fatal. The artifact is already uploaded; turning that into a failed release
+      // over bookkeeping would be the worse outcome — so this says loudly what was lost
+      // and how to put it back by hand.
+      if (!recorded) {
+        console.warn(
+          `   ⚠ could not record the receipt for ${target.id} — going live will not be ` +
+            `able to find the commit behind build ${artifact?.buildNumber}. Add it with:\n` +
+            `     git notes --ref=${NOTES_REF} append -m '{"tag":"${tag}","target":"${target.id}","build":"${artifact?.buildNumber}"}' ${headSha(ROOT)}`,
+        );
+      }
       results.push({ target, ok: true, ms: Date.now() - started });
     } catch (error) {
       console.error(`✗ ${target.id}: ${error.message}`);
@@ -495,6 +520,11 @@ async function main() {
     return 1;
   }
 
+  // `refs/notes/releases` is named in every push hint below because it does not travel with
+  // an ordinary push: leave it behind and the receipts exist only on this machine, so a
+  // fresh clone — or a runner — cannot tell which commit a released build came from.
+  const push = `git push origin ${ctx.branch} ${tag} refs/notes/${NOTES_REF}`;
+
   if (mode !== "local") {
     console.log(`\n✅ ${tag} shipped.`);
   } else if (stage === "final") {
@@ -507,11 +537,11 @@ async function main() {
       `\n✅ ${tag} shipped — the build is uploaded, not released. Do not push the tag yet:\n` +
         "   Apple has not approved it, and a rejection wants a different commit than this one.\n" +
         "   Once the version is actually live on the App Store:\n" +
-        `   git push origin ${ctx.branch} ${tag}`,
+        `   ${push}`,
     );
   } else {
     console.log(
-      `\n✅ ${tag} shipped. Nothing has been pushed — when you are ready:\n   git push origin ${ctx.branch} ${tag}`,
+      `\n✅ ${tag} shipped. Nothing has been pushed — when you are ready:\n   ${push}`,
     );
   }
   return 0;
