@@ -140,9 +140,7 @@ describe("onboarding reminders", () => {
     expect(new Set(rows.map((r) => r.id))).toEqual(
       new Set([idFor("connect-sync"), idFor("import"), idFor("about-you")]),
     );
-    expect(h.byId(idFor("import"))?.title).toBe(
-      "📇 Import your contacts to get started",
-    );
+    expect(h.byId(idFor("import"))?.title).toBe("📇 Import your contacts");
     expect(h.byId(idFor("connect-sync"))?.title).toBe(
       "🔄 Already have Leapsake on another device? Sign in.",
     );

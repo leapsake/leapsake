@@ -733,7 +733,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
      * land on a tombstone and never come back. See {@link duplicatesReminderId}.
      */
     key: "import-contacts",
-    title: "📇 Import your contacts to get started",
+    title: "📇 Import your contacts",
     route: "import",
     applies: (s) => !s.hasEntitiesBesidesSelf,
   },

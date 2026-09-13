@@ -45,9 +45,12 @@ const OFFER_LABELS = {
   onboarding: "Get started ›",
   signIn: "Sign in ›",
   createAccount: "Create your account ›",
-  // Named rather than generic, and the third route to earn that. "Get started"
-  // reads as *begin something* — right under a row asking you to add your first
-  // person, wrong under one asking you to flip a switch, which begins nothing.
+  // Named because the row's own title stopped carrying the verb: it says
+  // *Import your contacts*, and "Get started ›" under that asks the reader to
+  // join the two up. One word, and the button says what the tap does.
+  importContacts: "Import ›",
+  // Named for a plainer reason. "Get started" reads as *begin something* —
+  // wrong under a row asking you to flip a switch, which begins nothing.
   turnOn: "Turn them on ›",
   duplicates: "Review ›",
   seeGifts: "See their gifts ›",
@@ -111,24 +114,30 @@ export type RowOffer =
   | { kind: "dismiss"; label: string };
 
 /**
- * What each nudge's call to action says. Generic where the row's own title
- * already names the act ("Import your contacts to get started" → *Get started*),
- * and specific where "Get started" would be actively wrong.
+ * What each nudge's call to action says. Named wherever the generic word would
+ * mislead or leave the act unsaid; generic on the one route where it still reads
+ * — **about you**, whose title asks a question ("Tell us about yourself") that
+ * the button is simply the way into.
  *
  * The two **custody** routes are one fork — sign in to an account you have, or
  * create one — sat on Home together, and a shared "Get started" under both is the
  * flattening the fork exists to prevent: it reads as *begin something new* under
  * a row offering to get a returning user back into what they already have.
  *
- * **Notifications** is named for a plainer version of the same objection: it
+ * **Import** was the route the generic word was *for*, until its title stopped
+ * carrying the verb *(owner, 2026-09-13)*: "Import your contacts to get started"
+ * became "Import your contacts", and under that "Get started ›" asks the reader
+ * to join the two up. "Import ›" is the same tap with nothing left to infer.
+ *
+ * **Notifications** is named for a plainer version of the custody objection: it
  * begins nothing. It is a switch, and "Get started ›" over a switch promises a
  * flow that isn't there.
  *
- * Desktop names every route; this is the narrower version of that, spent where
- * the generic word would mislead rather than merely repeat.
+ * Desktop names every route; this is the narrower version of that, now one route
+ * short of it.
  */
 const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
-  import: OFFER_LABELS.onboarding,
+  import: OFFER_LABELS.importContacts,
   "connect-sync": OFFER_LABELS.signIn,
   "create-account": OFFER_LABELS.createAccount,
   "enable-notifications": OFFER_LABELS.turnOn,

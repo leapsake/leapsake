@@ -122,6 +122,18 @@ describe("offerFor", () => {
     });
   });
 
+  it("names the import route, whose title no longer carries the verb", () => {
+    // The title says "Import your contacts"; "Get started ›" under it would ask
+    // the reader to join the two up.
+    expect(
+      offerFor({ kind: "cta", cta: { kind: "onboarding", route: "import" } }),
+    ).toEqual({
+      kind: "navigate",
+      path: "/import",
+      label: "Import ›",
+    });
+  });
+
   it("maps the duplicates row's CTA", () => {
     const actions = actionsFor("dupes", null, { isDuplicatesNudge: true });
 

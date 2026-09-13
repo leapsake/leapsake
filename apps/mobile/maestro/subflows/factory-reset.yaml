@@ -188,5 +188,5 @@ appId: com.leapsake.app
 # on one run and green on the next. The wait is what makes this deterministic, and it
 # stays non-vacuous — a nudge that never arrives still fails, it is simply given time to.
 - extendedWaitUntil:
-    visible: ".*Import your contacts to get started.*"
+    visible: ".*Import your contacts.*"
     timeout: 30000

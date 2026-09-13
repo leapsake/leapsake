@@ -53,7 +53,7 @@ appId: com.leapsake.app
 - runFlow: ../subflows/factory-reset.yaml
 
 # --- the app booted all the way, and the reminders engine ran ----------------------
-- assertVisible: ".*Import your contacts to get started.*"
+- assertVisible: ".*Import your contacts.*"
 
 # --- no boot gate stands in front of a store that has no keys ----------------------
 # The negative half of "mints nothing": a device that minted a key on first launch and
