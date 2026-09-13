@@ -7,9 +7,12 @@
 
 ## In flight
 
-**v0.1 is iOS alone**, in external TestFlight with a real tester on it. Android and macOS follow
-**after** the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) →
-_Part 2_) — which is also why nothing may reach Play from the personal account.
+**v0.1 is iOS alone**, in external TestFlight with a real tester on it. macOS follows **after**
+the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → _Part 2_).
+
+**Android stopped waiting** _(owner, 2026-09-13)_ — it ships from the **personal** account to the
+**internal track**, which no tester wall binds ([`android-pipeline.md`](./android-pipeline.md)).
+Signed AAB done; the upload is not, and the first one must go through the Console by hand.
 
 **The release path is finished** _(2026-09-13)_. `rc` builds, hands the build to testers **and**
 submits it to App Store review; `final` builds nothing — it releases the approved version and tags

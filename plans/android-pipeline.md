@@ -1,101 +1,96 @@
 # The Android release target, and the Play account that publishes it
 
-> **Deferred past v0.1** *(owner, 2026-09-06)* — v0.1 is **iOS only**, so this is no longer a
-> numbered gating doc and no longer holds a place in the v0.1 order. It keeps its detail rather
-> than folding into [`v0-2.md`](./v0-2.md) because the target contract below is still exactly
-> what has to be built, and the account sequencing is the whole reason it waits.
+> **In flight** *(owner, 2026-09-13)* — Android no longer waits for the company. It ships from
+> the **personal** Play account to the **internal testing track**, and a later app transfer
+> moves it to the company for $25. What is left is the upload half of the target.
 >
 > **Delete this doc when the work lands.** How to cut a build belongs in
 > [`apps/mobile/README.md`](../apps/mobile/README.md); the rules belong in `scripts/release/`,
-> which documents itself. *(Numbered `v0-1_04_mobile-pipeline.md` until 2026-09-06, when its iOS
-> half had shipped and its Android half left v0.1 — `git log` has the history under both names.)*
+> which documents itself. *(Numbered `v0-1_04_mobile-pipeline.md` until 2026-09-06; deferred
+> past v0.1 on 2026-09-06 and un-deferred on 2026-09-13 — `git log` has the history.)*
 
-✅ **The iOS half is done** *(2026-08-26)*, and it was the half v0.1 needed. `pnpm release alpha`
-cuts a tag, gates on the suite, prebuilds, archives with manual signing, exports, validates and
-uploads — `0.1.0-alpha.2` (build 341572) reached TestFlight that way with no Xcode session, and
-three betas have followed. EAS is out; the whole path is local `xcodebuild` plus an App Store
-Connect API key. Store identity and build numbers are settled and encoded.
+✅ **The iOS half is done** *(2026-08-26)*. `pnpm release alpha` cuts a tag, gates on the suite,
+prebuilds, archives with manual signing, exports, validates and uploads — with no Xcode session.
+EAS is out; the whole path is local `xcodebuild` plus an App Store Connect API key.
 
-**What is left is Android, and it now waits on a company rather than on engineering.**
+✅ **The Android build half is done** *(2026-09-13)*.
+[`apps/mobile/plugins/with-android-release-signing.js`](../apps/mobile/plugins/with-android-release-signing.js)
+puts a real `release` signingConfig into the generated project, and `./gradlew bundleRelease`
+produces an AAB whose signer fingerprint matches the upload key. **What is left is the upload.**
 
-## Why this waits, and why waiting is the cheap move
+## Why this stopped waiting *(2026-09-13)*
 
-**The decision** *(owner, 2026-09-06)*: v0.1 ships iOS only from the personal account, Leapsake
-incorporates, the iOS record transfers to the company, and **Android starts under the company
-account** — its first upload ever. See [`shipping.md`](./shipping.md) → *Part 2*.
+⚠️ **This section used to argue the opposite, and it was wrong on every load-bearing fact.** It
+claimed a Play package name is claimed *permanently* by the first account to upload it, that any
+upload would meet the 12-tester/14-day wall, and that uploading from the personal account was
+therefore the one irreversible step in the project. Checked against Google's own support pages:
 
-This is not a delay of the Play work so much as a deletion of most of it:
+- **The 12-tester/14-day wall gates *production access* only.** It binds personal accounts
+  created after 2023-11-13 (ours), and Google's wording is that you run the closed test and
+  *then* apply for production. It was never a tax on uploading.
+- **Internal testing sits outside it entirely** — no minimum testers, no review, live in
+  minutes, on any account type. This is the track v0.1 Android ships to.
+- **App transfers are routine.** Package name, users, statistics, ratings, reviews and listing
+  all move: $25 on the receiving side, about two business days. ⚠️ **The app signing key stays
+  with the app unless the receiving account requests a key upgrade — so never request one**, or
+  Android buys the whole iOS re-key cost ([`shipping.md`](./shipping.md) → *What the transfer
+  costs*) for nothing.
 
-- **The 12-tester/14-day closed-test wall never applies.** It binds *personal* accounts created
-  after 2023-11-13, which ours is. An organization account publishes straight to production.
-  *(Google's page scopes the rule to personal accounts and does not discuss orgs; the exemption
-  is consistent across secondary sources but is not stated by Google in those words — **confirm
-  it before relying on it**, because the whole shape of this doc rests on it.)*
-- **There is no Play app transfer to do**, because nothing was ever published from the personal
-  account. `com.leapsake.app` is claimed on Play by the account that **first uploads** it —
-  globally unique, permanent, bound to that account — so the way to bind it to the company is
-  simply to never upload it from anywhere else. *(The Play **title** is a separate matter and
-  never was at risk: Play titles are not exclusively reserved, checked 2026-08-26.)*
-- **The calendar time moves off the critical path entirely.** The D-U-N-S wait of up to 30 days
-  is real, but it runs in parallel with the iOS GA work rather than in front of a store listing.
+The old rule was a $25 chore wearing a one-way door's costume, and believing it cost this project
+its Android timeline. *(The Play **title** never was at risk: Play titles are not exclusively
+reserved, checked 2026-08-26.)*
 
-⚠️ **The one rule this doc exists to protect: do not upload anything to Play from the personal
-account.** Not an alpha, not a test, not "just to see if the AAB is accepted". The first upload
-is the irreversible step, and it is the only one. Building and installing the AAB locally proves
-everything except the thing that cannot be undone.
+⚠️ **The one thing that genuinely cannot be automated:** the Play Developer API cannot *create*
+an app, and will only edit one that already has a bundle. **The first AAB must be uploaded
+through the Console by hand.** Every upload after it can be scripted. No tooling removes this.
 
-`android.mjs` stays `blocked` for exactly this reason — the release refuses it and explains why,
-rather than relying on someone remembering not to pass a flag.
+⚠️ **Also live, and unresolved:** Android developer verification. Since September 2026 new
+personal accounts must complete identity verification, and no new account reaches production
+without it. Whether it also gates *internal* testing is not stated anywhere found — treat it as
+an unknown with a clock, and start it early.
 
-## What the Android target has to do
+## What the Android target still has to do
 
-It fills in `scripts/release/targets/android.mjs`, which today is a `blocked` stub declaring
-its rungs. The contract it implements is documented in `scripts/release/targets/index.mjs`;
-what follows is only what is *Android-specific*.
+It fills in `scripts/release/targets/android.mjs`, still a `blocked` stub — blocked now because
+the upload is unwritten, not because uploading is dangerous. The contract is documented in
+`scripts/release/targets/index.mjs`; what follows is only what is *Android-specific*.
 
-- **Build an AAB, not an APK.** Play requires the App Bundle for new uploads.
-  `expo prebuild --platform android` then `./gradlew bundleRelease`, with the build number
-  pinned through `LEAPSAKE_BUILD_NUMBER` exactly as iOS does — `android/` is generated and
-  gitignored on the same principle, so nothing may originate there either.
-- **Signing is an upload key, not the app-signing key.** Enrol in **Play App Signing**: Google
-  holds the distribution key and re-signs, and the repo only ever holds the *upload* key. That
-  is the arrangement worth having — a lost upload key is a support ticket, a lost app-signing
-  key is a dead listing. The keystore is passed at invocation from `.env`
-  (`*.jks` / `*.keystore` are already gitignored at any depth).
-- **Upload with a Google Cloud service account**, the Play equivalent of the ASC API key, via
-  the Google Play Developer Publishing API. Never an interactive console upload — that is the
-  step this whole workstream exists to remove.
-- **Map the rungs to tracks** in the target's `tiers`, alongside the names already stubbed:
-  `alpha` → internal testing, `beta`/`rc` → closed testing, `final` → production. Under a company
-  account no rung starts a tester clock, so the tracks are only what they say they are.
-- **Preflights, in the same shape as iOS'**, so a missing prerequisite is reported by
-  `--dry-run` rather than discovered mid-upload: the keystore file and its passwords, the
-  service-account JSON, and the Play track being reachable with the credentials given.
+- ✅ **Build an AAB, not an APK** — `expo prebuild --platform android` then
+  `./gradlew bundleRelease`, with the build number pinned through `LEAPSAKE_BUILD_NUMBER` as iOS
+  does. `android/` is generated and gitignored, so nothing may originate there.
+- ✅ **Signing is an upload key, not the app-signing key.** Play App Signing holds the
+  distribution key; the repo only ever holds the upload key, passed at invocation from `.env`.
+- **Upload with a Google Cloud service account** over the Play Developer API — `edits.insert` →
+  POST the AAB to the `/upload/` host → `edits.tracks.update` → `edits.commit`. Auth is an RS256
+  JWT for scope `androidpublisher`, exchanged at `oauth2.googleapis.com/token`. Worth building
+  hand-rolled against `node:crypto` and `fetch`, exactly as `scripts/release/asc.mjs` is, so
+  `scripts/` keeps its zero dependencies.
+- ⚠️ **Which track each rung ships to is an open decision.** A `ready` Android target means
+  `pnpm release beta` ships Android too — that is the *name no platform* principle working as
+  designed. Android cannot reach production on this account, so the higher rungs must resolve
+  somewhere sane before the status flips. The proposal on the table: `alpha`/`beta`/`rc` all to
+  the internal track, honestly named, with `final` refusing via a check that explains it needs
+  either the closed-test credit or the company account.
+- **Preflights in the same shape as iOS'**, so a missing prerequisite is reported by `--dry-run`
+  rather than mid-upload: the keystore and its password file, the service-account JSON, and the
+  track being reachable with the credentials given.
 
-**Acceptance, in two stages** — because the second one is the irreversible half:
+**Acceptance, in three stages:**
 
-1. **Buildable before the company exists:** `pnpm release <rung> --dry-run` reports a clean
-   `android` row — every preflight passing — and the target produces a signed AAB from a clean
-   checkout that installs and runs on a device. **No upload.** All of this can be written and
-   proved while the incorporation paperwork runs; it is the half that does not touch Play.
-2. **Once the company account exists:** the same command without `--dry-run` uploads to the
-   chosen track from the company account with no Play Console interaction — and that upload is
-   what claims `com.leapsake.app` on Play, permanently and correctly, the first time.
-
-⚠️ **Neither step reaches for `--only`, deliberately.** A release is all-or-nothing across every
-ready target, and selecting one by hand is the habit that makes that untrue. What must hold
-Android back is its own `blocked` status in `android.mjs`, which the release refuses and
-explains, rather than a flag someone has to remember to leave off. **Do not flip that status
-until the account that will publish exists** — it is the interlock standing between a local
-build and an irreversible upload.
+1. ✅ **A signed AAB, no Play account needed** *(2026-09-13)* — built from the plugin above, with
+   the signer fingerprint verified against the upload key.
+2. **The manual bootstrap** — the app record created in Play Console and the first AAB uploaded
+   to the internal track by hand, because the API cannot do it. This is what makes stage 3
+   possible rather than what stage 3 replaces.
+3. **`pnpm release alpha` uploads to the internal track** with no Play Console interaction.
 
 ## The version-parity check this makes possible
 
 ⚠️ **This becomes real the moment Android goes `ready`, and Android arrives into a repo whose
 iOS app is already published.** A tag will then ship two artifacts that claim to work together —
-which is the point of the single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and
-releases*) and also the first moment it can be **wrong**: identical version numbers say nothing
-if the two builds resolve `@leapsake/flags` differently.
+which is the point of the single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) →
+*Versioning and releases*) and also the first moment it can be **wrong**: identical version
+numbers say nothing if the two builds resolve `@leapsake/flags` differently.
 
 A check that both platforms resolve the same flag state, run as a release preflight, is the
 cheapest form of that guarantee. Worth doing while the second target is fresh.
@@ -110,4 +105,6 @@ cheapest form of that guarantee. Worth doing while the second target is fresh.
   `ReactNativeDependencies`, `hermesvm`), so crash reports will not symbolicate frames inside
   them. Our own code symbolicates fine. ⚠️ **This is now an iOS question and it is no longer
   hypothetical** — the App Store is the rung that generates crashes from strangers, and it
-  arrives before this doc does. Decide whether to care as part of GA, not here.
+  arrives before this doc does. Decide whether to care as part of GA, not here. *(Android is the
+  happier case: `bundleRelease` ships native debug symbols in `BUNDLE-METADATA/`, which Play
+  strips from delivery and uses to symbolicate, so Android crash reports arrive legible.)*

@@ -199,7 +199,7 @@ run `pnpm release --help` for the current rules.
   restructuring it into a marker that releases the approved version and tags its commit is
   the change that move forces.
 - **The script tags and never pushes.** Store version strings are permanent and monotonic, a
-  Play closed test starts a 14-day clock at its first upload, and a notarized artifact is
+  Play production rollout reaches strangers as soon as it goes live, and a notarized artifact is
   public the moment its feed sees it — so the irreversible step stays a person's.
 
 ## Commit and PR conventions

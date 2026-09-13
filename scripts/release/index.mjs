@@ -48,10 +48,10 @@
 //
 // ## What it will not do
 //
-// It never pushes. A store version string is permanent and monotonic, a Play closed test
-// starts a 14-day clock at its first upload, and a notarized artifact is public the moment
-// its feed sees it — so the irreversible step stays a person's, and the command to take it
-// is printed at the end.
+// It never pushes. A store version string is permanent and monotonic, a Play production
+// rollout reaches strangers as soon as it goes live, and a notarized artifact is public the
+// moment its feed sees it — so the irreversible step stays a person's, and the command to
+// take it is printed at the end.
 //
 // Usage:
 //   node scripts/release/index.mjs <alpha|beta|rc|final> [--base=patch|minor|major|X.Y.Z]

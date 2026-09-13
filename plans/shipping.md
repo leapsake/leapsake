@@ -268,9 +268,7 @@ the live commit.
 1. **Leapsake incorporates** and gets a D-U-N-S number — up to **30 days**, and the entity must
    exist first, so this runs in parallel with Part 1 rather than after it.
 2. **The iOS record transfers to the company.**
-3. **Android starts under the company account** — [`android-pipeline.md`](./android-pipeline.md).
-   Its first Play upload is its only one, and it claims `com.leapsake.app` correctly.
-4. **macOS follows, signed under the company's Developer ID from its first release** —
+3. **macOS follows, signed under the company's Developer ID from its first release** —
    [`desktop-packaging.md`](./desktop-packaging.md). That ordering is not incidental; see the
    re-key cost below.
 
@@ -279,15 +277,15 @@ version. The only alternative — freeing the name and re-reserving it from the 
 race on a name that _is_ exclusively reserved on Apple's side. GA-then-transfer is the only route
 that keeps the name, the bundle ID, the installs and the reviews.
 
-**Why Android waits rather than hurries:** a Play package name is claimed permanently by the
-account that **first uploads** it, and nothing has ever been uploaded. So Android under the
-company needs no Play transfer at all, and the 12-tester/14-day closed test — a rule for
-_personal_ accounts created after 2023-11-13, which ours is — never applies. What was the
-critical path became a non-event.
+**Android is no longer part of this sequence** _(owner, 2026-09-13)_. It ships from the personal
+account to the internal track now, and moves to the company by ordinary app transfer whenever the
+company exists — [`android-pipeline.md`](./android-pipeline.md).
 
-⚠️ **Do not upload anything to Play from the personal account** — not an alpha, not a test. It is
-the one irreversible step in the whole sequence. `scripts/release/targets/android.mjs` stays
-`status: "blocked"` as the interlock; do not flip it until the company account exists.
+⚠️ **This section used to say the opposite, and the claim it rested on is false.** It held that a
+Play package name is claimed permanently by the first account to upload it, making that upload the
+one irreversible step in the whole sequence. Transfers move the package name; the 12-tester/14-day
+wall gates _production access_ only; and internal testing is exempt from it on every account type.
+The correction and its sources are in [`android-pipeline.md`](./android-pipeline.md).
 
 ## What the transfer costs, and why it is affordable
 
@@ -346,11 +344,12 @@ new signing key **only if the receiving account requests one** via key upgrade. 
 is: **do not request a key upgrade at transfer time.** Asking for one would buy Android the entire
 iOS cost above, for nothing.
 
-The consequence for sequencing: **data safety does not decide where Android launches.** Launching
-from the personal account and transferring later is safe for user data — the reason Android still
-waits for the company account is the **12-tester/14-day closed-test wall**, which binds personal
-accounts created after 2023-11-13, ours included. That is a schedule cost, not a data risk, and it
-is [`android-pipeline.md`](./android-pipeline.md)'s call to make rather than this section's.
+The consequence for sequencing: **data safety does not decide where Android launches** — and as of
+_2026-09-13_ nothing else does either. Launching from the personal account and transferring later
+is safe for user data, and the **12-tester/14-day wall** this paragraph once treated as the one
+remaining obstacle gates _production access_ only; internal testing is exempt from it on every
+account type. Android therefore ships from the personal account to the internal track, and the
+detail is [`android-pipeline.md`](./android-pipeline.md)'s.
 
 **Not a transfer concern, but the Android data risk that is real:** Google Auto Backup ships an
 accountless device's _plaintext_ store to Drive. Closed at the source — `android.allowBackup:

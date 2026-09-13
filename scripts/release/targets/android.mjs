@@ -1,15 +1,21 @@
 // The Android target: Google Play, via a local bundle.
 //
-// Not built, and **deliberately not buildable yet** (owner, 2026-09-06). Android ships after
-// v0.1, published by the company account that does not exist yet — see
-// plans/android-pipeline.md.
+// The build half is done: `apps/mobile/plugins/with-android-release-signing.js` puts a real
+// `release` signingConfig into the generated project, and `./gradlew bundleRelease` produces an
+// AAB signed with the Play upload key (2026-09-13). **The upload half is not written**, which is
+// the whole of why this is still `blocked` — see plans/android-pipeline.md.
 //
-// `status: "blocked"` is doing real work here rather than merely describing an absence. A Play
-// package name is claimed permanently by whichever account **first uploads** it, so an upload
-// from the personal developer account would bind com.leapsake.app to the wrong account for
-// good. This status is the interlock that makes that impossible to do by accident: the release
-// refuses the target and says why. Do not flip it to "ready" until the publishing account
-// exists, however finished the build half looks.
+// ⚠️ **This file used to justify `blocked` with a claim that is false** (corrected 2026-09-13,
+// against Google's own support pages): that a Play package name is claimed *permanently* by
+// whichever account first uploads it, making an upload from the personal account unrecoverable.
+// App transfers move the package name, users, ratings and the app signing key for $25 and about
+// two business days — provided the receiving account never requests a key upgrade. So this
+// status is no longer an interlock protecting against an irreversible act; it describes an
+// absence, which is all it ever needed to do.
+//
+// ⚠️ Flipping it to "ready" is not only about finishing `publish()`. A ready target ships on
+// every tag, so `pnpm release beta` would ship Android too — and Android cannot reach production
+// on this account. Which track each rung maps to has to be settled first.
 //
 // It shares the version and the build number with iOS by construction — `versionCode` and
 // `ios.buildNumber` are the same clock reading from `apps/mobile/app.config.ts` — so the
@@ -18,7 +24,7 @@ export default {
   id: "android",
   label: "Android (Google Play)",
   status: "blocked",
-  note: "after v0.1, from the company Play account — plans/android-pipeline.md",
+  note: "the Play upload is not scripted yet — plans/android-pipeline.md",
 
   preflight: [],
 
@@ -28,8 +34,9 @@ export default {
       name: "closed testing track",
       requires: [],
       manual: [
-        "under a personal account the 14-day/12-tester closed test would start at the first " +
-          "upload; the company account this ships from is exempt — plans/android-pipeline.md",
+        "the 12-tester/14-day closed test gates *production access* for personal accounts " +
+          "created after 2023-11-13 (ours); internal testing is exempt from it entirely. " +
+          "Which track each rung should ship to is still open — plans/android-pipeline.md",
       ],
     },
     rc: { name: "closed testing track (ship-ready)", requires: [] },
