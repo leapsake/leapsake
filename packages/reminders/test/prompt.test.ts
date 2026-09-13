@@ -41,11 +41,15 @@ const APPEARS_DAYS = DUE_DAYS + ACTIVE_DAYS; // 56 — eight weeks
 
 /** A late gift or card is handed over in person — the day before. */
 const IN_PERSON = actionDefs["get:gift"].latestOffsetDays; // 1
+/** A birthday's own lead for an action, derived rather than written down. */
+const offsetOf = (action: string) =>
+  kindDefs.birthday.defaultReminderSchedule.find((d) => d.action === action)!
+    .offsetDays;
+/** A card is bought 12 days out, and must be in the post a week out. */
+const SHOP = offsetOf("get:card"); // 12
+const POST = offsetOf("send:card"); // 7
 /** The last day, in days before a birthday, posting is still offered. */
-const LAST_TO_POST =
-  kindDefs.birthday.defaultReminderSchedule.find(
-    (d) => d.action === "send:card",
-  )!.offsetDays + OFFER_NOTICE_DAYS; // 9
+const LAST_TO_POST = POST + OFFER_NOTICE_DAYS; // 9
 /** The last day, in days before a birthday, shopping is still offered. */
 const LAST_TO_SHOP = IN_PERSON + OFFER_NOTICE_DAYS; // 3
 
@@ -442,6 +446,32 @@ describe("an answer given late", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(giftOf().dueDate).toBe(dueDateMs(occ) - 12 * DAY_MS);
+  });
+
+  const cardAndPost: ReminderRuleInput[] = [
+    { action: "get:card", offsetDays: SHOP, enabled: true },
+    { action: "send:card", offsetDays: POST, enabled: true },
+    { action: "wish", offsetDays: 0, enabled: true },
+  ];
+  const withIcon = (icon: string) =>
+    h.activeSystem().find((r) => r.title?.startsWith(icon) === true)!;
+
+  // ⚠️ The regression, and the reason the slide is applied to the set rather
+  // than to each rule. Answered exactly `SHOP` days out — the day the card's own
+  // deadline has no slack left — the card slid to the day before while the
+  // posting it feeds kept its unmovable week, so the app asked for the card to
+  // be in the post six days before it was bought.
+  it("does not slide a card past the posting that delivers it", async () => {
+    const occ = daysOut(SHOP);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", cardAndPost, at(TODAY));
+    await regenerateSystemReminders(h.deps);
+
+    const card = withIcon(actionDefs["get:card"].icon);
+    const post = withIcon(actionDefs["send:card"].icon);
+    expect(card.dueDate).toBe(dueDateMs(occ) - SHOP * DAY_MS);
+    expect(post.dueDate).toBe(dueDateMs(occ) - POST * DAY_MS);
+    expect(card.dueDate!).toBeLessThan(post.dueDate!);
   });
 
   // Offered only what still fitted, a late answer covers its own year; the

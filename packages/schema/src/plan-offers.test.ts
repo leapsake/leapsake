@@ -1,15 +1,30 @@
 import { describe, expect, it } from "vitest";
+import { observanceDefaultReminderSchedule } from "./holiday.js";
 import {
+  type DefaultReminderRule,
   OFFER_NOTICE_DAYS,
   effectiveOffsetDays,
+  effectiveOffsets,
   fitsAt,
   isPartialAnswer,
+  kindDefs,
   latestOffsetDays,
+  milestoneKindSchema,
   planOffers,
   planTiming,
   promptOffsetDays,
 } from "./milestone.js";
-import type { ReminderRuleInput } from "./reminder-rule.js";
+import {
+  type ReminderAction,
+  type ReminderRuleInput,
+  actionDefOf,
+} from "./reminder-rule.js";
+
+/** A rule as the engine hands it to {@link effectiveOffsets}. */
+const rule = (
+  action: ReminderRuleInput["action"],
+  offsetDays: number,
+): ReminderRuleInput => ({ action, label: null, offsetDays, enabled: true });
 
 const actionsOf = (rules: ReminderRuleInput[]) => rules.map((r) => r.action);
 
@@ -136,6 +151,98 @@ describe("effectiveOffsetDays", () => {
 
   it("leaves a rule written after the occasion alone", () => {
     expect(effectiveOffsetDays("get:gift", 12, -1)).toBe(12);
+  });
+});
+
+describe("effectiveOffsets", () => {
+  const card = rule("get:card", 12);
+  const post = rule("send:card", POST);
+  const wish = rule("wish", 0);
+
+  // ⚠️ The regression. A card learned of twelve days out has no slack left for
+  // its own twelve-day deadline, so **on its own** it slides to the day before
+  // — landing six days after the posting it feeds, which is impossible.
+  it("does not slide an errand past the one authored to follow it", () => {
+    expect(effectiveOffsetDays("get:card", 12, 12)).toBe(IN_PERSON);
+    expect(effectiveOffsets([card, post], 12)).toEqual([
+      { rule: card, offsetDays: 12 },
+      { rule: post, offsetDays: POST },
+    ]);
+  });
+
+  it("still slides an errand with nothing waiting on it", () => {
+    expect(effectiveOffsets([rule("get:gift", 12), wish], 5)).toEqual([
+      { rule: rule("get:gift", 12), offsetDays: IN_PERSON },
+      { rule: wish, offsetDays: 0 },
+    ]);
+  });
+
+  it("leaves a set chosen in time alone", () => {
+    expect(effectiveOffsets([card, post, wish], 60)).toEqual([
+      { rule: card, offsetDays: 12 },
+      { rule: post, offsetDays: POST },
+      { rule: wish, offsetDays: 0 },
+    ]);
+  });
+
+  it("orders by the authored offsets however it is given them", () => {
+    expect(effectiveOffsets([wish, post, card], 60).map((t) => t.rule)).toEqual(
+      [card, post, wish],
+    );
+  });
+
+  // The guarantee itself, stated over every day a birthday's schedule could be
+  // learned on: the derived deadlines never come out in a different order from
+  // the offsets that authored them.
+  it("never reorders a birthday's schedule, whenever it is learned", () => {
+    const rules = kindDefs.birthday.defaultReminderSchedule.map((d) =>
+      rule(d.action, d.offsetDays),
+    );
+    for (let learned = -1; learned <= 60; learned++) {
+      const offsets = effectiveOffsets(rules, learned).map((t) => t.offsetDays);
+      expect([...offsets].sort((a, b) => b - a)).toEqual(offsets);
+    }
+  });
+});
+
+// The other half of the ordering guarantee. `effectiveOffsets` preserves the
+// order the authored offsets encode; this is what makes that order right to
+// begin with, and it fails the day a schedule authors a delivery ahead of the
+// thing it delivers — "go to dinner" before "make the reservation".
+describe("the authored defaults agree with the delivery edges", () => {
+  const schedules: [string, readonly DefaultReminderRule[]][] = [
+    ...milestoneKindSchema.options.map(
+      (kind): [string, readonly DefaultReminderRule[]] => [
+        kind,
+        kindDefs[kind].defaultReminderSchedule,
+      ],
+    ),
+    ["observance", observanceDefaultReminderSchedule],
+  ];
+
+  it("gives every delivery's parent the wider lead", () => {
+    const wrong: string[] = [];
+    for (const [name, rules] of schedules) {
+      // Keyed by the **open** action type: a default's own action is a known
+      // one, but `deliveryOf` names any action, so a narrower key would not
+      // take the lookup below.
+      const offsets = new Map<ReminderAction, number>(
+        rules.map((r) => [r.action, r.offsetDays]),
+      );
+      for (const r of rules) {
+        const parent = actionDefOf(r.action).deliveryOf;
+        if (parent === undefined) continue;
+        const parentOffset = offsets.get(parent);
+        // A delivery whose parent this schedule does not offer stands on its
+        // own — legal, and `promptGroupsOf` already treats it as an item.
+        if (parentOffset === undefined) continue;
+        if (parentOffset < r.offsetDays)
+          wrong.push(
+            `${name}: ${parent} at ${parentOffset} is after ${r.action} at ${r.offsetDays}`,
+          );
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });
 

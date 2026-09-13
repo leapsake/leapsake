@@ -323,6 +323,11 @@ So every deadline is measured from the day the app **learned** of the occasion �
 - **An errand chosen too late for its own deadline slides** to the latest it can still be done
   (`effectiveOffsetDays`): a gift ticked five days out is due the day before. A post date does not
   move.
+- **…but a slide may never reorder the schedule** (`effectiveOffsets`). A card bought at 12 and
+  posted at 7 is one errand feeding another; sliding only the buying put the posting first, and the
+  app asked for a card to be in the post six days before it was bought. The slide is applied to the
+  enabled set as a whole, and an errand something else waits on keeps its own deadline rather than
+  crossing it.
 - **An answer that could not be offered everything covers its own year only** (`isPartialAnswer`).
   The question returns for the next occurrence, on its usual timing, with everything on offer and
   last year's choice pre-ticked.
@@ -500,6 +505,25 @@ offsets, and it must not survive into the data. Literal dependencies need orderi
 and an answer for what happens when the depended-on rule is disabled — all to express something set
 once. Do the arithmetic wherever the numbers are chosen and store plain offsets. "Where in the world
 is it going" is an input to that arithmetic, never a runtime lookup.
+
+**What keeps them in order instead is monotonicity** _(owner, 2026-09-12)_. The authored offsets
+already say what comes first — buying a card at 12 leads posting it at 7 — so the guarantee is not
+_"A depends on B"_ but _"nothing derived may reorder what the offsets encode"_:
+
+- **Derivation preserves order.** `effectiveOffsets` applies the slide to the whole enabled set and
+  refuses to move a rule past one authored to follow it. This is total: it holds for every pair,
+  including ones nobody declared a relation for, so "make the reservation" before "go to dinner"
+  needs no new machinery — just the wider offset.
+- **The authored numbers are checked once, at build time**, against the `deliveryOf` edges the
+  registry already declares (`plan-offers.test.ts`). Monotonicity preserves an order; this is what
+  makes that order right to begin with, and it fails the day a schedule authors a delivery ahead of
+  the thing it delivers.
+- **Disabled rules ask no question.** They are not in the set, so they constrain nothing — the
+  third of the three costs above, and it disappears rather than being answered.
+
+The edges stay a **static relation between actions** in the registry, never a row in
+`reminder_rules`. That is the line: no dependency ever reaches the data, and no date is ever
+computed by following one.
 
 ### ⚠️ A redundant action is suppressed in the read, never in the desired set
 

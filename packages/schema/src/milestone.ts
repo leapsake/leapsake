@@ -697,6 +697,59 @@ export function effectiveOffsetDays(
 }
 
 /**
+ * One occurrence's rules paired with the deadline each actually has:
+ * {@link effectiveOffsetDays} applied to the **set** rather than rule by rule,
+ * so that the order the authored offsets encode survives into the due dates.
+ *
+ * ⚠️ **This is the ordering guarantee, and it is deliberately not a dependency
+ * graph** (see `@leapsake/reminders` → *Do not model rule dependencies*). The
+ * authored numbers already say what comes first — a card is bought at 12 and
+ * posted at 7, so buying leads — and nothing here reads a relation between two
+ * actions. It only refuses to *break* an order the offsets already carry, which
+ * is what makes it total: it covers every pair, including the ones nobody
+ * thought to declare a relation for.
+ *
+ * Sliding is what put them out of order, so **the repair is not to slide** — not
+ * to slide less far. An errand something else waits on keeps its own deadline,
+ * which by construction is no earlier than anything authored after it (the walk
+ * is furthest-lead-first, and a slide only ever buys time). A rule that slides
+ * without crossing anything slides exactly as it did before.
+ *
+ * Pass only the rules that will actually be materialized — the engine passes the
+ * enabled ones. That is also the answer to the question a literal dependency
+ * would have had to ask: a rule that is off is not in the set, so it constrains
+ * nothing.
+ */
+export function effectiveOffsets(
+  rules: readonly ReminderRuleInput[],
+  learnedDaysOut: number,
+): { rule: ReminderRuleInput; offsetDays: number }[] {
+  // Furthest lead first — the order the authored offsets put them in, and the
+  // order the result must keep. Sorted here rather than trusted from the caller:
+  // `resolveReminderSchedule` already sorts this way, but a caller that did not
+  // would otherwise get no guarantee at all, silently.
+  const timed = [...rules]
+    .sort((a, b) => b.offsetDays - a.offsetDays)
+    .map((rule) => ({
+      rule,
+      offsetDays: effectiveOffsetDays(
+        rule.action,
+        rule.offsetDays,
+        learnedDaysOut,
+      ),
+    }));
+  // Walk back from the last, carrying the deadline of everything already fixed:
+  // no rule may come due after one authored to follow it.
+  let floor = 0;
+  for (let i = timed.length - 1; i >= 0; i--) {
+    const t = timed[i]!;
+    if (t.offsetDays < floor) t.offsetDays = t.rule.offsetDays;
+    floor = t.offsetDays;
+  }
+  return timed;
+}
+
+/**
  * A Milestone — one dated fact about a bearer, stored as a single row.
  *
  * The date is **partial**: `year`/`month`/`day` are individually nullable so a

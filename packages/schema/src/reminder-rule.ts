@@ -242,11 +242,17 @@ export interface ReminderActionDef {
    * the same tree — the drift {@link SCHEDULABLE_ACTIONS} and `planQuestion`
    * were each centralised to prevent.
    *
-   * ⚠️ It changes **presentation only**. A delivery is still an ordinary rule
-   * with its own action, offset and id, still listed flat by the full schedule
-   * editor, and still free to be enabled without its parent by anything that
-   * writes rules directly. Only {@link promptGroupsOf} and the prompt built on
-   * it treat the pair as one question.
+   * ⚠️ It changes **presentation only**, plus one build-time check. A delivery
+   * is still an ordinary rule with its own action, offset and id, still listed
+   * flat by the full schedule editor, and still free to be enabled without its
+   * parent by anything that writes rules directly. Only {@link promptGroupsOf}
+   * and the prompt built on it treat the pair as one question.
+   *
+   * The check is a **test**, not a runtime lookup: every authored default
+   * schedule must give a delivery's parent the wider lead, so that the ordering
+   * the due dates are then held to (`effectiveOffsets` in `milestone.ts`) is an
+   * order worth preserving. Nothing reads this edge to *compute* a date — that
+   * would be the rule dependency `@leapsake/reminders` refuses.
    */
   deliveryOf?: ReminderAction;
   /**

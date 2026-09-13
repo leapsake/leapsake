@@ -276,6 +276,7 @@ export {
   planTiming,
   isPartialAnswer,
   effectiveOffsetDays,
+  effectiveOffsets,
   datePrecisionOf,
   formatMilestoneDate,
   milestoneLabel,

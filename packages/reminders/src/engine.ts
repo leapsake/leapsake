@@ -15,7 +15,7 @@ import {
   dueDateMs,
   kindDefs,
   mentionToken,
-  effectiveOffsetDays,
+  effectiveOffsets,
   isPartialAnswer,
   planOffers,
   planQuestion,
@@ -1549,18 +1549,15 @@ async function computeDesired(
             : ownActiveDays("plan"),
         });
       }
-      for (const rule of resolved.rules) {
-        if (!rule.enabled) continue;
-        timed.push({
-          rule,
-          offsetDays: effectiveOffsetDays(
-            rule.action,
-            rule.offsetDays,
-            daysUntil(answered, occ),
-          ),
-          runUp: ownActiveDays(rule.action),
-        });
-      }
+      // The enabled set **at once**, never rule by rule. A late answer slides
+      // deadlines, and sliding one rule past another authored to follow it is
+      // what once had a card due in the post six days before it was bought —
+      // see `effectiveOffsets`, which preserves the order the offsets encode.
+      for (const { rule, offsetDays } of effectiveOffsets(
+        resolved.rules.filter((r) => r.enabled),
+        daysUntil(answered, occ),
+      ))
+        timed.push({ rule, offsetDays, runUp: ownActiveDays(rule.action) });
       // The rules that actually want a reminder for this occurrence today: alive
       // on the walk's window, or on the row's own run-up where that is wider — a
       // late question's can be, and a row this walk would materialize must never
