@@ -35,8 +35,9 @@ export default {
       requires: [],
       manual: [
         "the 12-tester/14-day closed test gates *production access* for personal accounts " +
-          "created after 2023-11-13 (ours); internal testing is exempt from it entirely. " +
-          "Which track each rung should ship to is still open — plans/android-pipeline.md",
+          "created after 2023-11-13 (ours) — and this rung's closed-track uploads are what " +
+          "earn it, so shipping betas is the path to production rather than a detour around " +
+          "it. 12 Google accounts, opted in, for 14 continuous days",
       ],
     },
     rc: { name: "closed testing track (ship-ready)", requires: [] },
