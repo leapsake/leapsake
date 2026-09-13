@@ -179,6 +179,7 @@ const ascKey = [
  * the build exists, the version is spent, and the only way forward is a second one.
  */
 const WHAT_TO_TEST = (root) => join(root, "release-notes", "what-to-test.txt");
+const WHATS_NEW = (root) => join(root, "release-notes", "whats-new.txt");
 const WHATS_NEW_MAX = 4000; // Apple's limit on the field; a longer note is rejected at PATCH.
 
 const whatToTest = {
@@ -192,6 +193,30 @@ const whatToTest = {
     if (!text) return "release-notes/what-to-test.txt is empty";
     if (text.length > WHATS_NEW_MAX) {
       return `release-notes/what-to-test.txt is ${text.length} characters; App Store Connect accepts ${WHATS_NEW_MAX}`;
+    }
+    return undefined;
+  },
+};
+
+/**
+ * The App Store release notes, which are a different document from *What to Test*.
+ *
+ * They are read by strangers deciding whether to install, not by a tester who already
+ * agreed to help — so they are checked separately rather than reusing one file for both.
+ * Checked in preflight for the same reason as its sibling: finding out after a
+ * twenty-minute archive that the notes are missing wastes the archive.
+ */
+const whatsNew = {
+  name: "what's new",
+  check: ({ root }) => {
+    const path = WHATS_NEW(root);
+    if (!existsSync(path)) {
+      return "release-notes/whats-new.txt does not exist — it is what the App Store shows about this version. Write it first";
+    }
+    const text = readFileSync(path, "utf8").trim();
+    if (!text) return "release-notes/whats-new.txt is empty";
+    if (text.length > WHATS_NEW_MAX) {
+      return `release-notes/whats-new.txt is ${text.length} characters; App Store Connect accepts ${WHATS_NEW_MAX}`;
     }
     return undefined;
   },
@@ -541,7 +566,7 @@ async function waitForProcessing(asc, appId, buildNumber) {
  * empty `en-US` localization with the build, and sometimes does not, so both paths are
  * ordinary rather than one being an error to swallow.
  */
-async function attachWhatToTest(asc, buildId, whatsNew) {
+async function attachWhatToTest(asc, buildId, notes) {
   const existing = await asc.get(
     `/v1/builds/${buildId}/betaBuildLocalizations`,
     {
@@ -558,7 +583,7 @@ async function attachWhatToTest(asc, buildId, whatsNew) {
         data: {
           type: "betaBuildLocalizations",
           id: mine.id,
-          attributes: { whatsNew },
+          attributes: { whatsNew: notes },
         },
       },
     });
@@ -567,13 +592,13 @@ async function attachWhatToTest(asc, buildId, whatsNew) {
       body: {
         data: {
           type: "betaBuildLocalizations",
-          attributes: { locale: LOCALE, whatsNew },
+          attributes: { locale: LOCALE, whatsNew: notes },
           relationships: { build: { data: { type: "builds", id: buildId } } },
         },
       },
     });
   }
-  say(`"What to Test" attached (${whatsNew.length} characters)`);
+  say(`"What to Test" attached (${notes.length} characters)`);
 }
 
 /**
@@ -628,22 +653,276 @@ async function submitForBetaReview(asc, buildId) {
 }
 
 /** Upload → *in beta review*, with its notes and its group attached. */
-async function distributeExternally({ root, artifact }) {
-  const asc = ascFromEnv();
+async function distributeExternally({ asc, app, build, root }) {
   const groupName = process.env.ASC_BETA_GROUP.trim();
-  const whatsNew = readFileSync(WHAT_TO_TEST(root), "utf8").trim();
+  const notes = readFileSync(WHAT_TO_TEST(root), "utf8").trim();
 
-  const app = await findApp(asc, artifact.bundleId);
   const group = await findExternalGroup(asc, app.id, groupName);
-  const build = await waitForProcessing(asc, app.id, artifact.buildNumber);
 
-  await attachWhatToTest(asc, build.id, whatsNew);
+  await attachWhatToTest(asc, build.id, notes);
   await addToGroup(asc, group.id, build.id, groupName);
   await submitForBetaReview(asc, build.id);
 
   say(
     `https://appstoreconnect.apple.com/apps/${app.id}/testflight/ios — the build is in ` +
       "beta review; testers get it when Apple approves it",
+  );
+}
+
+// --- App Store submission ---------------------------------------------------------------
+//
+// The other half of `rc`, and a different audience from the one above: TestFlight reaches
+// people who agreed to help, and this reaches Apple's reviewers on the way to everyone.
+//
+// The order is Apple's again — a version exists, carries notes, names a build, and only
+// then can be submitted — and every step tolerates having already happened, because a
+// rejection is resubmitted against the *same* version record rather than a fresh one.
+
+/**
+ * The states in which App Store Connect will still let a version be edited.
+ *
+ * Everything else is either under review or already out, and attaching a build to one is
+ * refused by Apple with an error that does not say why. Naming the state in our own refusal
+ * is the difference between "this version is in review, cut a new rc or cancel it" and a
+ * bare 409 three steps into a release.
+ */
+const EDITABLE_STATES = new Set([
+  "PREPARE_FOR_SUBMISSION",
+  "DEVELOPER_REJECTED",
+  "REJECTED",
+  "METADATA_REJECTED",
+  "INVALID_BINARY",
+]);
+
+/**
+ * The version record for this store version, created if this is its first submission.
+ *
+ * Find-or-create rather than create-and-tolerate: after a rejection the record still exists
+ * and is *supposed* to be reused — that is what keeps a rejected `0.1.0` from spending the
+ * version string. A second record for the same version is not something Apple would even
+ * allow, so an existing one is the expected case from the second attempt onwards.
+ *
+ * `releaseType: MANUAL` is the deliberate part. It parks an approved version in *Pending
+ * Developer Release* instead of publishing it the moment review passes, which keeps a human
+ * at the one irreversible, outward step — the same principle `index.mjs` applies to pushing.
+ */
+async function findOrCreateVersion(asc, appId, storeVersion) {
+  const found = await asc.get(`/v1/apps/${appId}/appStoreVersions`, {
+    query: {
+      "filter[versionString]": storeVersion,
+      "filter[platform]": "IOS",
+      limit: 1,
+    },
+  });
+  const existing = found?.data?.[0];
+  if (existing) {
+    const state = existing.attributes?.appStoreState;
+    if (!EDITABLE_STATES.has(state)) {
+      throw new Error(
+        `App Store version ${storeVersion} is ${state}, which cannot take a new build — ` +
+          "cancel its submission in App Store Connect, or ship the next version instead",
+      );
+    }
+    say(`App Store version ${storeVersion} already exists (${state})`);
+    return existing;
+  }
+
+  const created = await asc.post("/v1/appStoreVersions", {
+    body: {
+      data: {
+        type: "appStoreVersions",
+        attributes: {
+          platform: "IOS",
+          versionString: storeVersion,
+          releaseType: "MANUAL",
+        },
+        relationships: { app: { data: { type: "apps", id: appId } } },
+      },
+    },
+  });
+  say(`created App Store version ${storeVersion} (manual release)`);
+  return created.data;
+}
+
+/**
+ * Attach the release notes to the version.
+ *
+ * PATCH-or-POST for the same reason `attachWhatToTest` is: App Store Connect sometimes
+ * seeds a localization with the version and sometimes does not.
+ *
+ * ⚠️ **The very first version of an app has no "what's new".** There is nothing previous to
+ * be new against, and Apple rejects the field rather than ignoring it. That is a fact about
+ * the app's history rather than a mistake in the notes, so it is reported and stepped over —
+ * the submission is still correct without it.
+ */
+async function attachWhatsNew(asc, versionId, notes) {
+  const existing = await asc.get(
+    `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations`,
+    { query: { limit: 50 } },
+  );
+  const mine = existing?.data?.find(
+    (each) => each.attributes?.locale === LOCALE,
+  );
+
+  try {
+    if (mine) {
+      await asc.patch(`/v1/appStoreVersionLocalizations/${mine.id}`, {
+        body: {
+          data: {
+            type: "appStoreVersionLocalizations",
+            id: mine.id,
+            attributes: { whatsNew: notes },
+          },
+        },
+      });
+    } else {
+      await asc.post("/v1/appStoreVersionLocalizations", {
+        body: {
+          data: {
+            type: "appStoreVersionLocalizations",
+            attributes: { locale: LOCALE, whatsNew: notes },
+            relationships: {
+              appStoreVersion: {
+                data: { type: "appStoreVersions", id: versionId },
+              },
+            },
+          },
+        },
+      });
+    }
+    say(`release notes attached (${notes.length} characters)`);
+  } catch (error) {
+    if (
+      error instanceof AscError &&
+      (error.status === 409 || error.status === 422)
+    ) {
+      say(
+        `release notes not set (${error.errors[0]?.detail ?? error.status}) — expected on ` +
+          "a first release, which has nothing to be new against",
+      );
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Point the version at the build. A 204, and idempotent — the same build twice is fine. */
+async function attachBuild(asc, versionId, buildId, buildNumber) {
+  await asc.patch(`/v1/appStoreVersions/${versionId}/relationships/build`, {
+    body: { data: { type: "builds", id: buildId } },
+  });
+  say(`build ${buildNumber} attached to the version`);
+}
+
+/**
+ * The open review submission for this app, or a new one.
+ *
+ * A submission is a *container* — it can carry more than one item, and one is already open
+ * if a previous attempt got this far and stopped. Creating a second while one is open is
+ * refused, so this looks first.
+ */
+async function findOrCreateSubmission(asc, appId) {
+  const found = await asc.get(`/v1/apps/${appId}/reviewSubmissions`, {
+    query: { "filter[platform]": "IOS", limit: 20 },
+  });
+  const open = found?.data?.find(
+    (each) => each.attributes?.state === "READY_FOR_REVIEW",
+  );
+  if (open) {
+    say("reusing the review submission already open");
+    return open;
+  }
+
+  const created = await asc.post("/v1/reviewSubmissions", {
+    body: {
+      data: {
+        type: "reviewSubmissions",
+        attributes: { platform: "IOS" },
+        relationships: { app: { data: { type: "apps", id: appId } } },
+      },
+    },
+  });
+  return created.data;
+}
+
+/** Put the version in the submission, tolerating its already being there. */
+async function addVersionToSubmission(asc, submissionId, versionId) {
+  try {
+    await asc.post("/v1/reviewSubmissionItems", {
+      body: {
+        data: {
+          type: "reviewSubmissionItems",
+          relationships: {
+            reviewSubmission: {
+              data: { type: "reviewSubmissions", id: submissionId },
+            },
+            appStoreVersion: {
+              data: { type: "appStoreVersions", id: versionId },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    if (error instanceof AscError && error.status === 409) {
+      say("the version is already in this submission");
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Hand the submission to Apple. Tolerates a submission already sent, as beta review does. */
+async function submitForReview(asc, submissionId) {
+  try {
+    await asc.patch(`/v1/reviewSubmissions/${submissionId}`, {
+      body: {
+        data: {
+          type: "reviewSubmissions",
+          id: submissionId,
+          attributes: { submitted: true },
+        },
+      },
+    });
+    say("submitted for App Store review");
+  } catch (error) {
+    if (error instanceof AscError && error.status === 409) {
+      say(
+        `already submitted for App Store review (${error.errors[0]?.detail ?? "409"})`,
+      );
+      return;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Upload → *waiting for review*, with the version created, noted and pointed at the build.
+ *
+ * Exported for its tests: every step is an ordered conversation with Apple whose failures
+ * are 409s that mean "already done", and the only way to prove those are tolerated without
+ * submitting a real app is to drive the whole sequence against a stubbed `fetch`.
+ */
+export async function submitToAppStore({
+  asc,
+  app,
+  build,
+  root,
+  storeVersion,
+}) {
+  const notes = readFileSync(WHATS_NEW(root), "utf8").trim();
+
+  const version = await findOrCreateVersion(asc, app.id, storeVersion);
+  await attachWhatsNew(asc, version.id, notes);
+  await attachBuild(asc, version.id, build.id, build.attributes?.version);
+  const submission = await findOrCreateSubmission(asc, app.id);
+  await addVersionToSubmission(asc, submission.id, version.id);
+  await submitForReview(asc, submission.id);
+
+  say(
+    `https://appstoreconnect.apple.com/apps/${app.id}/appstore — ${storeVersion} is with ` +
+      "Apple. Approval parks it in Pending Developer Release; it goes public only when a " +
+      "person releases it",
   );
 }
 
@@ -675,11 +954,27 @@ const TIERS = {
     // once on the app record rather than per build.
     manual: ["Beta App Review — roughly a day on the first build of a version"],
   },
+  // `rc` is where a build stops being only a tester's problem: it goes to the same
+  // strangers `beta` does *and* to Apple's reviewers. That is what distinguishes the rung —
+  // if a build is not ready for review, it is a `beta`. `storeSubmission` is its own
+  // property rather than more meaning loaded onto `external`, because the two halves reach
+  // different audiences and a future rung may well want one without the other.
   rc: {
-    name: "external TestFlight (ship-ready)",
+    name: "external TestFlight + App Store review",
     external: true,
-    requires: [appIcon, exportCompliance, whatToTest, betaGroup, ascSetup],
-    manual: ["the crucial-flow catalog green on a real device"],
+    storeSubmission: true,
+    requires: [
+      appIcon,
+      exportCompliance,
+      whatToTest,
+      whatsNew,
+      betaGroup,
+      ascSetup,
+    ],
+    manual: [
+      "the crucial-flow catalog green on a real device",
+      "App Store review — a day or so, and it reviews the metadata too",
+    ],
   },
   final: {
     name: "App Store review",
@@ -806,7 +1101,7 @@ export default {
    * whose tier is `external`. At `alpha` this returns exactly where it always did, with
    * the build uploaded and nothing else claimed about it.
    */
-  async publish({ artifact, root, stage }) {
+  async publish({ artifact, root, stage, storeVersion }) {
     // `--p8-file-path` names the key directly. Without it, altool searches four fixed
     // directories for a file called `AuthKey_<key id>.p8` — which would make the key's
     // *filename* load-bearing, and would fail at the upload, after the archive.
@@ -841,7 +1136,8 @@ export default {
 
     console.log(`   uploaded build ${artifact.buildNumber}`);
 
-    if (!TIERS[stage]?.external) {
+    const tier = TIERS[stage];
+    if (!tier?.external && !tier?.storeSubmission) {
       console.log(
         "   App Store Connect takes a few minutes to finish processing it; internal " +
           "testers get it automatically once it does",
@@ -849,6 +1145,15 @@ export default {
       return;
     }
 
-    await distributeExternally({ root, artifact });
+    // Resolved once and shared by both halves. Waiting out processing is the slow step —
+    // 5–20 minutes — and an `rc` that did it twice would pay for it twice for no reason.
+    const asc = ascFromEnv();
+    const app = await findApp(asc, artifact.bundleId);
+    const build = await waitForProcessing(asc, app.id, artifact.buildNumber);
+
+    if (tier.external) await distributeExternally({ asc, app, build, root });
+    if (tier.storeSubmission) {
+      await submitToAppStore({ asc, app, build, root, storeVersion });
+    }
   },
 };

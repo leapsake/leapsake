@@ -188,12 +188,16 @@ run `pnpm release --help` for the current rules.
   the file, so a runner's secrets are never shadowed by a local copy.
 - **A tag names a build, not a release.** `alpha`/`beta`/`rc` each upload an artifact, and
   going live is a state Apple confers days later — so the bare `vX.Y.Z` is a _marker_ for the
-  commit that actually reached the public, not a trigger. Cut App Store submissions from an
-  `rc`: a rejection then costs a fresh `rc.N+1` rather than a deleted tag, which is the
+  commit that actually reached the public, not a trigger. **`rc` is the rung that submits**:
+  it reaches TestFlight's strangers and Apple's reviewers together, and a build not ready for
+  review is a `beta`. A rejection then costs a fresh `rc.N+1` rather than a deleted tag — the
   property that has to hold once releases run from a runner and a tag is public the moment it
-  is pushed. ⚠️ `final` still builds and uploads today
+  is pushed. Which commit a released build came from is recorded by
+  [`scripts/release/receipts.mjs`](scripts/release/receipts.mjs), since Apple names only the
+  build number. ⚠️ `final` still builds and uploads today
   ([`scripts/release/targets/ios.mjs`](scripts/release/targets/ios.mjs) → `TIERS`);
-  restructuring it into a marker is the change that move forces.
+  restructuring it into a marker that releases the approved version and tags its commit is
+  the change that move forces.
 - **The script tags and never pushes.** Store version strings are permanent and monotonic, a
   Play closed test starts a 14-day clock at its first upload, and a notarized artifact is
   public the moment its feed sees it — so the irreversible step stays a person's.

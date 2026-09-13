@@ -1,0 +1,7 @@
+Leapsake is a private address book with a memory: the people and pets in your life, how
+they are related, the dates that matter, and reminders that reach you before them.
+
+Everything stays on your phone. There is no account to create, no server to sign in to,
+and nothing is sent to us.
+
+This is the first release.
