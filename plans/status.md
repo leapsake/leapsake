@@ -3,24 +3,31 @@
 > **What is in flight, and what is next. Nothing else.** No history, no decisions, no
 > measurements — and never over 30 lines. What already landed is `git log`; the v0.1 order is
 > [`shipping.md`](./shipping.md); everything deferred is [`v0-2.md`](./v0-2.md); decisions
-> awaiting the owner are [`shipping.md`](./shipping.md) → *Open, and waiting on the owner*.
+> awaiting the owner are [`shipping.md`](./shipping.md) → _Open, and waiting on the owner_.
 
 ## In flight
 
 **v0.1 is iOS alone**, in external TestFlight with a real tester on it. Android and macOS follow
 **after** the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) →
-*Part 2*) — which is also why nothing may reach Play from the personal account.
+_Part 2_) — which is also why nothing may reach Play from the personal account.
 
-**The `rc` bar is code-complete.** Onboarding was reworked on 2026-09-10 — Home rows lost their
-completion checkbox; the nudges gained an import step, a notifications step, staggered put-offs
-and an `/about-you` screen — and `factory-reset.yaml` moved with the copy. With the Home and snooze
-redesign in (2026-09-11), every tier is green, `test:e2e` on iOS included: all seven flows.
+**The release path is finished** _(2026-09-13)_. `rc` builds, hands the build to testers **and**
+submits it to App Store review; `final` builds nothing — it releases the approved version and tags
+the commit that went live, resolved from `refs/notes/releases`. A rejection costs a fresh `rc.N+1`,
+never a deleted tag. **Push the notes ref with the tag** or the receipts stay on one machine.
 
-**Next, in order — [`shipping.md`](./shipping.md) → *Part 1* is the whole list, with acceptance
-for each step.** ① All step 3 still owes: the catalog as a **`requires:` check** in `ios.mjs`
-rather than a `manual:` sentence. ② **Public repo**, full-history secret scan first. ③ **The App
-Store Connect fields nothing in the repo can check** — privacy URL, a *published* App Privacy
-questionnaire, screenshots, age rating; `ascSetup` reads none of them. ④ **Submit**, then **GA**.
+**iPad is supported** _(owner, 2026-09-13)_ — `supportsTablet` was always on, so the listing is
+universal and review tests on one. Layout work is deferred ([`v0-2.md`](./v0-2.md) → _Client / UX_).
+
+**Next, in order — [`shipping.md`](./shipping.md) → _Part 1_ is the whole list, with acceptance
+for each step.** ① **The App Store Connect metadata** — privacy URL, a _published_ App Privacy
+questionnaire, description, age rating, support URL, and screenshots at **two** sizes now
+(6.9" iPhone + 13" iPad); `ascSetup` reads none of it. ② Verify the app on an iPad simulator
+before submitting. ③ **Public repo**, full-history secret scan first. ④ `pnpm release rc`, then
+`pnpm release final` once Apple approves.
+
+**Still owed on step 3, and the only code left:** the crucial-flow catalog is a `manual:` sentence
+on the `rc` rung, not a check that fails the release.
 
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
