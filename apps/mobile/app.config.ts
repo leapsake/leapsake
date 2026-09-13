@@ -1,10 +1,13 @@
+import { execFileSync } from "node:child_process";
+
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import pkg from "./package.json";
 
 /**
  * Expo's **dynamic config**. The static half stays in `app.json` — name, slug, scheme,
- * bundle identifiers, plugins — and this derives the three fields that must not be
- * duplicated anywhere: the store version and the two build numbers.
+ * bundle identifiers, plugins — and this derives the fields that must not be duplicated
+ * anywhere: the store version, the two build numbers, and the commit the artifact was
+ * built from.
  *
  * Expo reads `app.json` first and hands it in as `config`, so this is a narrow override
  * rather than a second copy of the manifest. The version comes from this app's
@@ -81,14 +84,69 @@ function buildNumber(): number {
   return Math.floor((Date.now() - BUILD_EPOCH_MS) / 60_000);
 }
 
+/** One git read, quiet on failure — {@link commitSha} decides what an absence means. */
+const gitRead = (args: string[]) =>
+  execFileSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+
+/**
+ * The commit this artifact was built from, or `"unknown"` when git cannot say.
+ *
+ * {@link buildNumber} is a clock reading, which is what makes it collision-free and
+ * impossible to forget — and also what makes it opaque: given a build in App Store Connect
+ * there is no way back to the source it came from. That is tolerable while one person
+ * archives on their own machine and remembers; it stops being tolerable the moment a runner
+ * does it, or the moment anyone needs to know which commit is live without having
+ * remembered to tag it.
+ *
+ * So the commit rides *inside* the artifact. `LeapsakeCommit` lands in the shipped
+ * `Info.plist`, where `plutil -p` reads it straight out of an `.ipa` without launching
+ * anything — which is the property a provenance claim needs, since it survives the app
+ * being unable or unwilling to report on itself. `extra.commit` is the same string reachable
+ * from JS, for an About screen that wants it.
+ *
+ * **`-dirty` can only appear in a development build.** `pnpm release` refuses an unclean
+ * tree (`scripts/release/preflight.mjs` → *clean tree*), so a store artifact carrying it
+ * would mean the release path had been bypassed — which is exactly what you would want the
+ * binary to admit.
+ *
+ * `LEAPSAKE_COMMIT` overrides for the same reason `LEAPSAKE_BUILD_NUMBER` does: rebuilding a
+ * known artifact has to be able to reproduce its identity. `GITHUB_SHA` is honoured after it
+ * so a runner on a detached HEAD names its own commit rather than depending on this reading
+ * git correctly through whatever checkout strategy it used.
+ */
+function commitSha(): string {
+  const pinned = process.env.LEAPSAKE_COMMIT ?? process.env.GITHUB_SHA;
+  if (pinned?.trim()) return pinned.trim().slice(0, 12);
+
+  // Never fatal: a build from a source tarball has no git at all, and it should produce an
+  // app rather than an error. It says "unknown" and the absence is legible downstream.
+  try {
+    const sha = gitRead(["rev-parse", "--short=12", "HEAD"]);
+    return gitRead(["status", "--porcelain"]) === "" ? sha : `${sha}-dirty`;
+  } catch {
+    return "unknown";
+  }
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const build = buildNumber();
+  const commit = commitSha();
   return {
     ...config,
     name: config.name ?? "Leapsake",
     slug: config.slug ?? "leapsake",
     version: storeVersion(pkg.version),
-    ios: { ...config.ios, buildNumber: String(build) },
+    ios: {
+      ...config.ios,
+      buildNumber: String(build),
+      // Spread first: `app.json` owns the real keys (export compliance, the query
+      // schemes) and this adds one rather than replacing the block.
+      infoPlist: { ...config.ios?.infoPlist, LeapsakeCommit: commit },
+    },
     android: { ...config.android, versionCode: build },
+    extra: { ...config.extra, commit },
   };
 };

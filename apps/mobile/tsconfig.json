@@ -5,7 +5,13 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "target": "ESNext",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    // `app.config.ts` is build tooling that runs in Node (it shells out to git for the
+    // commit the artifact carries), so the project needs Node's types. `expo/tsconfig.base`
+    // sets no `types` of its own, which means the default here is *every* visible @types
+    // package — so this list has to name `react` too, or narrowing it to Node would take
+    // JSX down with it.
+    "types": ["node", "react"]
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }
