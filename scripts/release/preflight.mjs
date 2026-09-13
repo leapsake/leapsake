@@ -197,6 +197,26 @@ export const LOCAL_CHECKS = [
 ];
 
 /**
+ * Marking a release that already went public.
+ *
+ * Three of `LOCAL_CHECKS` are deliberately absent, and each omission is the same
+ * observation: this rung builds nothing and writes no manifest — it tags a commit that was
+ * built days ago and has since been approved by Apple. So the *current* state of the
+ * checkout cannot affect what the tag means.
+ *
+ * - `cleanTree` — "a tag can only describe what is committed" is exactly right for a tag on
+ *   HEAD, and vacuous for one on a commit from last week. Requiring it would mean stashing
+ *   your work to answer an approval email.
+ * - `releaseBranch` — the tag is not *cut from* a branch here; it names a commit directly.
+ * - `manifestsAgree` — nothing is written to them, and the released commit's manifests
+ *   legitimately read `X.Y.Z-rc.N` rather than the bare core being tagged.
+ *
+ * What stays is everything about the tag itself: it must be free, it must move the version
+ * forward, and a `--base` must still be somewhere sane.
+ */
+export const MARKER_CHECKS = [tagAvailable, baseIsSuccessor, monotonic];
+
+/**
  * Building an existing tag, as a runner does. The tag is the input here rather than the
  * output, so it is verified instead of created.
  *

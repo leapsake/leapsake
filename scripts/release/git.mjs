@@ -44,8 +44,15 @@ export function tagSha(root, tag) {
   return run.status === 0 ? run.stdout.trim() : null;
 }
 
-export function createTag(root, tag, message) {
-  git(root, ["tag", "-a", tag, "-m", message]);
+/**
+ * Cut an annotated tag, on `commit` when one is named and on HEAD otherwise.
+ *
+ * The commit argument is what the `final` rung needs: a marker tag names the commit whose
+ * build actually reached the public, and by the time Apple has said so HEAD has usually
+ * moved on. Every other rung tags what it just built, which is HEAD.
+ */
+export function createTag(root, tag, message, commit) {
+  git(root, ["tag", "-a", tag, "-m", message, ...(commit ? [commit] : [])]);
 }
 
 export function commitAll(root, message) {

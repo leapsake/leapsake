@@ -60,6 +60,7 @@
 //   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
 //   node scripts/release/index.mjs ... --no-provision       assume the devices are ready
 //   node scripts/release/index.mjs ... --first-release      this repo has no release tags yet
+//   node scripts/release/index.mjs final --commit=<sha>     name the live commit by hand
 //   node scripts/release/index.mjs --help                   the stage/target matrix
 //
 // Exit code: 2 for a usage error, 1 for a refused or failed release, 0 when every selected
@@ -79,7 +80,7 @@ import {
   isShallow,
   listTags,
 } from "./git.mjs";
-import { FROM_TAG_CHECKS, LOCAL_CHECKS } from "./preflight.mjs";
+import { FROM_TAG_CHECKS, LOCAL_CHECKS, MARKER_CHECKS } from "./preflight.mjs";
 import { NOTES_REF, recordShipment } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
 import {
@@ -92,7 +93,7 @@ import {
 } from "./version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const VALUE_FLAGS = new Set(["from-tag", "base", "only"]);
+const VALUE_FLAGS = new Set(["from-tag", "base", "only", "commit"]);
 
 function parseArgs(argv) {
   const positional = [];
@@ -267,6 +268,105 @@ function loadEnvFile() {
  */
 const isStrict = (stage) => stage !== "alpha";
 
+/**
+ * The `final` rung: make the approved version public, and tag the commit that went live.
+ *
+ * Nothing is built here. The artifact was built and submitted by an `rc` days earlier, and
+ * going live is a state Apple confers rather than something compiled — so this asks each
+ * target which commit its released build came from, and marks it.
+ *
+ * **The tag is cut last, and on a commit this did not choose.** Every other rung tags what
+ * it is about to build; this one tags what Apple has already approved, which is why the
+ * order is inverted and why the commit comes back from the target rather than being HEAD.
+ */
+async function markReleased(ctx, selected, dryRun) {
+  const { tag, stage, storeVersion, root } = ctx;
+  const ready = selected.filter((target) => target.status === "ready");
+
+  const failures = await runChecks(MARKER_CHECKS, ctx);
+  if (failures.length > 0) {
+    reportFailures(`${tag} cannot be marked from here:`, failures);
+    if (!dryRun) return 1;
+  }
+
+  // ⚠️ A ready target whose rung here is *not* a marker cannot be handled: it has no
+  // `release()`, because its going-live step is a build rather than a state Apple confers.
+  // Android's production track and macOS's update feed are both shaped that way, and both
+  // are `blocked` today — so nothing can reach this yet, and whichever flips to `ready`
+  // first has to say which shape it is. Refusing beats skipping: a platform silently not
+  // being released is a worse outcome than an error that names it.
+  const unmarked = ready.filter((target) => !target.tiers[stage]?.marker);
+  if (unmarked.length > 0) {
+    console.error(
+      `\n✗ ${unmarked.map((each) => each.id).join(", ")}: the ${stage} rung is not a ` +
+        "marker there, so there is nothing to release — give the target a `release()` and " +
+        "`marker: true`, or ship that platform's rung separately with --only",
+    );
+    return 1;
+  }
+
+  console.log("\nTargets");
+  for (const target of selected) {
+    if (target.status !== "ready") {
+      console.log(`  ⏳ ${target.id.padEnd(8)} — ${target.note}`);
+      continue;
+    }
+    console.log(`  ✅ ${target.id.padEnd(8)} → ${target.tiers[stage].name}`);
+    for (const note of target.tiers[stage].manual ?? []) {
+      console.log(`       ⚠ ${note}`);
+    }
+  }
+
+  if (dryRun) {
+    console.log("\nWould, in order:");
+    console.log(
+      `  1. confirm ${storeVersion} is approved and waiting, and release it`,
+    );
+    console.log(
+      "  2. resolve the commit its build came from, out of refs/notes/releases",
+    );
+    console.log(`  3. tag ${tag} on that commit — no build, no suite, no bump`);
+    console.log(
+      "\n(dry run — nothing was changed, and nothing is ever pushed)",
+    );
+    return failures.length > 0 ? 1 : 0;
+  }
+
+  // Each target reports the commit behind its own released build. They must agree: one tag
+  // cannot honestly name two commits, and a disagreement means the platforms shipped
+  // different source — which is a thing to stop and look at, not to average.
+  const released = [];
+  for (const target of ready) {
+    console.log(`\n→ ${target.label}`);
+    try {
+      released.push({ target, ...(await target.release(ctx)) });
+    } catch (error) {
+      console.error(`✗ ${target.id}: ${error.message}`);
+      return 1;
+    }
+  }
+
+  const commits = new Set(released.map((each) => each.commit));
+  if (commits.size > 1) {
+    console.error(
+      `\n✗ the released builds do not come from one commit: ${released
+        .map((each) => `${each.target.id} ${each.commit.slice(0, 12)}`)
+        .join(", ")} — ${tag} cannot name them both`,
+    );
+    return 1;
+  }
+
+  const [commit] = commits;
+  createTag(root, tag, `${ctx.version} (released)`, commit);
+  console.log(
+    `\n✅ ${tag} marks ${commit.slice(0, 12)} — the commit now public.`,
+  );
+  console.log(
+    `   Nothing has been pushed:\n   git push origin ${ctx.branch} ${tag} refs/notes/${NOTES_REF}`,
+  );
+  return 0;
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.flags.has("help")) {
@@ -308,6 +408,9 @@ async function main() {
     // and the single legitimate empty list is claimed by hand instead of inferred.
     shallow: isShallow(ROOT),
     firstRelease: opts.flags.has("first-release"),
+    // The escape hatch for a marker rung whose receipts cannot name the live commit —
+    // never the normal path, which is why nothing prompts for it.
+    commit: opts.values.commit,
     dryRun,
   };
 
@@ -328,6 +431,14 @@ async function main() {
     );
   }
   console.log(`  from         ${ctx.branch} @ ${mode}`);
+
+  // A marker rung shares almost nothing with a build: no suite, no manifest bump, no
+  // commit, and a tag that lands on a commit from days ago rather than on HEAD. Threading
+  // that through the sequence below as four conditionals would make both paths harder to
+  // read than keeping them apart.
+  if (ready.some((target) => target.tiers[stage]?.marker)) {
+    return await markReleased(ctx, selected, dryRun);
+  }
 
   // ── Preflight, repo-wide ────────────────────────────────────────────────────────────
   const repoFailures = await runChecks(

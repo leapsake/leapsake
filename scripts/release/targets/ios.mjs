@@ -47,6 +47,7 @@ import { dirname, join, resolve } from "node:path";
 
 import { AscError, ascFromEnv } from "../asc.mjs";
 import { envSet, fileAt } from "../checks.mjs";
+import { commitOfBuild } from "../receipts.mjs";
 
 const MOBILE = (root) => join(root, "apps", "mobile");
 
@@ -903,6 +904,117 @@ async function submitForReview(asc, submissionId) {
  * are 409s that mean "already done", and the only way to prove those are tolerated without
  * submitting a real app is to drive the whole sequence against a stubbed `fetch`.
  */
+/**
+ * The build App Store Connect has attached to a version, or `null`.
+ *
+ * This is the whole reason receipts exist: Apple answers with a build *number* and nothing
+ * that names a commit, so the number is the only key back into the repository.
+ */
+async function attachedBuild(asc, versionId) {
+  const found = await asc.get(`/v1/appStoreVersions/${versionId}/build`, {
+    query: { "fields[builds]": "version" },
+  });
+  return found?.data ?? null;
+}
+
+/** Make an approved version public. Tolerates a release already requested. */
+async function requestRelease(asc, versionId) {
+  try {
+    await asc.post("/v1/appStoreVersionReleaseRequests", {
+      body: {
+        data: {
+          type: "appStoreVersionReleaseRequests",
+          relationships: {
+            appStoreVersion: {
+              data: { type: "appStoreVersions", id: versionId },
+            },
+          },
+        },
+      },
+    });
+    say("released — the App Store is publishing it now");
+  } catch (error) {
+    if (error instanceof AscError && error.status === 409) {
+      say(`already released (${error.errors[0]?.detail ?? "409"})`);
+      return;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Make the approved version public, and report which commit went with it.
+ *
+ * The commit is looked up rather than assumed, because by now HEAD has almost certainly
+ * moved past the thing Apple approved — a README fix, a dependency bump. Tagging HEAD would
+ * put the release marker on a commit whose binary nobody ever shipped.
+ *
+ * ⚠️ **Refuses rather than guesses.** If no receipt names the live build, or more than one
+ * does, the honest answer to "which commit is this?" is *unknown*, and this is one tag that
+ * must not be approximately right. `--commit=` is the way to say it by hand.
+ *
+ * Exported for its tests: like the submission path, every branch here is a conversation
+ * with Apple that cannot be rehearsed against the real thing.
+ */
+export async function releaseToPublic({ root, storeVersion, commit }) {
+  const asc = ascFromEnv();
+  const bundleId = readAppJson(root).expo?.ios?.bundleIdentifier;
+  const app = await findApp(asc, bundleId);
+
+  const found = await asc.get(`/v1/apps/${app.id}/appStoreVersions`, {
+    query: {
+      "filter[versionString]": storeVersion,
+      "filter[platform]": "IOS",
+      limit: 1,
+    },
+  });
+  const version = found?.data?.[0];
+  if (!version) {
+    throw new Error(
+      `App Store Connect has no ${storeVersion} version record — it is created when an ` +
+        "rc submits, so this version was never submitted",
+    );
+  }
+
+  const state = version.attributes?.appStoreState;
+  if (state !== "PENDING_DEVELOPER_RELEASE" && state !== "READY_FOR_SALE") {
+    throw new Error(
+      `${storeVersion} is ${state}, not approved and waiting — going live is only ` +
+        "possible from PENDING_DEVELOPER_RELEASE. Apple has not finished with it",
+    );
+  }
+
+  const build = await attachedBuild(asc, version.id);
+  const buildNumber = build?.attributes?.version;
+  if (!buildNumber) {
+    throw new Error(
+      `App Store Connect reports no build attached to ${storeVersion} — without it there ` +
+        "is no way to know which commit is live",
+    );
+  }
+
+  // Resolve before releasing: discovering the commit is unknowable is a refusal worth
+  // making *before* the app is public rather than after.
+  const resolved =
+    commit ?? commitOfBuild(root, { target: "ios", buildNumber });
+  if (!resolved) {
+    throw new Error(
+      `no single receipt names build ${buildNumber}, so the commit behind ${storeVersion} ` +
+        "cannot be established — push refs/notes/releases from the machine that shipped " +
+        "it, or name the commit with --commit=<sha>",
+    );
+  }
+
+  if (state === "READY_FOR_SALE") {
+    say(`${storeVersion} is already on the App Store`);
+  } else {
+    await requestRelease(asc, version.id);
+  }
+
+  say(`build ${buildNumber} came from ${resolved.slice(0, 12)}`);
+  return { commit: resolved, buildNumber };
+}
+
 export async function submitToAppStore({
   asc,
   app,
@@ -976,12 +1088,15 @@ const TIERS = {
       "App Store review — a day or so, and it reviews the metadata too",
     ],
   },
+  // `final` builds nothing. The artifact it makes public was built and submitted by `rc`,
+  // days earlier — going live is a state Apple confers, not something compiled — so this
+  // rung releases the approved version and records which commit that was.
   final: {
-    name: "App Store review",
-    requires: [appIcon, exportCompliance],
+    name: "release to the public",
+    marker: true,
+    requires: [],
     manual: [
-      "screenshots, privacy labels, age rating and a support URL in App Store Connect",
-      "this version string is spent permanently once submitted",
+      "Apple must have approved it — the version has to be in Pending Developer Release",
     ],
   },
 };
@@ -992,6 +1107,15 @@ export default {
   status: "ready",
 
   preflight: [xcodeSelected, cocoapods, ...signing, ...ascKey],
+
+  /**
+   * The `marker` rung's whole implementation: no archive, no upload, no artifact.
+   *
+   * It is a sibling of `build`/`publish` rather than a stage inside them, because it shares
+   * nothing with them — it reads App Store Connect and the repository's own receipts, and
+   * produces a commit rather than a file.
+   */
+  release: releaseToPublic,
 
   tiers: TIERS,
 
