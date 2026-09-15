@@ -143,6 +143,20 @@ cheapest form of that guarantee. Worth doing while the second target is fresh.
   `assets/icon/`, with `pnpm test:icons` guarding every raster against it. iOS' `beta` rung
   checks it (`scripts/release/targets/ios.mjs`); Android needs the equivalent once its rungs
   are real.
+- ⚠️ **The commit does not ride inside the Android artifact** *(noticed 2026-09-14)*.
+  `apps/mobile/app.config.ts` bakes `LeapsakeCommit` into the shipped `Info.plist`, where
+  `plutil -p` reads it straight out of an `.ipa` **without launching anything** — which is the
+  whole point, since a provenance claim must survive the app being unable or unwilling to
+  report on itself. The `android` block sets only `versionCode`, so the AAB's manifest names
+  no commit and the claim falls back to `extra.commit` in the JS bundle, which requires the
+  app to *run*. The fix is small and mirrors the two plugins already here: a
+  `withAndroidManifest` plugin writing a `<meta-data>` element that `aapt2 dump badging` can
+  read out of the artifact. Worth doing when the target is built, since that is when the
+  receipts start mattering on this platform.
+- **No R8 mapping file is uploaded**, because `enableMinifyInReleaseBuilds` is off — so Play's
+  "no deobfuscation file" warning on every upload is correct and harmless. ⚠️ The day
+  minification is turned on for app size, that warning becomes real and the mapping upload has
+  to join `publish()`.
 - **dSYMs are missing** for React Native's prebuilt XCFrameworks (`React`,
   `ReactNativeDependencies`, `hermesvm`), so crash reports will not symbolicate frames inside
   them. Our own code symbolicates fine. ⚠️ **This is now an iOS question and it is no longer

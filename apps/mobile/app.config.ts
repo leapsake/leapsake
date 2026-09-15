@@ -107,6 +107,14 @@ const gitRead = (args: string[]) =>
  * being unable or unwilling to report on itself. `extra.commit` is the same string reachable
  * from JS, for an About screen that wants it.
  *
+ * ⚠️ **That property is iOS-only today** *(noticed 2026-09-14)*. The `android` block below
+ * sets only `versionCode`, so nothing in an AAB's manifest names its commit and Android's
+ * provenance rests entirely on `extra.commit` — which lives in the JS bundle and therefore
+ * needs the app to *run*, the exact dependency the `Info.plist` entry exists to avoid. An
+ * Android artifact is consequently opaque in the way the paragraph above calls intolerable.
+ * Closing it is a `withAndroidManifest` plugin writing a `<meta-data>` element that
+ * `aapt2 dump badging` can read; tracked in `plans/android-pipeline.md` → *Still open*.
+ *
  * **`-dirty` can only appear in a development build.** `pnpm release` refuses an unclean
  * tree (`scripts/release/preflight.mjs` → *clean tree*), so a store artifact carrying it
  * would mean the release path had been bypassed — which is exactly what you would want the
