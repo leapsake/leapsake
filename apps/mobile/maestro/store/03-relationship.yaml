@@ -1,0 +1,63 @@
+# Give Harry Bailey a relationship, so the hero record shows BOTH a milestone and a
+# relationship — the pair that distinguishes this from a contacts app.
+#
+# Split out of `01-roster.yaml` because that flow died before reaching it (a reminder form
+# closed under it), and re-running the whole staging would duplicate thirteen people.
+#
+# **The role slug is no longer a guess.** `PickerField.tsx:177` builds option ids as
+# `${testID}-option-${getKey(option)}`, and `packages/schema/src/relationship.ts:62` lists
+# "brother" as a canonical role value — so `relationship-other-role-option-brother` is the
+# id, on the same rule that makes flow 2's `...-option-friend` work.
+#
+# Brother rather than Friend because George and Harry ARE brothers in the film, and a
+# family app whose one visible relationship reads "Friend" undersells the feature.
+appId: com.leapsake.app
+---
+- openLink: "leapsake://"
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+# List rows carry a trailing space in their accessibility text, so the name must be
+# wrapped — a bare "Harry Bailey" never matches a row.
+- tapOn: ".*Harry Bailey.*"
+- assertVisible: "Harry Bailey"
+
+- scrollUntilVisible:
+    element:
+      text: "Add relationship"
+    direction: DOWN
+- tapOn: "Add relationship"
+
+# Role first, name second: a chosen role narrows which entities may hold the other end,
+# and picking the name first lets a later role silently drop it.
+- tapOn:
+    id: "relationship-other-role"
+- tapOn:
+    id: "relationship-other-role-filter"
+- inputText: "Brother"
+# By id, never by label: typing into the filter makes the INPUT read "Brother", and on
+# Android Gboard's suggestion strip reads "Brother" too — both decoys sit below the
+# filter, so a text tap lands on one of them, reports COMPLETED, and selects nothing.
+- tapOn:
+    id: "relationship-other-role-option-brother"
+# Asserted rather than assumed, so a tap that selected nothing fails here — where the
+# cause is still on screen — instead of somewhere downstream.
+- extendedWaitUntil:
+    visible:
+      id: "relationship-other-name"
+    timeout: 10000
+
+- tapOn:
+    id: "relationship-other-name"
+- inputText: "George"
+- tapOn: ".*George Bailey.*"
+- tapOn: "Save"
+
+# It rendered on the person it was created from — the role too, since an edge saved with
+# no role would still show the name.
+- scrollUntilVisible:
+    element:
+      text: "Relationships"
+    direction: DOWN
+- assertVisible: ".*George Bailey.*"

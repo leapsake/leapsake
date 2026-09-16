@@ -16,6 +16,20 @@ circular mask crops a naive "66 of 108" adaptive icon) rather than chosen.
 
 Regenerating needs `brew install librsvg imagemagick`. Nothing else does.
 
+⚠️ **`pnpm icons` leaves `generated.json` unformatted, and the pre-commit hook rejects it.**
+The manifest is written with `JSON.stringify(…, null, 2)`, which is not oxfmt's JSON style, so
+every regeneration is followed by a blocked commit reading *"these staged files are not
+formatted"*. The fix the hook itself prescribes:
+
+```sh
+pnpm format && git add -u
+```
+
+**Never `--no-verify`** — the hook is right, the manifest genuinely is unformatted. The tidier
+fix is to run the manifest through oxfmt inside `scripts/icons.mjs`, or to add it to oxfmt's
+ignore list; neither is done, so anyone who touches an icon hits this with no hint that it is
+expected.
+
 > **Changing an icon means re-running `expo prebuild`** for the platform you want to see it
 > on. `pnpm ios` / `pnpm android` build the *existing* native project; they do not re-run the
 > pipeline that writes into it. The desktop app needs no such step — it reads its PNGs from

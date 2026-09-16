@@ -1,0 +1,142 @@
+# Populate the app with a presentable roster for store-listing screenshots.
+#
+# Builds ON the existing store (Mary + George + their Friend edge + the "Send a card"
+# reminder) rather than resetting: a reset would destroy that relationship and reminder,
+# and the first-run nudges on Home come back afterwards regardless, so it buys nothing.
+#
+# ## Decisions encoded here
+#
+#   - **Names are the house convention** — the cast of *It's a Wonderful Life*, full names.
+#   - **Birthdays are YEAR ONLY.** `MilestoneFields.tsx` passes no testID to the Month
+#     SelectField, so its options cannot be addressed on either platform. The year is the
+#     only date part a driver can set (see subflows/stage-birthday.yaml).
+#   - **Harry Bailey is the hero record**, not Mary: Mary's birthday reads 1815 from the
+#     e2e arc, and the two ambiguous "Edit" links on a person page make correcting it
+#     riskier than giving a fresh person a sane year.
+#   - **Contact methods and gifts are absent on purpose.** `ContactMethodFields` and
+#     `GiftCaptureForm` carry no testIDs for their text inputs, so driving them means
+#     text selectors beside unlabelled TextInputs — the fragility the repo's subflows
+#     exist to avoid. Those sections stay empty.
+#   - **This flow is the ROSTER ONLY.** Reminders live in `02-reminders.yaml` and the hero
+#     record's relationship in `03-relationship.yaml`. They were split out when a single
+#     long flow wedged partway, and the split is kept deliberately: Maestro commits each
+#     save as it goes, so a failure late in one long flow strands you mid-roster with no
+#     clean way to resume. Three short flows re-run independently.
+appId: com.leapsake.app
+---
+# --- the roster ----------------------------------------------------------------------
+# Eleven more people on top of Mary and George. `save-record.yaml` taps "Not now" when the
+# duplicate prompt fires, which the repeated Bailey surname will trigger — that branch is
+# why a dozen same-surname people is safe here.
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Harry"
+      LAST: "Bailey"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1911"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Clarence"
+      LAST: "Odbody"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1893"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Violet"
+      LAST: "Bick"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1915"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Ernie"
+      LAST: "Bishop"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1908"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Billy"
+      LAST: "Bailey"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1880"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Zuzu"
+      LAST: "Bailey"
+- runFlow:
+    file: ../subflows/stage-birthday.yaml
+    env:
+      YEAR: "1938"
+- runFlow: ../subflows/save-record.yaml
+
+# The remaining six carry no milestone — a roster where every single person has a
+# birthday reads as seeded data, and the People list does not show milestones anyway.
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Peter"
+      LAST: "Bailey"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Sam"
+      LAST: "Wainwright"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Ruth"
+      LAST: "Dakin"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Henry"
+      LAST: "Potter"
+- runFlow: ../subflows/save-record.yaml
+
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Emil"
+      LAST: "Gower"
+- runFlow: ../subflows/save-record.yaml
+
+# --- a pet, so the catalog earns its "People & Pets" name -----------------------------
+# "Buffalo" from the film's "Buffalo Gals" rather than a cast member, so it collides with
+# no person's name — Zuzu is already a person here.
+- runFlow:
+    file: ../subflows/add-pet.yaml
+    env:
+      NAME: "Buffalo"
+- runFlow: ../subflows/save-record.yaml

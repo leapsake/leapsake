@@ -1,0 +1,98 @@
+# Capture store-listing screenshots from the already-staged app.
+#
+# Run AFTER base.mjs + 01/02/03 have left the full roster, a relationship, a milestone
+# and the "Send a card" reminder in place. This flow writes nothing — it only navigates
+# and shoots, so it is safe to re-run and safe to interrupt.
+#
+# `takeScreenshot` rather than interleaved `adb exec-out screencap`: Maestro settles on
+# each screen before shooting, where an external capture races the navigation and
+# photographs a half-drawn transition. Paths are relative to Maestro's working directory.
+#
+# Navigation is by the same route flow 02 proves works on this state — deep link to the
+# tab navigator, then Search -> browse tile -> row. A person detail page has no deep link
+# worth using (see maestro/README.md -> deep links), and a row tap needs the wrapped
+# ".*name.*" form because list rows carry a trailing space in their accessibility text.
+appId: com.leapsake.app
+---
+# --- 0. Load the bundle into the dev client ------------------------------------------
+# ⚠️ A bare `leapsake://` opens the expo-dev-LAUNCHER, not the app — the first run of this
+# flow failed that way, asserting against a screen reading "Development Build" /
+# "DEVELOPMENT SERVERS" where nothing of the app was rendering at all. The dev client has
+# to be told which packager to load first; this is `DEV_CLIENT_LINK` from
+# scripts/lib/mobile-harness.mjs, and `localhost` works because `adb reverse tcp:8081`
+# tunnels it to the host's Metro.
+#
+# The staged store is on disk and survives all of this — the launcher was a navigation
+# problem, not data loss.
+- openLink: "leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+- extendedWaitUntil:
+    visible: ".*Send a card.*"
+    timeout: 180000
+
+# --- 1. Home: what's coming up -------------------------------------------------------
+# The lead screenshot. Flow 5 left a reminder here, so this is not an empty state.
+- takeScreenshot: shots/01-home
+
+# --- 2. People & Pets: the roster ----------------------------------------------------
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*Mary Bailey.*"
+- takeScreenshot: shots/02-people
+
+# --- 3. A person: milestones + relationships on one record ---------------------------
+# ⚠️ **Harry, not Mary.** Mary's birthday reads 1815 — the arbitrary year the e2e arc
+# types — which on a store listing reads as a bug. Harry was staged with 1911.
+- tapOn: ".*Harry Bailey.*"
+# ⚠️ **Never assert on the person's NAME here.** `app/_layout.tsx` gives a pushed screen
+# the name the LINKING screen sent, so the header reads "Harry Bailey" while the body is
+# still empty — `assertVisible: "Harry Bailey"` passed on a completely blank page and the
+# captured shot was a header over nothing (27KB against 150KB for a rendered page).
+# Wait for a section heading instead: those exist only once the record has loaded.
+- extendedWaitUntil:
+    visible: "Milestones"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Relationships"
+    timeout: 20000
+- takeScreenshot: shots/03-person
+
+# No second, scrolled capture of this page: the previous run's 04 came back BYTE-IDENTICAL
+# to 03 (md5 confirmed), because `scrollUntilVisible` found "Relationships" already on
+# screen and correctly did not scroll. One shot is all this page has to give.
+
+# --- 4. Tags: the cross-cutting view -------------------------------------------------
+- openLink: "leapsake://"
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-tags"
+- assertVisible: ".*birthday.*"
+- takeScreenshot: shots/05-tags
+
+# --- 5. Holidays: a catalog that ships populated -------------------------------------
+# The holidays catalog is bundled (45 entries), so this screen is full without any
+# staging at all — which makes it the most presentable capture available today.
+- openLink: "leapsake://"
+# ⚠️ There is NO Holidays tab. `(tabs)/_layout.tsx` gives gifts, holidays and tags
+# `href: null` — they sit in the tab group deliberately WITHOUT a bar button, and are
+# reached from Search's browse tiles instead. `tab-holidays` has failed twice.
+# The key is verified: `SEARCH_CATEGORIES` in lib/search-categories.ts has key "holidays".
+- tapOn:
+    id: "tab-search"
+- tapOn:
+    id: "browse-tile-holidays"
+# ⚠️ Same render race that blanked the person page: the first capture of this screen was
+# a "Holidays" header over nothing — not even an empty-state line — because the list had
+# not painted yet. The catalog genuinely holds 45 rows (confirmed by querying the pulled
+# store), so waiting on a known one is both safe and the proof the list rendered.
+# ⚠️ **Wait on a holiday near TODAY, not the first one alphabetically.** The catalog is
+# sorted by date proximity and the list is virtualised, so only the next few weeks are
+# rendered — "New Year's Day" waited the full 20s and never appeared, because in September
+# it is months away and was never mounted. (The apostrophe was NOT the problem: the stored
+# name is plain ASCII, hex 27.) This target is the first row actually on screen.
+- extendedWaitUntil:
+    visible: ".*Mexican Independence Day.*"
+    timeout: 20000
+- takeScreenshot: shots/06-holidays

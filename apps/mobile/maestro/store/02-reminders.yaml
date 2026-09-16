@@ -1,0 +1,71 @@
+# Two more reminders, each with a DISTINCT tag.
+#
+# Fixes two thin screens at once: Home gains rows, and the Tags catalog gains more than
+# the single "birthday" tag it currently holds (confirmed by querying the pulled store —
+# both existing reminders used #birthday, so Tags showed one row and read as empty).
+#
+# ## What killed the last attempt, and what changed
+#
+# In the original single staging flow a reminder died at `tapOn: id: reminder-body` after a
+# LONG title was typed ("Call about the Building and Loan"); the failure screenshot showed
+# the form gone and the page underneath restored, and that reminder never saved. The exact
+# mechanism was never pinned down and is not worth chasing.
+#
+# So this flow avoids the shape entirely: **the body is tapped and filled FIRST**, while
+# the form is freshly opened and nothing long has been typed, and the title goes in last.
+# Titles are also kept short. A reminder needs only a title to be worth showing, so if the
+# body step ever fails again the title is already in.
+appId: com.leapsake.app
+---
+# --- one ------------------------------------------------------------------------------
+- openLink: "leapsake://reminders/new"
+- assertVisible: "Add reminder"
+- tapOn:
+    id: "reminder-body"
+- inputText: "@Violet"
+- tapOn:
+    text: ".*Violet Bick.*"
+    below:
+      id: "reminder-body"
+# The trailing space closes the tag fragment; without it the token is still composing and
+# the picker stays open over Save.
+- inputText: " #flowers "
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn:
+    id: "reminder-title"
+- inputText: "Order flowers"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn: "Save"
+
+# --- two ------------------------------------------------------------------------------
+- openLink: "leapsake://reminders/new"
+- assertVisible: "Add reminder"
+- tapOn:
+    id: "reminder-body"
+- inputText: "@Sam"
+- tapOn:
+    text: ".*Sam Wainwright.*"
+    below:
+      id: "reminder-body"
+- inputText: " #letter "
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn:
+    id: "reminder-title"
+- inputText: "Write to Sam"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn: "Save"
+
+# Land on Home so the next capture starts from a known screen.
+- openLink: "leapsake://"
