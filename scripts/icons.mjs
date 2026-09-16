@@ -168,6 +168,35 @@ const OUTPUTS = [
   },
   {
     /**
+     * The Google Play **store listing** icon — the one shown on the app's Play page and in
+     * search results, uploaded by hand to the Console.
+     *
+     * The only output here that **no build consumes**, which is why it lives under
+     * `assets/store/` rather than beside the app's own assets: a file in
+     * `apps/mobile/assets` reads as something Metro bundles, and this is something a person
+     * uploads. It is generated rather than hand-cropped for the ordinary reason — a
+     * store icon that drifts from the launcher icon is the same product wearing two faces.
+     *
+     * **512px because that is Play's fixed requirement**, not a density to downscale from:
+     * the Console takes exactly 512×512. `icon.png` would serve at a pinch (it is already
+     * opaque RGB) but it is 1024, and letting Play resize is letting Play choose the
+     * resampling.
+     *
+     * `FRACTIONS.masked` and the cream background, matching `icon.png` rather than the
+     * tighter `bare` crop: Play composites this into a rounded square exactly as iOS and
+     * Android-legacy do, so it needs the same optical padding inside the same corner
+     * radius. ⚠️ The background is also **mandatory** here — Play rejects a store icon with
+     * an alpha channel, the same constraint iOS puts on `icon.png`.
+     */
+    path: "assets/store/play-icon.png",
+    source: SOURCES.color,
+    size: 512,
+    fraction: FRACTIONS.masked,
+    background: BACKGROUND,
+    note: "Google Play store listing icon — uploaded to the Console by hand, consumed by no build",
+  },
+  {
+    /**
      * The Android status-bar icon, and the one output whose rules are unlike the rest.
      *
      * **Android throws the colours away.** A notification small icon is drawn from its

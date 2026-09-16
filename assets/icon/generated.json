@@ -49,6 +49,19 @@
       "sha256": "0e73f11b26111091e80771b969fb555fbc64ce3834ee7c585218175934812875"
     },
     {
+      "path": "assets/store/play-icon.png",
+      "source": "assets/icon/logo_color.svg",
+      "format": "png",
+      "size": 512,
+      "frames": null,
+      "fraction": 0.72,
+      "background": "#fbf7f0",
+      "plate": null,
+      "tint": null,
+      "note": "Google Play store listing icon — uploaded to the Console by hand, consumed by no build",
+      "sha256": "b411fbabb9783897f16cd322e27982940029bfbd255762ec7381a8b8917ad444"
+    },
+    {
       "path": "apps/mobile/assets/notification-icon.png",
       "source": "assets/icon/logo_bw.svg",
       "format": "png",
