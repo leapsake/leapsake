@@ -2,7 +2,8 @@
 
 > **In flight** *(owner, 2026-09-13)*. Android ships from the **personal** Play account to the
 > internal and closed tracks; a later app transfer moves it to the company for $25. The build
-> half is done and proven. **What is left is the upload half plus Play Console paperwork.**
+> half is done and proven, and the Console paperwork is finished *(2026-09-16)*. **What is left
+> is the closed track itself, and the scripted upload half.**
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
 > because the work spans a repo and a web console and neither half makes sense alone.
@@ -12,7 +13,7 @@
 > which documents itself. *(Numbered `v0-1_04_mobile-pipeline.md` until 2026-09-06; deferred
 > past v0.1 that day and un-deferred on 2026-09-13 — `git log` has the history.)*
 
-## Where this stands *(2026-09-14)*
+## Where this stands *(2026-09-16)*
 
 | | State |
 | --- | --- |
@@ -21,16 +22,27 @@
 | Play App Signing | ✅ enrolled — quantum-ready hybrid, Google-held key |
 | Upload key + signing config plugin | ✅ built and verified end to end |
 | First AAB uploaded (internal track) | ✅ `368157 (0.1.0)`, *Available to internal testers* |
-| Install confirmed on a physical device | ☐ opt-in link still propagating |
-| App content declarations | ☐ **next** |
-| Main store listing | ☐ **gates the closed track** |
-| Closed track + Google Group | ☐ this is the "Android beta" goal |
+| Install confirmed on a physical device | ✅ the link did propagate — see *Traps* |
+| App content declarations | ✅ all 11 |
+| Main store listing | ✅ copy, icon, feature graphic, 5 screenshots — uploaded by hand |
+| The commit rides inside the artifact | ✅ `plugins/with-android-commit.js` |
+| A clean, reproducible AAB | ✅ built at `608c06e`, **not yet uploaded** |
+| Closed track + Google Group | ☐ **next** — this is the "Android beta" goal |
 | Service account for the API | ☐ unblocks all automation |
 | `play.mjs` + `android.mjs` | ☐ not written; target is still `status: "blocked"` |
 
+⚠️ **The built AAB names `608c06e`, which is no longer HEAD** — a later commit corrected this
+doc and the plugin's header. That is fine and is the design working: the bundle names the
+commit it was *actually* built from, and that commit is clean and reachable. Do not "fix" it by
+rebuilding at HEAD unless something the build consumes has changed; a rebuild also mints a new
+`versionCode` (a clock reading) unless `LEAPSAKE_BUILD_NUMBER` pins it.
+
 **The goal in flight is an Android *beta*, which under the mapping below means the closed
-track.** It is gated only by App content + the store listing — not by the 12-tester wall, which
-gates *production access* alone and is a separate, later decision.
+track.** Its two gates — App content and the store listing — are **both cleared as of
+2026-09-16**, so what remains is mechanical: create the Google Group, create the closed track,
+upload the AAB, roll out, recruit. Not the 12-tester wall, which gates *production access*
+alone and is a separate, later decision — though the closed-track uploads are what earn it, so
+recruiting starts the clock that `final` is waiting on.
 
 ## Facts established the hard way — do not re-derive these
 
@@ -291,7 +303,8 @@ exchanging content with *other users*; only §11 sharing changes it.
 - **A first test link takes hours to propagate**, sometimes into the next day. "Item not found"
   after successfully opting in is the expected symptom, not a misconfiguration — if Console says
   *Available to internal testers*, it worked. ⚠️ **Do not republish or re-upload to "fix" it**;
-  each attempt burns a version code that can never be reused.
+  each attempt burns a version code that can never be reused. *(Borne out: `368157` did install
+  on a physical device once the link propagated, with no republish — 2026-09-16.)*
 - **"Not reviewed" on an internal release is normal** and matches the "(unreviewed)" label testers
   see on the opt-in page. Internal testing requires no review.
 - **Play's "no deobfuscation file" warning is expected** — see *Still open* below.
