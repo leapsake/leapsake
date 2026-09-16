@@ -395,10 +395,27 @@ rollout morning.
   `plutil -p` reads it out of an `.ipa` **without launching anything** — the property a provenance
   claim needs, since it survives the app being unable or unwilling to report on itself. The
   `android` block sets only `versionCode`, so an AAB's manifest names no commit and the claim
-  falls back to `extra.commit` in the JS bundle, which requires the app to *run*. The fix mirrors
-  the two plugins already in `apps/mobile/plugins/`: a `withAndroidManifest` plugin writing a
-  `<meta-data>` element that `aapt2 dump badging` can read. Worth doing when the target is built,
-  since that is when receipts start mattering here.
+  falls back to `extra.commit` in the JS bundle, which requires the app to *run*.
+
+  ✅ **Closed 2026-09-15** by [`apps/mobile/plugins/with-android-commit.js`](../apps/mobile/plugins/with-android-commit.js),
+  a `withAndroidManifest` plugin writing a `<meta-data>` element named `LeapsakeCommit` — the
+  same key iOS uses, so one grep finds both. It reads `extra.commit` from the resolved config
+  rather than shelling out to git, so the two platforms cannot disagree, and it throws rather
+  than writing an element that says nothing.
+
+  ⚠️ **This bullet used to say `aapt2 dump badging` could read it back. That is wrong for an
+  AAB** — `aapt2` answers `error: could not identify format of APK`, because a bundle is a zip
+  of protobuf modules with no root binary manifest to badge (`dump xmltree` on the extracted
+  file fails likewise). Both work on an *APK*, which is why the claim went unchallenged until
+  an AAB was built. Read it back with no extra install via
+
+  ```sh
+  unzip -p app-release.aab base/manifest/AndroidManifest.xml | strings | grep -A2 LeapsakeCommit
+  ```
+
+  — a heuristic rather than a parse, since `strings` recovers the attribute name and value as
+  adjacent tokens. `bundletool dump manifest --bundle=…` is the rigorous form and a separate
+  install.
 - **No R8 mapping file is uploaded**, because `enableMinifyInReleaseBuilds` is off — so Play's
   "no deobfuscation file" warning on every upload is correct and harmless. ⚠️ The day
   minification is turned on for app size, that warning becomes real and the mapping upload has to

@@ -16,8 +16,28 @@ const { AndroidConfig, withAndroidManifest } = require("@expo/config-plugins");
  *
  * **That dependency is the whole problem.** A provenance claim has to survive the app being
  * unable or unwilling to report on itself; one that needs a working launch is worth little
- * when you are trying to establish what a broken build contains. `aapt2 dump badging` reads
- * this element out of an AAB with nothing executing.
+ * when you are trying to establish what a broken build contains. This element is readable
+ * from the shipped bundle with nothing executing.
+ *
+ * ## How to read it back — and the tool that does NOT work
+ *
+ * ⚠️ **Not `aapt2 dump badging`.** That is what this plugin's own plan said, and it is wrong
+ * for an AAB: `aapt2` answers `error: could not identify format of APK`, because a bundle is
+ * a zip of protobuf modules with no root binary manifest to badge. `aapt2 dump xmltree` on
+ * the extracted manifest fails for the same reason. Both work fine on an *APK* — which is
+ * why the claim survived unchallenged until an AAB was actually built (2026-09-15).
+ *
+ * What works with nothing installed:
+ *
+ * ```sh
+ * unzip -p app-release.aab base/manifest/AndroidManifest.xml | strings | grep -A2 LeapsakeCommit
+ * ```
+ *
+ * That is a *heuristic*, not a parse — the manifest is protobuf, so `strings` recovers the
+ * attribute name and its value as adjacent tokens with no structural link between them. It
+ * is enough to prove the element shipped. The rigorous form is `bundletool dump manifest
+ * --bundle=app-release.aab`, which parses it properly; bundletool is a separate install
+ * (`brew install bundletool`) and is not required by anything else here.
  *
  * ## Why the value is read from the config rather than from git
  *
