@@ -189,37 +189,76 @@ and would first have to reverse `plans/encryption/model.md` §7's binding constr
 "first-run onboarding must not force account/password setup." That is a model decision, not a
 Console one.
 
-### 2. Main store listing — **this is the gate on closed testing**
-Play refuses to roll out a closed release while it is incomplete, and reports it as the track
-being stuck rather than as a listing error.
+### 2. Main store listing — ✅ **done 2026-09-16**
+It *was* the gate on closed testing: Play refuses to roll out a closed release while the
+listing is incomplete, and reports it as the track being stuck rather than as a listing error.
+That gate is cleared. Kept here for what it cost and what has to be redone if the listing ever
+changes:
 
 - Title ≤30 chars, short description ≤80, full description ≤4,000
-- App icon 512×512
-- **Feature graphic 1024×500, JPEG or 24-bit PNG, no transparency** — required, not optional
+- App icon 512×512 — generated, at `assets/store/play-icon.png` (`pnpm icons`)
+- **Feature graphic 1024×500, JPEG or 24-bit PNG, no transparency** — required, not optional.
+  ⚠️ A **placeholder**: frog + wordmark, to be replaced by a designed asset
 - ≥2 phone screenshots (max 8). Must be **Android** captures; iOS ones are the wrong aspect.
   The repo can produce these — `scripts/lib/mobile-harness.mjs` boots and drives an emulator
-- Category, contact details, countries/regions
+- Category — **Lifestyle**, chosen over Productivity because the positioning leans emotional.
+  ⚠️ It carries less discovery signal, so the ≤80-char short description and the tags have to
+  carry the functional search intent ("birthday reminder", "remember important dates") instead
+- Contact details, countries/regions
 
-### 3. Rebuild the AAB from a clean tree before the closed release
+⚠️ **Uploaded by hand, and that is deliberate** — nothing in `scripts/release/` touches listing
+assets. A targeted search for `appScreenshot`, `previewSet`, `edits.images` and `edits.listings`
+across the whole directory returns nothing; the only store *text* the release path writes is
+release notes (`whatsNew` / `whatToTest`), because those are per-*release* where these are
+per-*listing*. Versioning them and uploading on change is deferred — see `play.mjs` below.
+
+### 3. Rebuild the AAB from a clean tree — ✅ **done 2026-09-16**, and this is how
+
 ⚠️ **Do not use *Promote release* to move the existing internal build to closed.** Build `368157`
 was produced from a dirty working tree and corresponds to no commit. Promoting it would put an
-unreproducible artifact in front of testers for weeks. Rebuilding costs ~4 minutes:
+unreproducible artifact in front of testers for weeks. The replacement is built and waiting to
+be uploaded; the recipe stays because every future release repeats it.
+
+⚠️ **Always `--clean`, never a bare prebuild.** `android/` is gitignored generated output, and a
+*stale* tree is the trap — not a missing one. `app.config.ts` bakes `versionCode` and the commit
+at **prebuild** time, so a months-old tree ships months-old values from a perfectly current
+source checkout. (Measured 2026-09-16: the tree on disk was from 2026-08-18 while the resolved
+config read `versionCode 371753`.)
 
 ```sh
-cd apps/mobile/android
+cd apps/mobile
+pnpm exec expo prebuild --platform android --clean
+
+# The commit is baked at prebuild time — check it BEFORE spending ~4 minutes on Gradle.
+grep -o 'android:name="LeapsakeCommit" android:value="[^"]*"' \
+  android/app/src/main/AndroidManifest.xml
+# Must match `git rev-parse --short=12 HEAD`, and must NOT end in `-dirty`.
+
+cd android
+# `.env` names the keystore, the alias AND the password's file — read all three from it
+# rather than hardcoding, so a rotated credential does not silently keep working.
 export LEAPSAKE_ANDROID_KEYSTORE="$(grep '^LEAPSAKE_ANDROID_KEYSTORE=' ../../../.env | cut -d= -f2-)"
-export LEAPSAKE_ANDROID_KEY_ALIAS=leapsake-upload
-export LEAPSAKE_ANDROID_KEYSTORE_PASSWORD="$(cat "$HOME/.leapsake/upload-keystore-password.txt")"
+export LEAPSAKE_ANDROID_KEY_ALIAS="$(grep '^LEAPSAKE_ANDROID_KEY_ALIAS=' ../../../.env | cut -d= -f2-)"
+export LEAPSAKE_ANDROID_KEYSTORE_PASSWORD="$(cat "$(grep '^LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH=' ../../../.env | cut -d= -f2-)")"
 ./gradlew bundleRelease
 # → app/build/outputs/bundle/release/app-release.aab
-keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab
+```
+
+Then verify **both** properties, because each catches a different disaster:
+
+```sh
+AAB=app/build/outputs/bundle/release/app-release.aab
+keytool -printcert -jarfile "$AAB" | grep SHA256          # the right key signed it
+unzip -p "$AAB" base/manifest/AndroidManifest.xml \
+  | strings | grep -A2 LeapsakeCommit                      # it names its own commit
 ```
 
 The signer SHA-256 must read
 `61:B6:0B:A8:D5:FE:D8:FD:F2:6D:89:30:87:68:7A:39:7A:70:29:B7:DF:00:FF:0E:8D:09:7A:B0:40:C1:73:D4`
 — the upload key's fingerprint, confirmed against the certificate Play itself issues. It is a
-certificate fingerprint, not a secret. A *fresh* prebuild is needed first if `android/` is absent
-(`pnpm --filter @leapsake/mobile exec expo prebuild --platform android`).
+certificate fingerprint, not a secret. ⚠️ A **debug-signed** release AAB is the failure that
+looks like success: it builds and installs cleanly and is only rejected at upload, which is why
+`with-android-release-signing.js` emits `signingConfig null` rather than falling back.
 
 ### 4. Create the closed track
 *Test and release → Testing → Closed testing → Manage track → Testers.* Use a **Google Group**
@@ -403,14 +442,15 @@ rollout morning.
 - ✅ **The app icon is real** *(2026-08-26)* — one vector source in `assets/icon/`, with
   `pnpm test:icons` guarding every raster. iOS' `beta` rung checks it
   (`scripts/release/targets/ios.mjs`); Android needs the equivalent once its rungs are real.
-- ⚠️ **The commit does not ride inside the Android artifact** *(2026-09-14)*.
-  `apps/mobile/app.config.ts` bakes `LeapsakeCommit` into the shipped `Info.plist`, where
-  `plutil -p` reads it out of an `.ipa` **without launching anything** — the property a provenance
-  claim needs, since it survives the app being unable or unwilling to report on itself. The
-  `android` block sets only `versionCode`, so an AAB's manifest names no commit and the claim
-  falls back to `extra.commit` in the JS bundle, which requires the app to *run*.
+- ✅ **The commit rides inside the Android artifact** *(closed 2026-09-16)*. It did not until
+  then, and the gap was this: `apps/mobile/app.config.ts` bakes `LeapsakeCommit` into the shipped
+  `Info.plist`, where `plutil -p` reads it out of an `.ipa` **without launching anything** — the
+  property a provenance claim needs, since it survives the app being unable or unwilling to
+  report on itself. The `android` block set only `versionCode`, so an AAB's manifest named no
+  commit and the claim fell back to `extra.commit` in the JS bundle, which requires the app to
+  *run*.
 
-  ✅ **Closed 2026-09-15** by [`apps/mobile/plugins/with-android-commit.js`](../apps/mobile/plugins/with-android-commit.js),
+  Closed by [`apps/mobile/plugins/with-android-commit.js`](../apps/mobile/plugins/with-android-commit.js),
   a `withAndroidManifest` plugin writing a `<meta-data>` element named `LeapsakeCommit` — the
   same key iOS uses, so one grep finds both. It reads `extra.commit` from the resolved config
   rather than shelling out to git, so the two platforms cannot disagree, and it throws rather
