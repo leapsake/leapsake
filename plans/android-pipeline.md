@@ -66,10 +66,14 @@ contradict what this document said before. Re-deriving them costs a day.
    to go public, against self-host parity, and against the `LeapsakeCommit`/receipts provenance
    chain, since it ships bytes we did not build.
 4. **Data safety answer is "no data collected, no data shared"** — true by construction in v0.1:
-   single-device, no account, sync behind the `multiDevice` flag. ⚠️ Revisit the day the relay
-   ships; a stale declaration is a policy problem.
+   single-device, sync behind the `multiDevice` flag. ⚠️ Revisit the day the relay ships; a stale
+   declaration is a policy problem. *(Corrected 2026-09-14: this said "no account", which is
+   false — v0.1 ships a local account. It strengthens rather than weakens the answer, since that
+   account transmits nothing. See* Why Sign in details is "No" *below, and the revisit table.)*
 5. **Target audience is adults, not children.** Declaring a child audience pulls the app into
-   Families policy and a stack of extra requirements.
+   Families policy and a stack of extra requirements. *(Settled in the Console on 2026-09-14 as
+   **18+ only**, with the optional "restrict minors" block left **off** — both halves, and the
+   reconsideration point, are in* Play declarations and their revisit triggers *below.)*
 6. ☐ **Undecided:** *Prevent installs on risky devices* (currently off, making the Play Store
    protection panel read 6 of 7). The argument for leaving it off is consistent with #3 — it
    blocks rooted phones, custom ROMs and de-Googled devices, which is much of the natural early
@@ -136,12 +140,42 @@ App-level Dashboard → *Finish setting up your app* → View tasks. Answers, al
 | Declaration | Answer |
 | --- | --- |
 | Privacy policy | `https://leapsake.com/privacy/` (already live, same as iOS) |
-| App access | All functionality available without special access — v0.1 has no login |
+| Sign in details *(was "App access")* | **No** — nothing is restricted. See below; the reason is *not* "v0.1 has no login" |
 | Ads | No |
 | Content rating | Complete the questionnaire; expect *Everyone*. Must not remain *Unrated* |
-| Target audience | Adults. **Not** children |
+| Target audience | **18 and over** only; the optional "restrict minors" block left **off**. Both halves reasoned in the revisit table below |
 | Data safety | No data collected, no data shared |
 | News / COVID / government / financial / health | No to each |
+
+#### Why *Sign in details* is "No" — the reasoning, since the obvious one is wrong
+
+⚠️ **v0.1 does ship an account.** This doc claimed it did not until 2026-09-14. `@leapsake/flags`
+is explicit that `multiDevice` **does not gate accounts** — "the line is the relay, not the login"
+— and `app/settings.tsx` renders `CreateAccountForm` unconditionally; only `SyncSetup` sits behind
+the flag. A username and password exist, and creating them is what turns encryption on.
+
+The declaration is still **No**, because the question is whether any part of the app is
+*restricted*, and none is:
+
+- **No launch gate.** `app/_layout.tsx` gates rendering on the core being ready, not on an
+  account. A fresh install opens an Unauthenticated (plaintext) store straight into the tabs;
+  `lib/core-context.tsx` notes such a store "skips all of it." The unlock prompt only appears for
+  a store that already *has* an account and lost its enclave key — never on review's first run.
+- **Every `hasAccount` read is a branch, not a gate** — create-vs-manage in Settings, an explicit
+  "Import without protecting" in `app/import.tsx`, wording in `app/data.tsx`, a nudge in the
+  reminders engine. The account unlocks no content; every feature works without it.
+- **Nothing to hand a reviewer.** `key-custody/create-account.ts`: "Everything here is local; no
+  relay is involved and nothing leaves the device." There is no server-side account to provision,
+  which is exactly the concern Google's own wording raises ("We can't create new accounts").
+- **No biometric door.** No `LocalAuthentication`, no `requireAuthentication` anywhere;
+  `keystore/secure-store-keystore.ts` uses `keychainAccessible: AFTER_FIRST_UNLOCK`, which is OS
+  keychain availability, not an in-app prompt. Biometrics are in Google's *Yes* list, so this is
+  worth re-checking rather than assuming if a device lock is ever added.
+
+⚠️ A **mandatory** PIN/password/biometric at first setup would put this answer genuinely in play —
+and would first have to reverse `plans/encryption/model.md` §7's binding constraint that
+"first-run onboarding must not force account/password setup." That is a model decision, not a
+Console one.
 
 ### 2. Main store listing — **this is the gate on closed testing**
 Play refuses to roll out a closed release while it is incomplete, and reports it as the track
@@ -196,6 +230,56 @@ This is the "Android beta" the current work is aiming at.
 ### 6. Turn on managed publishing
 *Publishing overview → Managed publishing → on.* Required before `rc`/`final` mean what the
 mapping says. Internal tracks bypass it.
+
+## Play declarations and their revisit triggers
+
+**This table outlives this document.** When the rest is deleted per the header, move it to
+[`apps/mobile/README.md`](../apps/mobile/README.md) → *Cutting a release*. Each row is answered
+for **what ships**, which is correct — and each becomes wrong on a specific event. A declaration
+that no longer matches the app is a policy problem, not stale paperwork.
+
+| Declaration | Answered | Becomes wrong when |
+| --- | --- | --- |
+| Data safety | no data collected, no data shared | the **relay** ships (`multiDevice`, v0.2) — see *Decisions* #4 |
+| Sign in details | No — nothing restricted | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run |
+| Content rating | *Everyone*, All Other App Types | **purchases**, §11 **sharing**, or **multimedia** land |
+| Target audience | **18 and over** only | GA, *if* teens ever become an audience worth designing for — see below |
+| App Store **App Privacy** (iOS) | mirrors Data safety | the **relay** ships — ⚠️ same event, *different store* |
+
+⚠️ **The relay is one event that invalidates three declarations across two stores** — Play Data
+safety, Play *Sign in details*, and Apple's App Privacy. Updating Play alone and shipping a stale
+iOS declaration is the failure this table exists to prevent, so the trigger is **not** Play-only
+and should not live here permanently (see the preflight note in *The version-parity check*).
+
+**Target audience — both halves were chosen deliberately** *(2026-09-14)*:
+
+- **18+ only, and 13–17 left unchecked.** Play asks who the app is *designed and marketed for*,
+  not who could use it. Teens may well find a gift-and-birthday tracker useful and **remain free
+  to install it** — declaring an audience is not an access control. Checking a minor band is what
+  buys heightened obligations (content review, ads restrictions, tighter data handling, possibly
+  an age screen) for an audience v0.1 does not market to. ⚠️ The reconsideration point is **GA
+  with multimedia**, not now: an app that targets minors *and* stores user media *and* later adds
+  §11 sharing is a far heavier posture than any one of those alone, so taking on the first years
+  before the others costs most and buys least.
+- ☐ **"Restrict users that Google has determined to be minors" — left OFF.** *This* checkbox is
+  the access control, and it would block minors from finding or installing an app rated
+  **Everyone** — restriction with no benefit. Check it only for genuinely adults-only content
+  (alcohol, gambling, dating) or a legal requirement. It is also the source of the form's warning
+  that 18+ "may allow additional restrictions to your availability": that consequence is
+  **opt-in**, not automatic, which is what makes the adults-only declaration cheap.
+
+⚠️ Answer *Store presence* consistently with this — it asks whether the app could appeal to
+children regardless of target, and contradicting the target-age answer is its own flag.
+
+⚠️ **Purchases are the sharp one.** Answering yes to digital goods does not merely move the
+rating — it pulls in Play billing policy.
+
+Two ratings answers are right for non-obvious reasons, recorded so a later reader does not
+"correct" them: **cash rewards / gift cards → No** despite the Gifts feature (those are private
+records of presents, not instruments of transferable value), and **web browser or search engine →
+No** despite the Search tab (it searches local records). **User Content Sharing stays No even
+after `multiDevice` ships** — sync moves one user's data between their own devices, which is not
+exchanging content with *other users*; only §11 sharing changes it.
 
 ## Traps that have already cost time
 
@@ -257,6 +341,21 @@ single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning 
 also the first moment it can be **wrong**: identical version numbers say nothing if the two builds
 resolve `@leapsake/flags` differently. A preflight asserting both platforms resolve the same flag
 state is the cheapest form of that guarantee. Worth doing while the second target is fresh.
+
+**Give that same preflight a second job: gating the store declarations.** The revisit table above
+is a *reminder*, and reminders are exactly what fails years later when someone flips a flag for an
+unrelated reason — at which point three declarations across two stores silently stop matching the
+app, which is a policy problem rather than stale paperwork. The check is already reading flag
+state, so it costs almost nothing to also **fail the release when `multiDevice` is on and the
+declarations have not been re-confirmed** — a dated marker the check reads is enough. That turns
+"remember to revisit" into "the release refuses until you do", and it is the natural home for the
+cross-store trigger, since a preflight is platform-neutral in a way this Android doc is not.
+
+⚠️ **Sequence the declaration updates with the release, not after it.** The violation is never
+"the declaration changed" — declaring for *what ships* is the only correct answer, and Google
+expects these to be updated as the app changes. The violation is a live version whose behavior has
+outrun its declaration. Declaration changes also go through review, so they cannot be flipped on
+rollout morning.
 
 ## Still open, and not blocking Android
 
