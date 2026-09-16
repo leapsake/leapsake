@@ -50,7 +50,8 @@
         }
       ],
       "./plugins/with-store-backup-exclusion",
-      "./plugins/with-android-release-signing"
+      "./plugins/with-android-release-signing",
+      "./plugins/with-android-commit"
     ]
   }
 }
