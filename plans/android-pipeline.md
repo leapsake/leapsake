@@ -323,6 +323,34 @@ unwritten, **not** because uploading is dangerous. The target contract is docume
   → `edits.tracks.update` → `edits.commit`. Transport only, no policy — `asc.mjs`'s header
   explains why that split matters. One edit can update **several tracks**, which is how `rc`
   reaches the closed track and the held production release in a single commit.
+- ☐ **Version-controlled listing assets, uploaded only when they change** *(owner, 2026-09-15 —
+  deliberately deferred to here rather than built early)*. The screenshots, feature graphic and
+  store icon should live in the repo and be re-uploaded by `pnpm release` **only** when the asset
+  actually changed. Today they are uploaded by hand and live nowhere tracked.
+
+  Three things to know before building it, each of which cost something to learn:
+
+  - ⚠️ **Screenshots are not byte-reproducible, so naive hash-skipping is worthless.** Two
+    captures of the same screen minutes apart differ — the status-bar clock, battery and signal
+    all move (measured 2026-09-15: the same Home screen gave `dfa695e3…` and `b171ce0c…`, and
+    different file sizes). A hash check over those re-uploads everything on every regeneration.
+    The fix is Android's **SysUI demo mode** (`settings put global sysui_demo_allowed 1`, then
+    broadcast a pinned clock/battery/signal) so the chrome stops varying. Until that exists,
+    the committed PNG has to be the source of truth and regeneration a deliberate act.
+  - **The icon and feature graphic *are* deterministic** — both are rendered from vector sources
+    by a script, so they can be hash-skipped with none of the above. Only screenshots need it.
+  - ⚠️ **Play may make local state unnecessary.** Its `Images` resource carries a per-image hash,
+    so `edits.images.list` can be diffed against the local files directly and nothing has to be
+    stored on this side — no manifest, nothing to drift. **Unverified**: confirm the field
+    against the API reference before designing around it.
+
+  **Not git notes.** `receipts.mjs`'s header explains why it uses them — a receipt is metadata
+  *about a commit*, knowable only after that commit is tagged and built. Listing assets are the
+  opposite: release **inputs**, known beforehand. They belong in tracked files.
+
+  *(Also the reason this is here and not done: the whole feature sits on top of `play.mjs`, which
+  is unwritten. Building the asset sync first would mean a change-detector with nothing to upload
+  through.)*
 - ☐ **`android.mjs` itself** — preflights in the same shape as iOS' (`envSet`/`fileAt` from
   `scripts/release/checks.mjs`), so a missing prerequisite is reported by `--dry-run` rather than
   discovered mid-upload: the keystore, its password file, the service-account JSON, the track
