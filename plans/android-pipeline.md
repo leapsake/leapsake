@@ -10,6 +10,12 @@
 > because the work spans a repo and a web console and neither half makes sense alone. It carries
 > only what is *unbuilt or still true forward*; anything settled has moved next to its code.
 >
+> Two things it deliberately does not repeat. **Credentials** are named by path in `.env` and
+> every preflight that needs one says which variable and points at `.env.example`, so a missing
+> credential explains itself. **Agent-shell hazards** — chiefly that a sandboxed `pnpm test:*` can
+> be SIGKILLed and *delete* the SQLite native binary — are in
+> [`../AGENTS.md`](../AGENTS.md) → read it before running the suite.
+>
 > **Delete it when the work lands.** How to cut a build then belongs in
 > [`apps/mobile/README.md`](../apps/mobile/README.md); the rules belong in `scripts/release/`,
 > which documents itself. ⚠️ *Play declarations and their revisit triggers* below must be **moved,
@@ -34,6 +40,11 @@ undo for that half.
 
 `alpha --only=android` risks one version code against a track with no review and no audience but
 the owner. That is not waste: it is the rung that means "internal", used for what it is for.
+
+⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all` (not `--strict` — `alpha` is
+the one rung that does not gate on unbuilt tiers), sets every manifest to the new version, commits
+*Cut 0.1.0-alpha.N*, and cuts that tag. Nothing is pushed. Expect ~4 minutes of Gradle on top of
+the suite, and a prebuild that deletes and regenerates `apps/mobile/android/`.
 
 **Then check the Console**, because one thing is unverified: that *Closed testing* still lists its
 countries and testers. `publish()` uses `tracks.update`, a **PUT**, and whether replacing a
@@ -62,8 +73,12 @@ The tag is cut locally and nothing is ever pushed, so that half stays reversible
 
 ### 4. Recruit, and start the clock
 
+The opt-in link is on *Test and release → Testing → Closed testing → **Testers** tab*, below the
+tester list, as "Copy link". Testers must already be on the email list to use it.
+
 The 14 days do not begin until testers are opted in, so this is the long pole rather than the
-upload. ⚠️ **Send the two-account instruction with the opt-in link** — see *Traps*.
+upload. ⚠️ **Send the two-account instruction with the link** — see *Traps*. Play does not reliably
+email testers on your behalf; assume distributing the link is yours to do.
 
 ---
 
