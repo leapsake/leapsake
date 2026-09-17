@@ -41,8 +41,8 @@ undo for that half.
 `alpha --only=android` risks one version code against a track with no review and no audience but
 the owner. That is not waste: it is the rung that means "internal", used for what it is for.
 
-⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all` (not `--strict` — `alpha` is
-the one rung that does not gate on unbuilt tiers), sets every manifest to the new version, commits
+⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all --strict`, like every rung
+does now, sets every manifest to the new version, commits
 *Cut 0.1.0-alpha.N*, and cuts that tag. Nothing is pushed. Expect ~4 minutes of Gradle on top of
 the suite, and a prebuild that deletes and regenerates `apps/mobile/android/`.
 
@@ -51,15 +51,15 @@ countries and testers. `publish()` uses `tracks.update`, a **PUT**, and whether 
 track's releases leaves its configuration alone has not been proven. The internal track is the
 cheap place to find out.
 
-### 2. Run the gate separately, before it runs inside a release
+### 2. ✅ Run the gate separately, before it runs inside a release — *done 2026-09-16*
 
 ```sh
 pnpm test:all --strict --provision
 ```
 
-⚠️ `beta` and above run this, and **`--strict` fails the release on any blocked tier**. It boots a
-simulator *and* an emulator. Whether the Android emulator tier has ever been green on this machine
-is unknown, and twenty minutes into a release is the expensive moment to learn it.
+Green on every tier, with no ⏳ rows: the Android emulator leg of the crucial-flow catalog ran for
+the first time and passed. That retired the reason `alpha` skipped `--strict`, so **every rung now
+runs the full gate**.
 
 ### 3. `pnpm release beta`
 

@@ -168,10 +168,9 @@ const TIERS = [
     // Flows 1-5 — the whole `beta` bar (CONTRIBUTING.md → *The E2E release gate*, its
     // rung table) — plus `rc`'s 7b/7c and the out-of-band custody assertions on Flows 1
     // and 4. What `rc` still owes is the key-store row, deferred (see
-    // `lib/custody-assertions.mjs`); 6/7a ship with sync. Green on the iOS simulator and re-runnable; the Android leg
-    // is written but has not been run, so the first `--strict` release will be the first
-    // time it is exercised (an un-booted emulator reports BLOCKED via exit 3, which
-    // --strict correctly treats as a failure).
+    // `lib/custody-assertions.mjs`); 6/7a ship with sync. Green and re-runnable on both
+    // the iOS simulator and the Android emulator. An un-booted device reports BLOCKED via
+    // exit 3, which --strict treats as a failure.
     //
     // Note `test:e2e` is `scripts/test-e2e.mjs`, NOT `test-all --only=e2e`: the tier's
     // own script running the orchestrator would loop, exactly as test-native.mjs's

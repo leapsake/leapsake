@@ -39,10 +39,8 @@
 // a CI runner. `--no-provision` opts out when the environment is already up and the extra
 // probing is just latency.
 //
-// Every rung runs `pnpm test:all`. Beta and above run it `--strict`, where a tier that is
-// blocked — not built yet, or needing a device that is not booted — fails the release.
-// Alpha does not: it goes to internal TestFlight, which is named App Store Connect users
-// and no one else. See `isStrict` below.
+// Every rung runs `pnpm test:all --strict`, where a tier that is blocked — not built yet,
+// or needing a device that is not booted — fails the release.
 //
 // Credentials come from `.env` (see `.env.example`), or from the environment, which wins.
 //
@@ -255,18 +253,6 @@ function loadEnvFile() {
     // No .env is the normal case on a runner, where the environment carries the secrets.
   }
 }
-
-/**
- * Whether a red-or-*blocked* tier stops the release.
- *
- * Every rung runs the same suite; what changes is whether a tier that is merely *not
- * built yet* is fatal. `--strict` is release-gate mode, and the gate's own policy is
- * about the first release of Leapsake **on a platform** — the rungs where people who are
- * not the author install the build. An alpha goes to internal TestFlight: named App Store
- * Connect users, capped at 100. Holding it to the full gate would mean no build at all
- * until the E2E catalog exists, which trades a real alpha for a theoretical one.
- */
-const isStrict = (stage) => stage !== "alpha";
 
 /**
  * The `final` rung: make the approved version public, and tag the commit that went live.
@@ -529,9 +515,7 @@ async function main() {
   if (dryRun) {
     console.log("\nWould, in order:");
     console.log(
-      `  1. run pnpm test:all${isStrict(stage) ? " --strict" : ""}${
-        provision ? " --provision" : ""
-      }${isStrict(stage) ? "" : `  (${stage} does not gate on unbuilt tiers)`}`,
+      `  1. run pnpm test:all --strict${provision ? " --provision" : ""}`,
     );
     if (provision) {
       console.log(
@@ -570,11 +554,7 @@ async function main() {
     if (setVersion(version).status !== 0) return 1;
   }
 
-  const strict = isStrict(stage);
-  const suiteArgs = [
-    ...(strict ? ["--strict"] : []),
-    ...(provision ? ["--provision"] : []),
-  ];
+  const suiteArgs = ["--strict", ...(provision ? ["--provision"] : [])];
   console.log(
     `\n→ pnpm test:all${suiteArgs.length ? ` ${suiteArgs.join(" ")}` : ""}`,
   );
