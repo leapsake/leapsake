@@ -23,53 +23,66 @@
 
 ## Next: the first scripted release
 
-Everything below is one-time. `pnpm release beta` is the goal; these are the steps that keep the
-first one from being an expensive way to find a bug.
+Everything below is one-time. The goal is `pnpm release beta --only=android`, and these are the
+steps that keep the first one from being an expensive way to find a bug.
 
-### 1. Prove the Android path alone, on the internal track
+⚠️ **There is no internal-track rehearsal available, and that is not an oversight.** The obvious
+first move — spend a throwaway version code on the internal track, where nothing is reviewed and
+nobody but the owner installs it — is closed off by the version ladder. `nextVersion` only counts
+*forward within a core* (`scripts/release/version.mjs`), 0.1.0 is already at `beta.7` from the iOS
+work, and `0.1.0-alpha.4` does not come after `0.1.0-beta.7`, so the *version increases* preflight
+refuses it. The only way back to an `alpha` is `--base=patch`, which starts a **new 0.1.1 train**
+and gives up on 0.1.0 ever shipping. **0.1.0 is to be the version that reaches the stores**
+*(owner, 2026-09-16)*, so the rehearsal is the thing that gets given up instead.
+
+Which means the first Android `build()` and `publish()` happen at a **reviewed** rung, in front of
+whoever is on the tester list. Steps 1 and 2 exist to buy back what the internal track would have
+caught for free.
+
+✅ **The suite gate is already proven** — `pnpm test:all --strict --provision` ran green on every
+tier on 2026-09-16, with no ⏳ rows, including the Android emulator leg of the crucial-flow catalog
+running for the first time. That retired the reason `alpha` skipped `--strict`, so **every rung now
+runs the full gate**. It still runs again inside the release; budget the ~30-minute catalog twice.
+
+### 1. Replace the feature graphic first
+
+The 1024×500 asset in the listing is a placeholder — frog plus wordmark — and it is required, not
+optional. ⚠️ **Do it before the rollout, not after.** Listing changes go through review, so fixing
+it afterwards buys a second review cycle where doing it now is free.
+
+### 2. `pnpm release beta --only=android`
 
 ```sh
-pnpm release alpha --only=android
+pnpm release beta --only=android
 ```
 
 ⚠️ **`build()` and `publish()` have never executed.** Dry runs exercise preflights only — the
-prebuild, Gradle, the keytool fingerprint check, the upload and `tracks.update` are unproven. And
-`index.mjs` ships targets in order, **iOS first**, so a `beta` that fails on Android fails *after*
-iOS has uploaded, distributed to TestFlight, entered Beta App Review and cut the tag. There is no
-undo for that half.
+prebuild, Gradle, the keytool fingerprint check, the upload and `tracks.update` are all unproven.
 
-`alpha --only=android` risks one version code against a track with no review and no audience but
-the owner. That is not waste: it is the rung that means "internal", used for what it is for.
+**`--only=android` is load-bearing.** `index.mjs` ships targets in order, **iOS first**, so a bare
+`pnpm release beta` that fails on Android fails *after* iOS has uploaded, distributed to TestFlight,
+entered Beta App Review and cut the tag — and there is no undo for that half. Restricting to Android
+removes that entirely. The tag `v0.1.0-beta.8` still covers the whole repo; only Android ships from
+it, which is the design rather than a gap (`index.mjs` → *A tag covers the whole repo*). iOS ships
+on its own later invocation.
 
-⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all --strict`, like every rung
-does now, sets every manifest to the new version, commits
-*Cut 0.1.0-alpha.N*, and cuts that tag. Nothing is pushed. Expect ~4 minutes of Gradle on top of
-the suite, and a prebuild that deletes and regenerates `apps/mobile/android/`.
+⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all --strict --provision`, sets
+every manifest to the new version, commits *Cut 0.1.0-beta.8*, and cuts that tag. Nothing is pushed.
+Expect ~4 minutes of Gradle on top of the suite, and a prebuild that deletes and regenerates
+`apps/mobile/android/`.
 
-**Then check the Console**, because one thing is unverified: that *Closed testing* still lists its
-countries and testers. `publish()` uses `tracks.update`, a **PUT**, and whether replacing a
-track's releases leaves its configuration alone has not been proven. The internal track is the
-cheap place to find out.
+What cannot be taken back: the rollout enters **Google review** — on Play a track rollout *is* the
+submission, with no separate submit step — and the version code is spent permanently.
 
-### 2. ✅ Run the gate separately, before it runs inside a release — *done 2026-09-16*
+### 3. Check the Console before distributing anything
 
-```sh
-pnpm test:all --strict --provision
-```
-
-Green on every tier, with no ⏳ rows: the Android emulator leg of the crucial-flow catalog ran for
-the first time and passed. That retired the reason `alpha` skipped `--strict`, so **every rung now
-runs the full gate**.
-
-### 3. `pnpm release beta`
-
-What it does that cannot be taken back:
-
-- **iOS** — distributes to external testers and submits for Beta App Review. Strangers, not you.
-- **Android** — rolls out to the closed track and enters Google review.
-- Both spend a version number permanently.
-
-The tag is cut locally and nothing is ever pushed, so that half stays reversible.
+⚠️ **One thing is unverified, and it now gets tested on the track that matters.** `publish()` uses
+`tracks.update`, a **PUT**, and whether replacing a track's releases leaves the rest of its
+configuration alone has not been proven. The internal track would have been the cheap place to
+find out; instead, go straight to *Test and release → Testing → Closed testing* afterwards and
+confirm the **Testers** tab and the country list survived. If the PUT flattened them, restore them
+*before* handing out the opt-in link — a tester who opts in against a broken track is a silent
+failure, and re-uploading to fix it burns another version code.
 
 ### 4. Recruit, and start the clock
 
@@ -173,8 +186,8 @@ mid-release. `rc` is closed-only for the same reason.
 *every* approved change waits for a person, including listing edits. See the `rc` bullet under
 *Still to build* for why this toggle is load-bearing and dangerous.
 
-**Replace the feature graphic.** The 1024×500 asset in the listing is a placeholder — frog plus
-wordmark — and it is required, not optional.
+**Replace the feature graphic** — see *Next* → step 1, which is where it has to happen in the
+sequence.
 
 ## Play declarations and their revisit triggers
 
