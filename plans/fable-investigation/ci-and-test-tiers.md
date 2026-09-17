@@ -12,7 +12,7 @@ rung above alpha. There is no hosted CI, and this doc does not add one.
 | Tier                                                            | Contents                                     |                                                                      Measured |
 | --------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------: |
 | Static (format, lint, typecheck, versions, icons, docs, bundle) | 7 scripts                                    |                                                                           ~6s |
-| Vitest: 174 files, 2,341 tests                                  | unit + integration + web components          |                                                            29s wall, 243s CPU |
+| Vitest: 177 files, 2,373 tests                                  | unit + integration + web components          |                                                            25s wall, 145s CPU |
 | Mobile native selftest, per platform                            | boot, `expo run` build, Metro, one flow      |                                                     minutes, mostly the build |
 | Mobile E2E arc, per platform                                    | 7 flows, 57 assertions, five Argon2id passes | 07b + 07c alone are 2m46s; the arc with provisioning is well over ten minutes |
 
@@ -20,24 +20,11 @@ The inner loop is fine. The release gate is where the minutes are, and until
 [`release-targets-per-rung.md`](./release-targets-per-rung.md) lands it pays for every
 platform whether or not it ships.
 
-**The Vitest wall clock is one file waiting on a password scrambler.** Vitest runs files in
-parallel, so 29s is the longest file, not the sum. The eight slowest files are all account and
-custody tests, and they are slow because every one derives keys with production-strength
-Argon2id (19 MiB, two passes, roughly a second per call in Node):
-
-| File                                                      |     ms |
-| --------------------------------------------------------- | -----: |
-| `apps/desktop/test/integration/account-adopt.test.ts`     | 28,520 |
-| `apps/desktop/test/integration/account-merge.test.ts`     | 25,295 |
-| `apps/desktop/test/integration/master-key-repair.test.ts` | 24,212 |
-| `apps/server/test/relay.test.ts`                          | 18,711 |
-| `apps/website/test/site.test.ts` (an Astro build)         | 17,580 |
-| `apps/desktop/test/integration/rotate-recovery.test.ts`   |  8,196 |
-| `apps/desktop/test/integration/create-account.test.ts`    |  7,428 |
-| `apps/desktop/test/integration/sign-out.test.ts`          |  7,349 |
-
-Five of those are deleted by [`relay-removal.md`](./relay-removal.md). The rest are fixed by
-step 1 below.
+The Vitest figure is post-KDF-injection (landed 2026-09-16; it was 36s wall, 288s CPU). Vitest
+runs files in parallel, so the wall clock is the longest file, not the sum, and the longest
+files are now `search-service` and `gifts` — real work against real SQLite, not a scrambler.
+`apps/server/test/relay.test.ts` is deleted by [`relay-removal.md`](./relay-removal.md). Nothing
+else here is worth chasing.
 
 ## Where the trophy is the wrong shape
 
@@ -78,43 +65,24 @@ Three places are inverted or empty:
 **A fidelity note the docs overstate.** `CONTRIBUTING.md` says E2E drives "the production app
 binary on that OS image". It drives the dev client loading a dev-mode bundle from Metro
 (`scripts/lib/mobile-harness.mjs` requires Metro and says so). That is not the artifact `rc`
-uploads. See step 6.
+uploads. See step 5.
 
 ## Steps, each a commit
 
-Order: 1 and 2 are independent of everything and can go first. 3 to 5 need
+Order: 1 is independent of everything. 2 to 4 need
 [`relay-removal.md`](./relay-removal.md) first, because they touch `core-context.tsx` and the
 relay code is most of it.
 
-### 1. Inject the KDF cost in Vitest
+**Open decision, carried over from the KDF injection that landed:** whether to lower the cost in
+E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
+never be mistaken for a real one, and it changes what the door files say. Worth minutes per arc.
 
-`packages/crypto/src/kdf.ts` hard-codes `ARGON2_PARAMS` and every caller
-(`password-sidecar.ts`, `key-custody/src/{session,password-door,rotate-recovery}.ts`) calls
-`deriveKeyMaterial(password, salt)`. Give `deriveKeyMaterial` a module-level parameter set that
-defaults to production and can be lowered **only under test**:
+### 1. Gate follows the targets
 
-- `setKdfParamsForTests(params)` in `kdf.ts`, which throws unless `process.env.VITEST` is set,
-  so a production build cannot reach it. Called once from a Vitest setup file with a cheap
-  profile (`m: 64, t: 1`).
-- `KDF_ALG` stays unchanged for Vitest, because Vitest doors never leave the process and are
-  never opened by production code.
-- One test in `packages/crypto/test` proves the override is refused outside Vitest.
+[`release-targets-per-rung.md`](./release-targets-per-rung.md). Listed here so the CI picture is
+complete; that doc owns it.
 
-This is the singleton shape `packages/flags` justified for launch configuration read at the
-leaves; threading a params object through seven call sites and every desktop flow buys nothing
-here. Expected: Vitest wall clock from 29s to roughly 10s, the slowest files dropping under 3s.
-
-**Deferred, and it is the owner's call:** lowering the cost in E2E too. That would need a
-distinct `KDF_ALG` string recorded in the account row so a cheap-recipe door can never be
-mistaken for a real one, and it changes what the door files say. Worth minutes per arc; decide
-it separately, after this lands.
-
-### 2. Gate follows the targets
-
-[`release-targets-per-rung.md`](./release-targets-per-rung.md), steps 2 and 3. Listed here so
-the CI picture is complete; that doc owns it.
-
-### 3. Extract the unlock loop into `key-custody`
+### 2. Extract the unlock loop into `key-custody`
 
 Desktop already has the right shape: `openAppDatabase` in `apps/desktop/src/main/db/open.ts`
 runs the `for (;;)` unlock loop with `requestUnlock` injected, and `apps/desktop/test/open.test.ts`
@@ -128,7 +96,7 @@ the mobile-only ones: wrong password then right password; wrong phrase rejected 
 the store does not have refused with the right message. These are exactly the cases 07b and
 07c step through at a minute each.
 
-### 4. A mobile hook tier
+### 3. A mobile hook tier
 
 `apps/mobile` gets `@testing-library/react` and a jsdom docblock, the same setup
 `packages/ui` uses, for **hooks only**: no React Native rendering, no `jest-expo`. What gets
@@ -144,9 +112,9 @@ tested:
 The screens themselves stay untested below E2E. That is deliberate: once state is in hooks, a
 screen is a rendering of hook output and the smoke flow is the right test for it.
 
-### 5. Shrink the E2E arc
+### 4. Shrink the E2E arc
 
-With 3 and 4 in place, replace 02, 03 and 05 with one `02-smoke.yaml`: add a person, add a
+With 2 and 3 in place, replace 02, 03 and 05 with one `02-smoke.yaml`: add a person, add a
 relationship, add a milestone, add a reminder with the `@` splice and a `#tag`, **relaunch the
 app** (`subflows/relaunch.yaml` exists), and assert every one of those is still on screen. That
 is fewer steps than today's three flows and proves more, because today nothing relaunches
@@ -156,7 +124,7 @@ so the catalog matches the harness, and its rung table so `beta` reads "01, smok
 Do not remove 01, 04, 07b or 07c. Do not remove the out-of-band custody assertions or the
 sabotage rule in `apps/mobile/maestro/README.md`.
 
-### 6. Decide what binary E2E drives
+### 5. Decide what binary E2E drives
 
 An open decision, recorded here so the fidelity gap is not forgotten. Options:
 
@@ -168,7 +136,7 @@ An open decision, recorded here so the fidelity gap is not forgotten. Options:
 
 Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to describe it.
 
-### 7. Desktop, when it ships
+### 6. Desktop, when it ships
 
 Not now. When `desktop-packaging.md` lands, the desktop E2E harness is Playwright over the
 packaged app, running the same catalog (`crucial-flows.md` is tool-agnostic on purpose), keyed
@@ -180,5 +148,4 @@ tests beside the existing 64.
 ## Not worth doing
 
 Sharding Vitest, reordering static tiers, moving the Astro site build out of the run, or adding
-a hosted CI. The inner loop is already under a minute and will be under half of one after
-step 1.
+a hosted CI. The inner loop is already well under a minute.

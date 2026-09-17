@@ -33,20 +33,23 @@ accretion rather than missing abstractions.
 
 ## The six workstreams, in execution order
 
-| #   | Doc                                                            | What it removes or simplifies                                                                                                                                 | Owner's call                                                                                                                                       |
-| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | [`relay-removal.md`](./relay-removal.md)                       | The relay half of account/sync, written once per client and unreachable behind `multiDevice`. ~4,300 client lines plus the flag package and relay-only tests. | **Delete it.** Tag the last commit that has it so the v0.2 rebuild has a reference. Reverses the 2026-08-21 "keep it dark" decision.               |
-| 2   | [`core-decomposition.md`](./core-decomposition.md)             | `packages/core/src/index.ts` (2,894 lines) implements import, reminders, gifts, holidays and entity cascades instead of composing them.                       | **Do it.** Mechanical, covered by typecheck plus the integration suite.                                                                            |
-| 3   | [`comment-pass.md`](./comment-pass.md)                         | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.                            |
-| 4   | [`shared-form-logic.md`](./shared-form-logic.md)               | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                              |
-| 5   | [`release-targets-per-rung.md`](./release-targets-per-rung.md) | A release target is ready or blocked for all rungs at once, and the test gate runs every platform's device tiers whether or not that platform ships.          | **Do it, first.** Readiness per rung on the target; the gate runs the device tiers of the platforms in the release. Today's Android beta wants it. |
-| 6   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)               | E2E flows standing in for a missing mobile hook tier; every custody test paying production Argon2id cost; an E2E arc that never relaunches the app.           | **Do it.** Cheap KDF under Vitest only, extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.              |
+| #   | Doc                                                            | What it removes or simplifies                                                                                                                                 | Owner's call                                                                                                                          |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [`relay-removal.md`](./relay-removal.md)                       | The relay half of account/sync, written once per client and unreachable behind `multiDevice`. ~4,300 client lines plus the flag package and relay-only tests. | **Delete it.** Tag the last commit that has it so the v0.2 rebuild has a reference. Reverses the 2026-08-21 "keep it dark" decision.  |
+| 2   | [`core-decomposition.md`](./core-decomposition.md)             | `packages/core/src/index.ts` (2,894 lines) implements import, reminders, gifts, holidays and entity cascades instead of composing them.                       | **Do it.** Mechanical, covered by typecheck plus the integration suite.                                                               |
+| 3   | [`comment-pass.md`](./comment-pass.md)                         | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.               |
+| 4   | [`shared-form-logic.md`](./shared-form-logic.md)               | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                 |
+| 5   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)               | E2E flows standing in for a missing mobile hook tier; an E2E arc that never relaunches the app. _The Vitest KDF cost landed 2026-09-16._                      | **Do it.** Extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.                              |
+| 6   | [`release-targets-per-rung.md`](./release-targets-per-rung.md) | The test gate runs every platform's device tiers whether or not that platform is in the release.                                                              | **Do it, last.** Its readiness half was cancelled — `plans/android-pipeline.md` shipped the same guarantee as a preflight check.      |
 
-Order matters: 5 is small, independent, and needed for the next Android release, so it goes
-first. Then 1, which removes code that 2 and 3 would otherwise have to refactor and re-comment
-and that 6 would otherwise have to extract from. 2 shrinks the file 3 would spend the most time
-in. 4 and 6 depend on 1 and can run in parallel with 3; 6's first step (the KDF cost) depends on
-nothing and can go any time.
+Order matters: 1 removes code that 2 and 3 would otherwise have to refactor and re-comment, and
+that 5 would otherwise have to extract from. 2 shrinks the file 3 would spend the most time in.
+4 and 5 depend on 1 and can run in parallel with 3.
+
+6 was first in the original ordering, on the strength of the next Android release wanting it.
+It is now last: `plans/android-pipeline.md` settled the readiness question by another route, and
+with iOS and Android both ready at every rung, the gate filter that remains would change nothing
+today. It matters again when a platform goes blocked, or when macOS arrives.
 
 ## Rules that apply to every workstream
 
