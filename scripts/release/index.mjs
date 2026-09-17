@@ -289,13 +289,35 @@ async function markReleased(ctx, selected, dryRun) {
     if (!dryRun) return 1;
   }
 
+  // A marker rung still has preconditions, and they are the target's to state — Android's
+  // `final` refuses because Play has granted this account no production access. Checked
+  // before the marker-shape refusal below so the reason a person can *act* on wins, and
+  // checked at all because otherwise a `requires` list is silently ignored at this rung.
+  const blockers = new Map();
+  for (const target of ready) {
+    const tierFailures = await runChecks(
+      target.tiers[stage]?.requires ?? [],
+      ctx,
+    );
+    if (tierFailures.length > 0) blockers.set(target.id, tierFailures);
+  }
+  if (blockers.size > 0) {
+    reportFailures(
+      `${blockers.size} target(s) cannot release ${stage}:`,
+      [...blockers.values()].flat(),
+    );
+    if (!dryRun) return 1;
+  }
+
   // ⚠️ A ready target whose rung here is *not* a marker cannot be handled: it has no
   // `release()`, because its going-live step is a build rather than a state Apple confers.
-  // Android's production track and macOS's update feed are both shaped that way, and both
-  // are `blocked` today — so nothing can reach this yet, and whichever flips to `ready`
-  // first has to say which shape it is. Refusing beats skipping: a platform silently not
-  // being released is a worse outcome than an error that names it.
-  const unmarked = ready.filter((target) => !target.tiers[stage]?.marker);
+  // macOS's update feed is shaped that way. Android's production track is too, and is the
+  // reason the check above runs first: "no production access" is the useful message, and
+  // this one would otherwise pre-empt it with a note about missing code. Refusing beats
+  // skipping: a platform silently not being released is worse than an error that names it.
+  const unmarked = ready.filter(
+    (target) => !target.tiers[stage]?.marker && !blockers.has(target.id),
+  );
   if (unmarked.length > 0) {
     console.error(
       `\n✗ ${unmarked.map((each) => each.id).join(", ")}: the ${stage} rung is not a ` +
@@ -311,7 +333,13 @@ async function markReleased(ctx, selected, dryRun) {
       console.log(`  ⏳ ${target.id.padEnd(8)} — ${target.note}`);
       continue;
     }
-    console.log(`  ✅ ${target.id.padEnd(8)} → ${target.tiers[stage].name}`);
+    const stopped = blockers.get(target.id);
+    console.log(
+      `  ${stopped ? "✗" : "✅"} ${target.id.padEnd(8)} → ${target.tiers[stage].name}`,
+    );
+    for (const { name, reason } of stopped ?? []) {
+      console.log(`       ${name}: ${reason}`);
+    }
     for (const note of target.tiers[stage].manual ?? []) {
       console.log(`       ⚠ ${note}`);
     }
@@ -329,7 +357,7 @@ async function markReleased(ctx, selected, dryRun) {
     console.log(
       "\n(dry run — nothing was changed, and nothing is ever pushed)",
     );
-    return failures.length > 0 ? 1 : 0;
+    return failures.length > 0 || blockers.size > 0 ? 1 : 0;
   }
 
   // Each target reports the commit behind its own released build. They must agree: one tag

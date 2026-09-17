@@ -2,8 +2,9 @@
 
 > **In flight** *(owner, 2026-09-13)*. Android ships from the **personal** Play account to the
 > internal and closed tracks; a later app transfer moves it to the company for $25. The build
-> half is done and proven, and the Console paperwork is finished *(2026-09-16)*. **What is left
-> is the closed track itself, and the scripted upload half.**
+> half, the Console paperwork, the closed track and the whole scripted upload path are all done
+> *(2026-09-16)*. **What is left is running `pnpm release beta` for real, and then recruiting the
+> 12 testers whose 14 days are the long pole.**
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
 > because the work spans a repo and a web console and neither half makes sense alone.
@@ -27,9 +28,10 @@
 | Main store listing | ✅ copy, icon, feature graphic, 5 screenshots — uploaded by hand |
 | The commit rides inside the artifact | ✅ `plugins/with-android-commit.js` |
 | A clean, reproducible AAB | ✅ built at `608c06e`, **not yet uploaded** |
-| Closed track + Google Group | ☐ **next** — this is the "Android beta" goal |
-| Service account for the API | ☐ unblocks all automation |
-| `play.mjs` + `android.mjs` | ☐ not written; target is still `status: "blocked"` |
+| Closed track configured | ✅ all countries, testers by **email list** *(2026-09-16)* |
+| Service account for the API | ✅ `leapsake-release@leapsake.iam.gserviceaccount.com`, testing-tracks only |
+| `play.mjs` + `android.mjs` | ✅ written and green; target is `status: "ready"` |
+| The first scripted closed release | ☐ **next** — this is the "Android beta" goal |
 
 ⚠️ **The built AAB names `608c06e`, which is no longer HEAD** — a later commit corrected this
 doc and the plugin's header. That is fine and is the design working: the bundle names the
@@ -38,11 +40,16 @@ rebuilding at HEAD unless something the build consumes has changed; a rebuild al
 `versionCode` (a clock reading) unless `LEAPSAKE_BUILD_NUMBER` pins it.
 
 **The goal in flight is an Android *beta*, which under the mapping below means the closed
-track.** Its two gates — App content and the store listing — are **both cleared as of
-2026-09-16**, so what remains is mechanical: create the Google Group, create the closed track,
-upload the AAB, roll out, recruit. Not the 12-tester wall, which gates *production access*
-alone and is a separate, later decision — though the closed-track uploads are what earn it, so
-recruiting starts the clock that `final` is waiting on.
+track.** Every gate is cleared as of 2026-09-16 — App content, the store listing, the track
+itself, and the scripted path that uploads to it. What remains is `pnpm release beta` and then
+recruiting. Not the 12-tester wall, which gates *production access* alone and is a separate,
+later decision — though the closed-track uploads are what earn it, so recruiting starts the
+clock that `final` is waiting on.
+
+⚠️ **The waiting AAB at `608c06e` is now the wrong artifact to upload.** It was built by hand
+before the target existed, so it carries no tag and would leave no receipt — the same gap
+`368157` has, which is why the internal release reads *"manual bootstrap, no tag"*. `pnpm release
+beta` builds its own.
 
 ## Facts established the hard way — do not re-derive these
 
@@ -118,11 +125,18 @@ activity that accumulates the 12-tester/14-day credit, so shipping betas is the 
 production rather than a detour around it. Until that clock finishes, **`final` must refuse on
 Android** — and its preflight must say so rather than failing mid-release after iOS has shipped.
 
-⚠️ **A naming collision to confirm before writing the client.** Play's API track identifiers are
-`internal`, `alpha`, `beta`, `production` — and historically the API's `alpha` means *closed*
-testing while its `beta` means *open* testing. If that still holds, this repo's `beta` rung
-targets the API track named `alpha`. **Unverified.** Confirm against the API reference and leave
-a loud comment wherever the mapping is written down.
+**The naming collision is real, and settled** *(2026-09-16)*. Play's API track identifiers are
+`internal`, `alpha`, `beta`, `production`; its **`alpha` is closed testing** and its **`beta` is
+open testing**. So this repo's `beta` rung targets the API track named `alpha`, and no rung here
+ever targets Play's `beta` — that would be the whole internet rather than a tester group.
+
+⚠️ **Confirmed empirically, not from the documentation, which is wrong.** Google's
+[APKs and Tracks](https://developers.google.com/android-publisher/tracks) page calls the internal
+track `qa` and never says which of `alpha`/`beta` is closed. `edits.tracks.list` against this app
+returned `internal` holding `368157` — the build the Console shows on *Internal testing* — which
+disproves `qa` and anchors the rest. The mapping lives in `TRACK` in
+[`scripts/release/targets/android.mjs`](../scripts/release/targets/android.mjs) with the same
+warning, and `android.release.test.mjs` asserts no rung ever targets `beta`.
 
 ---
 
@@ -260,23 +274,36 @@ certificate fingerprint, not a secret. ⚠️ A **debug-signed** release AAB is 
 looks like success: it builds and installs cleanly and is only rejected at upload, which is why
 `with-android-release-signing.js` emits `signingConfig null` rather than falling back.
 
-### 4. Create the closed track
-*Test and release → Testing → Closed testing → Manage track → Testers.* Use a **Google Group**
-(`name@googlegroups.com`) rather than an email list: membership changes then never touch Play
-Console, and the tester roster stays out of the release path. Compare iOS, where the group *name*
-is the contract (`ASC_BETA_GROUP`) and renaming it breaks the release.
+### 4. Create the closed track — ✅ **done 2026-09-16**
+*Test and release → Testing → Closed testing → Manage track.*
 
-This is the "Android beta" the current work is aiming at.
+- **Countries: all of them.** A closed track is invite-only regardless, so restricting it buys
+  nothing and adds a third way a tester silently fails — alongside the two in *Traps*. ⚠️ Adding
+  countries later is free; removing one strands whoever already installed.
+- **Testers: an email list, not a Google Group** *(owner)*. The Group argument was convenience —
+  membership changes never touch Play Console. The email list wins on privacy: Group members can
+  see each other by default. At a dozen testers the Console editing is cheap. ⚠️ A Group
+  *can* be configured not to leak (*Who can view members → owners and managers*), so this is
+  reversible — but **switch before the 14-day clock starts**, since whether changing tester
+  method preserves tester continuity was never established.
 
-### 5. Service account — unblocks every automated step
-1. Enable the API: <https://console.cloud.google.com/apis/library/androidpublisher.googleapis.com>
-2. Create the account and a JSON key:
-   <https://console.cloud.google.com/iam-admin/serviceaccounts>. Save it beside the other
-   credentials in `~/.leapsake/`; `credentials.json` is gitignored at any depth.
-3. Account-level *Users and permissions* → **Invite new users** → the `…iam.gserviceaccount.com`
-   address → grant **"Release apps to testing tracks"**. That is least privilege and enough for
-   `alpha`/`beta`/`rc`. Production release permission is a later, separate grant — and `final` is
-   blocked on production access regardless.
+### 5. Service account — ✅ **done 2026-09-16**
+`leapsake-release@leapsake.iam.gserviceaccount.com`, key at
+`~/.leapsake/play-service-account.json` (mode 600), named by `PLAY_SERVICE_ACCOUNT_PATH`.
+Granted **"Release apps to testing tracks"** on the Leapsake app only. Production release
+permission is a later, separate grant — and `final` refuses on Android regardless.
+
+Two things cost time and would again:
+
+- ⚠️ **The Cloud IAM role step is a decoy.** The service-account wizard's *"Grant this service
+  account access to the project"* means the *Cloud project*, not the app. Play checks its own
+  Users and permissions and nothing else, so a role granted there is privilege with no benefit.
+  Skip it, and skip the "grant users access" step after it.
+- ⚠️ **The project ID is permanent and shows up forever.** It composes the account's email, so
+  `leapsake` gives `leapsake-release@leapsake.iam.gserviceaccount.com` where the auto-generated
+  `massive-sandbox-508816-n0` would have been the string in every permissions list from then on.
+  Enable the API *after* the project exists, with the right one selected — an API enabled on the
+  wrong project fails later as `403 SERVICE_DISABLED`, which reads like a Play grant problem.
 
 ### 6. Turn on managed publishing
 *Publishing overview → Managed publishing → on.* Required before `rc`/`final` mean what the
@@ -352,8 +379,8 @@ exchanging content with *other users*; only §11 sharing changes it.
 
 # Technical: what is left to build
 
-`scripts/release/targets/android.mjs` is still a `blocked` stub — blocked because the upload is
-unwritten, **not** because uploading is dangerous. The target contract is documented in
+`scripts/release/targets/android.mjs` is **`ready`** as of 2026-09-16: `alpha` and `beta` ship,
+`rc` ships its closed half, and `final` refuses. The target contract is documented in
 `scripts/release/targets/index.mjs`; below is only what is Android-specific.
 
 - ✅ **Build an AAB, not an APK** — `expo prebuild --platform android` then `./gradlew
@@ -365,16 +392,27 @@ unwritten, **not** because uploading is dangerous. The target contract is docume
   (`LEAPSAKE_ANDROID_KEYSTORE`, `_KEY_ALIAS`, `_KEYSTORE_PASSWORD_PATH`). ⚠️ The password is read
   from a **file** and passed to Gradle in the child environment — `.env` holds paths, never
   secrets, per its own header.
-- ☐ **`scripts/release/play.mjs`** — the API transport, mirroring `scripts/release/asc.mjs` in
-  shape and in having **no dependencies**: `node:crypto` signs an RS256 JWT, exchanged for an
-  access token at `https://oauth2.googleapis.com/token` with
-  `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` for scope
-  `https://www.googleapis.com/auth/androidpublisher`. Then the edit flow: `edits.insert` → POST
-  the AAB to the **upload host**
-  (`https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/{pkg}/edits/{editId}/bundles`)
-  → `edits.tracks.update` → `edits.commit`. Transport only, no policy — `asc.mjs`'s header
-  explains why that split matters. One edit can update **several tracks**, which is how `rc`
-  reaches the closed track and the held production release in a single commit.
+- ✅ **`scripts/release/play.mjs`** — the API transport, mirroring `asc.mjs` in shape and in
+  having no dependencies. Three things differ from Apple, each forced by the API and each
+  explained in the file: Google will not take a self-signed JWT as a bearer (the RS256 assertion
+  is **exchanged** for an access token, so two round trips where Apple has one); bundle uploads
+  go to a **different host** with a five-minute ceiling; and the upload is the one call that
+  **does not retry**, because Play's edits are transactional and the repair is a fresh edit
+  rather than a repeat that collides with its own version code.
+
+  `withEdit` lives there too — commit on success, abandon on failure. ⚠️ **`{ commit: false }` is
+  a real dry run**: the whole path exercised, nothing committed, **no version code spent**. That
+  is what makes the Play path safer to script than to click, and it is what the `Play API`
+  preflight uses to prove the grant before a four-minute Gradle build.
+- ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
+  reach the closed track and a held production release with **one** upload and one version code.
+  Not built: the account has no production access. ⚠️ **The hold is ambient on Play**, unlike
+  iOS where manual release is a property of the submission — it depends entirely on *managed
+  publishing* being on, an app-level Console toggle. So `rc`'s production half must ship with a
+  preflight that asserts managed publishing is on and refuses otherwise, or a `rc` run after
+  someone flips that toggle goes **public** with no error. Whether the API exposes that state
+  readably is **unverified**; if it does not, the interlock has to be something else, and that
+  is a decision to make deliberately rather than to paper over with a reminder.
 - ☐ **Version-controlled listing assets, uploaded only when they change** *(owner, 2026-09-15 —
   deliberately deferred to here rather than built early)*. The screenshots, feature graphic and
   store icon should live in the repo and be re-uploaded by `pnpm release` **only** when the asset
@@ -403,19 +441,30 @@ unwritten, **not** because uploading is dangerous. The target contract is docume
   *(Also the reason this is here and not done: the whole feature sits on top of `play.mjs`, which
   is unwritten. Building the asset sync first would mean a change-detector with nothing to upload
   through.)*
-- ☐ **`android.mjs` itself** — preflights in the same shape as iOS' (`envSet`/`fileAt` from
-  `scripts/release/checks.mjs`), so a missing prerequisite is reported by `--dry-run` rather than
-  discovered mid-upload: the keystore, its password file, the service-account JSON, the track
-  reachable with those credentials, and — for `final` — **production access actually existing**,
-  which is the check that stops a half-finished cross-platform release.
-- ☐ **`final` builds nothing**, as on iOS: it publishes what review already approved and tags the
-  commit that went live, resolved out of `refs/notes/releases`.
-- ☐ **Flipping `status` to `"ready"`** is the last step, not the first. A ready target ships on
-  every tag, so `pnpm release beta` will start shipping Android alongside iOS the moment it flips.
+- ✅ **`android.mjs` itself** — preflights in the iOS shape (a JDK, the keystore, its password
+  file, the service-account JSON, and one live Play call), plus two post-build assertions that
+  each catch a different disaster: the **signer fingerprint**, because a debug-signed release AAB
+  builds and installs cleanly and is only rejected at upload; and the **baked commit**, checked
+  straight after prebuild so it costs seconds rather than a Gradle run.
+- ✅ **`final` refuses, and says why.** `productionAccess` is a check that always fails, naming
+  the 12-tester/14-day route and offering `--only=ios`. ⚠️ This also closed a gap in
+  `scripts/release/index.mjs`: the marker path ran *no* per-target `requires`, so a rung's
+  preconditions were silently ignored at the one rung that makes an app public. It now runs them
+  before the marker-shape refusal, so the actionable reason wins over "give the target a
+  `release()`".
+- ✅ **`status` is `"ready"`.** ⚠️ A ready target ships on every tag: `pnpm release beta` now
+  ships Android alongside iOS. `--dry-run` was green on all four rungs before the flip.
+- ☐ **Release notes come from `whats-new.txt` at every rung**, which is a *divergence from iOS*
+  worth knowing about. Apple has two fields — TestFlight's "What to Test" and the App Store's
+  "What's New" — and the rungs pick between them. Play has one, shown in the store listing, so
+  the store copy is the right source even on a testing track. ⚠️ Play's limit is **500 Unicode
+  characters**; `what-to-test.txt` is three times that, which is how the divergence was found.
+  ☐ **`whats-new.txt` says "There is no account to create", which is false** — see *Why Sign in
+  details is "No"* above. Store copy should be fixed before strangers read it.
 
 ## The version-parity check this makes possible
 
-⚠️ **This becomes real the moment Android goes `ready`**, arriving into a repo whose iOS app is
+⚠️ **This is real now** — Android went `ready` on 2026-09-16, into a repo whose iOS app is
 already published. A tag will then ship two artifacts claiming to work together — the point of the
 single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*) and
 also the first moment it can be **wrong**: identical version numbers say nothing if the two builds
