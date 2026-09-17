@@ -39,6 +39,34 @@ export function resolvedConfig(mobile) {
 }
 
 /**
+ * Fix the build number for the rest of the release, and report it.
+ *
+ * ⚠️ `app.config.ts` derives it from the **clock** when it is not pinned, so each target
+ * resolving its own config would give iOS and Android numbers an archive apart — twenty
+ * minutes of drift, permanently recorded in two stores under one tag. The first target to
+ * build sets it here; `resolvedConfig`'s child inherits `process.env`, so every later
+ * resolution agrees. An already-pinned value always wins, which is what makes rebuilding a
+ * known artifact reproducible.
+ */
+export function pinBuildNumber(config) {
+  const build = config.android?.versionCode ?? config.ios?.buildNumber;
+  if (build === undefined) {
+    throw new Error(
+      "expo config resolved no build number — check apps/mobile/app.config.ts",
+    );
+  }
+  process.env.LEAPSAKE_BUILD_NUMBER ??= String(build);
+  return Number(process.env.LEAPSAKE_BUILD_NUMBER);
+}
+
+/** `resolvedConfig`, with the build number pinned for every target that follows. */
+export function pinnedConfig(mobile) {
+  const config = resolvedConfig(mobile);
+  pinBuildNumber(config);
+  return config;
+}
+
+/**
  * The placeholder icon is the first thing that stops being acceptable when the audience
  * grows past the owner — the rungs that reach strangers are where it is checked.
  */

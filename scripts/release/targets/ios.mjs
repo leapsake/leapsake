@@ -52,7 +52,7 @@ import {
   appIcon,
   must,
   readAppJson,
-  resolvedConfig,
+  pinnedConfig,
 } from "../mobile.mjs";
 import { commitOfBuild } from "../receipts.mjs";
 
@@ -1091,7 +1091,7 @@ export default {
     const teamId = process.env.APPLE_TEAM_ID.trim();
     const profile = process.env.IOS_PROVISIONING_PROFILE.trim();
 
-    const config = resolvedConfig(mobile);
+    const config = pinnedConfig(mobile);
     const buildNumber = config.ios?.buildNumber;
     const bundleId = config.ios?.bundleIdentifier;
     if (!buildNumber || !bundleId) {

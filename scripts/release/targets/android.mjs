@@ -16,7 +16,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { envSet, fileAt } from "../checks.mjs";
-import { MOBILE, appIcon, must, resolvedConfig } from "../mobile.mjs";
+import { MOBILE, appIcon, must, pinnedConfig } from "../mobile.mjs";
 import { playFromEnv } from "../play.mjs";
 
 // ⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's closed testing
@@ -200,7 +200,7 @@ export default {
    */
   async build({ root, storeVersion, tag }) {
     const mobile = MOBILE(root);
-    const config = resolvedConfig(mobile);
+    const config = pinnedConfig(mobile);
     const versionCode = config.android?.versionCode;
     const packageName = config.android?.package;
     if (!versionCode || !packageName) {
