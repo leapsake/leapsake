@@ -31,18 +31,22 @@ accretion rather than missing abstractions.
 | `scripts/`                   |                      8,492 |
 | **Comment lines, repo-wide** | **23,079 of 73,155 (31%)** |
 
-## The four workstreams, in execution order
+## The six workstreams, in execution order
 
-| #   | Doc                                                | What it removes or simplifies                                                                                                                                 | Owner's call                                                                                                                         |
-| --- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | [`relay-removal.md`](./relay-removal.md)           | The relay half of account/sync, written once per client and unreachable behind `multiDevice`. ~4,300 client lines plus the flag package and relay-only tests. | **Delete it.** Tag the last commit that has it so the v0.2 rebuild has a reference. Reverses the 2026-08-21 "keep it dark" decision. |
-| 2   | [`core-decomposition.md`](./core-decomposition.md) | `packages/core/src/index.ts` (2,894 lines) implements import, reminders, gifts, holidays and entity cascades instead of composing them.                       | **Do it.** Mechanical, covered by typecheck plus the integration suite.                                                              |
-| 3   | [`comment-pass.md`](./comment-pass.md)             | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.              |
-| 4   | [`shared-form-logic.md`](./shared-form-logic.md)   | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                |
+| #   | Doc                                                            | What it removes or simplifies                                                                                                                                 | Owner's call                                                                                                                                       |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [`relay-removal.md`](./relay-removal.md)                       | The relay half of account/sync, written once per client and unreachable behind `multiDevice`. ~4,300 client lines plus the flag package and relay-only tests. | **Delete it.** Tag the last commit that has it so the v0.2 rebuild has a reference. Reverses the 2026-08-21 "keep it dark" decision.               |
+| 2   | [`core-decomposition.md`](./core-decomposition.md)             | `packages/core/src/index.ts` (2,894 lines) implements import, reminders, gifts, holidays and entity cascades instead of composing them.                       | **Do it.** Mechanical, covered by typecheck plus the integration suite.                                                                            |
+| 3   | [`comment-pass.md`](./comment-pass.md)                         | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.                            |
+| 4   | [`shared-form-logic.md`](./shared-form-logic.md)               | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                              |
+| 5   | [`release-targets-per-rung.md`](./release-targets-per-rung.md) | A release target is ready or blocked for all rungs at once, and the test gate runs every platform's device tiers whether or not that platform ships.          | **Do it, first.** Readiness per rung on the target; the gate runs the device tiers of the platforms in the release. Today's Android beta wants it. |
+| 6   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)               | E2E flows standing in for a missing mobile hook tier; every custody test paying production Argon2id cost; an E2E arc that never relaunches the app.           | **Do it.** Cheap KDF under Vitest only, extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.              |
 
-Order matters: 1 removes code that 2 and 3 would otherwise have to refactor and re-comment;
-2 shrinks the file 3 would spend the most time in; 4 is independent and can run in parallel
-with 3.
+Order matters: 5 is small, independent, and needed for the next Android release, so it goes
+first. Then 1, which removes code that 2 and 3 would otherwise have to refactor and re-comment
+and that 6 would otherwise have to extract from. 2 shrinks the file 3 would spend the most time
+in. 4 and 6 depend on 1 and can run in parallel with 3; 6's first step (the KDF cost) depends on
+nothing and can go any time.
 
 ## Rules that apply to every workstream
 
@@ -59,4 +63,5 @@ with 3.
 - **The comment rule from workstream 3 applies to all code touched by 1, 2 and 4** from the
   moment 3's rule lands in `AGENTS.md`. Do not move a decision-history comment; delete it.
 - **Do not add to `plans/`.** When a workstream finishes, delete its doc and this README's row.
-  When the last row goes, delete the directory.
+  When the last row goes, delete the directory, the row in `plans/README.md` that points here,
+  and the `fable-investigation-plans` memory if one exists.
