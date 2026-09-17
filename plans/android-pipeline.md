@@ -36,21 +36,15 @@ and gives up on 0.1.0 ever shipping. **0.1.0 is to be the version that reaches t
 *(owner, 2026-09-16)*, so the rehearsal is the thing that gets given up instead.
 
 Which means the first Android `build()` and `publish()` happen at a **reviewed** rung, in front of
-whoever is on the tester list. Steps 1 and 2 exist to buy back what the internal track would have
-caught for free.
+whoever is on the tester list. Step 2 exists to buy back what the internal track would have caught
+for free.
 
 ✅ **The suite gate is already proven** — `pnpm test:all --strict --provision` ran green on every
 tier on 2026-09-16, with no ⏳ rows, including the Android emulator leg of the crucial-flow catalog
 running for the first time. That retired the reason `alpha` skipped `--strict`, so **every rung now
 runs the full gate**. It still runs again inside the release; budget the ~30-minute catalog twice.
 
-### 1. Replace the feature graphic first
-
-The 1024×500 asset in the listing is a placeholder — frog plus wordmark — and it is required, not
-optional. ⚠️ **Do it before the rollout, not after.** Listing changes go through review, so fixing
-it afterwards buys a second review cycle where doing it now is free.
-
-### 2. `pnpm release beta --only=android`
+### 1. `pnpm release beta --only=android`
 
 ```sh
 pnpm release beta --only=android
@@ -59,12 +53,22 @@ pnpm release beta --only=android
 ⚠️ **`build()` and `publish()` have never executed.** Dry runs exercise preflights only — the
 prebuild, Gradle, the keytool fingerprint check, the upload and `tracks.update` are all unproven.
 
-**`--only=android` is load-bearing.** `index.mjs` ships targets in order, **iOS first**, so a bare
-`pnpm release beta` that fails on Android fails *after* iOS has uploaded, distributed to TestFlight,
-entered Beta App Review and cut the tag — and there is no undo for that half. Restricting to Android
-removes that entirely. The tag `v0.1.0-beta.8` still covers the whole repo; only Android ships from
-it, which is the design rather than a gap (`index.mjs` → *A tag covers the whole repo*). iOS ships
-on its own later invocation.
+**`--only=android` is load-bearing.** `index.mjs` ships targets in order, **iOS first**, and the
+ship loop catches per target rather than aborting — so a bare `pnpm release beta` that fails on
+Android fails *after* iOS has uploaded, distributed to TestFlight and entered Beta App Review,
+none of which can be taken back. Restricting to Android removes that entirely.
+
+The asymmetry is what matters, because a first-run failure here is most likely a bug in release
+code that has never executed, and the fix is a commit the tag does not contain — so the tag is
+dead either way and the next attempt is `beta.9`. Under `--only=android` a dead tag is the whole
+cost: it is local, nothing is pushed, `git tag -d` erases it. Under a bare run the same dead tag
+has already spent an iOS build number, a TestFlight distribution and a review slot on a version
+being abandoned.
+
+⚠️ **`--only` does not change what is tagged.** The tag is cut before the ship loop, so
+`v0.1.0-beta.8` and its *Cut* commit happen either way, with every manifest bumped repo-wide.
+`--only` selects what ships, never what the tag covers (`index.mjs` → *A tag covers the whole
+repo*).
 
 ⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all --strict --provision`, sets
 every manifest to the new version, commits *Cut 0.1.0-beta.8*, and cuts that tag. Nothing is pushed.
@@ -74,7 +78,21 @@ Expect ~4 minutes of Gradle on top of the suite, and a prebuild that deletes and
 What cannot be taken back: the rollout enters **Google review** — on Play a track rollout *is* the
 submission, with no separate submit step — and the version code is spent permanently.
 
-### 3. Check the Console before distributing anything
+**iOS then ships from the same tag, once Android has succeeded:**
+
+```sh
+pnpm release --from-tag=v0.1.0-beta.8 --only=ios
+```
+
+`--from-tag` mode takes the tag as input rather than output: no bump, no commit, no new tag. It
+needs the tag **on HEAD** (`tagOnHead` in `scripts/release/preflight.mjs`), which holds
+immediately after the Android run; if work has landed since, `git checkout v0.1.0-beta.8` first —
+the detached HEAD is expected, which is why `releaseBranch` is deliberately absent from that
+check set. ⚠️ It runs the **full suite again**: budget the ~30-minute catalog a third time.
+
+There is no need to skip to `beta.9` for iOS. One tag, two invocations, is the design.
+
+### 2. Check the Console before distributing anything
 
 ⚠️ **One thing is unverified, and it now gets tested on the track that matters.** `publish()` uses
 `tracks.update`, a **PUT**, and whether replacing a track's releases leaves the rest of its
@@ -84,7 +102,7 @@ confirm the **Testers** tab and the country list survived. If the PUT flattened 
 *before* handing out the opt-in link — a tester who opts in against a broken track is a silent
 failure, and re-uploading to fix it burns another version code.
 
-### 4. Recruit, and start the clock
+### 3. Recruit, and start the clock
 
 The opt-in link is on *Test and release → Testing → Closed testing → **Testers** tab*, below the
 tester list, as "Copy link". Testers must already be on the email list to use it.
@@ -141,6 +159,13 @@ email testers on your behalf; assume distributing the link is yours to do.
    rooted phones, custom ROMs and de-Googled devices, which is much of the natural early audience
    for a local-first privacy app, against a threat model this app does not have (no in-app
    purchases, no server-side secrets). Decide deliberately rather than to make the counter read 7.
+6. **The placeholder feature graphic ships for the closed test** *(owner, 2026-09-17)*. It was
+   briefly the first step of the release sequence, on the argument that a listing change costs a
+   review cycle and doing it now is free. That is true and not worth the delay: the asset is
+   invisible to this audience — Play leads a listing with the screenshot carousel, and the twelve
+   testers are people recruited by hand who arrive through an opt-in link — and a listing review
+   does not hold up the rollout or the 14-day clock. It has to be right for **GA**, in front of
+   strangers, which is a review cycle that will be bought anyway.
 
 ## How the rungs map to Play tracks — settled *(owner, 2026-09-13)*
 
@@ -186,8 +211,9 @@ mid-release. `rc` is closed-only for the same reason.
 *every* approved change waits for a person, including listing edits. See the `rc` bullet under
 *Still to build* for why this toggle is load-bearing and dangerous.
 
-**Replace the feature graphic** — see *Next* → step 1, which is where it has to happen in the
-sequence.
+**Replace the feature graphic, before GA** — the 1024×500 asset is a placeholder (frog plus
+wordmark). It ships as-is for the closed test *(owner, 2026-09-17 — see Decisions #6)*. Batch the
+replacement with a review the listing is already paying for rather than buying one for it alone.
 
 ## Play declarations and their revisit triggers
 
