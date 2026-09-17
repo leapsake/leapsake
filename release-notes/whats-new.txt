@@ -1,7 +1,8 @@
 Leapsake is a private address book with a memory: the people and pets in your life, how
 they are related, the dates that matter, and reminders that reach you before them.
 
-Everything stays on your phone. There is no account to create, no server to sign in to,
-and nothing is sent to us.
+Everything stays on your phone. There is no server to sign in to, and nothing is sent to
+us. Creating an account is optional and happens entirely on the device — it is what turns
+on encryption for everything Leapsake stores.
 
 This is the first release.

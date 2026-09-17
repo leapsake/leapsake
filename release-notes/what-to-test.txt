@@ -1,10 +1,11 @@
 Leapsake is a private address book with a memory: the people and pets in your life,
 how they are related, the dates that matter, and reminders that reach you before them.
 
-Everything is stored on your phone. There is no sign-in, no account, and no server —
-you can use every part of this build without creating anything or giving us an email
-address. If a screen looks like it is waiting for a login, that is a bug; please report
-it.
+Everything is stored on your phone. There is no server and nothing is sent to us — you
+can use every part of this build without signing in anywhere or giving us an email
+address. Creating an account is optional, happens entirely on this device, and is what
+turns on encryption (step 6). Nothing is locked behind it: if a screen looks like it is
+waiting for a login before you have made one, that is a bug; please report it.
 
 Please try, in roughly this order:
 
