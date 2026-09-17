@@ -62,6 +62,24 @@ GPU/ASIC cracking.
 > not a malicious operator's active grind ([`plans/v0-2.md`](../../plans/v0-2.md)
 > → *Hosted-relay gate*).
 
+### The test cost
+
+Under Vitest, and only there, `setKdfParamsForTests` lowers Argon2id to m = 64 KiB
+/ t = 1 from `vitest.setup.ts` at the repo root. Account and custody suites derive
+keys hundreds of times; at production cost they were the longest files in the run
+by an order of magnitude, and every second of that was proving the primitive is
+slow rather than proving anything about our code.
+
+The override is a module-level parameter set rather than an argument threaded
+through the nine call sites, for the reason `packages/flags` gives: launch
+configuration read at the leaves does not belong in every signature. It throws
+unless `process.env.VITEST` is set, so a shipped build cannot reach it whatever
+calls it — a test in `test/kdf.test.ts` holds that. `KDF_ALG` is unchanged for
+Vitest deliberately: these doors never outlive the process and are never opened by
+production code, so no cheap-recipe account can be mistaken for a real one. E2E
+still derives at full cost; lowering that too would need its own `alg` id, because
+those doors are written to a real database file.
+
 ## Why these hold the model's properties
 
 The design review that pinned the table above (2026-07-05, before the password door

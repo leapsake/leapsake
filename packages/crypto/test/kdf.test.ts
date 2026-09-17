@@ -5,6 +5,7 @@ import {
   SALT_BYTES,
   deriveKeyMaterial,
   generateSalt,
+  setKdfParamsForTests,
 } from "../src/index.js";
 
 describe("deriveKeyMaterial", () => {
@@ -50,5 +51,19 @@ describe("generateSalt", () => {
 
   it("uses an Argon2id memory cost the primitive accepts (m ≥ 8·p)", () => {
     expect(ARGON2_PARAMS.m).toBeGreaterThanOrEqual(8 * ARGON2_PARAMS.p);
+  });
+});
+
+describe("setKdfParamsForTests", () => {
+  it("refuses outside Vitest, so a shipped build keeps the production cost", () => {
+    const vitest = process.env.VITEST;
+    delete process.env.VITEST;
+    try {
+      expect(() => setKdfParamsForTests({ m: 64, t: 1 })).toThrow(
+        /only under Vitest/,
+      );
+    } finally {
+      if (vitest !== undefined) process.env.VITEST = vitest;
+    }
   });
 });

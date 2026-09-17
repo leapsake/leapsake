@@ -6,6 +6,7 @@ export {
   SALT_BYTES,
   type KeyMaterial,
   deriveKeyMaterial,
+  setKdfParamsForTests,
   deriveRecoveryVerifier,
   generateSalt,
   generateRecoveryKey,

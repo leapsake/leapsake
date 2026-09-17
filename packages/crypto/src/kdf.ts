@@ -35,6 +35,32 @@ export const ARGON2_PARAMS = {
   dkLen: KEY_BYTES,
 } as const;
 
+/** The Argon2id cost a test may ask for. `dkLen` is not offered: the seed length is fixed. */
+interface Argon2Params {
+  m: number;
+  t: number;
+  p: number;
+  dkLen: typeof KEY_BYTES;
+}
+
+/** The cost {@link deriveKeyMaterial} runs at — {@link ARGON2_PARAMS} unless a test lowers it. */
+let argon2Params: Argon2Params = ARGON2_PARAMS;
+
+/**
+ * Lower the Argon2id cost for the rest of the process, so a suite that derives keys
+ * hundreds of times does not pay a second per call. Refused outside Vitest.
+ */
+export function setKdfParamsForTests(
+  params: Partial<Omit<Argon2Params, "dkLen">>,
+): void {
+  if (typeof process === "undefined" || !process.env.VITEST) {
+    throw new Error(
+      "setKdfParamsForTests is available only under Vitest — key derivation keeps its production cost everywhere else",
+    );
+  }
+  argon2Params = { ...ARGON2_PARAMS, ...params };
+}
+
 /** Argon2id salt length in bytes (≥ 8 required by the primitive). */
 export const SALT_BYTES = 16;
 
@@ -82,7 +108,7 @@ export function deriveKeyMaterial(
   password: string,
   salt: Uint8Array,
 ): KeyMaterial {
-  const seed = argon2id(password, salt, ARGON2_PARAMS);
+  const seed = argon2id(password, salt, argon2Params);
   // Copy onto a plain ArrayBuffer-backed Uint8Array so the bytes flow cleanly
   // into the BLOB-typed schema fields and crypto primitives on every target.
   return {
