@@ -278,7 +278,7 @@ race on a name that _is_ exclusively reserved on Apple's side. GA-then-transfer 
 that keeps the name, the bundle ID, the installs and the reviews.
 
 **Android is no longer part of this sequence** _(owner, 2026-09-13)_. It ships from the personal
-account to the internal track now, and moves to the company by ordinary app transfer whenever the
+account to the internal and closed tracks now, and moves to the company by ordinary app transfer whenever the
 company exists — [`android-pipeline.md`](./android-pipeline.md).
 
 ⚠️ **This section used to say the opposite, and the claim it rested on is false.** It held that a
@@ -348,7 +348,7 @@ The consequence for sequencing: **data safety does not decide where Android laun
 _2026-09-13_ nothing else does either. Launching from the personal account and transferring later
 is safe for user data, and the **12-tester/14-day wall** this paragraph once treated as the one
 remaining obstacle gates _production access_ only; internal testing is exempt from it on every
-account type. Android therefore ships from the personal account to the internal track, and the
+account type. Android therefore ships from the personal account to the internal and closed tracks, and the
 detail is [`android-pipeline.md`](./android-pipeline.md)'s.
 
 **Not a transfer concern, but the Android data risk that is real:** Google Auto Backup ships an

@@ -2,529 +2,290 @@
 
 > **In flight** *(owner, 2026-09-13)*. Android ships from the **personal** Play account to the
 > internal and closed tracks; a later app transfer moves it to the company for $25. The build
-> half, the Console paperwork, the closed track and the whole scripted upload path are all done
-> *(2026-09-16)*. **What is left is running `pnpm release beta` for real, and then recruiting the
-> 12 testers whose 14 days are the long pole.**
+> half, the Console paperwork, the closed track and the whole scripted upload path are done
+> *(2026-09-16)* — `git log` has how each was built. **What is left is the first real run, and
+> then recruiting the 12 testers whose 14 days are the long pole.**
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
-> because the work spans a repo and a web console and neither half makes sense alone.
+> because the work spans a repo and a web console and neither half makes sense alone. It carries
+> only what is *unbuilt or still true forward*; anything settled has moved next to its code.
 >
 > **Delete it when the work lands.** How to cut a build then belongs in
 > [`apps/mobile/README.md`](../apps/mobile/README.md); the rules belong in `scripts/release/`,
-> which documents itself. *(Numbered `v0-1_04_mobile-pipeline.md` until 2026-09-06; deferred
-> past v0.1 that day and un-deferred on 2026-09-13 — `git log` has the history.)*
+> which documents itself. ⚠️ *Play declarations and their revisit triggers* below must be **moved,
+> not deleted** — it outlives this document.
 
-## Where this stands *(2026-09-16)*
+## Next: the first scripted release
 
-| | State |
-| --- | --- |
-| Android developer verification | ✅ complete |
-| Play app record `com.leapsake.app` | ✅ created, personal account, **Draft** |
-| Play App Signing | ✅ enrolled — quantum-ready hybrid, Google-held key |
-| Upload key + signing config plugin | ✅ built and verified end to end |
-| First AAB uploaded (internal track) | ✅ `368157 (0.1.0)`, *Available to internal testers* |
-| Install confirmed on a physical device | ✅ the link did propagate — see *Traps* |
-| App content declarations | ✅ all 11 |
-| Main store listing | ✅ copy, icon, feature graphic, 5 screenshots — uploaded by hand |
-| The commit rides inside the artifact | ✅ `plugins/with-android-commit.js` |
-| A clean, reproducible AAB | ✅ built at `608c06e`, **not yet uploaded** |
-| Closed track configured | ✅ all countries, testers by **email list** *(2026-09-16)* |
-| Service account for the API | ✅ `leapsake-release@leapsake.iam.gserviceaccount.com`, testing-tracks only |
-| `play.mjs` + `android.mjs` | ✅ written and green; target is `status: "ready"` |
-| The first scripted closed release | ☐ **next** — this is the "Android beta" goal |
+Everything below is one-time. `pnpm release beta` is the goal; these are the steps that keep the
+first one from being an expensive way to find a bug.
 
-⚠️ **The built AAB names `608c06e`, which is no longer HEAD** — a later commit corrected this
-doc and the plugin's header. That is fine and is the design working: the bundle names the
-commit it was *actually* built from, and that commit is clean and reachable. Do not "fix" it by
-rebuilding at HEAD unless something the build consumes has changed; a rebuild also mints a new
-`versionCode` (a clock reading) unless `LEAPSAKE_BUILD_NUMBER` pins it.
+### 1. Prove the Android path alone, on the internal track
 
-**The goal in flight is an Android *beta*, which under the mapping below means the closed
-track.** Every gate is cleared as of 2026-09-16 — App content, the store listing, the track
-itself, and the scripted path that uploads to it. What remains is `pnpm release beta` and then
-recruiting. Not the 12-tester wall, which gates *production access* alone and is a separate,
-later decision — though the closed-track uploads are what earn it, so recruiting starts the
-clock that `final` is waiting on.
+```sh
+pnpm release alpha --only=android
+```
 
-⚠️ **The waiting AAB at `608c06e` is now the wrong artifact to upload.** It was built by hand
-before the target existed, so it carries no tag and would leave no receipt — the same gap
-`368157` has, which is why the internal release reads *"manual bootstrap, no tag"*. `pnpm release
-beta` builds its own.
+⚠️ **`build()` and `publish()` have never executed.** Dry runs exercise preflights only — the
+prebuild, Gradle, the keytool fingerprint check, the upload and `tracks.update` are unproven. And
+`index.mjs` ships targets in order, **iOS first**, so a `beta` that fails on Android fails *after*
+iOS has uploaded, distributed to TestFlight, entered Beta App Review and cut the tag. There is no
+undo for that half.
+
+`alpha --only=android` risks one version code against a track with no review and no audience but
+the owner. That is not waste: it is the rung that means "internal", used for what it is for.
+
+**Then check the Console**, because one thing is unverified: that *Closed testing* still lists its
+countries and testers. `publish()` uses `tracks.update`, a **PUT**, and whether replacing a
+track's releases leaves its configuration alone has not been proven. The internal track is the
+cheap place to find out.
+
+### 2. Run the gate separately, before it runs inside a release
+
+```sh
+pnpm test:all --strict --provision
+```
+
+⚠️ `beta` and above run this, and **`--strict` fails the release on any blocked tier**. It boots a
+simulator *and* an emulator. Whether the Android emulator tier has ever been green on this machine
+is unknown, and twenty minutes into a release is the expensive moment to learn it.
+
+### 3. `pnpm release beta`
+
+What it does that cannot be taken back:
+
+- **iOS** — distributes to external testers and submits for Beta App Review. Strangers, not you.
+- **Android** — rolls out to the closed track and enters Google review.
+- Both spend a version number permanently.
+
+The tag is cut locally and nothing is ever pushed, so that half stays reversible.
+
+### 4. Recruit, and start the clock
+
+The 14 days do not begin until testers are opted in, so this is the long pole rather than the
+upload. ⚠️ **Send the two-account instruction with the opt-in link** — see *Traps*.
+
+---
 
 ## Facts established the hard way — do not re-derive these
 
-Each of these was checked against Google's own support pages on 2026-09-13/14, and several
-contradict what this document said before. Re-deriving them costs a day.
-
-- **The 12-tester/14-day wall gates *production access* only.** It binds personal accounts
-  created after 2023-11-13 (ours). You run a closed test and *then* apply for production. It is
-  not a tax on uploading, and it does not block a closed track from existing.
+- **The 12-tester/14-day wall gates *production access* only.** It binds personal accounts created
+  after 2023-11-13 (ours). You run a closed test and *then* apply. It is not a tax on uploading.
+  **The wall is earned rather than dodged**: the closed-track uploads `beta` makes are exactly the
+  activity that accumulates the credit.
 - **Internal testing sits outside it entirely** — no minimum testers, no review wait.
 - **App transfers are routine**, not one-way doors. Package name, users, statistics, ratings,
   reviews and listing all move: $25 on the receiving side, ~2 business days. ⚠️ **The app signing
   key stays with the app unless the receiving account requests a key upgrade — never request
   one**, or Android buys the entire iOS re-key cost ([`shipping.md`](./shipping.md) → *What the
   transfer costs*) for nothing. The **Change key** button on the App signing page is that trap.
+  ⚠️ Two things do **not** ride along: the service account's grant, which must be re-invited to
+  the receiving account's *Users and permissions* (the Cloud project itself can stay), and
+  **Android developer verification**, which every account needs on its own and which no account
+  reaches production without.
 - ⚠️ **The Play Developer API cannot create an app.** It only edits an app that already has a
-  bundle. The first AAB had to go through the Console by hand; that is done, and it is why
-  automation was impossible until now. No tooling removes this for the *next* new app either.
-- **Play has one review gate where Apple has two.** Apple separates Beta App Review from App
-  Store Review; Play reviews a release when it rolls out to a track, with no separate "submit"
-  action. **Managed publishing** is what recovers the `rc`/`final` split — see below.
-- ⚠️ **Android developer verification** is required of new personal accounts since Sept 2026, and
-  no new account reaches production without it. Ours is complete. Whether it gates *internal*
-  testing was never established; it stopped mattering once ours cleared.
+  bundle, which is why the first AAB went through the Console by hand. No tooling removes this for
+  the *next* new app either.
+- **Play has one review gate where Apple has two.** Apple separates Beta App Review from App Store
+  Review; Play reviews a release when it rolls out to a track, with no separate "submit" action.
+- ⚠️ **Google's own API documentation is not reliable here.** The
+  [APKs and Tracks](https://developers.google.com/android-publisher/tracks) page calls the internal
+  track `qa` and never says which of `alpha`/`beta` is closed. `edits.tracks.list` against the app
+  is the authority — it answered `internal`, `alpha`, `beta`, `production`.
 
 ## Decisions already made — do not relitigate
 
-1. **Ship from the personal account now**, transfer to the company later. The old plan waited for
-   incorporation on the strength of the false "first upload binds the package name forever" claim.
-2. **The rung → track mapping** (next section) is settled, including parity as the reason.
-3. **Automatic protection stays OFF** (*Protected with Play*). It injects installer and anti-tamper
-   checks and has Google re-sign modified APKs — which sits badly against an AGPL-3.0 repo about
-   to go public, against self-host parity, and against the `LeapsakeCommit`/receipts provenance
-   chain, since it ships bytes we did not build.
-4. **Data safety answer is "no data collected, no data shared"** — true by construction in v0.1:
-   single-device, sync behind the `multiDevice` flag. ⚠️ Revisit the day the relay ships; a stale
-   declaration is a policy problem. *(Corrected 2026-09-14: this said "no account", which is
-   false — v0.1 ships a local account. It strengthens rather than weakens the answer, since that
-   account transmits nothing. See* Why Sign in details is "No" *below, and the revisit table.)*
-5. **Target audience is adults, not children.** Declaring a child audience pulls the app into
-   Families policy and a stack of extra requirements. *(Settled in the Console on 2026-09-14 as
-   **18+ only**, with the optional "restrict minors" block left **off** — both halves, and the
-   reconsideration point, are in* Play declarations and their revisit triggers *below.)*
-6. ☐ **Undecided:** *Prevent installs on risky devices* (currently off, making the Play Store
-   protection panel read 6 of 7). The argument for leaving it off is consistent with #3 — it
-   blocks rooted phones, custom ROMs and de-Googled devices, which is much of the natural early
-   audience for a local-first privacy app, against a threat model this app does not have (no
-   in-app purchases, no server-side secrets). Not verified in detail; decide deliberately rather
-   than to make the counter read 7 of 7.
+1. **Ship from the personal account now**, transfer to the company later.
+2. **Automatic protection stays OFF** (*Protected with Play*). It injects installer and anti-tamper
+   checks and has Google re-sign modified APKs — which sits badly against an AGPL-3.0 repo about to
+   go public, against self-host parity, and against the `LeapsakeCommit`/receipts provenance chain,
+   since it ships bytes we did not build.
+3. **Testers are an email list, not a Google Group** *(2026-09-16)*. The Group argument was
+   convenience; the email list wins on privacy, since Group members can see each other by default.
+   ⚠️ A Group *can* be configured not to leak (*Who can view members → owners and managers*), so
+   this is reversible — but **switch before the 14-day clock starts**, since whether changing tester
+   method preserves tester continuity was never established.
+4. **The closed track targets all countries.** It is invite-only regardless, so restricting it buys
+   nothing and adds a third way a tester silently fails. ⚠️ Adding countries later is free;
+   removing one strands whoever already installed.
+5. ☐ **Undecided:** *Prevent installs on risky devices* (currently off, making the Play Store
+   protection panel read 6 of 7). The argument for leaving it off is consistent with #2 — it blocks
+   rooted phones, custom ROMs and de-Googled devices, which is much of the natural early audience
+   for a local-first privacy app, against a threat model this app does not have (no in-app
+   purchases, no server-side secrets). Decide deliberately rather than to make the counter read 7.
 
 ## How the rungs map to Play tracks — settled *(owner, 2026-09-13)*
 
 **A rung means the same thing on every platform, and each store's vocabulary bends to fit it.**
-iOS, Android and eventually macOS/Windows/Linux answer to one ladder, so `beta` never means "the
-first strangers" on one platform and something else on another. Where a store cannot express a
-rung, the rung is **withheld** on that platform — never redefined.
+Where a store cannot express a rung, the rung is **withheld** — never redefined.
 
-| Rung    | Play track | What happens |
-| ------- | ---------- | ------------ |
-| `alpha` | internal | ≤100 testers, live in minutes, no review wait |
-| `beta`  | closed | the tester Group; reviewed; testers join by opt-in link |
-| `rc`    | closed **+** a production release held by managed publishing | testers get it, Google reviews it, it waits |
-| `final` | publish the approved release | goes live; the tag names the commit that did |
+| Rung | Play track | What happens |
+| ---- | ---------- | ------------ |
+| `alpha` | `internal` | ≤100 testers, live in minutes, no review wait |
+| `beta` | `alpha` *(closed)* | the tester list; reviewed; testers join by opt-in link |
+| `rc` | `alpha` *(closed)* — **plus a held production release, once possible** | testers get it, Google reviews it, it waits |
+| `final` | `production` | publishes what review approved; the tag names the commit that did |
 
-**Managed publishing is what makes `rc`/`final` work.** With it on, approved changes wait in
-*Changes ready to publish* until a person publishes them — Play's equivalent of Apple's *Pending
-Developer Release*. So `rc` submits and waits, `final` publishes and tags, exactly as on iOS.
-⚠️ **Internal tracks bypass managed publishing** and go out immediately, which is what `alpha`
-wants anyway.
+⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's `alpha` is closed
+testing and its **`beta` is open testing — the whole internet**. No rung here may ever target it;
+`android.release.test.mjs` asserts that, because drifting by one name would publish a beta to
+strangers and report success.
 
-**The wall is earned rather than dodged.** The closed-track uploads `beta` makes are exactly the
-activity that accumulates the 12-tester/14-day credit, so shipping betas is the path to
-production rather than a detour around it. Until that clock finishes, **`final` must refuse on
-Android** — and its preflight must say so rather than failing mid-release after iOS has shipped.
-
-**The naming collision is real, and settled** *(2026-09-16)*. Play's API track identifiers are
-`internal`, `alpha`, `beta`, `production`; its **`alpha` is closed testing** and its **`beta` is
-open testing**. So this repo's `beta` rung targets the API track named `alpha`, and no rung here
-ever targets Play's `beta` — that would be the whole internet rather than a tester group.
-
-⚠️ **Confirmed empirically, not from the documentation, which is wrong.** Google's
-[APKs and Tracks](https://developers.google.com/android-publisher/tracks) page calls the internal
-track `qa` and never says which of `alpha`/`beta` is closed. `edits.tracks.list` against this app
-returned `internal` holding `368157` — the build the Console shows on *Internal testing* — which
-disproves `qa` and anchors the rest. The mapping lives in `TRACK` in
-[`scripts/release/targets/android.mjs`](../scripts/release/targets/android.mjs) with the same
-warning, and `android.release.test.mjs` asserts no rung ever targets `beta`.
+**`final` refuses on Android** until production access exists, from the preflight pass rather than
+mid-release. `rc` is closed-only for the same reason.
 
 ---
 
 # Operational: the Play Console half
 
-## Navigating the Console — read this first
+## Navigating the Console
 
 - **There is no global search box.** Do not look for one.
 - **The Console is two-level.** The account-level sidebar (Policy status, Users and permissions,
-  Developer account…) does *not* contain app pages. Click **View app →** on the app row first;
-  the app-level sidebar then shows Dashboard, Statistics, Publishing overview, Protected with
-  Play, and the collapsed groups *Test and release*, *Monitor and improve*, *Grow users*,
-  *Monetize with Play*. Those four are expandable headers, not links.
+  Developer account…) does *not* contain app pages. Click **View app →** first. Conversely
+  *Users and permissions* is **not** reachable from inside an app.
 - **App signing lives somewhere non-obvious:** *Protected with Play → Play Store protection →
-  Manage Play app signing* (URL slug `/keymanagement`). It is **not** under *Test and release*.
+  Manage Play app signing* (slug `/keymanagement`). It is **not** under *Test and release*.
 - **Deep links** follow `play.google.com/console/u/0/developers/<accountId>/app/<appId>/<slug>`.
-  Both IDs appear in any Console URL for this app — read them from the address bar rather than
-  hunting through menus, and bookmark the slugs.
+  Read both IDs from the address bar rather than hunting through menus.
 - **The app Dashboard's "View tasks" flow is the authoritative setup path.** Prefer it to any
   click-path written down here, including this one.
 
-## Remaining steps, in order
+## Still to do in the Console
 
-### 1. App content declarations
-App-level Dashboard → *Finish setting up your app* → View tasks. Answers, all settled above:
+**Turn on managed publishing** — *Publishing overview → Managed publishing → on*. Required before
+`rc`/`final` mean what the mapping says; internal tracks bypass it. ⚠️ Not before then: with it on,
+*every* approved change waits for a person, including listing edits. See the `rc` bullet under
+*Still to build* for why this toggle is load-bearing and dangerous.
 
-| Declaration | Answer |
-| --- | --- |
-| Privacy policy | `https://leapsake.com/privacy/` (already live, same as iOS) |
-| Sign in details *(was "App access")* | **No** — nothing is restricted. See below; the reason is *not* "v0.1 has no login" |
-| Ads | No |
-| Content rating | Complete the questionnaire; expect *Everyone*. Must not remain *Unrated* |
-| Target audience | **18 and over** only; the optional "restrict minors" block left **off**. Both halves reasoned in the revisit table below |
-| Data safety | No data collected, no data shared |
-| News / COVID / government / financial / health | No to each |
-
-#### Why *Sign in details* is "No" — the reasoning, since the obvious one is wrong
-
-⚠️ **v0.1 does ship an account.** This doc claimed it did not until 2026-09-14. `@leapsake/flags`
-is explicit that `multiDevice` **does not gate accounts** — "the line is the relay, not the login"
-— and `app/settings.tsx` renders `CreateAccountForm` unconditionally; only `SyncSetup` sits behind
-the flag. A username and password exist, and creating them is what turns encryption on.
-
-The declaration is still **No**, because the question is whether any part of the app is
-*restricted*, and none is:
-
-- **No launch gate.** `app/_layout.tsx` gates rendering on the core being ready, not on an
-  account. A fresh install opens an Unauthenticated (plaintext) store straight into the tabs;
-  `lib/core-context.tsx` notes such a store "skips all of it." The unlock prompt only appears for
-  a store that already *has* an account and lost its enclave key — never on review's first run.
-- **Every `hasAccount` read is a branch, not a gate** — create-vs-manage in Settings, an explicit
-  "Import without protecting" in `app/import.tsx`, wording in `app/data.tsx`, a nudge in the
-  reminders engine. The account unlocks no content; every feature works without it.
-- **Nothing to hand a reviewer.** `key-custody/create-account.ts`: "Everything here is local; no
-  relay is involved and nothing leaves the device." There is no server-side account to provision,
-  which is exactly the concern Google's own wording raises ("We can't create new accounts").
-- **No biometric door.** No `LocalAuthentication`, no `requireAuthentication` anywhere;
-  `keystore/secure-store-keystore.ts` uses `keychainAccessible: AFTER_FIRST_UNLOCK`, which is OS
-  keychain availability, not an in-app prompt. Biometrics are in Google's *Yes* list, so this is
-  worth re-checking rather than assuming if a device lock is ever added.
-
-⚠️ A **mandatory** PIN/password/biometric at first setup would put this answer genuinely in play —
-and would first have to reverse `plans/encryption/model.md` §7's binding constraint that
-"first-run onboarding must not force account/password setup." That is a model decision, not a
-Console one.
-
-### 2. Main store listing — ✅ **done 2026-09-16**
-It *was* the gate on closed testing: Play refuses to roll out a closed release while the
-listing is incomplete, and reports it as the track being stuck rather than as a listing error.
-That gate is cleared. Kept here for what it cost and what has to be redone if the listing ever
-changes:
-
-- Title ≤30 chars, short description ≤80, full description ≤4,000
-- App icon 512×512 — generated, at `assets/store/play-icon.png` (`pnpm icons`)
-- **Feature graphic 1024×500, JPEG or 24-bit PNG, no transparency** — required, not optional.
-  ⚠️ A **placeholder**: frog + wordmark, to be replaced by a designed asset
-- ≥2 phone screenshots (max 8). Must be **Android** captures; iOS ones are the wrong aspect.
-  The repo can produce these — `scripts/lib/mobile-harness.mjs` boots and drives an emulator
-- Category — **Lifestyle**, chosen over Productivity because the positioning leans emotional.
-  ⚠️ It carries less discovery signal, so the ≤80-char short description and the tags have to
-  carry the functional search intent ("birthday reminder", "remember important dates") instead
-- Contact details, countries/regions
-
-⚠️ **Uploaded by hand, and that is deliberate** — nothing in `scripts/release/` touches listing
-assets. A targeted search for `appScreenshot`, `previewSet`, `edits.images` and `edits.listings`
-across the whole directory returns nothing; the only store *text* the release path writes is
-release notes (`whatsNew` / `whatToTest`), because those are per-*release* where these are
-per-*listing*. Versioning them and uploading on change is deferred — see `play.mjs` below.
-
-### 3. Rebuild the AAB from a clean tree — ✅ **done 2026-09-16**, and this is how
-
-⚠️ **Do not use *Promote release* to move the existing internal build to closed.** Build `368157`
-was produced from a dirty working tree and corresponds to no commit. Promoting it would put an
-unreproducible artifact in front of testers for weeks. The replacement is built and waiting to
-be uploaded; the recipe stays because every future release repeats it.
-
-⚠️ **Always `--clean`, never a bare prebuild.** `android/` is gitignored generated output, and a
-*stale* tree is the trap — not a missing one. `app.config.ts` bakes `versionCode` and the commit
-at **prebuild** time, so a months-old tree ships months-old values from a perfectly current
-source checkout. (Measured 2026-09-16: the tree on disk was from 2026-08-18 while the resolved
-config read `versionCode 371753`.)
-
-```sh
-cd apps/mobile
-pnpm exec expo prebuild --platform android --clean
-
-# The commit is baked at prebuild time — check it BEFORE spending ~4 minutes on Gradle.
-grep -o 'android:name="LeapsakeCommit" android:value="[^"]*"' \
-  android/app/src/main/AndroidManifest.xml
-# Must match `git rev-parse --short=12 HEAD`, and must NOT end in `-dirty`.
-
-cd android
-# `.env` names the keystore, the alias AND the password's file — read all three from it
-# rather than hardcoding, so a rotated credential does not silently keep working.
-export LEAPSAKE_ANDROID_KEYSTORE="$(grep '^LEAPSAKE_ANDROID_KEYSTORE=' ../../../.env | cut -d= -f2-)"
-export LEAPSAKE_ANDROID_KEY_ALIAS="$(grep '^LEAPSAKE_ANDROID_KEY_ALIAS=' ../../../.env | cut -d= -f2-)"
-export LEAPSAKE_ANDROID_KEYSTORE_PASSWORD="$(cat "$(grep '^LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH=' ../../../.env | cut -d= -f2-)")"
-./gradlew bundleRelease
-# → app/build/outputs/bundle/release/app-release.aab
-```
-
-Then verify **both** properties, because each catches a different disaster:
-
-```sh
-AAB=app/build/outputs/bundle/release/app-release.aab
-keytool -printcert -jarfile "$AAB" | grep SHA256          # the right key signed it
-unzip -p "$AAB" base/manifest/AndroidManifest.xml \
-  | strings | grep -A2 LeapsakeCommit                      # it names its own commit
-```
-
-The signer SHA-256 must read
-`61:B6:0B:A8:D5:FE:D8:FD:F2:6D:89:30:87:68:7A:39:7A:70:29:B7:DF:00:FF:0E:8D:09:7A:B0:40:C1:73:D4`
-— the upload key's fingerprint, confirmed against the certificate Play itself issues. It is a
-certificate fingerprint, not a secret. ⚠️ A **debug-signed** release AAB is the failure that
-looks like success: it builds and installs cleanly and is only rejected at upload, which is why
-`with-android-release-signing.js` emits `signingConfig null` rather than falling back.
-
-### 4. Create the closed track — ✅ **done 2026-09-16**
-*Test and release → Testing → Closed testing → Manage track.*
-
-- **Countries: all of them.** A closed track is invite-only regardless, so restricting it buys
-  nothing and adds a third way a tester silently fails — alongside the two in *Traps*. ⚠️ Adding
-  countries later is free; removing one strands whoever already installed.
-- **Testers: an email list, not a Google Group** *(owner)*. The Group argument was convenience —
-  membership changes never touch Play Console. The email list wins on privacy: Group members can
-  see each other by default. At a dozen testers the Console editing is cheap. ⚠️ A Group
-  *can* be configured not to leak (*Who can view members → owners and managers*), so this is
-  reversible — but **switch before the 14-day clock starts**, since whether changing tester
-  method preserves tester continuity was never established.
-
-### 5. Service account — ✅ **done 2026-09-16**
-`leapsake-release@leapsake.iam.gserviceaccount.com`, key at
-`~/.leapsake/play-service-account.json` (mode 600), named by `PLAY_SERVICE_ACCOUNT_PATH`.
-Granted **"Release apps to testing tracks"** on the Leapsake app only. Production release
-permission is a later, separate grant — and `final` refuses on Android regardless.
-
-Two things cost time and would again:
-
-- ⚠️ **The Cloud IAM role step is a decoy.** The service-account wizard's *"Grant this service
-  account access to the project"* means the *Cloud project*, not the app. Play checks its own
-  Users and permissions and nothing else, so a role granted there is privilege with no benefit.
-  Skip it, and skip the "grant users access" step after it.
-- ⚠️ **The project ID is permanent and shows up forever.** It composes the account's email, so
-  `leapsake` gives `leapsake-release@leapsake.iam.gserviceaccount.com` where the auto-generated
-  `massive-sandbox-508816-n0` would have been the string in every permissions list from then on.
-  Enable the API *after* the project exists, with the right one selected — an API enabled on the
-  wrong project fails later as `403 SERVICE_DISABLED`, which reads like a Play grant problem.
-
-### 6. Turn on managed publishing
-*Publishing overview → Managed publishing → on.* Required before `rc`/`final` mean what the
-mapping says. Internal tracks bypass it.
+**Replace the feature graphic.** The 1024×500 asset in the listing is a placeholder — frog plus
+wordmark — and it is required, not optional.
 
 ## Play declarations and their revisit triggers
 
 **This table outlives this document.** When the rest is deleted per the header, move it to
-[`apps/mobile/README.md`](../apps/mobile/README.md) → *Cutting a release*. Each row is answered
-for **what ships**, which is correct — and each becomes wrong on a specific event. A declaration
-that no longer matches the app is a policy problem, not stale paperwork.
+[`apps/mobile/README.md`](../apps/mobile/README.md) → *Cutting a release*. Each row is answered for
+**what ships**, which is correct — and each becomes wrong on a specific event. A declaration that
+no longer matches the app is a policy problem, not stale paperwork.
 
 | Declaration | Answered | Becomes wrong when |
 | --- | --- | --- |
-| Data safety | no data collected, no data shared | the **relay** ships (`multiDevice`, v0.2) — see *Decisions* #4 |
+| Data safety | no data collected, no data shared | the **relay** ships (`multiDevice`, v0.2) |
 | Sign in details | No — nothing restricted | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run |
 | Content rating | *Everyone*, All Other App Types | **purchases**, §11 **sharing**, or **multimedia** land |
-| Target audience | **18 and over** only | GA, *if* teens ever become an audience worth designing for — see below |
+| Target audience | **18 and over** only | GA, *if* teens ever become an audience worth designing for |
 | App Store **App Privacy** (iOS) | mirrors Data safety | the **relay** ships — ⚠️ same event, *different store* |
 
-⚠️ **The relay is one event that invalidates three declarations across two stores** — Play Data
-safety, Play *Sign in details*, and Apple's App Privacy. Updating Play alone and shipping a stale
-iOS declaration is the failure this table exists to prevent, so the trigger is **not** Play-only
-and should not live here permanently (see the preflight note in *The version-parity check*).
+⚠️ **The relay is one event that invalidates three declarations across two stores.** Updating Play
+alone and shipping a stale iOS declaration is the failure this table exists to prevent — so the
+trigger is not Play-only, and should not live here permanently (see *the version-parity check*).
 
-**Target audience — both halves were chosen deliberately** *(2026-09-14)*:
+⚠️ **Sequence declaration updates with the release, not after it.** The violation is never "the
+declaration changed" — declaring for *what ships* is the only correct answer. The violation is a
+live version whose behaviour has outrun its declaration. Declaration changes also go through
+review, so they cannot be flipped on rollout morning.
 
-- **18+ only, and 13–17 left unchecked.** Play asks who the app is *designed and marketed for*,
-  not who could use it. Teens may well find a gift-and-birthday tracker useful and **remain free
-  to install it** — declaring an audience is not an access control. Checking a minor band is what
-  buys heightened obligations (content review, ads restrictions, tighter data handling, possibly
-  an age screen) for an audience v0.1 does not market to. ⚠️ The reconsideration point is **GA
-  with multimedia**, not now: an app that targets minors *and* stores user media *and* later adds
-  §11 sharing is a far heavier posture than any one of those alone, so taking on the first years
-  before the others costs most and buys least.
-- ☐ **"Restrict users that Google has determined to be minors" — left OFF.** *This* checkbox is
-  the access control, and it would block minors from finding or installing an app rated
-  **Everyone** — restriction with no benefit. Check it only for genuinely adults-only content
-  (alcohol, gambling, dating) or a legal requirement. It is also the source of the form's warning
-  that 18+ "may allow additional restrictions to your availability": that consequence is
-  **opt-in**, not automatic, which is what makes the adults-only declaration cheap.
+Four answers are right for non-obvious reasons, recorded so a later reader does not "correct" them:
 
-⚠️ Answer *Store presence* consistently with this — it asks whether the app could appeal to
-children regardless of target, and contradicting the target-age answer is its own flag.
+- **Sign in details → No**, and *not* because v0.1 has no login. It ships a **local account** — a
+  username and password whose creation is what turns encryption on. The answer is No because
+  nothing is *restricted*: there is no launch gate, every `hasAccount` read is a branch rather than
+  a door, every feature works without one, and there is no server-side account to provision for a
+  reviewer. ⚠️ A **mandatory** PIN/password/biometric at first run would genuinely put this in
+  play — and would first have to reverse `plans/encryption/model.md` §7's constraint that
+  "first-run onboarding must not force account/password setup."
+- **Cash rewards / gift cards → No** despite the Gifts feature: those are private records of
+  presents, not instruments of transferable value.
+- **Web browser or search engine → No** despite the Search tab: it searches local records.
+- **User Content Sharing stays No even after `multiDevice` ships** — sync moves one user's data
+  between their own devices, which is not exchanging content with *other* users. Only §11 sharing
+  changes it.
 
-⚠️ **Purchases are the sharp one.** Answering yes to digital goods does not merely move the
-rating — it pulls in Play billing policy.
+⚠️ **Target audience is 18+, with "restrict users Google determines to be minors" left OFF.** The
+declaration says who the app is *designed and marketed for* and is not an access control — teens
+remain free to install it. *That checkbox* is the access control, and it would block minors from an
+app rated **Everyone** for no benefit. The reconsideration point is **GA with multimedia**, not now.
+Answer *Store presence* consistently, since contradicting the target-age answer is its own flag.
 
-Two ratings answers are right for non-obvious reasons, recorded so a later reader does not
-"correct" them: **cash rewards / gift cards → No** despite the Gifts feature (those are private
-records of presents, not instruments of transferable value), and **web browser or search engine →
-No** despite the Search tab (it searches local records). **User Content Sharing stays No even
-after `multiDevice` ships** — sync moves one user's data between their own devices, which is not
-exchanging content with *other users*; only §11 sharing changes it.
+⚠️ **Purchases are the sharp one.** Answering yes to digital goods does not merely move the rating —
+it pulls in Play billing policy.
 
 ## Traps that have already cost time
 
-- **Testers must match in two independent places.** The Google account in the **browser** that
-  opens the opt-in link joins the test; the account **active in the Play Store app** performs the
-  install. If they differ, the app silently does not appear — no error explains why. Multiple
-  accounts on one device are fine; switching the Play Store account is the fix. ⚠️ **Send this
-  instruction along with the opt-in link**, or a 12-tester recruitment drive quietly stalls at 9.
+- **Testers must match in two independent places.** The Google account in the **browser** that opens
+  the opt-in link joins the test; the account **active in the Play Store app** performs the install.
+  If they differ the app silently does not appear, with no error. ⚠️ **Send this instruction along
+  with the opt-in link**, or a 12-tester drive quietly stalls at 9.
 - **A first test link takes hours to propagate**, sometimes into the next day. "Item not found"
-  after successfully opting in is the expected symptom, not a misconfiguration — if Console says
-  *Available to internal testers*, it worked. ⚠️ **Do not republish or re-upload to "fix" it**;
-  each attempt burns a version code that can never be reused. *(Borne out: `368157` did install
-  on a physical device once the link propagated, with no republish — 2026-09-16.)*
-- **"Not reviewed" on an internal release is normal** and matches the "(unreviewed)" label testers
-  see on the opt-in page. Internal testing requires no review.
-- **Play's "no deobfuscation file" warning is expected** — see *Still open* below.
+  after opting in is the expected symptom, not a misconfiguration. ⚠️ **Do not republish to "fix"
+  it** — each attempt burns a version code that can never be reused.
+- **"Not reviewed" on an internal release is normal.** Internal testing requires no review.
+- **Play's "no deobfuscation file" warning is expected** — see *Still to build*.
 
 ---
 
-# Technical: what is left to build
+# Still to build
 
-`scripts/release/targets/android.mjs` is **`ready`** as of 2026-09-16: `alpha` and `beta` ship,
-`rc` ships its closed half, and `final` refuses. The target contract is documented in
-`scripts/release/targets/index.mjs`; below is only what is Android-specific.
+`scripts/release/targets/android.mjs` is **`ready`**: `alpha` and `beta` ship, `rc` ships its
+closed half, `final` refuses. It and `play.mjs` document their own reasoning; the target contract
+is in `scripts/release/targets/index.mjs`. What remains:
 
-- ✅ **Build an AAB, not an APK** — `expo prebuild --platform android` then `./gradlew
-  bundleRelease`, build number pinned through `LEAPSAKE_BUILD_NUMBER` as iOS does. `android/` is
-  generated and gitignored, so nothing may originate there — the signing config is injected by
-  [`apps/mobile/plugins/with-android-release-signing.js`](../apps/mobile/plugins/with-android-release-signing.js),
-  which documents its own reasoning and its anchors.
-- ✅ **Signing is an upload key**, held in `~/.leapsake/` and named by path from `.env`
-  (`LEAPSAKE_ANDROID_KEYSTORE`, `_KEY_ALIAS`, `_KEYSTORE_PASSWORD_PATH`). ⚠️ The password is read
-  from a **file** and passed to Gradle in the child environment — `.env` holds paths, never
-  secrets, per its own header.
-- ✅ **`scripts/release/play.mjs`** — the API transport, mirroring `asc.mjs` in shape and in
-  having no dependencies. Three things differ from Apple, each forced by the API and each
-  explained in the file: Google will not take a self-signed JWT as a bearer (the RS256 assertion
-  is **exchanged** for an access token, so two round trips where Apple has one); bundle uploads
-  go to a **different host** with a five-minute ceiling; and the upload is the one call that
-  **does not retry**, because Play's edits are transactional and the repair is a fresh edit
-  rather than a repeat that collides with its own version code.
-
-  `withEdit` lives there too — commit on success, abandon on failure. ⚠️ **`{ commit: false }` is
-  a real dry run**: the whole path exercised, nothing committed, **no version code spent**. That
-  is what makes the Play path safer to script than to click, and it is what the `Play API`
-  preflight uses to prove the grant before a four-minute Gradle build.
 - ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
   reach the closed track and a held production release with **one** upload and one version code.
-  Not built: the account has no production access. ⚠️ **The hold is ambient on Play**, unlike
-  iOS where manual release is a property of the submission — it depends entirely on *managed
-  publishing* being on, an app-level Console toggle. So `rc`'s production half must ship with a
-  preflight that asserts managed publishing is on and refuses otherwise, or a `rc` run after
-  someone flips that toggle goes **public** with no error. Whether the API exposes that state
-  readably is **unverified**; if it does not, the interlock has to be something else, and that
-  is a decision to make deliberately rather than to paper over with a reminder.
-- ☐ **Version-controlled listing assets, uploaded only when they change** *(owner, 2026-09-15 —
-  deliberately deferred to here rather than built early)*. The screenshots, feature graphic and
-  store icon should live in the repo and be re-uploaded by `pnpm release` **only** when the asset
-  actually changed. Today they are uploaded by hand and live nowhere tracked.
+  Blocked on production access.
 
-  Three things to know before building it, each of which cost something to learn:
+  ⚠️ **The hold is ambient on Play**, unlike iOS where manual release is a property of the
+  submission. It depends entirely on *managed publishing* being on — an app-level Console toggle.
+  So this must ship with a preflight that asserts managed publishing is on and **refuses
+  otherwise**, or an `rc` run after someone flips that toggle goes **public** with no error.
+  Whether the API exposes that state readably is **unverified**; if it does not, the interlock has
+  to be something else, and that is a decision to make deliberately rather than paper over with a
+  reminder. (A `draft` release was considered and rejected: a draft is not reviewed, which defeats
+  the whole point of the rung.)
 
-  - ⚠️ **Screenshots are not byte-reproducible, so naive hash-skipping is worthless.** Two
-    captures of the same screen minutes apart differ — the status-bar clock, battery and signal
-    all move (measured 2026-09-15: the same Home screen gave `dfa695e3…` and `b171ce0c…`, and
-    different file sizes). A hash check over those re-uploads everything on every regeneration.
-    The fix is Android's **SysUI demo mode** (`settings put global sysui_demo_allowed 1`, then
-    broadcast a pinned clock/battery/signal) so the chrome stops varying. Until that exists,
-    the committed PNG has to be the source of truth and regeneration a deliberate act.
-  - **The icon and feature graphic *are* deterministic** — both are rendered from vector sources
-    by a script, so they can be hash-skipped with none of the above. Only screenshots need it.
-  - ⚠️ **Play may make local state unnecessary.** Its `Images` resource carries a per-image hash,
-    so `edits.images.list` can be diffed against the local files directly and nothing has to be
-    stored on this side — no manifest, nothing to drift. **Unverified**: confirm the field
-    against the API reference before designing around it.
+- ☐ **A version-parity preflight, with a second job.** A tag now ships two artifacts claiming to
+  work together — the point of the single-version rule
+  ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*) and the first moment it
+  can be **wrong**, since identical version numbers say nothing if the two builds resolve
+  `@leapsake/flags` differently.
+
+  Give it the declarations too: the revisit table above is a *reminder*, and reminders are what
+  fail years later when someone flips a flag for an unrelated reason. The check is already reading
+  flag state, so it costs almost nothing to **fail the release when `multiDevice` is on and the
+  declarations have not been re-confirmed** — a dated marker is enough. That turns "remember to
+  revisit" into "the release refuses until you do", and a preflight is platform-neutral in a way
+  this document is not.
+
+- ☐ **Version-controlled listing assets, uploaded only when they change** *(owner, 2026-09-15)*.
+  Screenshots, feature graphic and store icon should live in the repo and be re-uploaded by
+  `pnpm release` **only** when the asset actually changed. Today they are uploaded by hand and
+  live nowhere tracked. ⚠️ Nothing in `scripts/release/` touches listing assets — the only store
+  *text* it writes is release notes, because those are per-*release* where these are per-*listing*.
+
+  Three things to know first:
+
+  - ⚠️ **Screenshots are not byte-reproducible, so naive hash-skipping is worthless.** Two captures
+    of the same screen differ — the status-bar clock, battery and signal all move (measured
+    2026-09-15: the same Home screen gave `dfa695e3…` and `b171ce0c…`). The fix is Android's
+    **SysUI demo mode** (`settings put global sysui_demo_allowed 1`, then broadcast a pinned
+    clock/battery/signal). Until that exists the committed PNG is the source of truth and
+    regeneration is a deliberate act.
+  - **The icon and feature graphic *are* deterministic** — rendered from vector sources by a
+    script, so they hash-skip cleanly. Only screenshots need the above.
+  - ⚠️ **Play may make local state unnecessary.** Its `Images` resource carries a per-image hash, so
+    `edits.images.list` can be diffed against local files with nothing stored on this side.
+    **Unverified**: confirm the field before designing around it.
 
   **Not git notes.** `receipts.mjs`'s header explains why it uses them — a receipt is metadata
-  *about a commit*, knowable only after that commit is tagged and built. Listing assets are the
-  opposite: release **inputs**, known beforehand. They belong in tracked files.
+  *about a commit*, knowable only after that commit is built. Listing assets are the opposite:
+  release **inputs**, known beforehand. They belong in tracked files.
 
-  *(Also the reason this is here and not done: the whole feature sits on top of `play.mjs`, which
-  is unwritten. Building the asset sync first would mean a change-detector with nothing to upload
-  through.)*
-- ✅ **`android.mjs` itself** — preflights in the iOS shape (a JDK, the keystore, its password
-  file, the service-account JSON, and one live Play call), plus two post-build assertions that
-  each catch a different disaster: the **signer fingerprint**, because a debug-signed release AAB
-  builds and installs cleanly and is only rejected at upload; and the **baked commit**, checked
-  straight after prebuild so it costs seconds rather than a Gradle run.
-- ✅ **`final` refuses, and says why.** `productionAccess` is a check that always fails, naming
-  the 12-tester/14-day route and offering `--only=ios`. ⚠️ This also closed a gap in
-  `scripts/release/index.mjs`: the marker path ran *no* per-target `requires`, so a rung's
-  preconditions were silently ignored at the one rung that makes an app public. It now runs them
-  before the marker-shape refusal, so the actionable reason wins over "give the target a
-  `release()`".
-- ✅ **`status` is `"ready"`.** ⚠️ A ready target ships on every tag: `pnpm release beta` now
-  ships Android alongside iOS. `--dry-run` was green on all four rungs before the flip.
-- ☐ **Release notes come from `whats-new.txt` at every rung**, which is a *divergence from iOS*
-  worth knowing about. Apple has two fields — TestFlight's "What to Test" and the App Store's
-  "What's New" — and the rungs pick between them. Play has one, shown in the store listing, so
-  the store copy is the right source even on a testing track. ⚠️ Play's limit is **500 Unicode
-  characters**; `what-to-test.txt` is three times that, which is how the divergence was found.
-  ☐ **`whats-new.txt` says "There is no account to create", which is false** — see *Why Sign in
-  details is "No"* above. Store copy should be fixed before strangers read it.
+- ☐ **An R8 mapping upload**, the day `enableMinifyInReleaseBuilds` is turned on for app size.
+  Until then Play's "no deobfuscation file" warning is correct and harmless.
 
-## The version-parity check this makes possible
-
-⚠️ **This is real now** — Android went `ready` on 2026-09-16, into a repo whose iOS app is
-already published. A tag will then ship two artifacts claiming to work together — the point of the
-single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*) and
-also the first moment it can be **wrong**: identical version numbers say nothing if the two builds
-resolve `@leapsake/flags` differently. A preflight asserting both platforms resolve the same flag
-state is the cheapest form of that guarantee. Worth doing while the second target is fresh.
-
-**Give that same preflight a second job: gating the store declarations.** The revisit table above
-is a *reminder*, and reminders are exactly what fails years later when someone flips a flag for an
-unrelated reason — at which point three declarations across two stores silently stop matching the
-app, which is a policy problem rather than stale paperwork. The check is already reading flag
-state, so it costs almost nothing to also **fail the release when `multiDevice` is on and the
-declarations have not been re-confirmed** — a dated marker the check reads is enough. That turns
-"remember to revisit" into "the release refuses until you do", and it is the natural home for the
-cross-store trigger, since a preflight is platform-neutral in a way this Android doc is not.
-
-⚠️ **Sequence the declaration updates with the release, not after it.** The violation is never
-"the declaration changed" — declaring for *what ships* is the only correct answer, and Google
-expects these to be updated as the app changes. The violation is a live version whose behavior has
-outrun its declaration. Declaration changes also go through review, so they cannot be flipped on
-rollout morning.
-
-## Still open, and not blocking Android
-
-- ✅ **The app icon is real** *(2026-08-26)* — one vector source in `assets/icon/`, with
-  `pnpm test:icons` guarding every raster. iOS' `beta` rung checks it
-  (`scripts/release/targets/ios.mjs`); Android needs the equivalent once its rungs are real.
-- ✅ **The commit rides inside the Android artifact** *(closed 2026-09-16)*. It did not until
-  then, and the gap was this: `apps/mobile/app.config.ts` bakes `LeapsakeCommit` into the shipped
-  `Info.plist`, where `plutil -p` reads it out of an `.ipa` **without launching anything** — the
-  property a provenance claim needs, since it survives the app being unable or unwilling to
-  report on itself. The `android` block set only `versionCode`, so an AAB's manifest named no
-  commit and the claim fell back to `extra.commit` in the JS bundle, which requires the app to
-  *run*.
-
-  Closed by [`apps/mobile/plugins/with-android-commit.js`](../apps/mobile/plugins/with-android-commit.js),
-  a `withAndroidManifest` plugin writing a `<meta-data>` element named `LeapsakeCommit` — the
-  same key iOS uses, so one grep finds both. It reads `extra.commit` from the resolved config
-  rather than shelling out to git, so the two platforms cannot disagree, and it throws rather
-  than writing an element that says nothing.
-
-  ⚠️ **This bullet used to say `aapt2 dump badging` could read it back. That is wrong for an
-  AAB** — `aapt2` answers `error: could not identify format of APK`, because a bundle is a zip
-  of protobuf modules with no root binary manifest to badge (`dump xmltree` on the extracted
-  file fails likewise). Both work on an *APK*, which is why the claim went unchallenged until
-  an AAB was built. Read it back with no extra install via
-
-  ```sh
-  unzip -p app-release.aab base/manifest/AndroidManifest.xml | strings | grep -A2 LeapsakeCommit
-  ```
-
-  — a heuristic rather than a parse, since `strings` recovers the attribute name and value as
-  adjacent tokens. `bundletool dump manifest --bundle=…` is the rigorous form and a separate
-  install.
-- **No R8 mapping file is uploaded**, because `enableMinifyInReleaseBuilds` is off — so Play's
-  "no deobfuscation file" warning on every upload is correct and harmless. ⚠️ The day
-  minification is turned on for app size, that warning becomes real and the mapping upload has to
-  join `publish()`.
-- **dSYMs are missing** for React Native's prebuilt XCFrameworks (`React`,
-  `ReactNativeDependencies`, `hermesvm`), so iOS crash reports will not symbolicate frames inside
-  them. ⚠️ **An iOS question, no longer hypothetical** — the App Store generates crashes from
-  strangers. Decide as part of GA, not here. *(Android is the happier case: `bundleRelease` ships
-  native debug symbols in `BUNDLE-METADATA/`, which Play strips from delivery and uses to
-  symbolicate, so Android crash reports arrive legible.)*
+- ☐ **dSYMs for React Native's prebuilt XCFrameworks** (`React`, `ReactNativeDependencies`,
+  `hermesvm`), without which iOS crash reports will not symbolicate frames inside them. ⚠️ **An
+  iOS question, no longer hypothetical** — the App Store generates crashes from strangers. Decide
+  as part of GA, not here. *(Android is the happier case: `bundleRelease` ships native debug
+  symbols in `BUNDLE-METADATA/`, which Play uses to symbolicate, so its crash reports arrive
+  legible.)*
