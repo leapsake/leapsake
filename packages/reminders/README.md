@@ -10,10 +10,10 @@ independently testable and narrowly scoped.
 
 ## Two entry points, and why the split is load-bearing
 
-| Import                     | File        | What it is                                                                        |
-| -------------------------- | ----------- | --------------------------------------------------------------------------------- |
-| `@leapsake/reminders`      | `engine.ts` | the pure half — the desired-set walk, the display window, the copy. No I/O.       |
-| `@leapsake/reminders/api`  | `api.ts`    | `createRemindersApi(deps)` — the client-facing surface, over repos. Needs `data`. |
+| Import                    | File        | What it is                                                                        |
+| ------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `@leapsake/reminders`     | `engine.ts` | the pure half — the desired-set walk, the display window, the copy. No I/O.       |
+| `@leapsake/reminders/api` | `api.ts`    | `createRemindersApi(deps)` — the client-facing surface, over repos. Needs `data`. |
 
 **The root barrel deliberately does not re-export `api.ts`.** `@leapsake/view-models` depends
 on this package and `@leapsake/ui` depends on that, so a single barrel carrying the repo-backed
@@ -288,6 +288,10 @@ well it is bucketed.
 
 So an occasion with no rules of its own mints exactly one reminder, and that reminder is a
 **question**. Answering it writes ordinary `reminder_rules`, and the engine takes it from there.
+
+A kind asks only if its `kindDefs` entry has a `prompt`, and `death` must never have one: a
+checklist of ways to mark a death anniversary is the wrong object, and its one quiet `remember` is
+already right.
 
 The point is _when_ it asks. Configuring forty people up front is work nobody will do, and it
 demands a judgement — is Violet a card person? — at the one moment you have no context for it. Asked
