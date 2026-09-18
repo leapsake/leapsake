@@ -14,9 +14,10 @@
  *
  * It depends only on `@leapsake/schema` (the `Gender` enum and, later, nothing
  * else) and a small set of injected ports ({@link ImportPorts}) — never on
- * `@leapsake/core` or `@leapsake/data`. The composition root (`@leapsake/core`)
- * constructs the real ports over its repos and drives the ingest; the renderer
- * imports the pure parser/detector directly to read a dropped `File`.
+ * `@leapsake/core` or `@leapsake/data`. `@leapsake/contact-import` is the other
+ * side of that seam: it constructs the real ports over repositories and drives
+ * the ingest. The renderer imports the pure parser/detector here directly to
+ * read a dropped `File`.
  */
 export { appleLabelText, dateKindFor } from "./apple-labels.js";
 export { detectContactFormat, parseVCards } from "./vcard.js";

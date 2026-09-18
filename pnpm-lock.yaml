@@ -274,6 +274,18 @@ importers:
         specifier: ^2.0.0
         version: 2.2.0
 
+  packages/contact-import:
+    dependencies:
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@leapsake/vcard':
+        specifier: workspace:*
+        version: link:../vcard
+
   packages/contact-links:
     dependencies:
       '@leapsake/schema':
@@ -282,6 +294,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@leapsake/contact-import':
+        specifier: workspace:*
+        version: link:../contact-import
       '@leapsake/crypto':
         specifier: workspace:*
         version: link:../crypto
@@ -8340,9 +8355,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 
