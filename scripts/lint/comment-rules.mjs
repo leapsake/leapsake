@@ -4,12 +4,12 @@
 const DIRECTIVE =
   /^\s*(?:oxlint-|eslint-|@ts-|prettier-ignore|biome-ignore|istanbul |c8 |v8 |#(?:end)?region)/;
 
-// Markers of history rather than behaviour: dates, plan citations, owner calls, slice numbers.
+// History, not behaviour: dates, plan citations, owner calls, slice numbers.
 const DECISION_MARKERS = [
   [/\b20\d\d-\d\d-\d\d\b/, "a date"],
   [/§/, "a § reference"],
   [/\bplans\//, "a plans/ path"],
-  [/\(owner\b/i, "an owner attribution"],
+  [/\(owner,/i, "an owner attribution"],
   [/\bslice \d/i, "a slice number"],
 ];
 
