@@ -16,8 +16,8 @@ commit that made it.
 
 ## Status
 
-**Steps 1 (`packages/schema`) and 2 (`packages/reminders`) are done and lint-enforced. Step 3 is
-half done: `packages/key-custody/src` is in scope, and `packages/data/src` is next.**
+**Steps 1 to 3 (`schema`, `reminders`, `key-custody`, `data`) are done and lint-enforced. Step 4
+(`packages/core`) is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -27,14 +27,13 @@ The biggest remaining files, measured 2026-09-18:
 
 | File                                  | Total | Comment | Share |
 | ------------------------------------- | ----: | ------: | ----: |
-| `packages/data/src/migrations.ts`     | 1,174 |     496 |   42% |
 | `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
 | `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
 | `packages/core/src/index.ts`          | 1,153 |     271 |   24% |
 
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
-about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383, and
-`packages/key-custody/src` from 940 to 213.
+about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383,
+`packages/key-custody/src` from 940 to 213, and `packages/data/src` from 2,202 to 615.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
@@ -154,15 +153,12 @@ Conventions the schema step settled:
 
 1. ✅ `packages/schema`. Done 2026-09-18, in scope.
 2. ✅ `packages/reminders/src`. Done 2026-09-18, in scope.
-3. **`packages/key-custody/src`**: `session.ts` (52 findings) first, then `boot.ts`,
-   `bind-relay.ts` and the small files. `packages/key-custody/README.md` (519 lines) should
-   already hold the custody reasoning, and `§` references into `plans/encryption/model.md` are
-   the most common marker there. Then **`packages/data/src`**: `migrations.ts` (57),
-   `search-service.ts` (34), `syncable.ts` (17), the rest. `packages/data/README.md` is only 87
-   lines, so expect more of data's durable "why" to need a sentence there. Scope entries to add
-   when done: `"packages/key-custody/src/**"` and `"packages/data/src/**"`, each once its
-   directory is clean.
-4. `packages/core`.
+3. ✅ `packages/key-custody/src` and `packages/data/src`. Done 2026-09-18, in scope.
+4. **`packages/core/src`**: `index.ts` (1,153 lines, 271 comment lines, 31 findings), then
+   `views.ts` (6) and `sync.ts` (5). `packages/core/README.md` is only 65 lines, so durable "why"
+   will often belong in the README of the package core composes (`key-custody`, `data`,
+   `reminders`, `sync`) rather than in core's. Scope entry to add when done:
+   `"packages/core/src/**"`.
 5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
 7. Everything else, by directory. `scripts/` last.
