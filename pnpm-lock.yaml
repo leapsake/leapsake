@@ -291,6 +291,9 @@ importers:
       '@leapsake/export':
         specifier: workspace:*
         version: link:../export
+      '@leapsake/gifts':
+        specifier: workspace:*
+        version: link:../gifts
       '@leapsake/holidays':
         specifier: workspace:*
         version: link:../holidays
@@ -358,6 +361,15 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  packages/gifts:
+    dependencies:
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/highlight:
     dependencies:
@@ -8328,7 +8340,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 
