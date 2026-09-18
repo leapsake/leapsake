@@ -2,9 +2,10 @@
 
 > **In flight** *(owner, 2026-09-13)*. Android ships from the **personal** Play account to the
 > internal and closed tracks; a later app transfer moves it to the company for $25. The build
-> half, the Console paperwork, the closed track and the whole scripted upload path are done
-> *(2026-09-16)* — `git log` has how each was built. **What is left is the first real run, and
-> then recruiting the 12 testers whose 14 days are the long pole.**
+> half, the Console paperwork and the closed track are done, and `v0.1.0-beta.8` is live on the
+> closed track — `git log` has how each was built. **What is left is one scripted run that
+> completes end to end, and then dropping `--only`.** Production access, and with it `rc` and
+> `final`, waits on a tester clock that runs in the background.
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
 > because the work spans a repo and a web console and neither half makes sense alone. It carries
@@ -21,7 +22,7 @@
 > which documents itself. ⚠️ *Play declarations and their revisit triggers* below must be **moved,
 > not deleted** — it outlives this document.
 
-## Next: recruit testers, then let `beta.9` prove the scripted path
+## Next: `beta.9` proves the scripted path
 
 **`v0.1.0-beta.8` is live on the closed track** *(2026-09-17)* — version code 373668, built by
 `pnpm release beta --only=android` from commit `6b3861c`, which is baked into the AAB as
@@ -34,27 +35,7 @@ fingerprint check, the commit baking, and `uploadBundle` all ran. `tracks.update
 the API, so **every call `publish()` makes has now succeeded at least once** — just never all in
 one run. `beta.9` is where that happens.
 
-### 1. Recruit, and start the clock
-
-The opt-in link is on *Test and release → Testing → Closed testing → **Testers** tab*, below the
-tester list, as "Copy link". Testers must already be on the email list to use it.
-
-The 14 days do not begin until testers are opted in, so this is the long pole rather than the
-upload — and it is the only thing standing between here and production access. ⚠️ **Send the
-two-account instruction with the link** — see *Traps*. Play does not reliably email testers on
-your behalf; assume distributing the link is yours to do.
-
-⚠️ **Being on the email list is not being opted in.** The list is only permission to *use* the
-link; the count that matters is people who followed it and joined. The bar is 12 opted in
-**continuously**, so the clock starts at the twelfth and resets if the number dips — which is
-why the target is ~15, not 12. A tester who quietly uninstalls on day three costs the fortnight,
-and nothing announces it.
-
-⚠️ **No tooling can watch this.** `edits/{id}/testers/<track>` reads `{}` for an email-list
-track, because that resource only ever exposed Google Groups (see *Facts*). The Console's
-**Testers** tab is the only place the real number lives.
-
-### 2. `beta.9`, scripted, and what it proves
+### 1. `beta.9`, scripted, and what it proves
 
 ```sh
 pnpm release beta --only=android
@@ -83,18 +64,17 @@ binaries would be identical. A platform skipping a rung costs nothing — the st
 `0.1.0` either way, build numbers come from the clock, and `refs/notes/releases` records which
 platform shipped which tag.
 
-### 3. Then bare releases, and what still blocks them
+### 2. Then bare releases, and what still blocks them
 
-- ☐ **A Console-precondition preflight.** The two failures below cost a full suite run and four
-  minutes of Gradle to discover something knowable in one API call. **Deliberately deferred until
-  `beta` ships to both platforms from a bare `pnpm release beta`, consistently** *(owner,
-  2026-09-17)* — see *Still to build* for the shape and the assumption it rests on.
+- ☐ **A Console-precondition preflight**, deliberately deferred until bare releases are routine —
+  *Still to build* has the shape, the reasoning and the assumption it rests on.
 - ☐ **`final` is structurally mixed.** iOS's `final` is a marker rung (`ios.mjs`, `marker: true`)
   that tags what Apple approved; Android's is a real production rollout. `index.mjs` refuses the
   combination with an actionable message rather than shipping half, so a bare `pnpm release final`
   will not work until Android's `final` grows a `release()` and `marker: true`. Only bites once
   production access exists.
-- ☐ **`rc` and `final` on Android wait on production access**, which waits on the 14 days above.
+- ☐ **`rc` and `final` on Android wait on production access**, which waits on the 14 days —
+  *Production access: the tester clock*, below.
 
 ## The two Console preconditions that failed, and what they teach
 
@@ -114,7 +94,28 @@ place to find out.
 beta.8 was accepted while the API refused the same app over the advertising-ID declaration. So
 *"it worked by hand" is not evidence the scripted path will work* — and the cheap way to find the
 next gate is an API call against a disposable track, not a release run.
+
 ---
+
+## Production access: the tester clock
+
+**Background work — it gates `rc` and `final`, and nothing above waits on it.** `alpha` and
+`beta` ship today regardless.
+
+The opt-in link is on *Test and release → Testing → Closed testing → **Testers** tab*, below the
+tester list, as "Copy link", and testers must already be on the email list to use it. ⚠️ **Send
+the two-account instruction with the link** — see *Traps*. Play does not reliably email testers
+on your behalf; assume distributing the link is yours to do.
+
+⚠️ **Being on the email list is not being opted in.** The list is only permission to *use* the
+link; the count that matters is people who followed it and joined. The bar is 12 opted in
+**continuously**, so the clock starts at the twelfth and resets if the number dips — which is
+why the target is ~15, not 12. A tester who quietly uninstalls on day three costs the fortnight,
+and nothing announces it.
+
+⚠️ **No tooling can watch this.** `edits/{id}/testers/<track>` reads `{}` for an email-list
+track, because that resource only ever exposed Google Groups (see *Facts*). The Console's
+**Testers** tab is the only place the real number lives.
 
 ## Facts established the hard way — do not re-derive these
 
@@ -308,11 +309,6 @@ is in `scripts/release/targets/index.mjs`. What remains:
   now compliant and neither failure can be reproduced. Try it against a deliberately broken
   declaration on a disposable track before trusting it; if it does not catch them, the fallback is
   a preflight that reads *App content* state directly.
-
-  It also wants a test. `publish()` has none — it needs a stubbed Play client and a
-  service-account key — so the track name, the release status, the release **name** and the notes
-  are currently unguarded, on the one path whose mistakes cannot be taken back.
-  `ios.release.test.mjs` already stubs `globalThis.fetch` with a route map; copy it.
 
 - ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
   reach the closed track and a held production release with **one** upload and one version code.
