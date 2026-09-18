@@ -228,6 +228,13 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
   holiday reminders, and aggregate reminders.
 - **Watch the N+1.** The engine resolves occurrences and filters by window _before_ hydrating
   labels; holidays multiply the candidate set (people × holidays), so that ordering must hold.
+- **Store an observance only where it diverges from the implicit answer.** An explicit `true`
+  then survives a later correction to the inference, because the user said so directly.
+- **Hides sync.** Any input to the reminder engine must sit on the same side of the sync boundary
+  as the reminders it generates; otherwise one device tombstones what another regenerates under
+  the same id, and a tombstone is never resurrected.
+- **No observance reminder is on by default.** Every Christmas observance comes due on the same
+  day, so a default-on wish would hand someone forty reminders at once.
 - **The dismissal ladder is closed, and each rung means something different**: dismissing a
   reminder is "not this year" (one occurrence, because the occurrence is part of the
   deterministic id); a disabled reminder rule is "never gift Violet at Christmas, but still call";
