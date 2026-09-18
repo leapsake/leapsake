@@ -21,96 +21,74 @@
 > which documents itself. ⚠️ *Play declarations and their revisit triggers* below must be **moved,
 > not deleted** — it outlives this document.
 
-## Next: the first scripted release
+## Next: recruit testers, then let `beta.9` prove the scripted path
 
-Everything below is one-time. The goal is `pnpm release beta --only=android`, and these are the
-steps that keep the first one from being an expensive way to find a bug.
+**`v0.1.0-beta.8` is live on the closed track** *(2026-09-17)* — version code 373668, built by
+`pnpm release beta --only=android` from commit `6b3861c`, which is baked into the AAB as
+`LeapsakeCommit` and recorded in `refs/notes/releases`. iOS was deliberately skipped at this tag.
 
-⚠️ **There is no internal-track rehearsal available, and that is not an oversight.** The obvious
-first move — spend a throwaway version code on the internal track, where nothing is reviewed and
-nobody but the owner installs it — is closed off by the version ladder. `nextVersion` only counts
-*forward within a core* (`scripts/release/version.mjs`), 0.1.0 is already at `beta.7` from the iOS
-work, and `0.1.0-alpha.4` does not come after `0.1.0-beta.7`, so the *version increases* preflight
-refuses it. The only way back to an `alpha` is `--base=patch`, which starts a **new 0.1.1 train**
-and gives up on 0.1.0 ever shipping. **0.1.0 is to be the version that reaches the stores**
-*(owner, 2026-09-16)*, so the rehearsal is the thing that gets given up instead.
+⚠️ **Its rollout was done by hand in the Console**, because the scripted `publish()` hit two
+Console preconditions in a row (below). `build()` is fully proven — Gradle, the keytool
+fingerprint check, the commit baking, and `uploadBundle` all ran. `tracks.update` and the edit
+`:commit` were then proven separately by promoting the same bundle to the internal track over
+the API, so **every call `publish()` makes has now succeeded at least once** — just never all in
+one run. `beta.9` is where that happens.
 
-Which means the first Android `build()` and `publish()` happen at a **reviewed** rung, in front of
-whoever is on the tester list. Step 2 exists to buy back what the internal track would have caught
-for free.
-
-✅ **The suite gate is already proven** — `pnpm test:all --strict --provision` ran green on every
-tier on 2026-09-16, with no ⏳ rows, including the Android emulator leg of the crucial-flow catalog
-running for the first time. That retired the reason `alpha` skipped `--strict`, so **every rung now
-runs the full gate**. It still runs again inside the release; budget the ~30-minute catalog twice.
-
-### 1. `pnpm release beta --only=android`
-
-```sh
-pnpm release beta --only=android
-```
-
-⚠️ **`build()` and `publish()` have never executed.** Dry runs exercise preflights only — the
-prebuild, Gradle, the keytool fingerprint check, the upload and `tracks.update` are all unproven.
-
-**`--only=android` is load-bearing.** `index.mjs` ships targets in order, **iOS first**, and the
-ship loop catches per target rather than aborting — so a bare `pnpm release beta` that fails on
-Android fails *after* iOS has uploaded, distributed to TestFlight and entered Beta App Review,
-none of which can be taken back. Restricting to Android removes that entirely.
-
-The asymmetry is what matters, because a first-run failure here is most likely a bug in release
-code that has never executed, and the fix is a commit the tag does not contain — so the tag is
-dead either way and the next attempt is `beta.9`. Under `--only=android` a dead tag is the whole
-cost: it is local, nothing is pushed, `git tag -d` erases it. Under a bare run the same dead tag
-has already spent an iOS build number, a TestFlight distribution and a review slot on a version
-being abandoned.
-
-⚠️ **`--only` does not change what is tagged.** The tag is cut before the ship loop, so
-`v0.1.0-beta.8` and its *Cut* commit happen either way, with every manifest bumped repo-wide.
-`--only` selects what ships, never what the tag covers (`index.mjs` → *A tag covers the whole
-repo*).
-
-⚠️ **It is a real release, not a rehearsal.** It runs `pnpm test:all --strict --provision`, sets
-every manifest to the new version, commits *Cut 0.1.0-beta.8*, and cuts that tag. Nothing is pushed.
-Expect ~4 minutes of Gradle on top of the suite, and a prebuild that deletes and regenerates
-`apps/mobile/android/`.
-
-What cannot be taken back: the rollout enters **Google review** — on Play a track rollout *is* the
-submission, with no separate submit step — and the version code is spent permanently.
-
-**iOS then ships from the same tag, once Android has succeeded:**
-
-```sh
-pnpm release --from-tag=v0.1.0-beta.8 --only=ios
-```
-
-`--from-tag` mode takes the tag as input rather than output: no bump, no commit, no new tag. It
-needs the tag **on HEAD** (`tagOnHead` in `scripts/release/preflight.mjs`), which holds
-immediately after the Android run; if work has landed since, `git checkout v0.1.0-beta.8` first —
-the detached HEAD is expected, which is why `releaseBranch` is deliberately absent from that
-check set. ⚠️ It runs the **full suite again**: budget the ~30-minute catalog a third time.
-
-There is no need to skip to `beta.9` for iOS. One tag, two invocations, is the design.
-
-### 2. Check the Console before distributing anything
-
-⚠️ **One thing is unverified, and it now gets tested on the track that matters.** `publish()` uses
-`tracks.update`, a **PUT**, and whether replacing a track's releases leaves the rest of its
-configuration alone has not been proven. The internal track would have been the cheap place to
-find out; instead, go straight to *Test and release → Testing → Closed testing* afterwards and
-confirm the **Testers** tab and the country list survived. If the PUT flattened them, restore them
-*before* handing out the opt-in link — a tester who opts in against a broken track is a silent
-failure, and re-uploading to fix it burns another version code.
-
-### 3. Recruit, and start the clock
+### 1. Recruit, and start the clock
 
 The opt-in link is on *Test and release → Testing → Closed testing → **Testers** tab*, below the
 tester list, as "Copy link". Testers must already be on the email list to use it.
 
 The 14 days do not begin until testers are opted in, so this is the long pole rather than the
-upload. ⚠️ **Send the two-account instruction with the link** — see *Traps*. Play does not reliably
-email testers on your behalf; assume distributing the link is yours to do.
+upload — and it is the only thing standing between here and production access. ⚠️ **Send the
+two-account instruction with the link** — see *Traps*. Play does not reliably email testers on
+your behalf; assume distributing the link is yours to do.
 
+### 2. `beta.9`, scripted, and what it proves
+
+```sh
+pnpm release beta --only=android
+```
+
+⚠️ **Keep `--only=android` one more time.** Every call is individually proven but the sequence is
+not, and the asymmetry that justified it the first time is unchanged: `index.mjs` ships iOS first
+and catches per target, so a bare run that fails on Android has already spent an iOS build
+number, a TestFlight distribution and a review slot on a tag being abandoned. Once one scripted
+run completes end to end, drop the flag for good.
+
+Afterwards, read the closed track back and confirm `tracks.update` left it as expected — the
+release should carry the **tag's** name now (`0.1.0-beta.9`, not `0.1.0`), and the
+`releases` array is replaced wholesale, so anything not sent is gone.
+
+### 3. Then bare releases, and what still blocks them
+
+- ☐ **A Console-precondition preflight.** The two failures below cost a full suite run and four
+  minutes of Gradle to discover something knowable in one API call. See *Still to build*.
+- ☐ **`final` is structurally mixed.** iOS's `final` is a marker rung (`ios.mjs`, `marker: true`)
+  that tags what Apple approved; Android's is a real production rollout. `index.mjs` refuses the
+  combination with an actionable message rather than shipping half, so a bare `pnpm release final`
+  will not work until Android's `final` grows a `release()` and `marker: true`. Only bites once
+  production access exists.
+- ☐ **`rc` and `final` on Android wait on production access**, which waits on the 14 days above.
+
+## The two Console preconditions that failed, and what they teach
+
+Both refused the **edit commit** — after the upload had already succeeded, which is the expensive
+place to find out.
+
+1. **`Only releases with status draft may be created on draft app.`** An app that has never
+   published on any track is a *draft app*, and the API will only accept `status: "draft"` on one.
+   Cleared by publishing a first release by hand in the Console. ⚠️ **Whether an internal-track
+   publish alone clears it is unverified** — internal and closed were both published within
+   minutes on 2026-09-17, so the experiment did not isolate it. Do not write it down as fact.
+2. **`You must declare the use of advertising ID in Play Console.`** *Policy → App content →
+   Advertising ID*, answered **No** on 2026-09-17 — verified rather than assumed: the release
+   merged manifest carries no `AD_ID` permission and no `play-services-ads` is on the classpath.
+
+⚠️ **The Console and the API do not enforce the same preconditions.** The hand rollout of
+beta.8 was accepted while the API refused the same app over the advertising-ID declaration. So
+*"it worked by hand" is not evidence the scripted path will work* — and the cheap way to find the
+next gate is an API call against a disposable track, not a release run.
 ---
 
 ## Facts established the hard way — do not re-derive these
@@ -129,6 +107,11 @@ email testers on your behalf; assume distributing the link is yours to do.
   the receiving account's *Users and permissions* (the Cloud project itself can stay), and
   **Android developer verification**, which every account needs on its own and which no account
   reaches production without.
+- **`tracks.update` replaces the whole `releases` array**, and touches nothing else. Tester
+  lists live behind a *separate* resource (`edits/{id}/testers/{track}`), which reads `{}`
+  for an email-list track because that resource only ever exposed Google Groups — so the PUT
+  cannot flatten an email list. ⚠️ Anything omitted from `releases` is gone, though, so a
+  release body must always be complete.
 - ⚠️ **The Play Developer API cannot create an app.** It only edits an app that already has a
   bundle, which is why the first AAB went through the Console by hand. No tooling removes this for
   the *next* new app either.
@@ -226,6 +209,7 @@ no longer matches the app is a policy problem, not stale paperwork.
 | --- | --- | --- |
 | Data safety | no data collected, no data shared | the **relay** ships (`multiDevice`, v0.2) |
 | Sign in details | No — nothing restricted | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run |
+| Advertising ID | **No** — no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
 | Content rating | *Everyone*, All Other App Types | **purchases**, §11 **sharing**, or **multimedia** land |
 | Target audience | **18 and over** only | GA, *if* teens ever become an audience worth designing for |
 | App Store **App Privacy** (iOS) | mirrors Data safety | the **relay** ships — ⚠️ same event, *different store* |
@@ -283,6 +267,20 @@ it pulls in Play billing policy.
 `scripts/release/targets/android.mjs` is **`ready`**: `alpha` and `beta` ship, `rc` ships its
 closed half, `final` refuses. It and `play.mjs` document their own reasoning; the target contract
 is in `scripts/release/targets/index.mjs`. What remains:
+
+- ☐ **A Console-precondition preflight.** Both 2026-09-17 failures refused the *edit commit*,
+  after the suite, the Gradle build and the upload had all been spent. They are knowable in
+  seconds: open an edit, write the target track's current releases back to it unchanged, and ask
+  Play to `:validate` rather than `:commit` — the same shape a real publish takes, with nothing
+  committed. ⚠️ **Unproven that `:validate` surfaces these particular errors**, since the app is
+  now compliant and neither failure can be reproduced. Try it against a deliberately broken
+  declaration on a disposable track before trusting it; if it does not catch them, the fallback is
+  a preflight that reads *App content* state directly.
+
+  It also wants a test. `publish()` has none — it needs a stubbed Play client and a
+  service-account key — so the track name, the release status, the release **name** and the notes
+  are currently unguarded, on the one path whose mistakes cannot be taken back.
+  `ios.release.test.mjs` already stubs `globalThis.fetch` with a route map; copy it.
 
 - ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
   reach the closed track and a held production release with **one** upload and one version code.
