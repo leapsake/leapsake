@@ -1,17 +1,5 @@
-/**
- * Scheduling math for reminders: civil ("wall-clock") dates, the epoch-ms a due
- * date is stored under, the "in N days" countdown, and the soonest-first order.
- *
- * **"Today" is the user's local civil date** — a calendar reminder fires on the
- * day the user calls it, not a UTC instant. This is a deliberate, documented
- * departure from the codebase's otherwise UTC-only convention: everywhere else a
- * timestamp is an epoch-ms instant, but a *due date* is a whole day. We reconcile
- * the two by storing the due date as **UTC midnight of that civil day** (so it is
- * still a plain epoch-ms integer that sorts and merges like any other column) and
- * doing all day arithmetic on the calendar parts, never on elapsed milliseconds
- * (so DST and time-of-day never shift the count). A pure module, unit-tested like
- * `birthday-query.ts`; the later automated-reminder engine builds on it.
- */
+// "Today" is the user's local civil date. A due date is stored as UTC midnight
+// of that day, and day arithmetic uses calendar parts, never elapsed ms.
 
 import { type MilestoneKind, kindDefs } from "./milestone.js";
 
@@ -22,20 +10,13 @@ export interface CivilDate {
   day: number;
 }
 
-/**
- * The viewer's **local** civil date — the day their wall clock shows. Pass `now`
- * (epoch ms) to derive it from a fixed instant; defaults to the real clock.
- */
+/** The viewer's local civil date at `now`. */
 export function todayCivil(now: number = Date.now()): CivilDate {
   const d = new Date(now);
   return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
 }
 
-/**
- * Whole days from civil date `a` to civil date `b` (i.e. `b − a`): positive when
- * `b` is later. Both are anchored to UTC midnight so only the calendar parts
- * count — the result is DST- and timezone-immune.
- */
+/** Whole days from `a` to `b`, positive when `b` is later; immune to DST. */
 export function daysUntil(a: CivilDate, b: CivilDate): number {
   const ms =
     Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day);
@@ -47,7 +28,7 @@ export function dueDateMs(civil: CivilDate): number {
   return Date.UTC(civil.year, civil.month - 1, civil.day);
 }
 
-/** Inverse of {@link dueDateMs}: the civil date a stored due-date epoch encodes. */
+/** Inverse of {@link dueDateMs}: the civil date a stored due date encodes. */
 export function civilFromDueMs(dueMs: number): CivilDate {
   const d = new Date(dueMs);
   return {
@@ -57,11 +38,7 @@ export function civilFromDueMs(dueMs: number): CivilDate {
   };
 }
 
-/**
- * Parse an `<input type="date">` / ISO `YYYY-MM-DD` string into the epoch-ms a due
- * date is stored under, or `null` for a blank/malformed value. The single place
- * a client turns a date field into a stored due date (both desktop and mobile).
- */
+/** A `YYYY-MM-DD` date field as a stored due date, or `null` if malformed. */
 export function dueMsFromIso(iso: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
   if (m === null) return null;
@@ -74,17 +51,15 @@ export function dueMsFromIso(iso: string): number | null {
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-/** Format a stored due-date epoch back to `YYYY-MM-DD` for a date input's value. */
+/** A stored due date as `YYYY-MM-DD`, for a date input's value. */
 export function isoFromDueMs(dueMs: number): string {
   const { year, month, day } = civilFromDueMs(dueMs);
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
 /**
- * A human countdown from `now` to a stored due date: "today", "tomorrow",
- * "yesterday", "in N days" (up to a fortnight), "in N weeks" beyond that, and
- * "N days ago" for a past due date. `now` defaults to the real clock; both ends
- * are read as civil days, so the phrasing flips exactly at local midnight.
+ * A countdown to a stored due date: "today", "in N days" up to a fortnight,
+ * "in N weeks" beyond, "N days ago" when past. Flips at local midnight.
  */
 export function formatDueIn(dueMs: number, now: number = Date.now()): string {
   const days = daysUntil(todayCivil(now), civilFromDueMs(dueMs));
@@ -96,17 +71,14 @@ export function formatDueIn(dueMs: number, now: number = Date.now()): string {
   return `in ${Math.round(days / 7)} weeks`;
 }
 
-/** Whole civil days from today to a stored date — the arithmetic every
- *  countdown below shares with {@link formatDueIn}. */
+/** Whole civil days from today to a stored date. */
 function daysAhead(ms: number, now: number): number {
   return daysUntil(todayCivil(now), civilFromDueMs(ms));
 }
 
 /**
- * A row's deadline as Today shows it *(owner, 2026-09-11)*: "Due today", "Due
- * tomorrow", "Due in N days" up to a fortnight, "Due in N weeks" beyond. *Due*
- * is the word that keeps a question's countdown from reading as its occasion —
- * a deadline, not the birthday.
+ * A row's deadline as Today shows it: "Due today", "Due in N days" up to a
+ * fortnight, "Due in N weeks" beyond.
  */
 export function formatDueCountdown(
   dueMs: number,
@@ -119,8 +91,7 @@ export function formatDueCountdown(
   return `Due in ${Math.round(days / 7)} weeks`;
 }
 
-/** When a row that was put off comes back to Today: "Back tomorrow", "Back in N
- *  days", "Back in N weeks". */
+/** When a put-off row returns to Today: "Back tomorrow", "Back in N days". */
 export function formatBackIn(ms: number, now: number = Date.now()): string {
   const days = daysAhead(ms, now);
   if (days <= 1) return "Back tomorrow";
@@ -128,8 +99,7 @@ export function formatBackIn(ms: number, now: number = Date.now()): string {
   return `Back in ${Math.round(days / 7)} weeks`;
 }
 
-/** When a row not on display yet arrives on Today: "Tomorrow", "In N days",
- *  "In N weeks". */
+/** When a row not yet shown arrives on Today: "Tomorrow", "In N days". */
 export function formatComingIn(ms: number, now: number = Date.now()): string {
   const days = daysAhead(ms, now);
   if (days <= 1) return "Tomorrow";
@@ -137,11 +107,7 @@ export function formatComingIn(ms: number, now: number = Date.now()): string {
   return `In ${Math.round(days / 7)} weeks`;
 }
 
-/**
- * Order open reminders **soonest-first**: by `dueDate` ascending with undated
- * reminders (null) sinking to the bottom, then newest-created first as the
- * tiebreak (matching the repo's default `created_at DESC`).
- */
+/** Soonest due first, undated last, then newest created first. */
 export function compareReminderDue(
   a: { dueDate: number | null; createdAt: number },
   b: { dueDate: number | null; createdAt: number },
@@ -154,21 +120,14 @@ export function compareReminderDue(
   return b.createdAt - a.createdAt; // newest first
 }
 
-/** The proleptic-Gregorian leap-year test, so Feb-29 can be clamped correctly. */
+/** The proleptic-Gregorian leap-year test. */
 function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 /**
- * A `(month, day)` placed in `year`, with **Feb-29 falling back to Feb-28** in a
- * non-leap year — the pragmatic convention (mark it on the 28th rather than skip
- * three years in four).
- *
- * Shared by {@link nextOccurrence} and {@link recentOccurrence} so the two can
- * never disagree about which day a leap-day milestone lands on. They must agree:
- * a reminder minted against the forward-looking date has to still be recognised
- * by the backward-looking one the morning after, or it would be tombstoned and
- * re-minted under a new identity.
+ * `(month, day)` in `year`, Feb-29 falling back to Feb-28. Both occurrence
+ * walks use it, so a leap-day reminder keeps one identity either side of it.
  */
 function placeInYear(month: number, day: number, year: number): CivilDate {
   return month === 2 && day === 29 && !isLeapYear(year)
@@ -177,11 +136,8 @@ function placeInYear(month: number, day: number, year: number): CivilDate {
 }
 
 /**
- * A milestone's partial date, as {@link nextOccurrence} reads it: the same
- * individually-nullable parts a `Milestone` carries. A concrete calendar day
- * needs **both** a month and a day; the year is used only to place a *one-time*
- * event and is ignored for a recurring one (whose anchor year, if any, is just
- * the first occurrence).
+ * A milestone's partial date. A concrete day needs month and day; the year only
+ * places a one-time event.
  */
 export interface OccurrenceParts {
   year: number | null;
@@ -190,25 +146,8 @@ export interface OccurrenceParts {
 }
 
 /**
- * The next calendar day a milestone "happens", relative to `today`, or `null`
- * when it has no upcoming concrete day. This is the date-anchoring the automated
- * reminder engine schedules against, kept here beside the rest of the civil-date
- * math and unit-tested in isolation.
- *
- * The rule depends on whether the kind **recurs annually** (`kindDefs`):
- *
- * - **Recurring** (birthdays, anniversaries): the next occurrence of `(month,
- *   day)` on or after today — this year's if it hasn't passed, otherwise next
- *   year's. The year on the parts is irrelevant. A **Feb-29** date falls back to
- *   **Feb-28** in a non-leap target year (the pragmatic convention — mark it on
- *   the 28th rather than skip three years in four).
- * - **One-time** (graduation, a job start): the event's own date, but only if it
- *   is today or still in the future; a past one-time event returns `null` (it
- *   won't happen again). A one-time event needs a *full* date — with no year
- *   there is nothing to place, so it returns `null`.
- *
- * Either way, a date with no month **or** no day (`none` / `year` / `year-month`
- * precision) has no concrete day and returns `null`.
+ * The next day on or after `today` a milestone happens, or `null`. A one-time
+ * kind needs a full date that has not passed.
  */
 export function nextOccurrence(
   kind: MilestoneKind,
@@ -231,24 +170,8 @@ export function nextOccurrence(
 }
 
 /**
- * The most recent day a milestone happened, **strictly before** `today` and no
- * more than `withinDays` ago — or `null` when there is no such day.
- *
- * The mirror of {@link nextOccurrence}, and the reason it has to exist: a
- * recurring occurrence flips to *next year's* date the morning after it passes,
- * so nothing looking forward can ever report "yesterday". Without this, a
- * birthday you missed simply vanishes overnight and you never learn you missed
- * it. The reminder engine walks both, giving a missed reminder a short belated
- * tail (`BELATED_DAYS` there) before it retires.
- *
- * **Strictly before** is what keeps the two functions disjoint: on the day
- * itself {@link nextOccurrence} already answers, so this returns `null` and no
- * occurrence is ever considered twice.
- *
- * The year boundary is the case that matters. A Dec-31 birthday read on Jan-1
- * must answer with **last** year's date, because a system reminder's identity is
- * keyed on the occurrence year — answering with this year's would mint a second,
- * unrelated reminder instead of keeping the one the user already has.
+ * The latest day strictly before `today`, and within `withinDays`, that a
+ * milestone happened, or `null`. Disjoint from {@link nextOccurrence}.
  */
 export function recentOccurrence(
   kind: MilestoneKind,

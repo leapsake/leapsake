@@ -774,6 +774,11 @@ Every device mints the nudges under the same deterministic id, so a device that 
 pulled could out-rank a peer's dismissal on `updated_at` and undo it. **An untouched row never
 wins a merge** — via an opt-in per-table `hasHistory` predicate the sync substrate grew for this.
 
+History is a decision someone took about the row: snoozing, completing, or deleting it, the
+engine's own retirement included. `title` and `dueDate` are not history, since reconcile
+re-derives both; no comparison of `createdAt` and `updatedAt` can tell that refresh from a user's
+act, which is why this is a per-table predicate rather than a timestamp test.
+
 ### The notifications nudge asks a per-device question with a store-scoped condition
 
 `enable-notifications` applies while **no device** has a `notification_settings` row — a row
