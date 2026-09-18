@@ -5,7 +5,7 @@
 > half, the Console paperwork and the closed track are done, and the scripted path is **proven
 > end to end** — `v0.1.0-beta.9` shipped both platforms from one tag on 2026-09-18, so `--only`
 > is retired and a bare `pnpm release beta` is the default. `git log` has how each was built.
-> **What is left is the preflight that bare releases now need**, below. Production access, and
+> **What is left is `rc`'s production half and the checks around it**, below. Production access, and
 > with it `rc` and `final`, waits on a tester clock that runs in the background.
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
@@ -47,11 +47,6 @@ anything not sent is gone.
 
 ### What bare releases now need
 
-- ☐ **A Console-precondition preflight — now due.** It was deferred *until* bare releases were
-  routine, on the reasoning that while `--only=android` was in use, hitting an unknown Console
-  gate cost a wasted suite run rather than a half-shipped release. **That protection is what
-  dropping the flag gives up**, so this is the next thing to build. *Still to build* has its
-  shape, and the assumption it rests on.
 - ☐ **`final` is structurally mixed.** iOS's `final` is a marker rung (`ios.mjs`, `marker: true`)
   that tags what Apple approved; Android's is a real production rollout. `index.mjs` refuses the
   combination with an actionable message rather than shipping half, so a bare `pnpm release final`
@@ -81,6 +76,18 @@ place to find out.
 2. **`You must declare the use of advertising ID in Play Console.`** *Policy → App content →
    Advertising ID*, answered **No** on 2026-09-17 — verified rather than assumed: the release
    merged manifest carries no `AD_ID` permission and no `play-services-ads` is on the classpath.
+
+**A preflight now asks this question before anything is built** *(2026-09-18)*. Every rung's
+`requires` opens an edit, writes the target track's own releases back unchanged, and calls
+`:validate` instead of `:commit` — `consolePreconditions` in `scripts/release/targets/android.mjs`,
+which documents itself. It is abandoned either way, so it spends no version code.
+
+⚠️ **A green preflight is not proof that a commit would succeed.** Whether `:validate` reports
+*these two* refusals is still unverified: both are one-time-per-app, the app satisfies both now,
+and reproducing one means breaking a declaration on a live listing. The green path is proven
+against the real API; the catching half is not. **If a `:commit` is ever refused while the
+preflight passed, that is the finding this paragraph is waiting for** — and the fallback is a
+preflight that reads *App content* state directly.
 
 ⚠️ **The Console and the API do not enforce the same preconditions.** The hand rollout of
 beta.8 was accepted while the API refused the same app over the advertising-ID declaration. So
@@ -285,22 +292,6 @@ it pulls in Play billing policy.
 `scripts/release/targets/android.mjs` is **`ready`**: `alpha` and `beta` ship, `rc` ships its
 closed half, `final` refuses. It and `play.mjs` document their own reasoning; the target contract
 is in `scripts/release/targets/index.mjs`. What remains:
-
-- ☐ **A Console-precondition preflight — the next thing to build.** It waited until a bare
-  `pnpm release beta` was shipping both platforms *(owner, 2026-09-17)*; `v0.1.0-beta.9` did that
-  on 2026-09-18 and `--only` is retired, so the condition is met. Both known gates are satisfied
-  and are one-time-per-app, so the next one is a different unknown that this either catches
-  generically or not at all — the argument for building it now is that a half-shipped release is
-  what an unknown gate costs once iOS is no longer held back.
-
-  Both 2026-09-17 failures refused the *edit commit*,
-  after the suite, the Gradle build and the upload had all been spent. They are knowable in
-  seconds: open an edit, write the target track's current releases back to it unchanged, and ask
-  Play to `:validate` rather than `:commit` — the same shape a real publish takes, with nothing
-  committed. ⚠️ **Unproven that `:validate` surfaces these particular errors**, since the app is
-  now compliant and neither failure can be reproduced. Try it against a deliberately broken
-  declaration on a disposable track before trusting it; if it does not catch them, the fallback is
-  a preflight that reads *App content* state directly.
 
 - ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
   reach the closed track and a held production release with **one** upload and one version code.

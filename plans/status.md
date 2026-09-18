@@ -10,8 +10,8 @@
 **v0.1 is iOS alone**, in external TestFlight with a real tester on it. macOS follows **after**
 the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → _Part 2_).
 
-**Android ships the same rungs** from the personal Play account; next is the Console-precondition
-preflight, then the 14-day tester clock ([`android-pipeline.md`](./android-pipeline.md)).
+**Android ships the same rungs** from the personal Play account; `rc` and `final` there wait on
+production access, earned by the [14-day closed test](./android-pipeline.md).
 
 **Next, in order — [`shipping.md`](./shipping.md) → _Part 1_ has the acceptance for each.**
 ① **App Store Connect metadata** — privacy URL, a _published_ App Privacy questionnaire,

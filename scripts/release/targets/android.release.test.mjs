@@ -135,8 +135,10 @@ describe("the app icon", () => {
 
   // An internal build reaches only the owner, and gating it on the icon would make the
   // fastest rung the fussiest.
-  it("is not required at alpha", () => {
-    expect(android.tiers.alpha.requires).toHaveLength(0);
+  it("is not required at alpha", async () => {
+    expect(
+      await checkNamed("alpha", "app icon", repoWith({ icon: false })),
+    ).toBeUndefined();
   });
 });
 
@@ -324,5 +326,89 @@ describe("publish", () => {
     expect(calls.map((call) => call.key)).not.toContain(
       `POST ${APP}/edits/${EDIT}:commit`,
     );
+  });
+});
+
+describe("the Console preconditions", () => {
+  const CHECK = "Play Console preconditions";
+  const RELEASES = [
+    { name: "0.1.0-beta.9", status: "completed", versionCodes: [String(CODE)] },
+  ];
+  const withTrack = (track, overrides = {}) =>
+    stubPlay({
+      [`GET ${APP}/edits/${EDIT}/tracks/${track}`]: answer(200, {
+        track,
+        releases: RELEASES,
+      }),
+      [`POST ${APP}/edits/${EDIT}:validate`]: answer(200, {}),
+      ...overrides,
+    });
+
+  it("passes when Play validates the edit", async () => {
+    serviceAccount();
+    const calls = withTrack("alpha");
+    expect(await checkNamed("beta", CHECK, repoWith())).toBeUndefined();
+    expect(calls.map((call) => call.key)).toContain(
+      `POST ${APP}/edits/${EDIT}:validate`,
+    );
+  });
+
+  // The whole point is that it costs nothing: a committed edit would spend a version code
+  // for a question, and this runs before every release.
+  it("abandons the edit and never commits it", async () => {
+    serviceAccount();
+    const calls = withTrack("alpha");
+    await checkNamed("beta", CHECK, repoWith());
+    const keys = calls.map((call) => call.key);
+    expect(keys).toContain(`DELETE ${APP}/edits/${EDIT}`);
+    expect(keys).not.toContain(`POST ${APP}/edits/${EDIT}:commit`);
+  });
+
+  // The refusal this exists for, in the words Play used on 2026-09-17 — at the commit,
+  // after a build and an upload had already been spent.
+  it("reports what Play refused, before anything is built", async () => {
+    serviceAccount();
+    withTrack("alpha", {
+      [`POST ${APP}/edits/${EDIT}:validate`]: answer(400, {
+        error: {
+          message:
+            "You must declare the use of advertising ID in Play Console.",
+        },
+      }),
+    });
+    const reason = await checkNamed("beta", CHECK, repoWith());
+    expect(reason).toMatch(/advertising ID/);
+    expect(reason).toMatch(/alpha track/);
+  });
+
+  // Each rung asks about its own track: a check that always probed the closed one would
+  // pass while the track being published to was the broken one.
+  it("asks about the track the rung publishes to", async () => {
+    serviceAccount();
+    const calls = withTrack("internal");
+    expect(await checkNamed("alpha", CHECK, repoWith())).toBeUndefined();
+    expect(calls.map((call) => call.key)).toContain(
+      `GET ${APP}/edits/${EDIT}/tracks/internal`,
+    );
+  });
+
+  // A track Play has never released to answers with no releases; an empty array is not the
+  // shape a publish sends, so there is nothing to write back.
+  it("writes nothing back to a track that has no releases", async () => {
+    serviceAccount();
+    const calls = stubPlay({
+      [`GET ${APP}/edits/${EDIT}/tracks/production`]: answer(200, {
+        track: "production",
+      }),
+      [`POST ${APP}/edits/${EDIT}:validate`]: answer(200, {}),
+    });
+    await checkNamed("final", CHECK, repoWith());
+    expect(calls.map((call) => call.key)).not.toContain(
+      `PUT ${APP}/edits/${EDIT}/tracks/production`,
+    );
+  });
+
+  it("is skipped without credentials, which serviceAccount reports instead", async () => {
+    expect(await checkNamed("beta", CHECK, repoWith())).toBeUndefined();
   });
 });
