@@ -1,11 +1,5 @@
-/**
- * Folding primitives shared by the search service (whole-string matching) and
- * the highlight package (per-character matching with a source-index map). They
- * live here, the lowest layer, so both the data layer and any renderer can
- * import them — the renderer must not reach into `@leapsake/data`. Keeping the
- * per-character and whole-string forms side by side guarantees they fold the
- * same way, so a highlighted span always lines up with *why* a result matched.
- */
+// Search folds whole strings; highlighting folds per character. Both forms
+// live side by side so a highlight always lines up with why a result matched.
 
 /** How `text` is folded, picked from the matched facet by the caller. */
 export type HighlightMode = "text" | "phone" | "address";
@@ -20,17 +14,12 @@ export const foldTextChar = (c: string): string =>
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
-/**
- * Per-character fold for phone numbers: keep digits, drop formatting and the
- * leading "+", so "5551234567" lines up with the digits inside "+1 (555)
- * 123-4567".
- */
+/** Per-character fold for phone numbers: digits only, dropping the "+". */
 export const foldPhoneChar = (c: string): string => (/\d/.test(c) ? c : "");
 
 /**
- * Per-character fold for addresses: as text, but commas and any whitespace
- * become a single space (runs are collapsed by the caller), so "123 any street
- * pittsburgh" lines up inside "123 Any Street, Pittsburgh".
+ * Per-character fold for addresses: as text, but commas and whitespace become
+ * a space. The caller collapses runs.
  */
 export const foldAddressChar = (c: string): string =>
   c === "," || /\s/.test(c) ? " " : foldTextChar(c);
@@ -41,11 +30,7 @@ export const foldCharFor: Record<HighlightMode, (c: string) => string> = {
   address: foldAddressChar,
 };
 
-/**
- * Accent + case folding so `"jose"` matches `"José"`. Both the query and every
- * candidate are folded before matching — uniform, false-positive-friendly
- * (better to over-surface than to miss).
- */
+/** Accent and case folding, so `"jose"` matches `"José"`. */
 export const fold = (s: string): string =>
   s
     .normalize("NFD")
@@ -56,19 +41,15 @@ export const fold = (s: string): string =>
 export const digits = (s: string): string => s.replace(/\D/g, "");
 
 /**
- * Address fold: {@link fold} plus comma- and whitespace-insensitivity, so a
- * run-together "123 any street pittsburgh" matches the formatted "123 Any
- * Street, Pittsburgh". Applied to both the query and the candidate address.
+ * {@link fold}, ignoring commas and collapsing whitespace, so "123 any street
+ * pittsburgh" matches "123 Any Street, Pittsburgh".
  */
 export const foldAddress = (s: string): string =>
   fold(s).replace(/,/g, " ").replace(/\s+/g, " ").trim();
 
 /**
- * URL fold: {@link fold} plus a stripped scheme and leading `www.`, so "amazon"
- * matches "https://www.amazon.com/dp/…". Applied to **both** sides, which is
- * what makes it symmetric: a bare "https" or "www" query can't match every
- * stored link (the candidates no longer carry either), while a whole pasted URL
- * still lines up with the stored one it came from.
+ * {@link fold} without the scheme or a leading `www.`, applied to both sides so
+ * a bare "https" query matches nothing but a pasted URL still matches.
  */
 export const foldUrl = (s: string): string =>
   fold(s)

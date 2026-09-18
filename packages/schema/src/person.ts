@@ -3,18 +3,8 @@ import { genderSchema } from "./gender.js";
 import { standingColumnSchema, standingSchema } from "./standing.js";
 
 /**
- * The three parts of a person's name, every one of them optional.
- *
- * A person needs *some* name — not a first one and a last one. "Ruth" and "Ruth
- * Dakin" are both whole people, and the two features that pushed hardest on the
- * old `firstName` + `lastName` requirement both wanted exactly this: an
- * unpublished person known only as somebody's spouse, and contact import, whose
- * parser deliberately yields incomplete names for mononyms and organisation-only
- * cards rather than fabricating a surname (`@leapsake/vcard` →
- * `ParsedName`).
- *
- * `null` is the one way to spell "absent". `min(1)` is what keeps `""` from
- * becoming a second, indistinguishable way to spell it.
+ * A name's three parts, each optional; a person needs at least one. `min(1)`
+ * keeps `""` from being a second way to spell absent.
  */
 const nameParts = {
   firstName: z.string().min(1).nullable(),
@@ -29,11 +19,7 @@ const optionalNameParts = {
   lastName: z.string().min(1).nullable().optional(),
 };
 
-/**
- * At least one part of a name is present — the rule that replaces "first and
- * last are required", and the whole of what "a person must be nameable" means.
- * Exported because the forms check it before they let you save.
- */
+/** Whether at least one part of a name is present. */
 export function hasAnyName(name: {
   firstName?: string | null;
   middleName?: string | null;
@@ -45,16 +31,8 @@ export function hasAnyName(name: {
 }
 
 /**
- * Split a name typed as one string into parts: up to the first space is the
- * first name, the remainder is the last name.
- *
- * For the places a name arrives as free text rather than as labelled fields —
- * recording a relationship to somebody not in the list, or a vCard carrying only
- * a display name. It stays deliberately dumb: "Ruth" and "Ruth Dakin" are both
- * complete names now, so there is no missing part to be clever about, and a
- * name this rule reads wrongly ("Ursula K. Le Guin") is one edit away from right
- * on the person's own page. Guessing at particles and suffixes would be wrong
- * more often and less predictably.
+ * Split a one-string name at its first space into first and last name. It does
+ * not guess at particles or suffixes.
  */
 export function splitName(text: string): {
   firstName: string | null;
@@ -76,22 +54,13 @@ const nameRequired = {
   path: ["firstName"],
 };
 
-/**
- * A Person — the core entity. The full database row shape.
- *
- * Sync-safe conventions (see AGENTS.md): client-generated UUID
- * primary key, epoch-ms UTC timestamps, and a nullable `deletedAt` for soft
- * deletes (rows are never hard-deleted, so deletions can propagate during V3
- * sync).
- */
+/** A person, as stored. */
 export const personSchema = z
   .object({
     id: z.uuid(),
     ...nameParts,
     gender: genderSchema.nullable(), // explicit gender; null when unset
-    // Whether this is one of the user's own people or someone who exists only as
-    // a fact about one. Defaulted rather than required, which is what lets a row
-    // pulled from a peer that predates the column decode as `published`.
+    // Defaulted, so a row from a peer that predates the column decodes.
     standing: standingColumnSchema,
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(), // epoch ms, UTC
@@ -102,9 +71,8 @@ export const personSchema = z
 export type Person = z.infer<typeof personSchema>;
 
 /**
- * The editable fields, each omittable. Both inputs below are built from this
- * rather than from each other, because a Zod object carrying a refinement can
- * no longer be `.partial()`'d — and only one of the two wants the refinement.
+ * The editable fields, each omittable. Both inputs build on this, since a
+ * refined Zod object cannot be `.partial()`'d.
  */
 const personInputBase = z.object({
   ...optionalNameParts,
@@ -121,13 +89,8 @@ export const createPersonInputSchema = personInputBase.refine(
 export type CreatePersonInput = z.infer<typeof createPersonInputSchema>;
 
 /**
- * Input accepted when updating a Person; any subset of the editable fields.
- *
- * Deliberately **not** refined: a legitimate patch may carry no name at all
- * (`{ gender }`), so the rule cannot live here. It still holds, because
- * `entity-repo`'s `update` re-validates the whole merged row against
- * {@link personSchema} — so a patch that would erase every name is rejected by
- * the row rule, which is the only place that can see the result.
+ * Any subset of the editable fields. Not refined, since a patch may carry no
+ * name; the repo checks the merged row instead.
  */
 export const updatePersonInputSchema = personInputBase;
 
