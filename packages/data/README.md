@@ -43,7 +43,14 @@ existing migrations are never edited or reordered.
 **Some tables are device-local and never replicate:** `content_key`, `key_wrap`, `sync_state`,
 `account`, `device` and `device_contact_links`. None is a syncable repo, and none is in the sync
 engine's allowlist. The key tables are empty until an account exists, so code reading them
-treats "no rows" as normal. A `device_contact_links` row (an address-book contact id means
+treats "no rows" as normal.
+
+⚠️ **`createContentCipher` has no caller, and reviving one has a hard dependency.** The account
+merge swaps a store's master key for another account's and re-wraps nothing. That is safe only
+while no live `content_key`/`key_wrap(content)` rows exist, which `account-merge.test.ts`
+asserts. The first repo to call `sealField` again must, in the same change, teach the merge to
+unwrap each live content key under the old master key and re-wrap it under the adopted one, or a
+merge silently strands every encrypted field on the device. A `device_contact_links` row (an address-book contact id means
 nothing in another address book) is never tombstoned when its person is deleted or merged: it
 still being there is what stops the next sync re-importing them.
 
@@ -77,6 +84,12 @@ building block on its repo:
 | emails / phones / postals | `ownerId`/`ownerType`         | three tables, same shape                            |
 | dismissals                | `subjectId` **and** `otherId` | directional — both ends; drop now-self rows         |
 | not_a_duplicate           | `lowerId` / `higherId`        | re-canonicalize; drop self-pairs                    |
+
+**Every re-point writes `updated_at = MAX(now, updated_at + 1)`**, so the rewrite is strictly
+newer than the row it replaces and wins LWW on every device, even when the merge lands in the
+row's creation millisecond. Each repo's `repointEntity`/`repointOwner` does this, and every
+tombstone goes through `softDeleteWhere`/`softDeleteRow` in `entity-repo.ts` for the same reason:
+a delete that ties on `updated_at` can be resurrected by LWW's tiebreak.
 
 **It syncs for free:** re-points bump `updatedAt` (propagate as normal edits) and the loser's
 soft-delete is a tombstone (propagates) — a merge on one device just _happens_ on the other

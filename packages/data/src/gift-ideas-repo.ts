@@ -14,15 +14,7 @@ export interface GiftIdeasRepo extends EntityRepo<GiftIdea> {
   update(id: string, input: UpdateGiftIdeaInput): Promise<GiftIdea | undefined>;
 }
 
-/**
- * The gift-ideas repository over the async {@link SqliteDriver} port. Plaintext —
- * no {@link ContentCipher}, like reminders; a gift idea isn't a share target and
- * is already covered by whole-DB-at-rest + master-key-sealed sync. Standard CRUD +
- * the sync surface come from {@link createEntityRepo}; only `create` (parse +
- * assemble) and `update` (parse the patch) are bespoke. Listed newest-first — a
- * capture list surfaces what you just added; the "not-yet-given" ordering the
- * design mentions is a later, UI-side concern once givings exist (slice 3).
- */
+/** The gift-ideas repository: plaintext, newest first. */
 export function createGiftIdeasRepo(driver: SqliteDriver): GiftIdeasRepo {
   const base = createEntityRepo<GiftIdea>({
     driver,

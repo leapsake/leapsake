@@ -39,13 +39,8 @@ export interface ContentKeyRepo {
   ): Promise<ContentKey | undefined>;
 }
 
-/**
- * The content-key registry repository. Registers
- * that an entity has a content key — never the key bytes, which live only as
- * `key_wrap` ciphertext. Written against the async {@link SqliteDriver} port so
- * it runs unchanged on desktop and mobile; excludes soft-deleted rows from
- * reads and never hard-deletes (mirrors the domain repositories).
- */
+/** Registers that an entity has a content key; the key itself exists only as
+ *  `key_wrap` ciphertext. */
 export function createContentKeyRepo(driver: SqliteDriver): ContentKeyRepo {
   return {
     async create(input) {

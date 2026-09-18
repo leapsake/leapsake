@@ -1,24 +1,13 @@
 import type { EntityType } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 
-/**
- * Which of this phone's address-book contacts have already been brought into
- * Leapsake — the device-local `device_contact_links` table (migration 36; read
- * its comment for why a link outlives the person it made).
- *
- * Deliberately not a {@link SyncableRepo} and not an `EntityRepo`: a contact id
- * is local to one address book, so there is nothing here another device could
- * use, and a link is never deleted.
- */
+/** Which address-book contacts this device has brought in. Device-local and
+ *  never deleted (README, "Migrations"). */
 export interface DeviceContactLinksRepo {
   /** Every address-book id this device has seen, whatever became of it. */
   listContactIds(): Promise<string[]>;
-  /**
-   * Record that `contactId` has been brought in as `entity`, or — for `null` —
-   * seen and deliberately left out. A plain insert: linking an id twice throws,
-   * which inside an import's per-contact transaction rolls that contact back
-   * rather than creating the same person twice.
-   */
+  /** Record a contact as imported (`null`: seen and left out). Linking twice
+   *  throws, rolling back that contact's import. */
   link(
     contactId: string,
     entity: { type: EntityType; id: string } | null,

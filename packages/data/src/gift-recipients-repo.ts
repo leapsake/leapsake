@@ -14,9 +14,8 @@ import {
   softDeleteWhere,
 } from "./entity-repo.js";
 
-// `create`/`update` take the *nested* party / boolean input (flattened onto the
-// row here), which isn't a `Partial<GiftRecipient>` — so the base `update` is
-// omitted and re-declared rather than narrowed.
+// `create`/`update` take nested party and boolean input, so the base `update`
+// is omitted and re-declared.
 export interface GiftRecipientsRepo extends Omit<
   EntityRepo<GiftRecipient>,
   "update"
@@ -43,31 +42,12 @@ export interface GiftRecipientsRepo extends Omit<
   ): Promise<void>;
 }
 
-/**
- * Not-yet-given first, then newest — the shopping list stays on top, which is the
- * posture every gift list takes. `given_at IS NOT NULL` evaluates to 0/1, so a
- * plain ASC on it sorts the outstanding ones ahead of the done ones without a
- * CASE. Passed to every scoped read (`listWhere` ignores the repo's default
- * `orderBy`).
- */
+/** Not-yet-given first, then newest. Passed to every scoped read, since
+ *  `listWhere` ignores `orderBy`. */
 const RECIPIENT_ORDER = "given_at IS NOT NULL, created_at DESC";
 
-/**
- * The gift-recipients repository over the async {@link SqliteDriver} port —
- * one {@link GiftIdea} paired with one person or pet, and whether it has been
- * given to them.
- *
- * **This was two repos.** `gift_suggestions` (a candidate) and `gifts` (a dated
- * giving) collapsed into one table when dates left v0.1 scope, because without a
- * date the second table only ever answered a yes/no about the first. See
- * `gift-recipient.ts` for the full reasoning, and `git log` at `41ee888` for the
- * model that had both.
- *
- * Plaintext, like the gift ideas it points at. Standard CRUD + the sync surface
- * come from {@link createEntityRepo}; `create`/`update` translate the caller's
- * boolean into the {@link GiftRecipient.givenAt} stamp, which is this repo's job
- * and nobody else's.
- */
+/** Gift ideas paired with a person or pet. Turns the caller's boolean into the
+ *  {@link GiftRecipient.givenAt} stamp. */
 export function createGiftRecipientsRepo(
   driver: SqliteDriver,
 ): GiftRecipientsRepo {
@@ -101,9 +81,8 @@ export function createGiftRecipientsRepo(
       const { given } = updateGiftRecipientInputSchema.parse(input);
       const row = await base.get(id);
       if (row === undefined) return undefined;
-      // Only write when the answer actually changes. Ticking an already-ticked
-      // box is not an edit, and re-stamping it would move `givenAt` for no
-      // reason, bump `updated_at`, and push a sync row that says nothing.
+      // Write only on a real change: re-ticking would move the stamp and sync
+      // nothing new.
       if (given === (row.givenAt !== null)) return row;
       return base.update(id, { givenAt: given ? Date.now() : null });
     },
@@ -135,19 +114,14 @@ export function createGiftRecipientsRepo(
 
     async repointRecipient(type, fromId, toId) {
       const now = Date.now();
-      // `MAX(?, updated_at + 1)` keeps the re-point strictly newer so it wins LWW
-      // even when a merge lands in the row's creation millisecond (see
-      // milestones-repo `repointEntity`).
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
       await driver.run(
         `UPDATE gift_recipients SET recipient_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE recipient_type = ? AND recipient_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
-      // A merge can leave the survivor holding the *same* idea twice — both
-      // people were down for socks — which reads as a duplicated row in their
-      // gift list. Collapse each idea to one row, keeping the earliest, and let a
-      // ✓ on either survive: whether they have been given the thing is the fact
-      // worth preserving, and the losing row's stamp is the only place it lives.
+      // A merge can leave one idea twice on the survivor: keep the earliest row,
+      // and a ✓ from either, since that stamp is the fact worth keeping.
       await driver.run(
         `UPDATE gift_recipients
             SET given_at   = COALESCE(given_at, (

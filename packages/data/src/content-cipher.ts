@@ -15,31 +15,11 @@ import { type KeyWrapRepo, createKeyWrapRepo } from "./key-wrap-repo.js";
 import type { SqliteDriver } from "./driver.js";
 
 /**
- * Transparent per-item field encryption (encryption/model.md §3). Encrypts one
- * entity's sensitive text under a random **content key (CK)**, where the CK is
- * itself stored only as `wrap(CK, MK)` — so the DB holds ciphertext + wrapped
- * keys and never a plaintext key. Generalizes the round-trip proven in
- * `test/envelope-slice.test.ts` onto real entities; AEAD-only (no KDF/asymmetric).
- *
- * One CK per entity (the `content_key_entity_active` unique index): every
- * encrypted field of the same entity shares its CK, minted on first seal and
- * reused thereafter.
- *
- * > **Reviving this has a hard dependency.** The account merge
- * > (`apps/desktop/src/main/db/merge-account-flow.ts`) **swaps a store's master
- * > key** for a different account's, and re-wraps nothing. That is only safe
- * > while nothing writes the rows below — migration 27 retired the last writer,
- * > and `account-merge.test.ts` asserts there are none. The first repo to call
- * > {@link ContentCipher.sealField} again makes those rows real, and the merge
- * > must grow a re-wrap loop (unwrap each live CK under the old MK, re-wrap
- * > under the adopted one) in the same change — otherwise merging silently
- * > strands every encrypted field on the device.
+ * Per-item field encryption under a content key stored only as `wrap(CK, MK)`.
+ * ⚠️ Unused; reviving it needs the account merge to re-wrap (README).
  */
 export interface ContentCipher {
-  /**
-   * Encrypt `plaintext` for `(entityType, entityId)`: mint-or-reuse the entity's
-   * CK, ensure `wrap(CK, MK)` exists, and return the sealed bytes to store.
-   */
+  /** Seal `plaintext` for an entity, minting or reusing its content key. */
   sealField(
     entityType: string,
     entityId: string,
@@ -53,11 +33,7 @@ export interface ContentCipher {
   ): Promise<string>;
 }
 
-/**
- * Build a {@link ContentCipher} bound to an unlocked master key. `core`
- * constructs this from the `KeySession` minted at bootstrap and injects it into
- * the repositories whose fields are encrypted; nothing else holds the MK.
- */
+/** A {@link ContentCipher} bound to an unlocked master key. */
 export function createContentCipher(opts: {
   driver: SqliteDriver;
   masterKey: Uint8Array;

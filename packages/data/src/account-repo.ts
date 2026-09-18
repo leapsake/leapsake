@@ -24,10 +24,7 @@ interface AccountRow {
   deleted_at: number | null;
 }
 
-/**
- * node:sqlite hands BLOBs back as a Buffer; normalize to a plain Uint8Array so
- * callers (and the crypto primitives) get an exact type. Null stays null.
- */
+/** node:sqlite returns BLOBs as Buffers; normalize to a plain Uint8Array. */
 function bytes(value: Uint8Array | null): Uint8Array | null {
   return value === null ? null : Uint8Array.from(value);
 }
@@ -50,54 +47,23 @@ function toAccount(row: AccountRow): Account {
 export interface AccountRepo {
   /** Create the account row (custody Phase 1); fails the singleton if one exists. */
   create(input: CreateAccountInput): Promise<Account>;
-  /**
-   * Rotate this device's relay credential after a remote password change: replace
-   * the public salt + auth verifier on the singleton account row (and bump its
-   * clock). Used by the re-auth flow when another device reset the password — the
-   * master key is untouched (it lives in the enclave); only the password-derived
-   * door is refreshed. A no-op if no account is set up.
-   */
+  /** Replace the salt and auth verifier after a password reset elsewhere; the
+   *  master key is untouched. A no-op with no account. */
   updateCredentials(input: {
     kdfSalt: Uint8Array;
     authVerifier: Uint8Array;
   }): Promise<void>;
-  /**
-   * Record the relay this account syncs through, and the handle it is known by
-   * there — the local half of **binding a relay to an account that already
-   * exists** (`bindRelayToAccount`, `model.md` §7.2).
-   *
-   * Separate from {@link create} because binding is not creation: an account
-   * created locally already holds every key and verifier a relay needs (that is
-   * why `enableSync` mints the auth verifier with no relay in sight), so
-   * *"start syncing later"* adds two columns rather than a new ritual. Nothing
-   * about the keys changes, which is what makes this a plain `UPDATE`.
-   *
-   * Separate from {@link updateCredentials} because that one answers a password
-   * reset performed elsewhere. These two never want to run together: one changes
-   * who you are to the relay, the other how you prove it.
-   */
+  /** Record the relay and handle an existing account is bound to. Keys do not
+   *  change, so this is a plain `UPDATE`. */
   bindRelay(input: { username: string; relayUrl: string }): Promise<void>;
   /** The single active account for this local store, or undefined before sync. */
   getSingleton(): Promise<Account | undefined>;
-  /**
-   * Remove the account identity from this device entirely — a hard delete, not a
-   * soft delete, so re-enabling sync starts clean (the account row is
-   * device-local identity and never syncs). The master key is unaffected; it
-   * survives in its enclave wrapping. See `clearLocalAccount` in core.
-   */
+  /** Hard-delete the account row, so re-creating one starts clean. */
   clear(): Promise<void>;
 }
 
-/**
- * The account-identity repository. One account per local store — multi-account
- * on one device is served by a store *per* account (@leapsake/store-layout),
- * not by rows here — so reads are a singleton. Written against the async
- * {@link SqliteDriver} port so it runs unchanged on desktop and mobile.
- *
- * A store with **no** account row is the normal Unauthenticated case, not a
- * corrupt one (@leapsake/key-custody): a fresh install has no account
- * until the user creates one.
- */
+/** The account singleton: one per store. No row is the normal
+ *  Unauthenticated state, not a corrupt one. */
 export function createAccountRepo(driver: SqliteDriver): AccountRepo {
   return {
     async create(input) {
@@ -201,26 +167,16 @@ function toDevice(row: DeviceRow): Device {
 }
 
 export interface DeviceRepo {
-  /**
-   * Register a device on the account (custody Phase 2). Idempotent on the device
-   * id — re-registering the same device returns the existing row, since the id
-   * is the stable Phase-0 device id, not freshly minted here.
-   */
+  /** Register a device, idempotent on its stable id. */
   register(input: RegisterDeviceInput): Promise<Device>;
   get(id: string): Promise<Device | undefined>;
   list(): Promise<Device[]>;
-  /**
-   * Remove every device registration on this store — a hard delete, since
-   * `device.id` is the stable Phase-0 PK and a soft-deleted row would collide
-   * when {@link DeviceRepo.register} re-registers the same device after a reset.
-   */
+  /** Hard-delete every device row: a tombstone would collide when the same
+   *  stable id registers again. */
   clear(): Promise<void>;
 }
 
-/**
- * The device-registration repository. Written against the async
- * {@link SqliteDriver} port so it runs unchanged on desktop and mobile.
- */
+/** The device-registration repository. */
 export function createDeviceRepo(driver: SqliteDriver): DeviceRepo {
   const get = async (id: string): Promise<Device | undefined> => {
     const row = await driver.get<DeviceRow>(

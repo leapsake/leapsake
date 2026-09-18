@@ -7,9 +7,8 @@ import {
   keyWrapSchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
-// key_wrap is device-local and never syncs, so the strictly-monotonic tombstone
-// isn't load-bearing here — but routing through the shared helper keeps a single,
-// exception-free soft-delete idiom across the data layer.
+// Device-local, so the monotonic tombstone does not matter here; the shared
+// helper keeps one soft-delete idiom.
 import { softDeleteRow } from "./entity-repo.js";
 
 /** The `key_wrap` table row, exactly as stored (snake_case columns). */
@@ -58,16 +57,8 @@ export interface KeyWrapRepo {
   revoke(id: string): Promise<void>;
 }
 
-/**
- * The universal-envelope repository. Key material is **append/revoke, never
- * edited**: you `add` a wrapping (grant) or `revoke` one (soft-delete) — there
- * is deliberately no update, which is what makes these rows conflict-free to
- * merge (see {@link KeyWrap}). Written against the async {@link SqliteDriver}
- * port so it runs unchanged on desktop and mobile.
- *
- * Empty until an account exists (@leapsake/key-custody): "no rows" is
- * a normal state here, not a corrupt one.
- */
+/** The key envelope: wrappings are added or revoked, never edited, which makes
+ *  them conflict-free. Empty until an account exists. */
 export function createKeyWrapRepo(driver: SqliteDriver): KeyWrapRepo {
   return {
     async add(input) {
@@ -119,9 +110,8 @@ export function createKeyWrapRepo(driver: SqliteDriver): KeyWrapRepo {
       principalKind,
       principalRef = null,
     }) {
-      // `IS ?` rather than `= ?` so nullable singleton columns
-      // (content_key_id / principal_ref) match on NULL, matching the
-      // `key_wrap_active` partial unique index exactly.
+      // `IS ?`, so nullable columns match NULL as the `key_wrap_active` index
+      // does.
       const row = await driver.get<KeyWrapRow>(
         `SELECT * FROM key_wrap
          WHERE wrapped_kind = ?

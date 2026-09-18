@@ -21,17 +21,8 @@ import {
   softDeleteWhere,
 } from "./entity-repo.js";
 
-/**
- * The three Holidays repositories. All plain synced entities — no codec, and one
- * 0/1 boolean each that SQLite has no type for. Reads exclude soft-deleted rows;
- * writes never hard-delete.
- *
- * The ids of all three are **content-addressed** rather than random, which is
- * the property the partial unique indexes depend on: two offline devices that
- * independently assert the same fact mint the same id, so they become one row
- * that whole-row LWW merges, instead of two rows that collide on the index the
- * moment they meet. See the namespace docs in `schema/holiday.ts`.
- */
+/** The three holiday repositories. Ids are content-addressed, so two devices
+ *  asserting the same fact mint one row instead of colliding. */
 
 /** The uuid a catalog holiday's slug derives to, on every device alike. */
 export function holidayIdFor(slug: string): string {
@@ -92,21 +83,8 @@ export interface ObservancesRepo extends EntityRepo<Observance> {
     bearerType: ObservanceBearerType,
     bearerId: string,
   ): Promise<Observance[]>;
-  /**
-   * Assert or clear one observance, addressed by its key rather than its id.
-   *
-   * `observes: null` removes the stored row, returning the pair to whatever the
-   * implicit answer says — which is the operation research §2.2 needs, since a
-   * row must exist *only* where it diverges from that answer. Toggling something
-   * back to agreeing with the implicit answer is a delete, not a write of a
-   * redundant row.
-   *
-   * Writing re-uses the row's deterministic id, so re-asserting revives the
-   * existing (possibly tombstoned) row rather than colliding with it.
-   *
-   * Transaction-free building block — the caller composes a whole picker save
-   * inside one transaction.
-   */
+  /** Assert or clear one observance by key; `null` deletes the row, back to
+   *  the implicit answer. Revives a tombstone by id. Transaction-free. */
   setObservance(
     holidayId: string,
     bearerType: ObservanceBearerType,
@@ -118,20 +96,8 @@ export interface ObservancesRepo extends EntityRepo<Observance> {
     bearerType: ObservanceBearerType,
     bearerId: string,
   ): Promise<void>;
-  /**
-   * Carry a bearer's observances onto another bearer, for a people merge.
-   *
-   * Not the plain `UPDATE … SET bearer_id` the other repos' `repointEntity` can
-   * use: an observance's id is *derived from* its bearer, so moving one means
-   * writing a new row under the survivor's id and tombstoning the loser's.
-   * Re-pointing in place would leave a row whose id no longer matches its key,
-   * and the next device to assert the same observance would mint the correct id
-   * and collide with it on the unique index.
-   *
-   * Where the survivor already has an answer for that holiday, the survivor's
-   * stands and the loser's is dropped — matching survivorship v1, which keeps
-   * the survivor's own fields wholesale rather than merging field by field.
-   */
+  /** Move a bearer's observances for a people merge: new rows under the
+   *  survivor's derived ids, loser's tombstoned; the survivor's answer wins. */
   repointBearer(
     bearerType: ObservanceBearerType,
     loserId: string,
@@ -167,9 +133,8 @@ export function createObservancesRepo(driver: SqliteDriver): ObservancesRepo {
       await softDeleteWhere(driver, "observances", "id = ?", [id]);
       return;
     }
-    // The row may exist as a tombstone (previously cleared), which `update`
-    // would not see — so revive it explicitly rather than inserting a
-    // duplicate the unique index would reject.
+    // Revive a tombstone explicitly: `update` does not see it, and an insert
+    // would hit the unique index.
     const existing = await base.getIncludingDeleted(id);
     const now = Date.now();
     if (existing === undefined) {

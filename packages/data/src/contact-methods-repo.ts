@@ -37,12 +37,8 @@ import {
   softDeleteWhere,
 } from "./entity-repo.js";
 
-/**
- * CRUD for one contact-method kind, scoped to an owner for reads. Builds on the
- * standard {@link EntityRepo} surface, replacing its generic `update` (a raw
- * `Partial<T>` patch) with the kind's typed update input, and adding `create`
- * (typed input) and the owner-scoped read.
- */
+/** One contact-method kind: the {@link EntityRepo} surface with typed create
+ *  and update, plus the owner-scoped read. */
 interface KindRepo<T extends SyncRow, C, U> extends Omit<
   EntityRepo<T>,
   "update"
@@ -52,12 +48,7 @@ interface KindRepo<T extends SyncRow, C, U> extends Omit<
   listForOwner(type: ContactOwnerType, id: string): Promise<T[]>;
 }
 
-/**
- * Every contact-method table, for the two owner-wide operations that work by
- * predicate rather than through a typed sub-repo (cascade delete, merge
- * re-point). Named once so adding a fifth kind is one edit here rather than two
- * identical lists drifting apart.
- */
+/** Every contact-method table, for the owner-wide cascade and re-point. */
 const CONTACT_TABLES = [
   "email_addresses",
   "phone_numbers",
@@ -84,19 +75,11 @@ export interface ContactMethodsRepo {
   postals: KindRepo<PostalAddress, CreatePostalInput, UpdatePostalInput>;
   socials: KindRepo<SocialProfile, CreateSocialInput, UpdateSocialInput>;
 
-  /**
-   * Soft-delete every active contact method (all four kinds) of an owner. Used
-   * when the host entity (a Person) is deleted. Transaction-free building block —
-   * the caller composes it with the entity's own delete inside one transaction.
-   */
+  /** Soft-delete every contact method of an owner. Transaction-free. */
   removeAllForOwner(type: ContactOwnerType, id: string): Promise<void>;
 
-  /**
-   * Re-point every active contact method (all four kinds) of `fromId` onto
-   * `toId` (used when merging `fromId` into `toId`). Methods are not deduped — a
-   * person can legitimately list the same number twice. Transaction-free
-   * building block.
-   */
+  /** Re-point every contact method of `fromId` onto `toId`, without dedup: a
+   *  person may list one number twice. Transaction-free. */
   repointOwner(
     type: ContactOwnerType,
     fromId: string,
@@ -104,13 +87,8 @@ export interface ContactMethodsRepo {
   ): Promise<void>;
 }
 
-/**
- * The Contact Methods repository, written against the async {@link SqliteDriver}
- * port so it runs unchanged on desktop and mobile. Four typed sub-repos
- * (emails/phones/postals/socials) over the four tables; reads exclude
- * soft-deleted rows and writes never hard-delete. The lookup `normalized` field
- * is derived on write for emails, phones and social handles (postal has none).
- */
+/** Typed sub-repos over the four contact-method tables. `normalized` is derived
+ *  on write for emails, phones and handles. */
 export function createContactMethodsRepo(
   driver: SqliteDriver,
 ): ContactMethodsRepo {
@@ -159,8 +137,7 @@ export function createContactMethodsRepo(
     schema: phoneNumberSchema,
     // SQLite has no boolean type; `sms_capable` is stored 0/1.
     booleans: ["smsCapable"],
-    // …nor an array type; `reachable_on` is stored as JSON TEXT. A NULL (every
-    // row predating migration 32) decodes to the schema's `[]` default.
+    // Stored as JSON TEXT; NULL decodes to the schema's `[]`.
     json: ["reachableOn"],
   });
   const phones: ContactMethodsRepo["phones"] = {
@@ -180,9 +157,7 @@ export function createContactMethodsRepo(
         country: parsed.country ?? null,
         // Assume textable unless the user says otherwise (landline/fax).
         smsCapable: parsed.smsCapable ?? true,
-        // Nothing is assumed here, though: whether a number is on WhatsApp is
-        // not something Leapsake can guess, so an unasked number reaches nothing
-        // until the user says otherwise.
+        // An unasked number reaches no platform until the user says so.
         reachableOn: parsed.reachableOn ?? [],
         createdAt: now,
         updatedAt: now,
@@ -297,10 +272,7 @@ export function createContactMethodsRepo(
 
     async repointOwner(type, fromId, toId) {
       const now = Date.now();
-      // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row it
-      // rewrites so it wins LWW on every device rather than tying when the merge
-      // lands in the contact method's creation millisecond (see relationships-repo
-      // `repointEntity`).
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
       for (const table of CONTACT_TABLES) {
         await driver.run(
           `UPDATE ${table} SET owner_id = ?, updated_at = MAX(?, updated_at + 1)
@@ -312,17 +284,8 @@ export function createContactMethodsRepo(
   };
 }
 
-/**
- * Every contact method of an owner, fanned out across the four typed tables and
- * merged into one tagged {@link ContactMethod} list — so screens never repeat the
- * four-way union. Emails, then phones, then postal addresses, then social
- * profiles; each kind keeps its own by-owner (created_at) order.
- *
- * This is the single place the fan-out lives. When the household entity ships, an
- * owner's **effective** methods become `own ∪ household's` — a read-time union
- * added here and nowhere else, the same derived pattern as `listTimelineForEntity`
- * and derived relationships. Nothing is materialised; no method is duplicated.
- */
+/** Every contact method of an owner as one tagged list, in kind order: the one
+ *  place the fan-out lives. */
 export async function listContactMethods(
   repo: ContactMethodsRepo,
   owner: { type: ContactOwnerType; id: string },

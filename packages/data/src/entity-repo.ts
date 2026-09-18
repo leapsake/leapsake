@@ -10,18 +10,8 @@ import {
   resolveCodec,
 } from "./syncable.js";
 
-/**
- * The standard CRUD surface a plain domain entity gets for free, on top of the
- * {@link SyncableRepo} contract. The column mapping (snake↔camel, booleans,
- * encryption) lives in exactly one place — the {@link RowCodec} — and the SQL is
- * generated from it, so there is no per-entity `XRow` interface, `toX` mapper, or
- * hand-written `INSERT`/`UPDATE` column list.
- *
- * A repo composes this by spreading {@link createEntityRepo} and overriding the
- * two methods that own entity-specific input handling: `create` (parse the create
- * input, apply defaults, mint id/timestamps, then call {@link EntityRepo.insert})
- * and `update` (parse the patch, then call {@link EntityRepo.update}).
- */
+/** Standard CRUD over the {@link SyncableRepo} contract, with SQL generated
+ *  from the codec. Repos override `create` and `update` for their input. */
 export interface EntityRepo<T extends SyncRow> extends SyncableRepo<T> {
   /** Persist an already-assembled domain row (id + timestamps set). */
   insert(row: T): Promise<T>;
@@ -29,47 +19,25 @@ export interface EntityRepo<T extends SyncRow> extends SyncableRepo<T> {
   get(id: string): Promise<T | undefined>;
   /** Like {@link get} but returns soft-deleted rows too (a merge must see them). */
   getIncludingDeleted(id: string): Promise<T | undefined>;
-  /**
-   * Every active row, optionally ordered by the configured `orderBy` — and
-   * narrowed by `listOnly` where the repo declared one, which is what makes
-   * `people.list()` the user's catalog rather than every person row. The
-   * unnarrowed read is {@link SyncableRepo.listActive}.
-   */
+  /** Every active row, in `orderBy` order and narrowed by `listOnly`. The
+   *  unnarrowed read is {@link SyncableRepo.listActive}. */
   list(): Promise<T[]>;
-  /**
-   * Active rows matching a caller-supplied `WHERE` fragment (raw snake_case SQL,
-   * `?`-bound via `params`), decoded through the same codec. The escape hatch for
-   * the scoped reads a generic `list()` can't express — owner-scoped contact
-   * methods, subject-scoped milestones — without re-deriving a per-row mapper.
-   */
+  /** Active rows matching a raw snake_case `WHERE` with bound `params`, for
+   *  scoped reads `list()` cannot express. */
   listWhere(query: {
     where: string;
     params: readonly unknown[];
     orderBy?: string;
   }): Promise<T[]>;
-  /**
-   * Merge a patch onto the active row, bump `updated_at`, and re-validate the
-   * whole row (so cross-field rules still hold). Returns the merged row, or
-   * undefined if no active row exists.
-   */
+  /** Merge a patch, bump `updated_at` and re-validate the whole row; undefined
+   *  when no active row exists. */
   update(id: string, patch: Partial<T>): Promise<T | undefined>;
   /** Soft-delete: set `deleted_at` and a strictly-newer `updated_at`. */
   softDelete(id: string): Promise<void>;
 }
 
-/**
- * Soft-delete every active row matching a `WHERE` fragment (raw snake_case SQL,
- * `?`-bound via `params`). `MAX(?, updated_at + 1)` makes each tombstone strictly
- * out-rank the row's current version on every device, so a delete landing in the
- * row's creation millisecond (as a merge does to its loser) can't tie on
- * `updated_at` and be resurrected by whole-row LWW's tiebreak.
- *
- * This is the single home for the soft-delete tombstone — **the one way any repo
- * sets `deleted_at`**, whether the delete is by id ({@link softDeleteRow}), by a
- * cascade predicate (a host entity's `removeAllFor…`), or the merge re-points
- * that share the same `MAX` idiom. New code should reach for one of these rather
- * than hand-writing the `UPDATE`, so a future tombstone tweak lands in one place.
- */
+/** Tombstone every active row matching a `WHERE`: the one way any repo sets
+ *  `deleted_at`, using the README's `MAX(?, updated_at + 1)` rule. */
 export function softDeleteWhere(
   driver: SqliteDriver,
   table: string,
@@ -93,15 +61,8 @@ export function softDeleteRow(
   return softDeleteWhere(driver, table, "id = ?", [id]);
 }
 
-/**
- * Build the standard CRUD + {@link SyncableRepo} surface for a domain entity over
- * the async {@link SqliteDriver} port. Reuses the same {@link RowCodec} for the
- * local CRUD path and the sync path (it resolves the codec once and hands it to
- * {@link defineSyncable}), so an entity's columns are spelled exactly once — in
- * its Zod schema. Pass an explicit `codec` only when the on-wire shape differs
- * from the on-disk shape; a column SQLite merely cannot type wants `booleans` or
- * `json` instead.
- */
+/** Build the CRUD and sync surface for an entity, sharing one codec so its
+ *  columns are spelled once, in its Zod schema. */
 export function createEntityRepo<T extends SyncRow>(opts: {
   driver: SqliteDriver;
   /** The transport table tag and the SQL table name (they are the same). */
@@ -110,18 +71,8 @@ export function createEntityRepo<T extends SyncRow>(opts: {
   schema: ParsableSchema<T>;
   /** `list()` ORDER BY clause (raw SQL, snake_case), e.g. "last_name, first_name". */
   orderBy?: string;
-  /**
-   * An extra `WHERE` fragment (raw snake_case SQL, no parameters) that `list()`
-   * applies on top of the not-deleted rule.
-   *
-   * For the two tables carrying a `standing` this is how the catalog read leaves
-   * out entities that exist only as facts about other entities — declared once
-   * here rather than remembered at each of the call sites that build a list of
-   * people and pets. Only `list()` narrows: {@link EntityRepo.get} still fetches
-   * such a row by id (the page it appears on has to render it),
-   * {@link EntityRepo.listWhere} still reaches it with an explicit query, and the
-   * sync collector is untouched, so it still replicates.
-   */
+  /** A `WHERE` fragment only `list()` applies: how the catalog leaves out
+   *  unpublished entities. `get`, `listWhere` and sync still see them. */
   listOnly?: string;
   /** Override the column list (default: the schema's field names). Rarely needed. */
   fields?: readonly string[];
@@ -188,9 +139,8 @@ export function createEntityRepo<T extends SyncRow>(opts: {
     async update(id, patch) {
       const existing = await get(id);
       if (existing === undefined) return undefined;
-      // Re-validate the whole merged row so cross-field rules (e.g. milestone
-      // day⇒month) still hold after a partial update. `created_at` is never
-      // reassigned (excluded below) so it stays the original.
+      // Re-validate the merged row so cross-field rules hold; `created_at` is
+      // never reassigned.
       const updated = schema.parse({
         ...existing,
         ...patch,
