@@ -4,8 +4,8 @@
  *
  * v0.1 is single-device by construction, so the app container is the only place
  * a user's data exists. That makes this the difference between "delete and
- * reinstall" being an ordinary act and being data loss, which is why it gates
- * GA (`plans/shipping.md` → Part 1, step 1) rather than being a nicety.
+ * reinstall" being an ordinary act and being data loss, which is why it exists
+ * rather than being a nicety.
  *
  * **It must never use iCloud.** Not a preference — no version of Leapsake may
  * ever ship an iCloud entitlement, or Apple's app-transfer criteria disqualify

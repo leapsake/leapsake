@@ -433,7 +433,7 @@ function useExportShare() {
  * the app container is the only place a user's data lives, so until there is a
  * file they can save, "delete and reinstall" is data loss. That is also why it
  * needs no account — the accountless store is precisely the one with no other
- * copy (`plans/shipping.md` → Part 1, step 1).
+ * copy.
  */
 function ExportSection() {
   const { working, result, error, run } = useExportShare();

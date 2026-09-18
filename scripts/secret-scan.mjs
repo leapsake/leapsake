@@ -2,7 +2,7 @@
 //
 // Why history and not the working tree: a secret deleted in the next commit is still
 // there forever for anyone who clones, and this repo is about to go public
-// (plans/shipping.md → Part 1, step 4). Filename-level care — the `.gitignore` block over
+// (plans/shipping.md → Part 1, step 2). Filename-level care — the `.gitignore` block over
 // `*.p12`, `AuthKey_*.p8`, `*.jks` — only stops the files someone thought to name. This
 // reads the bytes of every blob that was ever committed.
 //

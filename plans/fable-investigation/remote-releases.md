@@ -111,6 +111,16 @@ The host today is GitHub. The next could be GitLab, Codeberg/Forgejo, or anythin
 - **iOS signing today assumes the distribution certificate is in the login keychain** (the archive
   passes `CODE_SIGN_IDENTITY=Apple Distribution` and a profile _name_). A runner has neither; the
   script must import a `.p12` and a `.mobileprovision` from paths first. Routine, but not written.
+- **Three keychains, and only one is an obstacle for a hosted runner.** The _simulator's_
+  keychain, which the mobile flows touch, lives inside the device's data container
+  (`expo-secure-store`, `AFTER_FIRST_UNLOCK`, no `requireAuthentication`), needs no host login
+  session and no signing identity, so Flows 1, 4 and 7 can run on a hosted macOS runner; cost and
+  horsepower are the question, not capability. The _host login_ keychain is desktop's:
+  `safe-storage-keystore.ts` derives its key from a real macOS Keychain item, so a macOS E2E tier
+  wants an unlocked login keychain in a user session (`security create-keychain` /
+  `unlock-keychain` / `set-key-partition-list`, unverified here), and on Linux
+  `isEncryptionAvailable()` returns `true` over a `basic_text` fallback, so a green test there
+  proves less than it appears to. The _signing_ keychain is step 7's `.p12` import, routine.
 - **Play's edit is transactional; Apple's upload is not.** `play.mjs` `withEdit` commits at the end
   or abandons; `altool --upload-app` is spent on success. Both sides have a pre-upload validation
   (`altool --validate-app`; Play `:validate` in the `consolePreconditions` check).
@@ -346,7 +356,7 @@ refuses in one line.
 
 ### Step 5 — The repo goes public (owner)
 
-Already `shipping.md` → Part 1, step 4: the history scan is done; the remaining item is reading
+Already `shipping.md` → Part 1, step 2: the history scan is done; the remaining item is reading
 the security findings as a stranger would, then flipping visibility. Needed before step 6 because
 hosted macOS minutes are free only for a public repo. **Not an agent's step.**
 
