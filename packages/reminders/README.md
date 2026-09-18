@@ -132,6 +132,26 @@ A per-row schema cannot see one, and there is no unique constraint on `reminder_
 through — `reminderRulesRepo.replaceForBearer`, which both schedule editors and the prompt's
 answer reach.
 
+### Five name-spaces, each keyed on what makes a reminder new
+
+Every family derives its ids under the one `SYSTEM_REMINDER_NAMESPACE`, in disjoint name-spaces:
+
+| Family      | Name                                         | Why that key                                                                        |
+| ----------- | -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| milestone   | `milestone:<id>:<year>:<action>`             | a milestone falls once a year                                                       |
+| holiday     | `observance:<id>:<YYYY-MM-DD>:<action>`      | a lunisolar holiday can fall twice in one Gregorian year (Ramadan did in 1997)      |
+| onboarding  | `onboarding:<key>`                           | fixed, so a retired step stays retired                                              |
+| partnership | `partnership:<relationship>:<kind>`          | no year, so a dismissal is permanent; the kind, because it dismisses one question   |
+| duplicates  | `duplicates:<sorted pair keys>`              | see below                                                                           |
+
+Reconcile never resurrects a tombstoned id. That is right for a first-run step and wrong for
+duplicates, which can appear years in, so the duplicates nudge is keyed on the **set** of unresolved
+pairs: resolving one of two retires the row and mints one with the new count, and deleting the
+nudge silences only that exact set. The People & Pets link and the per-person banners do not
+depend on it, so dismissing the nudge hides it without hiding the work. ⚠️ **Never suppress it by
+reporting no pairs**: that tombstones the set, and the same set re-deriving later lands on the
+tombstone and never comes back.
+
 ## Windows — the product design behind them
 
 The mechanics are on `isWithinWindow`. This is the reasoning behind the two numbers it reads.
@@ -718,6 +738,18 @@ wrongly nagging, because the user never learns the feature exists and nothing su
 anyone — and it now argues for keeping a step alive until someone answers it, rather than for
 tuning how often it comes back.
 
+### Getting started means importing
+
+`import-contacts` replaced `add-first-person` outright rather than standing beside it. A personal
+CRM with one person in it does nothing a contacts app doesn't; the value arrives with the list, and
+the list is already on the phone. Two rows offering two ways to answer one question is the
+compounding that turns Home into a form. Manual entry is one tap on: the importer links to the
+create form and back, including from the permission-refused state.
+
+It ships before bulk-import dedup, so an overlapping import still creates duplicates and the
+duplicates nudge follows it in. That is accepted; hiding the nudge meanwhile is the trap described
+under _Five name-spaces_.
+
 ### The account invitation
 
 `create-account` is the step that gets a user from Unauthenticated to Authenticated — the state
@@ -801,6 +833,10 @@ the same reason. Nor could the desired set be built per device, because a device
 been asked has **no row to be enumerated from**, and the `device` table is account-bound
 (migration 14) while this nudge fires in the accountless first-run state. There is nothing to
 enumerate by construction until multi-device brings a registry that spans it.
+
+It waits for someone besides you, by _the rule that stops this eating the home screen_: there is
+nothing to be notified about on an empty store. It is last in display order because its delay
+costs least — a reminder that comes due with notifications off still sits on Home.
 
 Two things for whoever picks this up: the family needs a per-device notion _before_ the nudge
 can have one, and the new ids must honour the old fixed id's tombstone once — otherwise a user

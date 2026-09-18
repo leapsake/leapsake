@@ -174,117 +174,63 @@ export interface HolidayOccurrenceCandidate {
   occurrences: CivilDate[];
 }
 
-/** A reminder the engine wants to exist for today's reconcile. `dueDate` is null
- *  for the dateless onboarding nudges (see {@link ONBOARDING_STEPS}). */
+/** A reminder the engine wants to exist today. `dueDate` is null for the
+ *  dateless families. */
 interface DesiredReminder {
   id: string;
   title: string;
   dueDate: number | null;
   /**
-   * The day this row goes **on display** — `dueDate` less the action's own
-   * {@link ReminderActionDef.activeDays}. Null for the dateless families, which
-   * are on display the moment they exist.
-   *
-   * Carried rather than recomputed downstream because the action is not a column
-   * on `reminders`: this is the one point where the row and its action are both
-   * in hand. ⚠️ It is always the action's **own** window, never the
-   * {@link ActiveDaysOf} the walk was called with — that parameter decides
-   * whether a row is in the desired set at all, this says when it surfaces.
+   * When the row goes on display: `dueDate` less the action's **own**
+   * `activeDays`, never the walk's {@link ActiveDaysOf}. Null when dateless.
    */
   activeFrom: number | null;
   /**
-   * The occasion this row counts down to, as a stored due-date epoch. Null when
-   * there is no occasion (the dateless families).
-   *
-   * It is what separates the two ways of missing something once the row leaves
-   * the engine: *past due* is a blown deadline with the occasion still ahead,
-   * *belated* is the occasion itself gone (see {@link isWithinWindow}). The row
-   * carries `dueDate` alone, and `dueDate + offsetDays` is not recoverable from
-   * it, so without this the screen cannot tell them apart.
+   * The occasion this row counts down to, which `dueDate` alone cannot recover;
+   * it separates past due from belated (see {@link isWithinWindow}).
    */
   occurrenceDate: number | null;
-  /**
-   * What the row's trailing countdown counts to, where that is not `dueDate`:
-   * the **occasion**, for a `plan` question *(owner, 2026-09-11)*. A question's
-   * due date is when to decide by, weeks before the occasion, and a row reading
-   * "in 2 weeks" was taken for the birthday itself. Absent means `dueDate`.
-   */
+  /** What the trailing countdown counts to when not `dueDate`: a `plan`
+   *  question's occasion, not its decide-by date. */
   countdownDate?: number;
   /**
-   * Display-priority rank among **dateless** rows: 0 = highest (shown first),
-   * realized as a small `createdAt` back-off at insert so the client's
-   * `compareReminderDue` — which orders undated rows newest-`createdAt`-first —
-   * puts a lower rank above a higher one. Omitted (⇒ 0) for milestone rows, which
-   * are dated and already order by their due date. Applied only on first insert,
-   * so a steady-state reconcile never rewrites it.
+   * Display rank among dateless rows, 0 first, applied once at insert as a
+   * `createdAt` back-off (undated rows sort newest first). Omitted ⇒ 0.
    */
   order?: number;
-  /**
-   * Who this reminder is about and what it asks for — present only for rows with
-   * a **person/pet** bearer (a milestone or holiday one), absent for onboarding
-   * nudges and relationship-borne milestones. Clients read it through
-   * {@link listSystemReminderTargets} to offer an action on the reminder (the
-   * `gift` one opens the recipient's gifts).
-   */
+  /** Who the row is about and what it asks for, served through
+   *  {@link listSystemReminderTargets}; absent on the dateless families. */
   target?: Omit<SystemReminderTarget, "id">;
-  /**
-   * Everything needed to write this row's title **again**, at read time — see
-   * {@link ReminderCopySource}. Present on the two dated families; the dateless
-   * ones carry a fixed string and never re-render.
-   */
+  /** What the read re-renders the title from; absent on the dateless families,
+   *  whose titles are fixed. */
   copy?: ReminderCopySource;
-  /**
-   * Whether this row's occasion has already passed — the belated state
-   * ({@link isWithinWindow}), decided here because this is where the occurrence
-   * and today are both in hand, and read by {@link displayTitle}.
-   */
+  /** Whether the occasion has passed (see {@link isWithinWindow}); read by
+   *  {@link displayTitle}. */
   belated?: boolean;
 }
 
 /**
- * Everything a dated row's title is written from, carried on the desired row so
- * that the **read** can write it again.
- *
- * The title is stored, and it has to be: `reminders` is one flat table a client
- * can read without the engine. But some of what the title should *say* is not
- * knowable when the row is minted — whether the occasion has since passed, and
- * (from the next slice) how the user can actually reach the person. Deriving
- * those into the stored string would make every contact-method edit rewrite
- * reminder rows and bump `updated_at`, when `reconcile` is deliberately a no-op
- * in steady state.
- *
- * So the row stores the **plain** title and this travels beside it, unpersisted,
- * for {@link listRemindersInWindow} to re-render from. One
- * {@link renderTitle} serves both, which is what stops the stored form and the
- * displayed form drifting into two different sentences.
+ * What a dated row's title is written from, carried unpersisted so the read can
+ * write it again. The store keeps only the plain title.
  */
 interface ReminderCopySource {
   action: ReminderAction;
   /** The bearer's label, mention-wrapped except for a relationship bearer. */
   subject: string;
   greeting: string;
-  /**
-   * The greeting for an occasion that has already passed, or `null` where the
-   * occasion has no belated form — see `belatedGreeting` in `@leapsake/schema`
-   * for why this is a second phrase rather than a rule applied to the first.
-   */
+  /** The greeting once the occasion has passed, or `null` where it has no
+   *  belated form (see `belatedGreeting` in `@leapsake/schema`). */
   belatedGreeting: string | null;
   occasion: string;
   /** An `other` rule's free text, which is the whole of its copy. */
   label: string | null;
-  /**
-   * Copy that replaces the action's template outright, in both its forms — the
-   * self-directed branches, and only those. Keyed on a fact about the bearer,
-   * never on the row's identity: the row is still `...:wish`.
-   */
+  /** Copy that replaces the template in both forms, for the self-directed
+   *  branches only. Never part of the row's identity. */
   override: { plain: string; belated: string } | null;
 }
 
-/**
- * The one place a dated reminder's title is written — by {@link computeDesired}
- * for the stored form (`belated: false`, always, since the store must not carry
- * a string that expires) and by the read for what is displayed.
- */
+/** Writes a dated reminder's title: the stored form (never belated, since the
+ *  store must not hold a string that expires) and the displayed one. */
 function renderTitle(copy: ReminderCopySource, belated: boolean): string {
   if (copy.override !== null)
     return belated ? copy.override.belated : copy.override.plain;
@@ -305,15 +251,8 @@ function renderTitle(copy: ReminderCopySource, belated: boolean): string {
   return `${def.icon ?? ""} ${body}`.trim();
 }
 
-/**
- * The title the **read** puts on a row in place of the stored one, or `null`
- * when the stored title already says everything — which is the common case, and
- * why this answers null rather than re-rendering every row.
- *
- * Today the one derived case is a passed occasion, worded belated. The store
- * keeps the plain form so that no reconcile has to rewrite a row the morning
- * after a birthday.
- */
+/** The title the read shows in place of the stored one, or `null` when the
+ *  stored one stands. Today that is only a passed occasion, worded belated. */
 function derivedTitle(want: DesiredReminder): string | null {
   return want.copy !== undefined && want.belated === true
     ? renderTitle(want.copy, true)
@@ -321,27 +260,8 @@ function derivedTitle(want: DesiredReminder): string | null {
 }
 
 /**
- * The copy that replaces a milestone action's template when the row is about the
- * user — because the templates are written in the third person about a second
- * party, and neither half of that is right once the occasion is your own.
- *
- * A copy-layer branch, never a filter: your own birthday is still reminded. It
- * takes the belated form as well, because a row lingers for `BELATED_DAYS` after
- * the day and "It's your birthday!" is simply false by then.
- *
- * Three cases, and the middle one is the subtle one:
- *
- * - **The subject is you** — your birthday, or a wedding you recorded on
- *   yourself before its other party existed. "your own {occasion}".
- * - **The occasion is *shared*** — a first date or a wedding anniversary
- *   belonging to a partnership you are in, but stored on your partner or on the
- *   relationship. The template's possessive is actively wrong here: it is not
- *   *Violet's* first date, it is **yours with Violet**, and saying otherwise reads
- *   as though she had one with somebody else. Only the gated kinds
- *   (`prompt.onlyOwnPartnership`) can be shared, which is what makes this
- *   decidable from the kind alone — the gate has already established that the
- *   partnership is the user's.
- * - **Neither** — the ordinary third-party copy stands, and this answers null.
+ * Copy for a row about the user, whose occasion the third-person templates get
+ * wrong: their own ("your own …") or shared ("… with @Violet").
  */
 function copyOverrideOf(
   /** The occasion is the user's own (their person, or a relationship of theirs). */
@@ -354,17 +274,12 @@ function copyOverrideOf(
 ): { plain: string; belated: string } | null {
   if (verbOf(action) === "plan") {
     const occasion = kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label;
-    // Shared when the occasion is the user's but the name in the copy is not
-    // theirs — which is true two ways. A **gated** kind has already had the
-    // partnership established (that is what the gate does), so its bearer being
-    // someone else means it is shared with them. And any milestone borne by a
-    // **relationship the user is in** is shared by construction, whatever its
-    // kind: an `anniversary` on your own marriage is not "Violet's anniversary".
+    // Shared two ways: a gated kind borne by someone else (the gate has already
+    // made it the user's), or anything borne by the user's own relationship.
     const shared =
       !subjectIsSelf &&
       (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf);
-    // Neither shape differs from the template? Then there is nothing to
-    // override, and `actionDefs.plan` renders it — through the same helper.
+    // Nothing differs from the template, so `actionDefs.plan` renders it.
     if (!subjectIsSelf && !shared) return null;
     const title = `${actionDefOf(action).icon ?? ""} ${planQuestion({
       subject,
@@ -372,69 +287,34 @@ function copyOverrideOf(
       subjectIsSelf,
       shared,
     })}`.trim();
-    // The question does not change once the occasion has gone: answering it
-    // still writes the rules that apply next year.
+    // A passed occasion asks the same question: the answer shapes next year.
     return { plain: title, belated: title };
   }
   if (!isSelf) return null;
-  // Read from the registry rather than branched on here: which kinds have a
-  // self-directed wish, and how each is worded, is a per-kind fact with no rule
-  // behind it (`selfWish` in `@leapsake/schema`). This used to be a hardcoded
-  // `kind === "birthday"`, which left every other self-borne occasion telling
-  // you to wish *yourself* a happy anniversary.
+  // Which kinds have a self-directed wish is a per-kind fact (`selfWish`).
   if (verbOf(action) === "wish") return kindDefs[kind].selfWish ?? null;
   return null;
 }
 
-/**
- * What a `system` reminder is *about*: its id paired with the action that minted
- * it and the person/pet it names. The id-convention again (see
- * {@link ONBOARDING_REMINDERS}) — a client keys its CTA off this rather than off
- * a stored column, so no schema field, no migration, no sync change.
- */
+/** What a `system` reminder is about: its action and its bearer, keyed by id
+ *  so a client can offer a CTA with no stored column. */
 export interface SystemReminderTarget {
   id: string;
   action: ReminderAction;
-  /**
-   * Who or what the row is about. A **relationship** reaches here too, and must:
-   * a wedding anniversary linked to its relationship is answered by writing
-   * rules against that milestone like any other, so withholding the target would
-   * put an unanswerable question on the screen — the one failure
-   * *A nudge, never a wall* exists to prevent. Consumers that genuinely need a
-   * person or a pet (a gift's recipient) filter for one.
-   */
+  /** Includes relationships, whose prompts are answered like any other;
+   *  consumers that need a person or pet filter for one. */
   bearerType: MilestoneBearerType;
   bearerId: string;
-  /**
-   * The milestone this row was minted from, for the rows that came from one —
-   * absent on holiday-observance rows, which are borne by an observance.
-   *
-   * Present because a `plan` prompt is answered by writing rules against the
-   * milestone, and the reminder row itself cannot say which milestone that is:
-   * its bearer is the *person*, and a person can hold several occasions. The id
-   * encodes it but is a one-way hash, so it has to travel.
-   */
+  /** The source milestone, for answering a `plan` prompt: the bearer can hold
+   *  several occasions and the id is a one-way hash. Absent on holiday rows. */
   milestone?: { id: string; kind: MilestoneKind };
-  /**
-   * The day this row counts down to, as a stored due-date epoch — the occasion
-   * itself, not the row's own deadline.
-   *
-   * A prompt is the case that needs it. Every row renders its trailing distance
-   * from `dueDate`, which for a prompt is *decide by*, six weeks before the
-   * birthday — so the screen that asks the question has to be able to say when
-   * the occasion actually is, or "in 2 weeks" reads as the birthday.
-   */
+  /** The occasion's date, not the row's deadline, so a prompt can say when the
+   *  occasion actually is. */
   occurrenceDate?: number | null;
 }
 
-/** The identity string a milestone occurrence + rule is content-addressed under,
- *  so two devices generating "the same" reminder derive the **same** id and the
- *  existing whole-row merge dedups them (plans automated-reminders, cross-cutting).
- *  Keyed on the rule's identity (schema's `actionKeyOf` — the full
- *  `verb:qualifier`, or the label for an `other`) so a milestone's staggered
- *  reminders get distinct, non-colliding ids for the same occurrence. The action
- *  carries a colon of its own, which costs nothing: nothing ever *parses* one of
- *  these names, or the id derived from it. */
+/** The name a milestone reminder's id is derived from; the action key keeps a
+ *  milestone's staggered reminders apart. */
 function occurrenceName(
   milestoneId: string,
   occurrenceYear: number,
@@ -443,11 +323,8 @@ function occurrenceName(
   return `milestone:${milestoneId}:${occurrenceYear}:${actionKey}`;
 }
 
-/**
- * The abstract navigation target an onboarding nudge deep-links to. Kept abstract
- * (not a concrete client path) so each client maps it to its own router — see
- * {@link onboardingRouteOf} and the client CTA tables.
- */
+/** Where an onboarding nudge deep-links; each client maps it to its own router
+ *  (see {@link onboardingRouteOf}). */
 export type OnboardingRoute =
   | "about-you"
   | "create-account"
@@ -456,32 +333,19 @@ export type OnboardingRoute =
 
 /** The raw first-run signals an onboarding step's condition is evaluated against. */
 interface OnboardingSignals {
-  /**
-   * Whether the store holds a person or pet who **isn't the user**.
-   *
-   * "Besides self" rather than "any", because a store holding nothing but your
-   * own name is still an empty personal CRM — and because the alternative breaks
-   * the getting-started step outright: answering *tell us about yourself* creates
-   * an entity, which under a plain `hasEntities` would retire the invitation to
-   * import, permanently, for having answered a different question.
-   */
+  /** A person or pet who isn't the user, so answering "about you" does not
+   *  retire the import invitation. */
   hasEntitiesBesidesSelf: boolean;
   hasSelf: boolean;
   /** Whether this store holds an account at all. */
   hasAccount: boolean;
-  /** Whether **any** device has been asked about notifications. Store-scoped on
-   *  purpose, and the one signal here that would rather not be — see the step it
-   *  feeds in {@link ONBOARDING_STEPS}. */
+  /** Whether **any** device has been asked about notifications (see
+   *  `enable-notifications`). */
   hasNotificationPolicy: boolean;
 }
 
-/** One first-run nudge: a stable `key` (folded into its deterministic id), the
- *  copy shown on Home, the abstract CTA `route`, and `applies` — true while the
- *  step's condition is still unmet, i.e. while the nudge should exist.
- *
- *  It carries no snooze dials *(owner, 2026-09-11)*: a nudge is put off with the
- *  same "Remind me in…" as every other row ({@link snoozeTargetOf}), and nothing
- *  retires by being put off. */
+/** One first-run nudge, wanted while `applies` is true. Titles hold no `#`/`@`
+ *  token, which would make the insert wrapper materialize tags. */
 interface OnboardingStep {
   key: string;
   title: string;
@@ -490,141 +354,35 @@ interface OnboardingStep {
 }
 
 /**
- * The onboarding nudge definitions — a second family of `system` reminders the
- * engine owns copy for, mirroring how it owns the milestone `actionDefs`. Each is
- * a dateless row surfaced while its condition is unmet and retired (soft-deleted)
- * once met. Titles are kept free of `#`/`@` tokens so the core insert-wrapper
- * materializes no tags/@mentions for them.
- *
- * **Permanent retirement is intentional:** retirement is a `softDelete` tombstone,
- * so a step does **not** re-appear if its condition later reverts (e.g. the user
- * deletes all their people). That is the correct "don't re-nag" onboarding
- * semantic — see {@link computeAndReconcile}. A step retires when its condition is
- * met or when the user says *don't ask again*; putting it off never retires it.
- *
- * **Array order is display priority** (first = shown highest on Home). The order
- * is made deterministic by a per-step `createdAt` back-off at insert time (see
- * {@link computeAndReconcile}), so it doesn't hinge on insertion-tie ordering in
- * the store.
+ * The onboarding nudges, dateless rows retired by tombstone once `applies` goes
+ * false, and never re-minted. Array order is display order on Home.
  */
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
-    // **The account invitation** — the step that gets a user from Unauthenticated
-    // to Authenticated (`encryption/model.md` §7.2.1).
-    //
-    // **It no longer waits for data** *(owner, 2026-09-13)*. It used to read
-    // `hasEntitiesBesidesSelf && !hasAccount`, reasoning that an account protects
-    // *access to data* and there is nothing to protect until some exists. That is
-    // true as far as it goes, and it had a consequence nobody chose: the import
-    // step below applies while `!hasEntitiesBesidesSelf`, so the two were mutually
-    // exclusive **by construction** and the order was always *import first, protect
-    // second*. A user's whole address book was written into a plaintext store, and
-    // only then were they invited to encrypt it — and the conversion that follows
-    // cannot scrub those bytes out of free space (`encryption/model.md` §12).
-    // Asking first costs nothing and puts the entire import inside the encrypted
-    // store instead.
-    //
-    // **Still a nudge, never a wall.** One dateless row on Home, dismissible and
-    // put-off-able like every other, gating nothing. The zero-setup first run is
-    // untouched, which is the constraint that rules out asking any harder than
-    // this (`model.md` §7 — first-run onboarding must not force account setup).
-    //
-    // ⚠️ **The cost is a busier day one.** An empty store now shows this beside
-    // "import your contacts" and "tell us about yourself". Crowding is exactly what
-    // `about-you` was reshaped to avoid, so this is a deliberate trade rather than
-    // an oversight: the plaintext window is permanent, and a third row is not.
-    //
-    // The copy promises **access, not safety**: an Unauthenticated store is
-    // plaintext with no keys, and a *backup* — not an account — is what survives a
-    // lost device. Saying otherwise would be a guarantee the product does not make.
+    // Stands from day one, so an import lands in an encrypted store. The copy
+    // promises access, not safety: a backup is what survives a lost device.
     key: "create-account",
     title: "🔐 Set up your login to protect the data on this device",
     route: "create-account",
     applies: (s) => !s.hasAccount,
   },
   {
-    /**
-     * **Getting started, and it means importing rather than typing.** This step
-     * replaced `add-first-person` outright *(owner, 2026-09-10)* rather than
-     * standing beside it. A personal CRM with one person in it does nothing a
-     * contacts app doesn't; the value arrives with the *list*, and the list
-     * already exists on the phone. Asking someone to type their way to it, one
-     * person at a time, is asking them to do by hand what the app could do in a
-     * tap — and the two rows offered together would have been two ways to answer
-     * the same question, which is the compounding that turns Home into a form.
-     *
-     * Manual entry is not lost, it is one tap on: the importer links to the
-     * create form and the create form links back, including from the
-     * permission-refused state — which is the state this step made load-bearing,
-     * since it is now the first thing the app asks anyone to do.
-     *
-     * ⚠️ **It ships before bulk-import dedup** *(owner, 2026-09-10)*, so
-     * importing an overlapping list still creates duplicates after the fact and
-     * the duplicates nudge follows the import in. That is accepted, and the
-     * obvious mitigation is a trap rather than a dial: the duplicates row is
-     * content-addressed on its pair set, so suppressing it by reporting no pairs
-     * would tombstone that exact id, and the same set re-deriving later would
-     * land on a tombstone and never come back. See {@link duplicatesReminderId}.
-     */
+    // Getting started means importing, not typing; manual entry is a tap on.
     key: "import-contacts",
     title: "📇 Import your contacts",
     route: "import",
     applies: (s) => !s.hasEntitiesBesidesSelf,
   },
   {
-    /**
-     * The self-person: the ego anchor gifts (and, later, kinship) start from.
-     *
-     * **It no longer waits for a list to pick from** *(owner, 2026-09-10)*. It
-     * used to read `hasEntities && !hasSelf` — *"which of these is you?"* — which
-     * made it a question the app could only ask once the user had already done
-     * something else, and which landed three rows on Home at the same moment as a
-     * reward for adding one person. Asking *who are you* needs no list: the
-     * screen it opens offers the list when there is one and the form to write
-     * yourself in when there isn't, so the step stands from day one beside the
-     * import invitation and each can be answered without the other.
-     *
-     * That independence is the whole point, and it is what the condition now
-     * says: `!hasSelf`, and nothing else.
-     */
+    // The self-person, which gifts start from. Needs no list to pick from.
     key: "about-you",
     title: "🙋 Tell us about yourself",
     route: "about-you",
     applies: (s) => !s.hasSelf,
   },
   {
-    /**
-     * Notifications — how a reminder reaches someone who is not looking at the
-     * app. It waits for `hasEntities` for the reason the collection nudges have
-     * to justify themselves by (see the package README → *the rule that stops
-     * this eating the home screen*): the missing setting has to block something
-     * the user **already said they want**. Entering a person is that
-     * declaration; on an empty store there is nothing to be notified about and
-     * asking would be asking for its own sake.
-     *
-     * Last in the array, and so lowest on Home, because it is the step whose
-     * delay costs least: a reminder that comes due with notifications off is
-     * still sitting on Home when the app is next opened. An unset self quietly
-     * degrades gifts, and no account leaves the store unprotected; neither of
-     * those waits for the user to look.
-     *
-     * ⚠️ **The condition is store-scoped and the question is per-device**, which
-     * is a real mismatch and not a shortcut. Onboarding rows sync, and
-     * {@link reconcile} tombstones any active `system` row the desired set does
-     * not want — permanently. So with two devices, the one that has notifications
-     * configured computes "does not apply", retires the row, and the second
-     * device can never show it again whatever its own answer would have been.
-     * Namespacing the id per device does not rescue it: device one would prune
-     * device two's row for the same reason, and a device that has never been
-     * asked has no `notification_settings` row to be enumerated from in the first
-     * place. The `device` table is account-bound (migration 14), and this nudge
-     * fires in the accountless first-run state, so there is nothing to enumerate
-     * *by construction* until multi-device brings a registry that spans it.
-     *
-     * Correct today, because v0.1 ships one device. When it goes per-device, the
-     * new ids must honour this fixed id's tombstone once, or a user who said
-     * *don't ask again* is asked again.
-     */
+    // Waits for someone to be notified about. Its condition is store-scoped,
+    // its question per-device: see the README's notifications-nudge section.
     key: "enable-notifications",
     title: "🔔 Turn on notifications so reminders reach you",
     route: "enable-notifications",
@@ -632,35 +390,14 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   },
 ];
 
-/** The deterministic id an onboarding step is content-addressed under — derived
- *  under the same {@link SYSTEM_REMINDER_NAMESPACE} as milestone reminders but in
- *  the disjoint `onboarding:<key>` name-space, so the two families never collide. */
+/** An onboarding step's id, in its own `onboarding:<key>` name-space. */
 function onboardingId(key: string): string {
   return deterministicUuid(SYSTEM_REMINDER_NAMESPACE, `onboarding:${key}`);
 }
 
 /**
- * The duplicates nudge's identity — content-addressed on the **set of unresolved
- * pairs** rather than on a fixed key, which is the whole trick that makes this
- * family work on rails built for the other three.
- *
- * {@link reconcile} prunes by `softDelete` and never resurrects a tombstoned id.
- * That is exactly right for onboarding ("don't re-nag") and exactly wrong here:
- * duplicates are not a first-run condition, and a new candidate pair can appear
- * at any time, years in. Keying on the sorted pair list gives each distinct set
- * of outstanding pairs its own row, so resolving one of two pairs retires the
- * old row and mints a fresh one stating the new count — and a set that empties
- * and later refills with *different* pairs lands on an id no tombstone holds.
- *
- * The one deliberate consequence: deleting the nudge outright tombstones exactly
- * that set of pairs, so it stays gone until the set changes. That reads as a
- * "dismiss this" gesture, which is the sensible meaning for a user-deleted row.
- * The People & Pets link and the per-person banners are unconditional on it, so
- * dismissal hides the nudge without hiding the work.
- *
- * Exported because clients resolve the nudge's CTA by id (the same id-convention
- * as {@link ONBOARDING_REMINDERS} and {@link listSystemReminderTargets}) — but
- * this id is not static, so `@leapsake/core` recomputes it from the live pairs.
+ * The duplicates nudge's id, keyed on the set of unresolved pairs so each new
+ * set mints a fresh row and a tombstone silences only its own set.
  */
 export function duplicatesReminderId(pairKeys: readonly string[]): string {
   return deterministicUuid(
@@ -669,23 +406,8 @@ export function duplicatesReminderId(pairKeys: readonly string[]): string {
   );
 }
 
-/** The Home copy for `n` unresolved candidate pairs. Kept free of `#`/`@` tokens
- *  so the core insert-wrapper materializes no tags or mentions for it. */
-/**
- * The identity of a "we don't know this date" question — the **fifth** disjoint
- * name-space under {@link SYSTEM_REMINDER_NAMESPACE}, alongside `milestone:`,
- * `onboarding:`, `observance:` and `duplicates:`.
- *
- * Keyed on the relationship **and the kind**, not the relationship alone. Those
- * are two different questions with two different answers, and a couple who marry
- * should be asked their wedding anniversary even if they once said "don't ask
- * again" to the first-date question — a dismissal is of a question, not of a
- * person.
- *
- * ⚠️ Dateless, so unlike a milestone id this carries **no year**: a dismissal is
- * permanent, exactly as it is for the onboarding nudges, because retirement is a
- * tombstone and reconcile never resurrects one.
- */
+/** A partnership question's id. Carries the kind, since a dismissal is of one
+ *  question; carries no year, so the dismissal is permanent. */
 export function partnershipNudgeId(
   relationshipId: string,
   kind: UndatedPartnership["kind"],
@@ -696,12 +418,8 @@ export function partnershipNudgeId(
   );
 }
 
-/**
- * The question itself, worded by which date is missing — and in the right tense,
- * which is the whole reason these are two strings rather than one template. A
- * wedding anniversary is a date that *comes round* ("when **is**"); a first date
- * happened once, in the past ("when **was**").
- */
+/** The question, in its tense: an anniversary comes round ("when is"), a first
+ *  date happened once ("when was"). */
 function partnershipNudgeTitle(p: UndatedPartnership): string {
   const who = mentionToken(p.partnerLabel, p.partnerType, p.partnerId);
   return p.kind === "wedding"
@@ -709,24 +427,15 @@ function partnershipNudgeTitle(p: UndatedPartnership): string {
     : `\u{1F49E} When was your first date with ${who}?`;
 }
 
+/** The Home copy for `n` unresolved pairs; no `#`/`@` tokens, as above. */
 function duplicatesTitle(n: number): string {
   return n === 1
     ? "🔗 Two people might be the same — review"
     : `🔗 ${n} pairs of people might be the same — review`;
 }
 
-/**
- * The identity a holiday-observance occurrence + rule is content-addressed
- * under — the third disjoint name-space under {@link SYSTEM_REMINDER_NAMESPACE},
- * alongside `milestone:` and `onboarding:`.
- *
- * Keyed on the occurrence **date** rather than its year, unlike
- * {@link occurrenceName}. A year is a safe key for a birthday, which falls once
- * per year by construction; it is wrong for a lunisolar holiday, which can fall
- * **twice** in one Gregorian year — Ramadan did in 1997 — and would collapse
- * both occurrences onto one reminder. The date is strictly more robust and costs
- * nothing.
- */
+/** The name a holiday reminder's id is derived from. Keyed on the date, not the
+ *  year: a lunisolar holiday can fall twice in one Gregorian year. */
 function observanceOccurrenceName(
   observanceId: string,
   occurrenceIso: string,
@@ -747,12 +456,7 @@ export interface OnboardingReminder {
   route: OnboardingRoute;
 }
 
-/**
- * The id ⇒ route convention clients look a Home reminder's CTA up against — the
- * whole point of the id-convention: no schema field, no migration, no sync change.
- * A client renders a deep-link CTA for a reminder **only** when
- * {@link onboardingRouteOf} finds a match here.
- */
+/** Id ⇒ route: a client renders a deep-link CTA only for a match here. */
 export const ONBOARDING_REMINDERS: readonly OnboardingReminder[] =
   ONBOARDING_STEPS.map((step) => ({
     id: onboardingId(step.key),
@@ -760,36 +464,14 @@ export const ONBOARDING_REMINDERS: readonly OnboardingReminder[] =
   }));
 
 /** The CTA route for a reminder id, or `null` when it isn't an onboarding
- *  reminder (a milestone or user reminder) — the client's branch for "show a CTA". */
+ *  reminder. */
 export function onboardingRouteOf(id: string): OnboardingRoute | null {
   return ONBOARDING_REMINDERS.find((r) => r.id === id)?.route ?? null;
 }
 
 /**
- * Where "remind me in `days` days" lands for this row — the **start** of that
- * civil day, encoded like a due date (epoch-ms UTC midnight) — or `null` when the
- * row may not be put off that far. The one rule every snooze offer and every
- * snooze write is checked against *(owner, 2026-09-11)*:
- *
- * - **Any row, whatever made it.** A birthday errand, a holiday, a question, an
- *   onboarding nudge and a reminder the user wrote are all put off the same way.
- * - **Never a row that is due today or belated.** Putting one off would only move
- *   it into *belated*, or deeper into it.
- * - **Never past the due date.** The due date is a real deadline — for a gift
- *   errand, the last day it still has its full run-up — so a snooze may land *on*
- *   it but not after it. A dateless row has no deadline and no cap.
- * - **Nothing retires by being put off**, however often. A row goes when it is
- *   done, when its condition is met, or when the user says *don't ask again* —
- *   never because a budget of *not now*s ran out. That budget, and the per-step
- *   dials it was spent against, were removed here.
- *
- * **A civil day, not an instant.** "Tomorrow" means the start of tomorrow, not
- * this time tomorrow, so a row put off at 9pm is back on Today when the app opens
- * the next morning — and every date the list buckets on is then one encoding.
- *
- * **Any whole number of days, not a preset**, so letting the user choose one is a
- * change to the offer and none to this. Pure, and `now` is a parameter: it is
- * applied when the user asks, never inside a reconcile.
+ * Where "remind me in `days` days" lands (the start of that civil day, as a due
+ * date), or `null` when the row is done, due today, or would pass its due date.
  */
 export function snoozeTargetOf(
   reminder: { completedAt: number | null; dueDate?: number | null },
