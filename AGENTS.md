@@ -24,8 +24,12 @@ check, not a paragraph here.
 - **Add a dependency only when it pays for itself, and say why** where it lands (the
   package's README, or the commit that adds it). The set is deliberately lean;
   `package.json` is the list, and there is no second copy of it to consult.
-- **Tests over docs.** A well-written test cannot drift from behavior; a doc can. Prefer
-  well-named code over comments, but comments over unclear behavior.
+- **Tests over docs.** A well-written test cannot drift from behavior; a doc can.
+- **Comments explain behavior, never decisions.** Default to a clear function name. If that is
+  not enough, a comment of at most two lines saying what the code does that the name cannot. A
+  longer comment is a discussion to have before writing it, not a default. Why a thing was
+  decided, what it replaced, when, and by whom belongs in the commit message and, if it is
+  durable, in the package `README.md`. Never in source, and never in `plans/`.
 - **Test the thing as a black box.** Assert what the consumer sees, not the implementation.
 - **Use the right quotation marks** in anything a person reads — “Father’s Day”, not
   "Father's Day". Enforced for the message catalog by `scripts/typography.test.mjs`.

@@ -6,14 +6,8 @@ existing code in one pass. Decisions live in `git log` and in docs (package `REA
 
 ## The rule
 
-Add this to `AGENTS.md` → _Principles_, replacing the comment clause of the "Tests over docs"
-bullet.
-
-> **Comments explain behaviour, never decisions.** Default to a clear function name. If that
-> is not enough, a comment of at most two lines saying what the code does that the name
-> cannot. A longer comment is a discussion to have before writing it, not a default. Why a
-> thing was decided, what it replaced, when, and by whom belongs in the commit message and, if
-> it is durable, in the package `README.md`. Never in source, and never in `plans/`.
+**Landed in `AGENTS.md` → _Principles_.** It is in force for every file any workstream touches;
+what is left here is the pass over the code that predates it.
 
 Explaining behaviour and explaining decisions are different acts. "Sort each person by
 whichever name part they have" is behaviour and earns its two lines. "Retired on 2026-07-27
@@ -81,16 +75,14 @@ leave it and open the bug separately.
 
 ## Steps, each a commit
 
-1. Add the rule to `AGENTS.md`. Delete the sentence "Prefer well-named code over comments, but
-   comments over unclear behaviour", which the new rule supersedes.
-2. `packages/schema`: `reminder-rule.ts`, `milestone.ts`, `relationship.ts`, `composer-draft.ts`.
-3. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
+1. `packages/schema`: `reminder-rule.ts`, `milestone.ts`, `relationship.ts`, `composer-draft.ts`.
+2. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
    either order works, but do not do both in one commit).
-4. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
-5. `packages/core` (after workstream 2, so the pass is over the small file).
-6. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
-7. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
-8. Everything else, by directory. `scripts/` last.
+3. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
+4. `packages/core` (after workstream 2, so the pass is over the small file).
+5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
+6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
+7. Everything else, by directory. `scripts/` last.
 
 ## Keeping it true: a check, not a paragraph
 
