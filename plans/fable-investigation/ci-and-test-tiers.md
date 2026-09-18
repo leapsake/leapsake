@@ -21,11 +21,9 @@ The inner loop is fine. The release gate is where the minutes are, and until
 [`remote-releases.md`](./remote-releases.md) step 3 lands it pays for every platform whether or
 not it ships.
 
-The Vitest figure is post-KDF-injection (landed 2026-09-16; it was 36s wall, 288s CPU). Vitest
-runs files in parallel, so the wall clock is the longest file, not the sum, and the longest
-files are now `search-service` and `gifts` — real work against real SQLite, not a scrambler.
-`apps/server/test/relay.test.ts` is deleted by [`relay-removal.md`](./relay-removal.md). Nothing
-else here is worth chasing.
+Vitest runs files in parallel, so the wall clock is the longest file, not the sum, and the
+longest files are `search-service` and `gifts` — real work against real SQLite, not a scrambler.
+Nothing else here is worth chasing.
 
 ## Where the trophy is the wrong shape
 
@@ -70,9 +68,8 @@ uploads. See step 5.
 
 ## Steps, each a commit
 
-Order: 1 is independent of everything. 2 to 4 need
-[`relay-removal.md`](./relay-removal.md) first, because they touch `core-context.tsx` and the
-relay code is most of it.
+Order: 1 is independent of everything. 2 to 4 touch `core-context.tsx`, which is free to work
+in now that its relay half is gone.
 
 **Open decision, carried over from the KDF injection that landed:** whether to lower the cost in
 E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
