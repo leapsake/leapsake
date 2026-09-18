@@ -181,8 +181,9 @@ going public first makes desktop auto-update simpler
    [`v0-2.md`](./v0-2.md). Transparency is on-brand and self-hosters deserve it; what to check is
    that **H1 in particular reads as a scoped, decided deferral rather than an unattended hole**.
    It is the one an outside reader finds first.
-4. After flipping: a GitHub Actions workflow for **PR checks only**, calling the same scripts.
-   The _release_ gate stays local **for now, and for a smaller reason than this used to claim**.
+4. After flipping: the workflows in
+   [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) steps 6–7.
+   That doc supersedes what this step used to say about the release gate staying local.
 
 ⚠️ **This step used to say "hosted runners cannot provide a real unlocked keychain, and mocking
 it would gut Flows 1, 4, 6 and 7". That conflates three different keychains, and only one of them
@@ -209,12 +210,12 @@ run:ios` is a full native build (cache the app rather than compiling per run), a
 - **The signing keychain is a release concern and a solved one** — importing a `.p12` into a
   temporary keychain is routine iOS CI. Not a reason to keep anything local.
 
-**Where this is heading** _(owner, 2026-09-09)_: **everything remote, and independently
-verifiable** — no gate trusting a file on one Mac. The order is this step, then iOS E2E on a
-hosted runner (proved on a throwaway workflow first), then releasing from CI with the App Store
-Connect API key, then provenance attestation over the artifact. That also settles step 3's open
-question: if CI can carry the catalog, the `requires:` check reads a commit status and no local
-receipt is ever built.
+**Where this is heading** _(owner, 2026-09-09; decided in full 2026-09-18)_: **everything remote,
+and independently verifiable** — no gate trusting a file on one Mac. The decisions and the steps
+are [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md): a tag at
+the remote is the trigger, the pipeline runs the gate per platform on hosted runners, builds every
+platform before uploading any, and never writes to `main`. That settles step 3's open question:
+the pipeline itself carries the catalog, so no local receipt is ever built.
 
 **Acceptance:** repo public with a clean history scan; Actions green on a PR.
 

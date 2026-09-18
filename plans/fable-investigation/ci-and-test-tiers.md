@@ -4,8 +4,9 @@
 Move that proof into hook and integration tests, cut the cost the tests pay for no reason, and
 let the E2E arc shrink to what only E2E can show. Measured on 2026-09-16, on the owner's machine.
 
-CI here is local: `pnpm test` in the loop, `pnpm test:all --strict --provision` at every release
-rung above alpha. There is no hosted CI, and this doc does not add one.
+CI here is local today: `pnpm test` in the loop, `pnpm test:all --strict --provision` at every
+release rung. Hosted CI is [`remote-releases.md`](./remote-releases.md)'s job; this doc makes the
+tiers cheaper wherever they run.
 
 ## Where the time goes
 
@@ -17,8 +18,8 @@ rung above alpha. There is no hosted CI, and this doc does not add one.
 | Mobile E2E arc, per platform                                    | 7 flows, 57 assertions, five Argon2id passes | 07b + 07c alone are 2m46s; the arc with provisioning is well over ten minutes |
 
 The inner loop is fine. The release gate is where the minutes are, and until
-[`release-targets-per-rung.md`](./release-targets-per-rung.md) lands it pays for every
-platform whether or not it ships.
+[`remote-releases.md`](./remote-releases.md) step 3 lands it pays for every platform whether or
+not it ships.
 
 The Vitest figure is post-KDF-injection (landed 2026-09-16; it was 36s wall, 288s CPU). Vitest
 runs files in parallel, so the wall clock is the longest file, not the sum, and the longest
@@ -79,8 +80,8 @@ never be mistaken for a real one, and it changes what the door files say. Worth 
 
 ### 1. Gate follows the targets
 
-[`release-targets-per-rung.md`](./release-targets-per-rung.md). Listed here so the CI picture is
-complete; that doc owns it.
+[`remote-releases.md`](./remote-releases.md) step 3. Listed here so the CI picture is complete;
+that doc owns it.
 
 ### 2. Extract the unlock loop into `key-custody`
 
@@ -140,12 +141,12 @@ Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to des
 
 Not now. When `desktop-packaging.md` lands, the desktop E2E harness is Playwright over the
 packaged app, running the same catalog (`crucial-flows.md` is tool-agnostic on purpose), keyed
-`mac` in the tier registry, and gated by [`release-targets-per-rung.md`](./release-targets-per-rung.md).
+`mac` in the tier registry, and gated by [`remote-releases.md`](./remote-releases.md)'s per-cell readiness.
 Before that, the cheapest confidence for desktop is the same move as mobile: the router's
 inline loaders and actions become named functions that call `CoreApi`, and get integration
 tests beside the existing 64.
 
 ## Not worth doing
 
-Sharding Vitest, reordering static tiers, moving the Astro site build out of the run, or adding
-a hosted CI. The inner loop is already well under a minute.
+Sharding Vitest, reordering static tiers, or moving the Astro site build out of the run. The
+inner loop is already well under a minute.

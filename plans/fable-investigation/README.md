@@ -38,7 +38,7 @@ accretion rather than missing abstractions. The line counts below predate the re
 | 3   | [`comment-pass.md`](./comment-pass.md)                         | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.               |
 | 4   | [`shared-form-logic.md`](./shared-form-logic.md)               | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                 |
 | 5   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)               | E2E flows standing in for a missing mobile hook tier; an E2E arc that never relaunches the app. _The Vitest KDF cost landed 2026-09-16._                      | **Do it.** Extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.                              |
-| 6   | [`release-targets-per-rung.md`](./release-targets-per-rung.md) | The test gate runs every platform's device tiers whether or not that platform is in the release.                                                              | **Do it, last.** Its readiness half was cancelled — `plans/android-pipeline.md` shipped the same guarantee as a preflight check.      |
+| 6   | [`remote-releases.md`](./remote-releases.md)                   | Releases run from a laptop. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels. | **Do it** _(owner, 2026-09-18)_. Nine decisions recorded in the doc; steps 1–4 are script-only and can start now. Absorbs the old `release-targets-per-rung.md`. |
 
 **1 and 2 landed on 2026-09-17.** 1 was the relay removal (tag `relay-clients-final`; the
 rebuild note moved to `plans/v0-2.md`). 2 took `packages/core/src/index.ts` from 2,885 lines to
@@ -51,10 +51,8 @@ the audit would have reversed that on ~56 client files. `views.ts` was **confirm
 every builder reads through repo ports, so none of it is the pure derivation
 `@leapsake/view-models` holds.
 
-6 was first in the original ordering, on the strength of the next Android release wanting it.
-It is now last: `plans/android-pipeline.md` settled the readiness question by another route, and
-with iOS and Android both ready at every rung, the gate filter that remains would change nothing
-today. It matters again when a platform goes blocked, or when macOS arrives.
+6 replaced `release-targets-per-rung.md` on 2026-09-18. That doc's gate filter is now step 3 of
+the new one, and its "do not re-introduce a per-rung status" is reversed there, with the reason.
 
 ## Rules that apply to every workstream
 
