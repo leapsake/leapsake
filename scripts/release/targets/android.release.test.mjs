@@ -8,10 +8,15 @@
 //      too late.
 //   3. **The signer.** A debug-signed release AAB builds, installs and is only rejected
 //      at upload.
+//   4. **The body `publish()` sends.** The track it names, the status it asks for, the
+//      release name and the notes are only decided here, and a rollout cannot be taken
+//      back — so they are asserted against a stubbed `fetch` rather than discovered in
+//      the Console.
+import { generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { runChecks } from "../checks.mjs";
 import android from "./android.mjs";
@@ -147,5 +152,177 @@ describe("the target contract", () => {
       "final",
       "rc",
     ]);
+  });
+});
+
+// ── publish(), against a stubbed Play ────────────────────────────────────────────────
+
+const EDIT = "EDIT1";
+const CODE = 373668;
+const APP = "/androidpublisher/v3/applications/com.leapsake.app";
+
+// One keypair for the file: RSA generation is the slowest thing here, and the assertion is
+// signed but never verified by the stub.
+const PRIVATE_KEY = generateKeyPairSync("rsa", { modulusLength: 2048 })
+  .privateKey.export({ type: "pkcs8", format: "pem" })
+  .toString();
+
+/** A service-account key on disk, named the way `playFromEnv` expects. */
+function serviceAccount() {
+  const path = join(
+    mkdtempSync(join(tmpdir(), "play-key-")),
+    "service-account.json",
+  );
+  writeFileSync(
+    path,
+    JSON.stringify({
+      client_email: "release@leapsake.iam.gserviceaccount.com",
+      private_key: PRIVATE_KEY,
+    }),
+  );
+  process.env.PLAY_SERVICE_ACCOUNT_PATH = path;
+}
+
+const answer = (status, body) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  statusText: `status ${status}`,
+  headers: new Headers(),
+  text: async () => (body === undefined ? "" : JSON.stringify(body)),
+});
+
+/**
+ * Every call a publish makes, answered; returns the calls as they happen.
+ *
+ * Both track routes are stubbed so a rung aiming at the wrong one fails on the assertion
+ * rather than on an unstubbed route, which would read as a transport error and retry.
+ */
+function stubPlay(overrides = {}) {
+  const routes = {
+    "POST /token": answer(200, { access_token: "T", expires_in: 3600 }),
+    [`POST ${APP}/edits`]: answer(200, { id: EDIT }),
+    [`POST /upload${APP}/edits/${EDIT}/bundles`]: answer(200, {
+      versionCode: CODE,
+    }),
+    [`PUT ${APP}/edits/${EDIT}/tracks/alpha`]: answer(200, {}),
+    [`PUT ${APP}/edits/${EDIT}/tracks/internal`]: answer(200, {}),
+    [`PUT ${APP}/edits/${EDIT}/tracks/production`]: answer(200, {}),
+    [`POST ${APP}/edits/${EDIT}:commit`]: answer(200, {}),
+    [`DELETE ${APP}/edits/${EDIT}`]: answer(200, {}),
+    ...overrides,
+  };
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    const key = `${init?.method ?? "GET"} ${new URL(url).pathname}`;
+    calls.push({
+      key,
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+    });
+    const route = routes[key];
+    if (!route) throw new Error(`unstubbed call: ${key}`);
+    return route;
+  };
+  return calls;
+}
+
+/** The AAB `publish` uploads — contents are never inspected, only read. */
+function artifactIn(root) {
+  const aab = join(root, "app-release.aab");
+  writeFileSync(aab, "an-app-bundle");
+  return { aab, buildNumber: CODE, bundleId: "com.leapsake.app" };
+}
+
+const trackPut = (calls) => calls.find((call) => call.key.startsWith("PUT "));
+
+const realFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = realFetch;
+  delete process.env.PLAY_SERVICE_ACCOUNT_PATH;
+});
+
+describe("publish", () => {
+  it("puts a beta on the closed track, as one completed release", async () => {
+    const root = repoWith({ notes: "This is the first release." });
+    serviceAccount();
+    const calls = stubPlay();
+
+    await android.publish({
+      artifact: artifactIn(root),
+      root,
+      stage: "beta",
+      version: "0.1.0-beta.8",
+    });
+
+    const put = trackPut(calls);
+    expect(put.key).toBe(`PUT ${APP}/edits/${EDIT}/tracks/alpha`);
+    expect(put.body.track).toBe("alpha");
+    expect(put.body.releases).toHaveLength(1);
+    expect(put.body.releases[0]).toMatchObject({
+      status: "completed",
+      versionCodes: [String(CODE)],
+      releaseNotes: [{ language: "en-US", text: "This is the first release." }],
+    });
+    // The edit is what makes the upload real; nothing has shipped until it commits.
+    expect(calls.at(-1).key).toBe(`POST ${APP}/edits/${EDIT}:commit`);
+  });
+
+  it("names the release for the full version, not the store version", async () => {
+    // Play names a release from the bundle's versionName when the API sends none — and
+    // that is the store version, so every rung of 0.1.0 would read "0.1.0" in the Console.
+    const root = repoWith();
+    serviceAccount();
+    const calls = stubPlay();
+
+    await android.publish({
+      artifact: artifactIn(root),
+      root,
+      stage: "beta",
+      version: "0.1.0-beta.8",
+    });
+
+    expect(trackPut(calls).body.releases[0].name).toBe("0.1.0-beta.8");
+  });
+
+  it("sends an alpha rung to the internal track", async () => {
+    const root = repoWith();
+    serviceAccount();
+    const calls = stubPlay();
+
+    await android.publish({
+      artifact: artifactIn(root),
+      root,
+      stage: "alpha",
+      version: "0.1.0-alpha.4",
+    });
+
+    expect(trackPut(calls).body.track).toBe("internal");
+  });
+
+  it("abandons the edit when Play accepts a version code we did not build", async () => {
+    // A mismatch means the upload landed somewhere unexpected. Committing anyway would
+    // spend a version code on a bundle nobody can account for, so the edit is thrown away.
+    const root = repoWith();
+    serviceAccount();
+    const calls = stubPlay({
+      [`POST /upload${APP}/edits/${EDIT}/bundles`]: answer(200, {
+        versionCode: 999999,
+      }),
+    });
+
+    await expect(
+      android.publish({
+        artifact: artifactIn(root),
+        root,
+        stage: "beta",
+        version: "0.1.0-beta.8",
+      }),
+    ).rejects.toThrow(/999999 is not the 373668 that was built/);
+
+    expect(calls.map((call) => call.key)).toContain(
+      `DELETE ${APP}/edits/${EDIT}`,
+    );
+    expect(calls.map((call) => call.key)).not.toContain(
+      `POST ${APP}/edits/${EDIT}:commit`,
+    );
   });
 });
