@@ -145,7 +145,7 @@ export interface ImportPorts {
    * Driven by {@link ParsedContact.isSelf} on the contact that comes *back* from
    * the review, which is the user's decision rather than the card's claim: the
    * review starts every such card opted **out**, so importing somebody else's
-   * export can never silently reassign who "me" is. See `plans/export.md` → 5a.
+   * export can never silently reassign who "me" is.
    */
   setSelf(personId: string): Promise<void>;
   /**

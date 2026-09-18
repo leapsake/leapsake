@@ -518,7 +518,7 @@ function buildContact(
       // (RFC 6350 §6.7.6 prefers a URN), so the scheme comes off — but a `UID`
       // in any other form is still this card's id to whoever wrote it, and is
       // kept verbatim rather than refused. What it is *used* for is matching,
-      // never as the id of the row we create: see `plans/export.md` → 6.
+      // never as the id of the row we create: see `plans/v0-2.md` → *Export*.
       case "UID":
         uid = parseUid(p.value);
         break;
@@ -685,7 +685,7 @@ function buildContact(
             // Both are the **file's** ids, and neither is written back as a row
             // id: `-ID` is what says "one fact on two cards" to `ingestContacts`,
             // and `-REL` names an edge that only exists once the import has
-            // created it. Restoring ids verbatim is `plans/export.md` → 6.
+            // created it. Restoring ids verbatim is `plans/v0-2.md` → *Export*.
             id: paramValue(p, "X-LEAPSAKE-MILESTONE-ID"),
             relationshipId: paramValue(p, "X-LEAPSAKE-MILESTONE-REL"),
           });
@@ -730,8 +730,7 @@ function buildContact(
   }
 
   return {
-    // The card's own identity, read rather than ignored since `plans/export.md`
-    // increment 5a. `uid` is what lets the review recognise a card as somebody
+    // The card's own identity. `uid` is what lets the review recognise a card as somebody
     // already stored instead of importing a second copy of them, and it is the
     // hinge the graph and milestone reciprocals hang off — a `RELATED` pointing
     // at `urn:uuid:…` can only resolve because the card it points at reports

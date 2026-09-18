@@ -241,7 +241,7 @@ export interface ParsedContact {
    * the review say "you already have this person" instead of quietly making a
    * second copy of them, and what lets a `RELATED;VALUE=uri` resolve to a real
    * person rather than an unpublished stub. Writing these ids back verbatim
-   * would be a *restore*, which is `plans/export.md` → 6.
+   * would be a *restore*, which is `plans/v0-2.md` → *Export*.
    */
   uid: string | null;
   /**
@@ -266,8 +266,9 @@ export interface ParsedContact {
    *
    * **Read but not applied**: no `create` input accepts a `createdAt`, so an
    * imported entity is stamped with the moment it was imported. Honouring this
-   * needs the row-level `insert`, which is the restore door (`plans/export.md`
-   * → 6); it is parsed now so the round trip is honest and so 6 has it waiting.
+   * needs the row-level `insert`, which is the restore door (`plans/v0-2.md` →
+   * *Export*); it is parsed now so the round trip is honest and restore has it
+   * waiting.
    */
   createdAt: number | null;
   /** `REV` — epoch ms. Like {@link ParsedContact.createdAt}, read but not

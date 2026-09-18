@@ -26,9 +26,9 @@
  * The archive holds the whole store: `contacts.vcf` is the person graph —
  * people, pets, their contact methods, every milestone kind and the
  * relationships between them — and `data.json` is everything that belongs to no
- * single card. Neither writes a fact the other does. What is left is the
- * *import* side (`plans/export.md`), which decides whether the file reads back
- * in: today it does not, so do not point a user at their own export yet.
+ * single card. Neither writes a fact the other does. The import side reads all
+ * of it back except the file's own ids and timestamps, which only a restore may
+ * apply (`plans/v0-2.md` → *Export*).
  */
 export { buildArchive } from "./archive.js";
 export { DATA_NAME, README_NAME, VCF_NAME } from "./archive.js";

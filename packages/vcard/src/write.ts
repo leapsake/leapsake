@@ -97,8 +97,7 @@ function writeCard(contact: ExportContact, opts: WriteOptions): string {
   }
   // RFC 6350 §6.1.4, which explicitly allows an x-name. Apple Contacts will
   // import a pet card as an ordinary person called "Jimmy" — an accepted loss:
-  // nothing is lost, and our own importer gets it right once `plans/export.md`
-  // → 5 takes `KIND` out of the parser's `STRUCTURAL` set.
+  // nothing is lost, and our own importer reads `KIND` back as a pet.
   push({
     name: "KIND",
     value: contact.kind === "pet" ? "x-pet" : "individual",

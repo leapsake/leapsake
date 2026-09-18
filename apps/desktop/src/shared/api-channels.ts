@@ -140,7 +140,7 @@ export const API_CHANNELS = [
   "deviceContacts.setSyncEnabled",
 
   // The channel, not the surface: desktop has no Export button yet (that is
-  // `plans/export.md` increment 6, after mobile GA), but the exhaustiveness
+  // `plans/v0-2.md` → *Export*), but the exhaustiveness
   // assertion below is what keeps this list honest, so a core method reaches it
   // the moment core grows one.
   "export.archive",

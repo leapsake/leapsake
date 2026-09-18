@@ -33,7 +33,7 @@ import {
  *
  * Import still creates a **new** entity for such a card — the review's job is to
  * let the user skip it. Writing the file's ids back is a restore
- * (`plans/export.md` → 6), not this.
+ * (`plans/v0-2.md` → *Export*), not this.
  */
 export interface AlreadyStored {
   type: "person" | "pet";

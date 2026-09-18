@@ -24,6 +24,6 @@ steps can start now and which also makes the `rc` catalog gate a job rather than
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
 
-**Not gating.** [`export.md`](./export.md) holds increment 6 and three device verifications;
+**Not gating.** [`v0-2.md`](./v0-2.md) → _Export_ holds increment 6 and three device verifications;
 contact-import fidelity rests ([`v0-2.md`](./v0-2.md)); contact methods' URL templates are
 convention — confirm on real hardware while testing a build.

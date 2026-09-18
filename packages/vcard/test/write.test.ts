@@ -53,11 +53,8 @@ function contact(over: Partial<ExportContact> = {}): ExportContact {
  * The contact as the parser reports it back — **what is left of the ledger of
  * everything the writer says that the reader cannot hear.**
  *
- * ⚠️ **This is the end state, not a gap.** It once held the whole of
- * `plans/export.md` → 5 and shrank as each increment landed: the card's own
- * identity left in 5a, the relationship graph in 5b, and every
- * `X-LEAPSAKE-MILESTONE-*` fact in 5c. What remains is the one thing that can
- * never leave, so **do not try to delete it**:
+ * ⚠️ **This is the end state, not a gap.** What remains is the one thing that
+ * can never leave, so **do not try to delete it**:
  *
  * - `writeParam` strips `"` and folds newlines to a space, because vCard's
  *   parameter grammar has an escape for neither — so a multi-line milestone note

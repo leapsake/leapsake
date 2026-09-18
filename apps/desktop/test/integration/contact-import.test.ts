@@ -296,7 +296,7 @@ describe("core.import.preview", () => {
 });
 
 /**
- * The card-identity half of `plans/export.md` → 5a: what a card of **our own**
+ * The card-identity half of a round trip: what a card of **our own**
  * carries beyond a name, and what the importer does with it. Every one of these
  * was silently discarded until the parser learned to read it.
  */
@@ -494,7 +494,7 @@ describe("core.import.commit — named relations", () => {
 });
 
 /**
- * The graph half of `plans/export.md` → 5, increment 5b: a `RELATED` that points
+ * The graph half of a round trip: a `RELATED` that points
  * at another card rather than naming somebody. Every one of these used to reach
  * the store as a pair of unpublished stubs, or not at all.
  */
@@ -716,7 +716,7 @@ describe("core.import.commit — milestones", () => {
       note: "at the lighthouse",
     });
     // The file's own milestone id is a matching key, not a row id — writing it
-    // back verbatim is a restore (`plans/export.md` → 6).
+    // back verbatim is a restore (`plans/v0-2.md` → *Export*).
     expect(onEdge[0].id).not.toBe(WEDDING);
 
     const pete = listed.find((p) => p.firstName === "Pete")!;

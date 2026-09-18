@@ -4,9 +4,9 @@
 
 v0.1 is single-device by construction, so the app container is the only place a user's data
 exists. That is what makes this the difference between "delete and reinstall" being an ordinary
-act and being data loss — and why it gates GA rather than being a nicety. The format and the
-remaining increments are [`plans/export.md`](../../plans/export.md); this file is why the package
-is shaped the way it is.
+act and being data loss — and why it gates GA rather than being a nicety. What is still ahead of
+it (restore, desktop parity, CardDAV) is [`plans/v0-2.md`](../../plans/v0-2.md) → *Export*; this
+file is why the package is shaped the way it is.
 
 ## ⚠️ It must never use iCloud
 
@@ -54,9 +54,8 @@ than a recycle bin. Three reasons they stay out:
 The third is the interesting one, and today it needs no code here: `@leapsake/data` bakes
 `deleted_at IS NULL` into `createEntityRepo`'s `listWhere` and `get`, and into
 `tags.listForEntity`'s join, so **every read the current ports make is already live-rows-only**.
-`plans/export.md` originally asked for an `includeDeleted` parameter to make this cheap to
-revisit; it turned out to be unnecessary, and adding one would be the thing that lets a future
-caller opt *into* the surprise.
+An `includeDeleted` parameter was considered and is deliberately absent: adding one would be the
+thing that lets a future caller opt *into* the surprise.
 
 ⚠️ **That was a property of `createEntityRepo`, not of the data layer** — and `data.json` is where
 it nearly broke. `mentions`, `not_a_duplicate` and `relationship_dismissals` have no entity repo,
@@ -168,24 +167,21 @@ after a share. Without it the half of the archive that is not contacts is invisi
 the zip, and neither the user nor the on-device harness can tell a backup that carries their
 reminders from one that silently does not.
 
-## What cannot be read back yet
+## What reads back, and what only a restore may
 
-The reader is catching up with this writer in numbered increments
-([`plans/export.md`](../../plans/export.md) → 5). **The card's identity now round-trips** — `UID`,
-`KIND`, `REV`, `CATEGORIES`, `X-LEAPSAKE-SELF`/`-CREATED` and the `-EXT`/`-COUNTRY`/`-USERID`
+Everything the writer emits reads back. **The card's identity round-trips** — `UID`, `KIND`,
+`REV`, `CATEGORIES`, `X-LEAPSAKE-SELF`/`-CREATED` and the `-EXT`/`-COUNTRY`/`-USERID`
 parameters — so a pet comes back a pet, tags come back, and the review reports a card we already
-hold instead of quietly making a second copy of everyone.
+hold instead of quietly making a second copy of everyone. **The relationship graph does too**:
+the exact role comes home rather than degrading to its RFC 6350 base, and a `RELATED` naming
+another card by `urn:uuid:` becomes one real edge between two published entities — one, not two,
+even though the writer puts it on both cards. **And the milestones**: `X-LEAPSAKE-MILESTONE-KIND`
+brings all ten kinds home rather than the one a label map could name, `-NOTE` its free text, and
+`-REL` puts a wedding back on the marriage — once, which is what the shared `-ID` is for. A
+*foreign* card's date label is read too: eight of the ten kinds are recoverable from a label
+alone, which is the only thing `DATE_KINDS` is about.
 
-**The relationship graph does too**, as of 5b: the exact role comes home rather than degrading to
-its RFC 6350 base, and a `RELATED` naming another card by `urn:uuid:` becomes one real edge between
-two published entities — one, not two, even though the writer puts it on both cards.
-
-**And the milestones do, as of 5c.** `X-LEAPSAKE-MILESTONE-KIND` brings all ten kinds home rather
-than the one a label map could name, `-NOTE` its free text, and `-REL` puts a wedding back on the
-marriage — once, though the writer put it on both partners' cards, which is what the shared `-ID`
-is for. A *foreign* card's date label is read too, as of 5d: eight of the ten kinds are recoverable
-from a label alone, which is the only thing `DATE_KINDS` was ever about.
-
-And note what the ids are **for**: matching, not identity. An imported card always gets a fresh
-row id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and
-timestamps back is a *restore*, which is increment 6.
+Note what the ids are **for**: matching, not identity. An imported card always gets a fresh row
+id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and
+timestamps back is a *restore*, and that door is deliberately still closed
+([`plans/v0-2.md`](../../plans/v0-2.md) → *Export*).
