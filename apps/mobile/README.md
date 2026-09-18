@@ -82,6 +82,17 @@ pnpm release alpha --dry-run   # what is this rung waiting on?
 pnpm release alpha             # bump, tag, archive, export, upload
 ```
 
+> **Android ships one fewer permission than prebuild writes.** Expo's template declares
+> `SYSTEM_ALERT_WINDOW` — the "draw over other apps" overlay, there for React Native's dev
+> menu — in the *main* manifest, so it reaches release builds too. Play treats it as sensitive
+> and asks apps to justify it, which this one cannot: no code requests it, and no dependency
+> declares it (the manifest-merger report names only our own file). `android.blockedPermissions`
+> in `app.json` removes it. Blocking it cannot change behaviour in *any* variant, dev client
+> included, because the permission is never auto-granted — a declared-but-ungranted overlay
+> permission and an undeclared one both make `canDrawOverlays()` false. Verify a change here
+> against `app/build/intermediates/merged_manifests/`, never the source manifest, which keeps
+> listing the permission with `tools:node="remove"`.
+
 **Name no platform.** A tag ships every target that is `ready` and reports the rest as ⏳ with
 the reason, so a platform is held back by its own status in `scripts/release/targets/`, never
 by a flag left off the command line.
