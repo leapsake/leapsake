@@ -275,7 +275,7 @@ export default {
    * half becomes possible it adds a second `tracks.update` to the *same* edit rather than
    * a second upload, so one version code covers both.
    */
-  async publish({ artifact, root, stage }) {
+  async publish({ artifact, root, stage, version }) {
     const tier = TIERS[stage];
     const play = playFromEnv();
     const app = play.app(artifact.bundleId);
@@ -299,6 +299,9 @@ export default {
           track: tier.track,
           releases: [
             {
+              // Without this Play names the release from the versionName, which is the
+              // store version — so every rung of 0.1.0 would read "0.1.0" in the Console.
+              name: version,
               status: "completed",
               versionCodes: [String(bundle.versionCode)],
               releaseNotes: [{ language: "en-US", text: notes }],
