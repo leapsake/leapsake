@@ -406,6 +406,9 @@ importers:
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../bytes
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema

@@ -65,6 +65,11 @@ export interface DuplicateService {
    */
   unresolvedCandidates(): Promise<DuplicateCandidate[]>;
   /**
+   * The same candidates as canonical `"lower:higher"` pair keys — the identity
+   * the Home nudge is content-addressed on. Names never leave this layer.
+   */
+  unresolvedPairKeys(): Promise<string[]>;
+  /**
    * Score one **not-yet-stored** contact against every active person and return
    * the matches (tier `none`/`low` dropped), high first. Used by contact import
    * to flag likely-existing people in the review before anything is written. The
@@ -254,10 +259,14 @@ export function createDuplicateService(
     return matches;
   }
 
+  const unresolvedCandidates = (): Promise<DuplicateCandidate[]> =>
+    repos.notADuplicate.listPairs().then(findCandidates);
+
   return {
     findCandidates,
     matchContact,
-    unresolvedCandidates: () =>
-      repos.notADuplicate.listPairs().then(findCandidates),
+    unresolvedCandidates,
+    unresolvedPairKeys: async () =>
+      (await unresolvedCandidates()).map(({ a, b }) => pairKey(a.id, b.id)),
   };
 }

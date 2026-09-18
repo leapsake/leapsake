@@ -4,9 +4,27 @@ The engine that mints, refreshes, and retires **`system` reminders** — rows th
 than the user. Four families feed one reconcile: milestone reminders (birthdays and the like),
 holiday-observance reminders, the dateless **onboarding nudges**, and the duplicate-pairs nudge.
 
-It has no `@leapsake/core` or `@leapsake/data` dependency. Everything it needs arrives through
-small injected ports (`ReminderEngineDeps`), so it stays independently testable and narrowly
-scoped. The composition root wires the repos.
+It has no `@leapsake/core` dependency, and the engine has no `@leapsake/data` one either:
+everything it needs arrives through small injected ports (`ReminderEngineDeps`), so it stays
+independently testable and narrowly scoped.
+
+## Two entry points, and why the split is load-bearing
+
+| Import                     | File        | What it is                                                                        |
+| -------------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `@leapsake/reminders`      | `engine.ts` | the pure half — the desired-set walk, the display window, the copy. No I/O.       |
+| `@leapsake/reminders/api`  | `api.ts`    | `createRemindersApi(deps)` — the client-facing surface, over repos. Needs `data`. |
+
+**The root barrel deliberately does not re-export `api.ts`.** `@leapsake/view-models` depends
+on this package and `@leapsake/ui` depends on that, so a single barrel carrying the repo-backed
+half would pull `data` — and through it `crypto` — into the type graph of a package that only
+renders components. `packages/ui` sets `"types": []`, so that lands as a typecheck failure
+rather than as a slow drift.
+
+`api.ts` takes two things as ports rather than importing them: **`hasAccount`**, because the
+answer lives in `@leapsake/key-custody` and reminders has no business depending on custody to
+ask one question, and **`listHolidayCandidates`**, because `@leapsake/holidays` already depends
+on this package and importing it back would be a cycle.
 
 ## Where to look
 
