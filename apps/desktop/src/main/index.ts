@@ -84,9 +84,8 @@ let userDataPath: string;
 let keystorePath: string;
 let keyStore: KeyStore;
 
-// The unlocked device key material (custody Phase 0), passed into createCore so
-// it can encrypt sensitive fields at rest under per-item content keys. Mutable
-// because every store swap re-establishes it (see openActiveStore).
+// The unlocked device key material (custody Phase 0). Mutable because every store
+// swap re-establishes it (see openActiveStore).
 let keySession: KeySession | undefined;
 export function getKeySession(): KeySession | undefined {
   return keySession;
@@ -111,10 +110,10 @@ let activeCore: CoreApi | undefined;
 // one-time recovery phrase was on screen.
 let storeSwapping = false;
 
-/** Build the live core around `session`. Called at bootstrap and again after
+/** Build the live core over the open driver. Called at bootstrap and again after
  *  every store swap. */
-function setActiveCore(session: KeySession | undefined): void {
-  activeCore = createCore(driver, session);
+function setActiveCore(): void {
+  activeCore = createCore(driver);
 }
 
 /**
@@ -218,7 +217,7 @@ async function openActiveStore(): Promise<void> {
       established.cause,
     );
   }
-  setActiveCore(keySession);
+  setActiveCore();
 }
 
 /**

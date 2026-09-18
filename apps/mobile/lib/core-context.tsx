@@ -633,14 +633,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // `reconcileNotifications` reads `coreRef.current` rather than closing
       // over the core being built here, since that ref is set synchronously
       // right after, before anything can call into the wrapped object.
-      const buildCore = (session: KeySession | undefined): CoreApi =>
-        withSyncKick(createCore(driver, session), () => {
+      const buildCore = (): CoreApi =>
+        withSyncKick(createCore(driver), () => {
           if (coreRef.current !== null) {
             void reconcileNotifications(coreRef.current);
           }
         });
 
-      const bootedCore = buildCore(keySession.current ?? undefined);
+      const bootedCore = buildCore();
       coreRef.current = bootedCore;
       setCore(bootedCore);
       // Sequenced: `reconcileNotifications` reads `reminders.list()` fresh, so

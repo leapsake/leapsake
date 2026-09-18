@@ -22,7 +22,9 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  *
  * The load-bearing case is the last one — that no content key is minted even when
  * a master key is available. Layer 3 still exists for photos (`plans/v0-2.md`),
- * so the guard is against it silently regaining a domain-field consumer.
+ * so the guard is against it silently regaining a domain-field consumer. Each
+ * `beforeEach` mints a real master key for that reason, though `createCore` no
+ * longer takes one.
  */
 let driver: SqliteDriver;
 let cleanup: () => void;
@@ -48,10 +50,10 @@ beforeEach(async () => {
   ({ driver, cleanup } = makeEncryptedTestDriver());
   await runMigrations(driver);
   keyStore = createInMemoryKeyStore();
-  // A key session *is* wired, so "no content key is minted" below means the code
+  // A master key *is* minted, so "no content key is minted" below means the code
   // path is gone — not merely that no key happened to be available.
-  const session = await ensureDeviceMasterKey({ keyStore, driver });
-  core = createCore(driver, session);
+  await ensureDeviceMasterKey({ keyStore, driver });
+  core = createCore(driver);
 });
 
 afterEach(() => {
@@ -96,19 +98,11 @@ describe("milestone note", () => {
 
   it("survives a cold reopen", async () => {
     const created = await core.milestones.create(milestoneWithNote());
-    const recovered = await ensureDeviceMasterKey({ keyStore, driver });
-    const reopened = createCore(driver, recovered);
+    await ensureDeviceMasterKey({ keyStore, driver });
+    const reopened = createCore(driver);
 
     const [read] = await reopened.milestones.listForBearer("person", SUBJECT);
     expect(read?.id).toBe(created.id);
-    expect(read?.note).toBe(NOTE);
-  });
-
-  it("reads identically with no key session at all (an Unauthenticated store)", async () => {
-    await core.milestones.create(milestoneWithNote());
-    // No key session — the custody state every fresh install now starts in.
-    const keyless = createCore(driver);
-    const [read] = await keyless.milestones.listForBearer("person", SUBJECT);
     expect(read?.note).toBe(NOTE);
   });
 

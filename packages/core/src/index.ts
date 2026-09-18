@@ -152,7 +152,6 @@ import {
   buildArchive,
 } from "@leapsake/export";
 import { getSyncStatus } from "@leapsake/key-custody";
-import type { KeySession } from "@leapsake/key-custody";
 import {
   type ObserverDecision,
   createHolidaysApi,
@@ -538,20 +537,6 @@ export interface AlreadyStored {
  */
 export type CoreApi = ReturnType<typeof createCore>;
 
-/**
- * Wire the repositories and services over a {@link SqliteDriver} and return the
- * composed {@link CoreApi}. Synchronous wiring only — run {@link runMigrations}
- * against the same driver before issuing any query.
- *
- * Inputs are passed straight to the repositories, which validate them with their
- * Zod schemas internally. A client that accepts untrusted input (e.g. the desktop
- * IPC boundary) should additionally parse at its trust boundary before calling in.
- *
- * Pass the {@link KeySession} minted by {@link ensureDeviceMasterKey} to encrypt
- * sensitive fields at rest under per-item content keys (today: `milestone.note`).
- * Omit it and those fields are stored and read as plaintext, unchanged — so tests
- * and any not-yet-keyed path keep working.
- */
 // The `@mention` targets embedded inline in a reminder's text — the derivation
 // input the `mentions` join is reconciled to on every write, mirroring how
 // `parseHashtags` drives the taggings graph. Title and body are joined so a
@@ -566,13 +551,16 @@ function mentionTargetsOf(r: {
   }));
 }
 
-// `keySession` is still accepted (and still optional — an Unauthenticated store has none),
-// but **no repository consumes it today**: `milestone.note` was layer 3's only
-// domain-field consumer and was retired on 2026-07-27 (migration 27). The
-// parameter stays because photos, layer 3's real consumer, will need exactly this
-// (`plans/v0-2.md`) — and because `createCore(driver, keySession?)` is what lets
-// the same call site serve both custody states.
-export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
+/**
+ * Wire the repositories and services over a {@link SqliteDriver} and return the
+ * composed {@link CoreApi}. Synchronous wiring only — run {@link runMigrations}
+ * against the same driver before issuing any query.
+ *
+ * Inputs are passed straight to the repositories, which validate them with their
+ * Zod schemas internally. A client that accepts untrusted input (e.g. the desktop
+ * IPC boundary) should additionally parse at its trust boundary before calling in.
+ */
+export function createCore(driver: SqliteDriver) {
   const people = createPeopleRepo(driver);
   const pets = createPetsRepo(driver);
   const tags = createTagsRepo(driver);

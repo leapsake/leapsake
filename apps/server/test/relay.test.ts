@@ -874,7 +874,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       password: PASSWORD,
       platform: "mobile",
     });
-    const d2Core = createCore(d2.driver, session);
+    const d2Core = createCore(d2.driver);
     const { duplicateCount } = await reconcileOnJoin({
       driver: d2.driver,
       masterKey: session.masterKey,
