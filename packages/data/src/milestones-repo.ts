@@ -23,42 +23,18 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
     input: UpdateMilestoneInput,
   ): Promise<Milestone | undefined>;
 
-  /**
-   * Every active milestone of a bearer, ordered by year, then month, then day.
-   * SQLite sorts NULLs first, so a milestone missing an earlier part sorts ahead
-   * of one that has it (a year-less recurring date leads a dated one).
-   */
+  /** A bearer's active milestones by year, month, day; NULLs sort first. */
   listForBearer(type: MilestoneBearerType, id: string): Promise<Milestone[]>;
 
-  /**
-   * The remind-relevant, **plaintext** projection of every active milestone that
-   * has a concrete calendar day (both `month` and `day` set) — the cross-bearer
-   * scan the automated-reminder engine runs to decide who to remind about. It
-   * reads only the plaintext columns and **never touches `note`**, so it needs
-   * no {@link ContentCipher} and does no decryption; the `month IS NOT NULL AND
-   * day IS NOT NULL` predicate is served by `ix_milestones_recurring (month,
-   * day)` (reserved in migration 8). The engine, not the repo, applies the
-   * per-kind/per-milestone "should this remind" policy.
-   */
+  /** Every active milestone with a month and day, across bearers, for the
+   *  reminder engine. Never reads `note`. */
   listRemindEligible(): Promise<RemindEligibleMilestone[]>;
 
-  /**
-   * Soft-delete every active milestone of a bearer. Used when the host entity
-   * (a Person or Pet) is deleted. Transaction-free building block — the caller
-   * composes it with the entity's own delete inside one transaction.
-   *
-   * TODO (v2): also cascade milestones whose bearer is a *relationship* the
-   * entity belonged to. No such rows exist via the v1 UI yet (relationship
-   * bearers aren't creatable here), so there is nothing to orphan today.
-   */
+  /** Soft-delete a bearer's milestones. Transaction-free. TODO: also cascade
+   *  milestones borne by a relationship the entity was in. */
   removeAllForEntity(type: MilestoneBearerType, id: string): Promise<void>;
 
-  /**
-   * Re-point every active milestone of `fromId` onto `toId` (used when merging
-   * `fromId` into `toId`). Per-item content keys are keyed by milestone id, not
-   * bearer, so moving the bearer leaves encryption untouched. Transaction-free
-   * building block.
-   */
+  /** Re-point a bearer's milestones onto `toId`. Transaction-free. */
   repointEntity(
     type: MilestoneBearerType,
     fromId: string,
@@ -66,25 +42,7 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
   ): Promise<void>;
 }
 
-/**
- * The Milestones repository, written against the async {@link SqliteDriver} port
- * so it runs unchanged on desktop and mobile. Reads exclude soft-deleted rows
- * and writes never hard-delete.
- *
- * **`note` is plaintext inside the store** *(2026-07-27)*. It was briefly the one
- * domain field sealed under a per-item content key (encryption `model.md` §2.1),
- * which is why this repo used to carry a `(note, note_ciphertext)` split and a
- * custom codec. Under *encryption follows custody* (§7.2) that layer bought
- * nothing a domain field wants: an **Unauthenticated** store has no key to seal with, and a
- * **Authenticated** store is already whole-file ciphertext at rest, so per-item
- * sealing only added a second, device-local key to keep in step across sync.
- *
- * Layer 3 itself is **not** gone — `content_key`, `createContentCipher`, and
- * `EncryptedRecord.wrappedKey` remain, because photos are its real consumer
- * (`plans/v0-2.md`). It simply has no *domain-field* consumer today, which is
- * why this repo is now ordinary: no cipher, no codec, just the default
- * snake_case mapping every other entity uses.
- */
+/** The milestones repository. */
 export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
   const base = createEntityRepo<Milestone>({
     driver,
@@ -126,11 +84,8 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
       }),
 
     async listRemindEligible() {
-      // A direct, narrow read: it selects only the columns the reminder engine
-      // needs and so never surfaces `note` — worth keeping now that `note` is
-      // plaintext, since the engine has no business reading it either way.
-      // `kind`/`bearer_type` are our own constrained values, so they're cast to
-      // their domain unions without a re-parse.
+      // Only the columns the engine needs, never `note`; `kind` and
+      // `bearer_type` are cast without a re-parse.
       const rows = await driver.all<{
         id: string;
         kind: string;
@@ -167,10 +122,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
-      // `MAX(?, updated_at + 1)` keeps the re-point strictly newer than the row it
-      // rewrites so it wins LWW on every device rather than tying when the merge
-      // lands in the milestone's creation millisecond (see relationships-repo
-      // `repointEntity`).
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
       await driver.run(
         `UPDATE milestones SET bearer_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,

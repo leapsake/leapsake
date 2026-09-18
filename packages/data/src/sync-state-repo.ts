@@ -1,28 +1,7 @@
 import type { SqliteDriver } from "./driver.js";
 
-/**
- * Durable persistence for the {@link SyncEngine}'s two watermarks, so a fresh
- * engine on the same database resumes exactly where it left off instead of
- * re-pushing or re-pulling from zero (plans/encryption/sync.md).
- *
- * It is backed by the device-local `sync_state` table (migration 13), a plain
- * key/value store. That table carries none of the sync substrate and is *never*
- * registered as a {@link SyncableRepo} — these marks are per-device and must not
- * replicate (model.md §3), exactly like the `content_key`/`key_wrap` tables.
- *
- * - `push_hwm` — the epoch-ms high-water mark of rows already sealed and pushed.
- * - `pull_cursor` — the transport's opaque delivery cursor already consumed.
- * - `auto_sync_disabled` — the per-client "Sync automatically" preference, stored
- *   *inverted* so that a missing row (= `0`) reads as **enabled**, giving the
- *   default-ON behaviour for free. `1` = the user turned automatic sync off on
- *   this install. Like the watermarks it is device-local and never replicates.
- * - `recovery_escrow_pending` — set by an offline recovery-phrase rotation, so the
- *   next sync carries the new escrow to the relay.
- *
- * A missing row reads as `0`, which is the documented floor for both:
- * `push(0)` collects every local row and `pull(0)` returns the whole log (see
- * `@leapsake/sync`, where transport sequences start at 1).
- */
+/** Device-local key/value state that must never replicate: the sync
+ *  watermarks and per-install flags (README, "The sync substrate"). */
 export interface SyncStateRepo {
   getPushHwm(): Promise<number>;
   setPushHwm(value: number): Promise<void>;
@@ -31,60 +10,18 @@ export interface SyncStateRepo {
   /** Whether automatic background sync is enabled on this install (default true). */
   getAutoSyncEnabled(): Promise<boolean>;
   setAutoSyncEnabled(enabled: boolean): Promise<void>;
-  /**
-   * The bundled holiday-catalog version this install has already seeded
-   * (`0` = never). Device-local by construction, which is exactly what the seed
-   * gate needs: "has *this device* applied *this bundle*" is a fact about the
-   * install, not about the account.
-   *
-   * The alternative — deciding whether to seed by checking whether holiday rows
-   * exist — is wrong in two ways at once (`@leapsake/holidays` README, the invariants): a device
-   * that received the catalog via sync would re-seed from its own stale bundle,
-   * and holidays the user deleted would come back.
-   *
-   * An integer, because that is what this table's `value` column holds. That
-   * forecloses a semver catalog version, which is the natural instinct.
-   */
+  /** The holiday-catalog version this install has seeded; `0` = never. */
   getHolidayCatalogVersion(): Promise<number>;
   setHolidayCatalogVersion(version: number): Promise<void>;
-  /**
-   * Whether this device has rotated its recovery phrase without yet telling the
-   * relay (custody slice 8, `model.md` §6). Rotation is deliberately offline-
-   * capable: it re-seals the local doors immediately and leaves this flag for the
-   * next sync to carry the new escrow up.
-   *
-   * Device-local like everything else here, and necessarily so — it is a fact
-   * about *this* device's outbox, not about the account.
-   */
+  /** Whether an offline phrase rotation still owes the relay its new escrow. */
   getRecoveryEscrowPending(): Promise<boolean>;
   setRecoveryEscrowPending(pending: boolean): Promise<void>;
-  /**
-   * Whether this device's key custody is **unfinished** (custody slice 10,
-   * `model.md` §7.5): set while a door unlock is re-adopting the account's master
-   * key, and left set when that repair could not complete — which is what puts the
-   * device in the *Degraded* state, syncing nothing until it is resolved.
-   *
-   * It exists because the repair is two durable steps, not one. Adopting the key
-   * commits a `key_wrap` row; rewinding the watermarks
-   * (`resyncAfterMasterKeyRepair`) is a separate write, and a crash between them
-   * leaves a device holding the *right* key with its history quietly holed — the
-   * exact damage the repair exists to undo. The flag spans the pair, so the next
-   * boot finishes it.
-   *
-   * Device-local like everything else here, and necessarily so: it is a fact about
-   * *this* device's enclave, not about the account.
-   */
+  /** Whether a master-key repair is unfinished: set across adopt and rewind,
+   *  so a crash between them is completed on the next boot. */
   getMasterKeyRepairPending(): Promise<boolean>;
   setMasterKeyRepairPending(pending: boolean): Promise<void>;
-  /**
-   * Whether this device keeps its People in step with the phone's address book
-   * — switched on the first time the user imports from it, and read at every
-   * boot and foreground before the address book is touched.
-   *
-   * Opt-in rather than "whenever permission is granted" so that a factory reset
-   * (which drops this row with the store) does not quietly refill a store the
-   * user just emptied. Device-local because the address book it names is.
-   */
+  /** Whether this device keeps People in step with its address book; switched
+   *  on by the first import. */
   getDeviceContactsSync(): Promise<boolean>;
   setDeviceContactsSync(enabled: boolean): Promise<void>;
 }

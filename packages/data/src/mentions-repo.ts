@@ -42,12 +42,8 @@ export interface MentionTarget {
   targetId: string;
 }
 
-/**
- * The **deterministic** id a mention row is content-addressed under. Derived from
- * the full `(bearer, target)` tuple, so a mention re-derived from the same text on
- * another device reuses the same row and whole-row LWW dedups it — the same trick
- * that keeps a system reminder's own id stable across devices.
- */
+/** A mention row's deterministic id, from `(bearer, target)`, so a mention
+ *  re-derived on another device reuses the row. */
 function mentionRowId(
   bearerType: string,
   bearerId: string,
@@ -61,15 +57,8 @@ function mentionRowId(
 }
 
 export interface MentionsRepo extends SyncableRepo<Mentioning> {
-  /**
-   * Make the bearer's mentions exactly `targets`: insert a row for each newly
-   * mentioned entity, soft-delete rows for targets no longer mentioned. Ids are
-   * deterministic, so a re-derived mention reuses its row — a tombstoned one is
-   * **un-deleted** (the text is authoritative; there is no dismissal to respect),
-   * an already-active one is left untouched (idempotent). Unlike a tag, a mention
-   * target is a real, independently-owned entity, so **nothing is garbage-collected
-   * on removal**. Transaction-free building block: the caller wraps it.
-   */
+  /** Make a bearer's mentions exactly `targets`, reviving tombstoned rows (the
+   *  text is authoritative). No GC of targets. Transaction-free. */
   setEntityMentions(
     bearerType: MentionBearerType,
     bearerId: string,
@@ -82,39 +71,23 @@ export interface MentionsRepo extends SyncableRepo<Mentioning> {
     bearerId: string,
   ): Promise<Mentioning[]>;
 
-  /**
-   * Active bearer ids whose text mentions this entity — the indexed **backlink**
-   * (`ix_mentions_target`) that powers "what references this person/pet?". Pass
-   * `bearerType` to scope to one kind of bearer (e.g. only reminders).
-   */
+  /** Active bearer ids whose text mentions this entity, optionally of one
+   *  bearer type: the indexed backlink. */
   bearerIdsForTarget(
     targetType: EntityType,
     targetId: string,
     bearerType?: MentionBearerType,
   ): Promise<string[]>;
 
-  /**
-   * Soft-delete all of a bearer's mentions — used when the host bearer (e.g. a
-   * reminder) is deleted. Transaction-free building block.
-   */
+  /** Soft-delete all of a bearer's mentions. Transaction-free. */
   removeAllForBearer(
     bearerType: MentionBearerType,
     bearerId: string,
   ): Promise<void>;
 }
 
-/**
- * The Mentions repository over the async {@link SqliteDriver} port. The `mentions`
- * table is its own synced unit (a plaintext backlink of `(bearer, target)` id
- * pairs — non-secret within the account, like `taggings`), so the sync surface
- * comes from {@link defineSyncable}; the bearer-oriented write/read API below is
- * the reconcile core drives on every reminder write.
- *
- * Write methods are transaction-free building blocks, matching {@link
- * ./tags-repo.js createTagsRepo}: a single user action composes a reminder write
- * with a mention write, and the caller wraps the whole thing in one
- * `driver.transaction` — the node:sqlite driver's BEGIN/COMMIT does not nest.
- */
+/** The mentions backlink, synced. Writes are transaction-free, since the
+ *  node:sqlite driver's transactions do not nest. */
 export function createMentionsRepo(driver: SqliteDriver): MentionsRepo {
   return {
     ...defineSyncable<Mentioning>({

@@ -6,12 +6,7 @@ import type {
 import type { MilestonesRepo } from "./milestones-repo.js";
 import type { RelationshipsRepo } from "./relationships-repo.js";
 
-/**
- * Compare two partial dates with the same ordering the repo's SQL uses
- * (`ORDER BY year, month, day`, SQLite sorting NULLs first): a milestone missing
- * an earlier part sorts ahead of one that has it. Used to re-merge an entity's
- * own milestones with those drawn from its relationships into one timeline.
- */
+/** Compare date parts as the repo's SQL orders them, NULLs first. */
 function compareDateParts(a: number | null, b: number | null): number {
   if (a === b) return 0;
   if (a === null) return -1; // NULLs first, matching the SQL ORDER BY
@@ -28,24 +23,8 @@ function byDate(a: Milestone, b: Milestone): number {
   );
 }
 
-/**
- * The merged milestone timeline for a Person or Pet: its **own** milestones plus
- * the milestones of every **explicit** relationship it participates in, resolved
- * read-only onto its timeline via a 1-hop join (never materialised). A pure
- * composition over the two repositories — it mirrors `kinship-service.ts`: no
- * direct DB access, deleting a source fact makes its timeline entry vanish on the
- * next read.
- *
- * Relationship-origin entries are annotated with the `relationshipId` (so the UI
- * can link out to the relationship's page, the single edit surface) and the
- * other partner's label, resolved via the caller-supplied `resolveLabel` (the
- * IPC layer already has one; passing it keeps this function free of the
- * people/pets repos). Only explicit edges are walked — derived edges have no
- * stored row and so can hold no milestones.
- *
- * The result is date-sorted with the same NULLs-first ordering the repo uses, so
- * own and relationship entries interleave by date.
- */
+/** An entity's own milestones plus those of its explicit relationships,
+ *  annotated with the relationship, merged by date. Computed on read. */
 export async function listTimelineForEntity(
   milestones: Pick<MilestonesRepo, "listForBearer">,
   relationships: Pick<RelationshipsRepo, "listForEntity">,

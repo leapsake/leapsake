@@ -24,6 +24,14 @@ They are pinned to **identical observable behavior** by one shared contract suit
 the in-app self-test driven by `pnpm test:native`. That equivalence is what lets the shared
 repo/service logic be proven once, on desktop, rather than re-run on every engine.
 
+The suite is framework-agnostic (it receives `describe`/`it`/`expect` as a parameter) and
+schema-independent (each case makes its own table and driver), which is what lets the mobile
+self-test run it unchanged on a device. Two things keep it from going stale: desktop gates the
+driver file at 100% coverage, so a new desktop code path fails until a case exercises it, and the
+self-test reads a zero-case run as a failure. Where native libraries most plausibly diverge next:
+type and affinity coercion, large BLOBs, constraint-error shape, nested transactions, collation,
+and any new `SqliteDriver` method.
+
 ## Migrations — hand-rolled, forward-only
 
 SQLite offers nothing for schema evolution and a migration library is avoidable bloat. The
@@ -127,7 +135,14 @@ entity, and the rules that keep it on that one page are spread across the servic
 The engine, transports, and scheduler live in [`@leapsake/sync`](../sync/README.md). What
 stays here is the substrate they run on: **`defineSyncable`** — the primitive that makes an
 entity syncable in one call, reconciled with `resolveMerge` (whole-row LWW) — and
-**`SyncStateRepo`**, the durable watermarks in a device-local `sync_state` table. The
+**`SyncStateRepo`**, the device-local `sync_state` key/value table. A missing row reads as `0`,
+the floor for both watermarks (`push(0)` collects every row, `pull(0)` the whole log). Beside the
+watermarks it holds per-install facts that must not replicate: `auto_sync_disabled` (inverted,
+so no row means on), the seeded holiday-catalog version (an integer, so not semver; seeding by
+checking for rows would re-seed stale bundles and resurrect deleted holidays), the pending
+recovery escrow after an offline rotation, the master-key repair flag, and whether this device
+keeps People in step with its address book (opt-in, so a factory reset does not refill a store
+the user just emptied). The
 canonical "how to add a synced entity" recipe is below.
 
 ### How to make an entity sync-eligible

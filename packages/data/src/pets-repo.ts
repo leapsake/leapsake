@@ -15,12 +15,7 @@ export interface PetsRepo extends EntityRepo<Pet> {
   update(id: string, input: UpdatePetInput): Promise<Pet | undefined>;
 }
 
-/**
- * The Pets repository, written against the async {@link SqliteDriver} port so
- * it runs unchanged on desktop and mobile (mirrors the People repository). The
- * standard CRUD and the sync surface come from {@link createEntityRepo}; only
- * `create` (input parse + assemble) is bespoke.
- */
+/** The pets repository. */
 export function createPetsRepo(driver: SqliteDriver): PetsRepo {
   const base = createEntityRepo<Pet>({
     driver,

@@ -14,46 +14,23 @@ import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
 export interface RemindersRepo extends EntityRepo<Reminder> {
   create(input: CreateReminderInput): Promise<Reminder>;
   update(id: string, input: UpdateReminderInput): Promise<Reminder | undefined>;
-  /**
-   * Toggle completion: stamp `completedAt` with the current time when completing,
-   * clear it back to null when reopening. Routes through the standard `update`, so
-   * the row's clock advances and the change syncs like any other edit.
-   *
-   * **Completing clears any snooze** *(owner, 2026-09-11)*. A finished reminder
-   * is done, and a snooze left behind would hide it again the moment it was
-   * reopened — for as long as a clock nobody could see still had to run.
-   */
+  /** Toggle completion through `update`, so it syncs. Completing clears any
+   *  snooze, which would otherwise hide a reopened reminder. */
   setCompleted(id: string, completed: boolean): Promise<Reminder | undefined>;
-  /**
-   * Put a reminder off until the civil day `until` (epoch-ms UTC midnight, like a
-   * due date). Nothing is counted: no reminder retires by being put off, so the
-   * day it comes back is the whole of what a snooze records.
-   *
-   * The day is the caller's, checked only as an integer (see
-   * {@link snoozeUntilSchema}); which rows may be put off and how far is
-   * `@leapsake/reminders`' `snoozeTargetOf`, applied before this is called. A
-   * missing or soft-deleted id returns undefined, writing nothing.
-   */
+  /** Put a reminder off until a civil day; `snoozeTargetOf` decides what is
+   *  allowed. Undefined, writing nothing, for a missing id. */
   snooze(id: string, until: number): Promise<Reminder | undefined>;
 }
 
-/**
- * The Reminders repository over the async {@link SqliteDriver} port. Plaintext —
- * no {@link ContentCipher}, unlike milestones; reminders aren't a share target
- * and are already covered by whole-DB-at-rest + master-key-sealed sync. Standard
- * CRUD + the sync surface come from {@link createEntityRepo}; only `create`
- * (input parse + assemble), the `setCompleted` toggle and `snooze` are bespoke.
- */
+/** The reminders repository. */
 export function createRemindersRepo(driver: SqliteDriver): RemindersRepo {
   const base = createEntityRepo<Reminder>({
     driver,
     table: "reminders",
     schema: reminderSchema,
     orderBy: "created_at DESC",
-    // The one table that needs it: the engine mints its `system` rows under
-    // deterministic ids, so two devices produce the same row independently and a
-    // mint would otherwise out-rank a peer's dismissal or snooze on `updated_at`
-    // alone. See {@link reminderHasHistory}.
+    // System rows have deterministic ids, so a fresh mint must not out-rank a
+    // peer's dismissal or snooze (see {@link reminderHasHistory}).
     hasHistory: reminderHasHistory,
   });
 

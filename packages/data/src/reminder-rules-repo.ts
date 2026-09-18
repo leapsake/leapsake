@@ -13,44 +13,21 @@ import {
 } from "./entity-repo.js";
 
 export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
-  /**
-   * Every active reminder rule of a bearer (a milestone today), furthest lead
-   * first (a month → a week → day-of), stable within an equal lead.
-   */
+  /** A bearer's active rules, furthest lead first, stable within a lead. */
   listForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
   ): Promise<ReminderRule[]>;
 
-  /**
-   * Replace a bearer's whole reminder schedule: soft-delete its active rules,
-   * then insert the supplied set (an empty array clears it back to "no
-   * reminders" — the milestone then rides its kind defaults again). Rows get
-   * fresh random ids on each save, matching contact methods' set-replace: rules
-   * aren't deduped across devices, just merged by whole-row LWW.
-   *
-   * ⚠️ **The set is validated as a set**, not row by row, because the one rule
-   * a per-row schema cannot see is the one that matters here: two rules sharing
-   * an identity collapse into a single reminder downstream (the engine keys its
-   * desired set by derived id), silently, with the later winning. Nothing in the
-   * DB prevents writing them — there is no unique constraint on `reminder_rules`
-   * — so this is the guard, and it sits here because every writer goes through
-   * it: both schedule editors and the prompt's answer.
-   *
-   * Transaction-free building block — the caller composes it with the milestone
-   * write inside one transaction so the schedule and the milestone never
-   * diverge.
-   */
+  /** Replace a bearer's whole schedule, validated as a set so two rules cannot
+   *  share an identity. Empty means kind defaults. Transaction-free. */
   replaceForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
     rules: ReminderRuleInput[],
   ): Promise<void>;
 
-  /**
-   * Soft-delete every active reminder rule of a bearer. Used when the host
-   * milestone is deleted. Transaction-free building block.
-   */
+  /** Soft-delete every rule of a bearer. Transaction-free. */
   removeAllForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
@@ -60,12 +37,7 @@ export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
 /** The read/write order: furthest lead first, then stable by insertion time. */
 const RULE_ORDER = "offset_days DESC, created_at";
 
-/**
- * The Reminder Rules repository, written against the async {@link SqliteDriver}
- * port so it runs unchanged on desktop and mobile. A plain synced entity — no
- * codec, `enabled` is the one 0/1 boolean SQLite has no type for. Reads exclude
- * soft-deleted rows and writes never hard-delete.
- */
+/** The reminder-rules repository. */
 export function createReminderRulesRepo(
   driver: SqliteDriver,
 ): ReminderRulesRepo {

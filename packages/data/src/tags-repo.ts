@@ -32,66 +32,41 @@ function toTag(row: TagRow): Tag {
   });
 }
 
-/**
- * A tag plus how many things currently wear it — one row of the tag catalog.
- * The count spans every bearer type (people, pets, reminders, gift ideas), which
- * is what the catalog is *for*: a tag's reach, not its reach within one type.
- */
+/** A tag with how many things wear it, across every bearer type. */
 export interface TagListItem extends Tag {
   usageCount: number;
 }
 
 export interface TagsRepo extends SyncableRepo<Tag> {
-  /**
-   * The `taggings` join table as its own synced unit (a tag is meaningless
-   * without the taggings that apply it, so both replicate). Same per-table
-   * pattern as every other repo, exposed alongside the tags one.
-   */
+  /** The `taggings` join table, synced alongside the tags. */
   taggings: SyncableRepo<Tagging>;
 
   /** Tags currently applied to an entity, via its active taggings. */
   listForEntity(entityType: string, entityId: string): Promise<Tag[]>;
 
-  /**
-   * Make the entity's tags exactly `names`: tag any new names (reusing or
-   * creating shared tags), soft-delete taggings for dropped names, then
-   * soft-delete any tag left with no active taggings. Names are normalized and
-   * deduped first.
-   */
+  /** Make an entity's tags exactly `names` (normalized, deduped), then
+   *  soft-delete any tag left with no taggings. */
   setEntityTags(
     entityType: string,
     entityId: string,
     names: string[],
   ): Promise<void>;
 
-  /**
-   * Soft-delete all of an entity's taggings, then garbage-collect any tag left
-   * orphaned. Used when the host entity (e.g. a Person) is deleted.
-   */
+  /** Soft-delete an entity's taggings, then GC orphaned tags. */
   removeAllForEntity(entityType: string, entityId: string): Promise<void>;
 
-  /**
-   * Move `fromId`'s taggings onto `toId` (used when merging `fromId` into
-   * `toId`). A tag the survivor already carries is not duplicated — the loser's
-   * tagging for it is dropped instead. Transaction-free building block.
-   */
+  /** Move taggings from `fromId` to `toId`, dropping the loser's where the
+   *  survivor has the tag. Transaction-free. */
   repointEntity(
     entityType: string,
     fromId: string,
     toId: string,
   ): Promise<void>;
 
-  /**
-   * Soft-delete a tag and every active tagging that applies it, removing the tag
-   * from all entities at once. Transaction-free building block — the caller wraps
-   * the deletion in one `driver.transaction`.
-   */
+  /** Soft-delete a tag and every tagging that applies it. Transaction-free. */
   softDelete(tagId: string): Promise<void>;
 
-  /**
-   * Every active tag, alphabetically, each with its active-tagging count —
-   * the tag catalog.
-   */
+  /** Every active tag, alphabetically, with its tagging count. */
   list(): Promise<TagListItem[]>;
 
   get(id: string): Promise<Tag | undefined>;
@@ -100,16 +75,8 @@ export interface TagsRepo extends SyncableRepo<Tag> {
   entityIdsForTag(tagId: string, entityType: string): Promise<string[]>;
 }
 
-/**
- * The Tags repository, written against the async {@link SqliteDriver} port so it
- * runs unchanged on desktop and mobile. Reads exclude soft-deleted rows and
- * writes never hard-delete.
- *
- * Write methods are transaction-free building blocks: a single user action
- * (saving a Person) composes a person write with tag writes, and the caller
- * wraps the whole thing in one `driver.transaction` — the node:sqlite driver's
- * BEGIN/COMMIT does not nest, so these methods must not open their own.
- */
+/** The tags repository. Writes are transaction-free, since the node:sqlite
+ *  driver's transactions do not nest. */
 export function createTagsRepo(driver: SqliteDriver): TagsRepo {
   /** Find the active tag for a normalized name, or create one. */
   async function resolveOrCreateTag(name: string): Promise<TagRow> {
@@ -236,10 +203,7 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
           WHERE bearer_type = ? AND bearer_id = ? AND deleted_at IS NULL`,
         [entityType, fromId],
       );
-      // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row
-      // it rewrites, so it wins LWW on every device instead of tying when the
-      // merge runs in the tagging's creation millisecond (see relationships-repo
-      // `repointEntity` for the full rationale).
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
       for (const { id, tag_id } of fromTaggings) {
         if (survivorTagIds.has(tag_id)) {
           // Survivor already wears this tag — drop the would-be duplicate.
@@ -260,11 +224,8 @@ export function createTagsRepo(driver: SqliteDriver): TagsRepo {
     },
 
     async list() {
-      // Sorted by `normalized` — the lowercased name — so "apple" and "Apple"
-      // interleave the way a reader expects rather than by ASCII case.
-      // LEFT JOIN, not JOIN: a tag whose last tagging was removed is normally
-      // GC'd, but a pulled peer row can land taggingless, and a tag that exists
-      // should be listed (and so be deletable) rather than silently hidden.
+      // Sorted case-insensitively. LEFT JOIN, so a taggingless tag pulled from
+      // a peer is still listed and deletable.
       const rows = await driver.all<TagRow & { usage_count: number }>(
         `SELECT t.*, COUNT(g.id) AS usage_count
            FROM tags t

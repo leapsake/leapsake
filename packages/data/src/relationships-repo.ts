@@ -27,13 +27,8 @@ interface RelationshipRow {
   deleted_at: number | null;
 }
 
-/**
- * A canonical, orientation-independent key for a relationship: the two
- * `(type, id, role)` endpoints sorted, so an edge stored as A↔B and the same
- * edge stored as B↔A collapse to one key. Used to detect duplicate edges after
- * a merge re-points one endpoint onto the other. Role notes are deliberately
- * ignored — two edges with the same roles are the same connection.
- */
+/** An orientation-independent key for an edge (endpoints and roles, sorted),
+ *  to find duplicates after a merge. Role notes are ignored. */
 function edgeKey(rel: Relationship): string {
   const a = `${rel.aType}:${rel.aId}:${rel.aRole}`;
   const b = `${rel.bType}:${rel.bId}:${rel.bRole}`;
@@ -67,35 +62,18 @@ export interface RelationshipsRepo extends SyncableRepo<Relationship> {
   ): Promise<Relationship | undefined>;
   softDelete(id: string): Promise<void>;
 
-  /**
-   * Every active relationship touching an entity, whichever side it sits on. The
-   * one place the "either endpoint" OR-query lives; callers orient each row to
-   * the subject themselves.
-   */
+  /** Every active relationship touching an entity, on either side. */
   listForEntity(type: EntityType, id: string): Promise<Relationship[]>;
 
-  /**
-   * Soft-delete every active relationship touching an entity. Used when the host
-   * entity (a Person or Pet) is deleted. Transaction-free building block — the
-   * caller composes it with the entity's own delete inside one transaction.
-   */
+  /** Soft-delete every relationship touching an entity. Transaction-free. */
   removeAllForEntity(type: EntityType, id: string): Promise<void>;
 
-  /**
-   * Re-point every active edge touching `fromId` onto `toId` (used when merging
-   * `fromId` into `toId`), then clean up the two things a merge can create:
-   * **self-loops** (both ends now the survivor) are tombstoned, and **duplicate
-   * edges** (the survivor already had the same connection) collapse to one,
-   * keeping the latest-updated. Transaction-free building block.
-   */
+  /** Re-point edges from `fromId` to `toId`, tombstoning self-loops and
+   *  collapsing duplicates to the latest. Transaction-free. */
   repointEntity(type: EntityType, fromId: string, toId: string): Promise<void>;
 }
 
-/**
- * The Relationships repository, written against the async {@link SqliteDriver}
- * port so it runs unchanged on desktop and mobile. Reads exclude soft-deleted
- * rows and writes never hard-delete.
- */
+/** The relationships repository. */
 export function createRelationshipsRepo(
   driver: SqliteDriver,
 ): RelationshipsRepo {
@@ -207,14 +185,7 @@ export function createRelationshipsRepo(
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
-      // Move every edge endpoint from the loser to the survivor. The re-point
-      // must out-rank the pre-merge version of the *same* row on every device,
-      // and whole-row LWW (`resolveMerge`) settles equal `updated_at` by an
-      // arbitrary canonical tiebreak — so a re-point performed in the same
-      // millisecond the edge was created would tie and could lose, stranding the
-      // edge on the tombstoned loser. `MAX(?, updated_at + 1)` makes updated_at
-      // *strictly* advance past the row's current value (while never going below
-      // wall-clock now), so the re-point deterministically wins LWW everywhere.
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
       await driver.run(
         `UPDATE relationships SET a_id = ?, updated_at = MAX(?, updated_at + 1)
            WHERE a_type = ? AND a_id = ? AND deleted_at IS NULL`,
@@ -226,8 +197,7 @@ export function createRelationshipsRepo(
         [toId, now, type, fromId],
       );
 
-      // Prune self-loops: an edge whose ends are now both the survivor (the two
-      // merged people were related to each other) no longer means anything.
+      // Prune self-loops: the two merged people were related to each other.
       await softDeleteWhere(
         driver,
         "relationships",
@@ -235,11 +205,8 @@ export function createRelationshipsRepo(
         [type, toId, type, toId],
       );
 
-      // Dedupe edges that now describe the same connection (the survivor already
-      // held it): keep one per connection — the latest-updated, with the id as a
-      // deterministic tiebreak, mirroring the LWW order used everywhere else —
-      // and tombstone the rest. There is deliberately no unique index on the
-      // pair, so this is an explicit pass rather than a constraint.
+      // Keep one edge per connection, latest-updated with the id as tiebreak.
+      // No unique index on the pair, so this is an explicit pass.
       const rows = await driver.all<RelationshipRow>(
         `SELECT * FROM relationships
            WHERE deleted_at IS NULL

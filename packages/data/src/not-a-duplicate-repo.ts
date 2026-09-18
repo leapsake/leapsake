@@ -14,25 +14,14 @@ function canonicalPair(idA: string, idB: string): [string, string] {
 }
 
 export interface NotADuplicateRepo extends SyncableRepo<NotADuplicate> {
-  /**
-   * Remember that the two people are **not** the same. Canonicalizes the pair
-   * (order-independent), and is idempotent: if an active row for the pair already
-   * exists it bumps `updatedAt` rather than inserting a duplicate.
-   */
+  /** Remember two people are not the same; canonicalized and idempotent. */
   record(idA: string, idB: string): Promise<void>;
 
-  /**
-   * Every remembered pair as a `Set` of `"lower:higher"` keys — what the
-   * duplicate detector filters its candidates against.
-   */
+  /** Every remembered pair as a `"lower:higher"` key. */
   listPairs(): Promise<Set<PairKey>>;
 
-  /**
-   * Re-point every active row touching `fromId` onto `toId` (used when merging
-   * `fromId` into `toId`), re-canonalizing each pair, then drop any row that
-   * becomes a self-pair (`lower_id === higher_id`). Transaction-free building
-   * block — the caller composes it inside `core.people.merge`'s transaction.
-   */
+  /** Re-point rows from `fromId` to `toId`, re-canonicalizing, and drop any
+   *  that become self-pairs. Transaction-free. */
   repointEntity(fromId: string, toId: string): Promise<void>;
 }
 
@@ -45,13 +34,7 @@ interface NotADuplicateRow {
   deleted_at: number | null;
 }
 
-/**
- * The "not a duplicate" memory repository — rejected reconciliation pairs. Built
- * against the async {@link SqliteDriver} port so it runs unchanged on desktop and
- * mobile. It is a {@link SyncableRepo} (the rejection must replicate, else every
- * device re-nags about a pair the user already dismissed) — see
- * packages/core/README.md.
- */
+/** Rejected duplicate pairs, synced so no device asks again. */
 export function createNotADuplicateRepo(
   driver: SqliteDriver,
 ): NotADuplicateRepo {
@@ -104,9 +87,8 @@ export function createNotADuplicateRepo(
       for (const row of rows) {
         const otherEnd = row.lower_id === fromId ? row.higher_id : row.lower_id;
         const [lower, higher] = canonicalPair(toId, otherEnd);
-        // Drop the row if re-pointing makes it a self-pair (survivor↔itself) or a
-        // duplicate of a pair the survivor already remembers (the partial unique
-        // index would otherwise reject the update) — both are now redundant.
+        // Drop a row that becomes a self-pair or duplicates one the survivor
+        // has.
         const collides =
           otherEnd === toId ||
           (await driver.get<{ id: string }>(
@@ -115,10 +97,7 @@ export function createNotADuplicateRepo(
                 AND id <> ?`,
             [lower, higher, row.id],
           )) !== undefined;
-        // `MAX(?, updated_at + 1)` keeps each re-point strictly newer than the row
-        // it rewrites so it wins LWW on every device rather than tying when the
-        // merge lands in the row's creation millisecond (see relationships-repo
-        // `repointEntity`).
+        // `MAX(?, updated_at + 1)`: see the README's re-point rule.
         if (collides) {
           await softDeleteRow(driver, "not_a_duplicate", row.id);
           continue;
