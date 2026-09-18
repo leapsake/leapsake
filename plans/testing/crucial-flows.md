@@ -31,8 +31,7 @@ author will otherwise get wrong:
 > a first launch is **Unauthenticated**: it mints no keys, leaves the OS key store empty, and opens a
 > **plaintext** store. **Creating an account — username + password — is the single act that
 > turns encryption on**, converting the store as it goes and showing the 24-word recovery
-> phrase once. A device *joining* an existing account starts Unauthenticated too, and the join converts
-> it before any account data arrives (§7.1) — see Flow 6. So the journey to
+> phrase once. So the journey to
 > exercise is not "set a passphrase, lock, unlock" — it is **Unauthenticated → account → Authenticated**
 > (Flow 4), plus the two doors that reopen an Authenticated store when the OS key store is lost
 > (Flow 7).
@@ -41,7 +40,7 @@ author will otherwise get wrong:
 > "reveal my phrase" surface in Settings — an account holder who loses the phrase rotates to a
 > new one behind re-auth (a later increment), and no flow may assume the phrase can be re-read
 > after account creation. **Every flow that needs the phrase must capture it at the moment it
-> is shown** (Flow 4 or Flow 6) — and, because a capture cannot leave the flow that made it
+> is shown** (Flow 4) — and, because a capture cannot leave the flow that made it
 > (see the ⚠️ under the matrix), **must itself be the flow that reaches that moment**. This is
 > the single most likely way to write a flow that passes today and rots tomorrow.
 
@@ -134,9 +133,8 @@ implemented, not upfront):
 | Anchor token | Marks | Used by | Built |
 |---|---|---|---|
 | `home-empty` | Reminders/Home empty-state reached, boot done | Flow 1 | — |
-| `home-ready` | Home rendered with content | Flows 5, 6 | — |
-| `sync-status` | sync state text (its label = `off`/`syncing`/`synced`/`error`) | Flow 6 | — |
-| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 6, 7 | **not built — and not needed**, see below |
+| `home-ready` | Home rendered with content | Flow 5 | — |
+| `recovery-phrase` | the one-time 24-word phrase display (label = the words) | Flows 4, 7 | **not built — and not needed**, see below |
 | `recovery-gate` | the at-rest boot gate is up | Flow 7 | mobile, 7c |
 | `recovery-secret` | the box around the gate's secret field, whichever door is showing | Flow 7 | mobile, 7c |
 | `recovery-submit` | the gate's **Unlock** button | Flow 7 | mobile, 7c |
@@ -258,7 +256,7 @@ surface no lower tier reaches).
   survives its own store being swapped and remains usable immediately afterwards.
 - **Harness note:** ~~Mobile today reaches account creation only through the relay-bound signup
   path~~ — **stale, corrected 2026-08-27.** Both clients now offer a local-only account with no
-  relay: mobile renders `CreateAccount` outside the `multiDevice` gate
+  relay: mobile renders `CreateAccount` with no relay in sight
   (`apps/mobile/app/settings.tsx:118`), because the flag's line is the relay, not the login. The
   entry points have converged, so this flow runs the same way on both. The assertions above are
   unchanged, and the product gap this note used to record — a mobile-only user unable to encrypt
@@ -281,33 +279,6 @@ surface no lower tier reaches).
   insertion) and the synced backlink rendered on the entity page — interaction + cross-screen
   navigation that a repo test can't assert.
 
-### Flow 6 — Enable sync and pair a second device
-
-- **Intent:** the multi-device join that integration tests can only approximate (they wire two
-  engines to one in-process relay; this drives two *real app instances* through the real UI and
-  key store).
-- **Preconditions:** a reachable relay (local/self-hosted — the execution layer is swappable,
-  [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*); Device A holds data (run Flows 2–3 first) and is still **Unauthenticated**.
-- **Steps:** **Device A** → Settings → **Set up or log in to sync** → register a username +
-  password (≥12 chars); **capture the phrase** shown once. **Device B** (fresh install) →
-  Settings → same entry → log in with that username + password.
-- **Assert (on screen):** A's `sync-status` reaches `synced`; on **B**, the person and milestone
-  A created appear on screen after convergence.
-- **Assert (out of band):** enabling sync **is** account creation that also binds a relay, so
-  **Flow 4's out-of-band assertions apply to Device A unchanged** — its store converted, its
-  Unauthenticated store is gone, its roster and key store are populated. Device B should be the same:
-  §7.1 requires a joining device to be encrypted at rest before any account data reaches it,
-  which the join achieves by converting B's Unauthenticated store — so B ends with no plaintext store,
-  a db-key, a roster entry and a password door.
-  > **Closed by custody slice 6** (2026-07-30). This assertion was specified red while
-  > `sync:join` adopted the account key without converting the store; the client adopt flows
-  > (`adopt-account-flow.ts`, mobile's `adoptStoreForAccount`) now do both.
-- **Devices:** **two instances** (two emulators/sims, or two macOS app instances with separate
-  data dirs).
-- **Uniquely exercises:** OS key store *and* relay together — register wraps the master key under
-  the password and escrows it; join unwraps it on a second device and adopts the account's
-  recovery key — plus real push/pull convergence over the wire.
-
 ### Flow 7 — The doors back in (three variants)
 
 The phrase and the password are the two ways back into an Authenticated store; **all three variants
@@ -315,13 +286,15 @@ gate**. Every variant carries its **negative case** — a wrong secret must be r
 and must corrupt nothing. Leaving the negatives out is how a door that never actually checks
 anything ships green.
 
-**Every variant that opens the phrase door depends on a phrase captured during Flow 4 or
-Flow 6.** There is no reveal-in-Settings to fall back on, and — the part that decides these
+**Every variant that opens the phrase door depends on a phrase captured during Flow 4.**
+There is no reveal-in-Settings to fall back on, and — the part that decides these
 flows' shape — **a capture cannot cross from one flow to another**; see the phrase-capture note
 under the matrix. So a flow that needs the words must be the flow that watched them appear.
 
-**7a — Cross-device recovery (forgot password).**
-- **Steps:** on a synced account (Flow 6), take the phrase captured there to a **fresh** Device
+**7a — Cross-device recovery (forgot password).** ⚠️ **Nothing in the build reaches this
+today**: the relay half of both clients was deleted on 2026-09-17, so this is v0.2's, and its
+steps are written against the flows that come back with it.
+- **Steps:** on a synced account, take the phrase captured there to a **fresh** Device
   C; choose recover-by-phrase; enter the words; set a new password.
 - **Assert:** C reads the account's data after recovery, and is forced to set a new password in
   the process; the *wrong* phrase is rejected with a visible error before anything is written.
@@ -414,7 +387,6 @@ tier stays small). Listed so the owner can pull any into the gate:
 | 3 Milestone | **beta** | gate | gate | gate | later | 1 | relaunch to prove persistence |
 | 4 Create an account | **beta** (screen) · rc (out-of-band) | gate | gate | gate | later | 1 | must run on a store **with** data; 7b makes its own account rather than reusing this one — see below; out-of-band ✅ iOS 2026-09-09 (same four rows) |
 | 5 Reminder @/# round-trip | **beta** | gate | gate | gate | later | 1 | drives the compose pickers |
-| 6 Enable sync + pair | with sync (v0.2) | gate | gate | gate | later | **2** | needs a relay + two instances; Flow 4's assertions apply to A |
 | 7a Cross-device recovery | with sync (v0.2) | gate | gate | gate | later | 2 | includes wrong-phrase negative |
 | 7b At-rest, phrase door | **rc** | gate | gate | gate | later | 1 | ✅ built (iOS, 2026-09-09); same reset, phrase answer. **Creates its own account** — the words cannot cross a flow boundary |
 | 7c At-rest, password door | **rc** | gate | gate | gate | later | 1 | ✅ built (iOS, 2026-09-09); same reset, password answer; three Argon2id passes, so budget it like Flow 4 |
@@ -422,8 +394,8 @@ tier stays small). Listed so the owner can pull any into the gate:
 **"Gates at"** is the release rung by which a flow must be green, per
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*'s rung table
 *(settled 2026-08-28 — [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) → *The E2E release gate*)*. It grades
-*when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flows 6/7a are
-the exception and leave v0.1 entirely, per open decision 2.
+*when*, never *whether*: every core flow still gates v0.1, and `rc` is inside v0.1. Flow 7a is
+the exception and leaves v0.1 entirely, per open decision 2.
 
 ✅ **The phrase capture is built, and it was never a cost — it is a constraint on shape**
 *(rewritten 2026-09-09 while building 7c, and confirmed the same day by building 7b; the
@@ -550,16 +522,11 @@ What happened instead, and it inverted every step:
    and 7b then went green as specified, taking 7c's right-phrase clause with it. **Between them
    they found four bugs in the gate**, all in the pre-database boot path and none visible from a
    passing screen.
-4. **Flows 6 + 7a (two-instance sync/recovery)** last, and **not in v0.1 at all**. They carry
-   the relay + second-device infrastructure, and the reasoning is settled rather than pending:
-   **Flow 6 answers itself** — *enable sync and pair a second device* exercises relay sync, and
-   v0.1 ships with `multiDevice` **off**, so a v0.1 user cannot reach that flow at all. Gating a
-   release on a path the build does not expose, provable only by flipping a flag production does
-   not set, would be theatre; Flow 6 belongs to the release that turns sync **on**, and until
-   then the on-state's coverage is [`@leapsake/flags`](../../packages/flags/README.md)'s
-   obligation rather than this gate's. **Flow 7a** (cross-device recovery) is the different case:
-   it *is* reachable in v0.1 and merely expensive to automate, and what it proves overlaps the
-   open merge-by-phrase decision — so decide 7a with that, not with 6.
+4. **Flow 7a (two-instance recovery)** last, and **not in v0.1 at all**. It carries the relay +
+   second-device infrastructure, and the relay half of both clients was deleted on 2026-09-17
+   (rebuilt for v0.2 from the tag `relay-clients-final`), so there is nothing in the build to
+   drive. It returns with sync; what it proves also overlaps the open merge-by-phrase decision,
+   so decide the two together.
 5. **macOS (Playwright/Electron)** when desktop ships — [`../desktop-packaging.md`](../desktop-packaging.md)
    → A, which the harness needs a packaged `.app` from.
 

@@ -47,10 +47,3 @@ thing; making the platform provide it is the app's job.
 
 > Adding or removing a native module needs a Metro `--clear` restart.
 
-## Some shipped code is deliberately unreachable
-
-A feature can be finished and still held back from a release by a flag in
-[`@leapsake/flags`](./flags/README.md) — today that is `multiDevice`, which shuts every door
-to relay sync for v0.1. If a surface you expect to find is missing from the running app,
-check there before concluding it was never built; that README lists the gates and how to flip
-a switch for a session.

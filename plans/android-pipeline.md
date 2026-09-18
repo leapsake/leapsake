@@ -233,7 +233,7 @@ no longer matches the app is a policy problem, not stale paperwork.
 
 | Declaration | Answered | Becomes wrong when |
 | --- | --- | --- |
-| Data safety | no data collected, no data shared | the **relay** ships (`multiDevice`, v0.2) |
+| Data safety | no data collected, no data shared | the **relay** ships (v0.2) |
 | Sign in details | No — nothing restricted | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run |
 | Advertising ID | **No** — no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
 | Content rating | *Everyone*, All Other App Types | **purchases**, §11 **sharing**, or **multimedia** land |
@@ -261,7 +261,7 @@ Four answers are right for non-obvious reasons, recorded so a later reader does 
 - **Cash rewards / gift cards → No** despite the Gifts feature: those are private records of
   presents, not instruments of transferable value.
 - **Web browser or search engine → No** despite the Search tab: it searches local records.
-- **User Content Sharing stays No even after `multiDevice` ships** — sync moves one user's data
+- **User Content Sharing stays No even after the relay ships** — sync moves one user's data
   between their own devices, which is not exchanging content with *other* users. Only §11 sharing
   changes it.
 
@@ -323,16 +323,14 @@ is in `scripts/release/targets/index.mjs`. What remains:
   reminder. (A `draft` release was considered and rejected: a draft is not reviewed, which defeats
   the whole point of the rung.)
 
-- ☐ **A version-parity preflight, with a second job.** A tag now ships two artifacts claiming to
-  work together — the point of the single-version rule
-  ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*) and the first moment it
-  can be **wrong**, since identical version numbers say nothing if the two builds resolve
-  `@leapsake/flags` differently.
+- ☐ **A version-parity preflight.** A tag now ships two artifacts claiming to work together —
+  the point of the single-version rule ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) →
+  *Versioning and releases*) and the first moment it can be **wrong**.
 
   Give it the declarations too: the revisit table above is a *reminder*, and reminders are what
   fail years later when someone flips a flag for an unrelated reason. The check is already reading
-  flag state, so it costs almost nothing to **fail the release when `multiDevice` is on and the
-  declarations have not been re-confirmed** — a dated marker is enough. That turns "remember to
+  **fail the release when a data-safety answer has not been re-confirmed since the behaviour it
+  describes changed** — a dated marker is enough. That turns "remember to
   revisit" into "the release refuses until you do", and a preflight is platform-neutral in a way
   this document is not.
 

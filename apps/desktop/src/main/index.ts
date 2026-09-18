@@ -25,11 +25,6 @@ import {
 } from "@leapsake/core";
 import type { KeyStore } from "@leapsake/crypto";
 import {
-  flagSnapshot,
-  parseFlagOverrides,
-  setFlagOverrides,
-} from "@leapsake/flags";
-import {
   createEmailInputSchema,
   createMilestoneInputSchema,
   createPersonInputSchema,
@@ -762,19 +757,6 @@ function requestUnlock({ error, doors }: UnlockRequest): Promise<UnlockAnswer> {
     unlockResolver = resolve;
   });
 }
-
-// Feature flags for this launch (@leapsake/flags), read once here and served to
-// the preload synchronously below — the renderer never reads the environment
-// itself, so the two halves cannot disagree about a flag mid-session. An unknown
-// name throws before a window exists, which is the point: a dev switch that
-// silently does nothing costs more than a loud boot failure.
-setFlagOverrides(parseFlagOverrides(process.env.LEAPSAKE_FLAGS));
-
-// `sendSync` rather than `invoke`: the renderer must know its flags before its
-// first render, and a promise would put a flag-less frame on screen first.
-ipcMain.on("flags:snapshot", (event) => {
-  event.returnValue = flagSnapshot();
-});
 
 void app.whenReady().then(async () => {
   // The Dock icon, which macOS reads from the app bundle rather than from the window — so

@@ -10,8 +10,8 @@
 
 **Where this stands:** iOS is in external TestFlight with a real tester on it; the release
 pipeline carries a build to _In Beta Review_ unattended; the `beta` E2E bar is green on both
-mobile platforms. v0.1 is **iOS alone, single-device** — sync is built and held behind
-`multiDevice` in [`@leapsake/flags`](../packages/flags/README.md).
+mobile platforms. v0.1 is **iOS alone, single-device** — the relay half of the clients was deleted on
+2026-09-17 and is rebuilt for v0.2 from the tag `relay-clients-final`.
 
 **The two parts below overlap on purpose.** Part 2's paperwork has a 30-day clock inside it and
 must start **now**, in parallel with Part 1 — not when Part 1 finishes.

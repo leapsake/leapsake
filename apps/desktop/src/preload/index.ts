@@ -1,5 +1,4 @@
 import type { CoreApi, GenderResult, SyncStatus } from "@leapsake/core";
-import type { FlagName } from "@leapsake/flags";
 import { contextBridge, ipcRenderer } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import { buildBridgeApi } from "../shared/ipc-bridge.js";
@@ -21,19 +20,6 @@ const api: CoreApi = buildBridgeApi(API_CHANNELS, (channel, args) =>
 );
 
 contextBridge.exposeInMainWorld("api", api);
-
-/**
- * This launch's feature flags (@leapsake/flags), resolved in the main process
- * and read synchronously here so `window.flags` is a plain object the renderer
- * has before its first render — a promise would put a flag-less frame on screen.
- *
- * Main is the only half that reads the environment, so a flag cannot mean one
- * thing to the scheduler and another to Settings.
- */
-contextBridge.exposeInMainWorld(
-  "flags",
-  ipcRenderer.sendSync("flags:snapshot") as Record<FlagName, boolean>,
-);
 
 /**
  * The account custody surface, exposed as a **separate** `window.sync` bridge

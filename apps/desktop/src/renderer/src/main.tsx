@@ -1,18 +1,9 @@
-import { setFlagOverrides } from "@leapsake/flags";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { createAppRouter } from "./router";
 import { CustodyBanner } from "./screens/CustodyBanner";
 import { RecoveryGate } from "./screens/RecoveryGate";
-
-// Seed the renderer's copy of @leapsake/flags from the snapshot the main process
-// resolved (`window.flags`, delivered synchronously by the preload). The renderer
-// is a separate bundle with its own module instance, so this is what lets a
-// screen call `flag()` in the same idiom the main process and mobile use, rather
-// than reading a `window` global at every gate. It must run before the first
-// render, hence module scope here.
-setFlagOverrides(window.flags);
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root not found");

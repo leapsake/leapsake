@@ -162,9 +162,7 @@ version, so `apps/mobile/app.config.ts` strips any pre-release suffix — the re
 semver and the stores see the numeric core, distinguished by a clock-derived build number.
 
 > ⚠️ **The number is a promise, not a mechanism.** What actually makes two separately-installed
-> artifacts compatible is `@leapsake/schema` migrations, `@leapsake/sync`, and identical
-> `@leapsake/flags` state. A flag that differs between two platforms shipped from the same tag
-> makes the promise false while the numbers agree.
+> artifacts compatible is `@leapsake/schema` migrations and `@leapsake/sync`.
 
 **`main` is the only long-lived branch.** Branch only when `main` would otherwise be
 unreleasable. `release/X.Y.Z` exists for exactly one situation — stabilizing a release while
