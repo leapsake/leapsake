@@ -97,6 +97,12 @@ export {
   type DuplicateMatch,
   createDuplicateService,
 } from "./duplicate-service.js";
+export {
+  type EntityService,
+  type EntityServiceDeps,
+  createEntityService,
+  promotes,
+} from "./entity-service.js";
 export { type SyncStateRepo, createSyncStateRepo } from "./sync-state-repo.js";
 export {
   type DeviceContactLinksRepo,

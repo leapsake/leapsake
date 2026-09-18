@@ -37,28 +37,10 @@ person have **different** UUIDs, so LWW never touches them — they coexist as d
 likely dupes (`scoreDuplicate`), remembers rejected pairs (the syncable `not_a_duplicate`
 table), and **merges** distinct rows by re-pointing FKs to a survivor.
 
-### What a person-merge must re-point
-
-`core.people.merge(survivor, loser)` is the cascade-delete-person transaction inverted —
-instead of removing the loser's references, it **re-points** them to the survivor, then
-soft-deletes the loser. A Person id is referenced in these places (the full set, confirmed
-against the cascade-delete path), each with a `repointEntity`/`repointOwner` building block on
-its repo:
-
-| Table / repo              | FK column(s)                  | Note                                                |
-| ------------------------- | ----------------------------- | --------------------------------------------------- |
-| relationships             | `aId`/`aType`, `bId`/`bType`  | either endpoint; prune self-loops + dup-edges after |
-| taggings                  | `entityId`/`entityType`       | drop a tagging the survivor already has             |
-| milestones                | `subjectId`/`subjectType`     | subject may also be a _relationship_ — unaffected   |
-| emails / phones / postals | `ownerId`/`ownerType`         | three tables, same shape                            |
-| dismissals                | `subjectId` **and** `otherId` | directional — both ends; drop now-self rows         |
-| not_a_duplicate           | `lowerId` / `higherId`        | re-canonicalize; drop self-pairs                    |
-
-**It syncs for free:** re-points bump `updatedAt` (propagate as normal edits) and the loser's
-soft-delete is a tombstone (propagates) — a merge on one device just _happens_ on the other
-via the existing engine, no new sync code. The survivor's `updatedAt` is bumped so it wins
-LWW against a concurrent edit to the loser elsewhere. Endpoints/owners are already
-entity-typed, so a future `mergePets` / generalized `mergeEntities` is a small follow-on.
+The re-pointing itself — which tables a merge must touch, and why it replicates with no
+merge-specific sync code — is [`@leapsake/data`](../data/README.md) → _What a person-merge
+must re-point_, beside `createEntityService` which performs it. `core.people.merge` adds only
+the reminder reconcile that re-titles the loser's birthday reminder onto the survivor.
 
 Remaining reconciliation work (bulk-import dedup, the fuzzy-name tier, E.164 phone matching)
 lives in [`plans/status.md`](../../plans/status.md).

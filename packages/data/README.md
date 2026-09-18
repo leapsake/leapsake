@@ -45,7 +45,31 @@ That test is the specification; its header explains why each rule exists.
 Each entity has an async repo over the port (`create`, `list`/`listForEntity`, `get`,
 `update`, `softDelete`, cascade `removeAllForEntity`/`removeAllForOwner`, and — for
 reconciliation — `repointEntity`/`repointOwner`). Cross-repo _services_ (kinship derivation,
-search folding/matching, milestone timeline, duplicate detection) compose multiple repos.
+search folding/matching, milestone timeline, duplicate detection, whole-entity writes)
+compose multiple repos.
+
+### What a person-merge must re-point
+
+`createEntityService(...).mergePeople(survivor, loser)` is the cascade-delete-person
+transaction inverted — instead of removing the loser's references, it **re-points** them to
+the survivor, then soft-deletes the loser. A Person id is referenced in these places (the full
+set, confirmed against the cascade-delete path), each with a `repointEntity`/`repointOwner`
+building block on its repo:
+
+| Table / repo              | FK column(s)                  | Note                                                |
+| ------------------------- | ----------------------------- | --------------------------------------------------- |
+| relationships             | `aId`/`aType`, `bId`/`bType`  | either endpoint; prune self-loops + dup-edges after |
+| taggings                  | `entityId`/`entityType`       | drop a tagging the survivor already has             |
+| milestones                | `subjectId`/`subjectType`     | subject may also be a _relationship_ — unaffected   |
+| emails / phones / postals | `ownerId`/`ownerType`         | three tables, same shape                            |
+| dismissals                | `subjectId` **and** `otherId` | directional — both ends; drop now-self rows         |
+| not_a_duplicate           | `lowerId` / `higherId`        | re-canonicalize; drop self-pairs                    |
+
+**It syncs for free:** re-points bump `updatedAt` (propagate as normal edits) and the loser's
+soft-delete is a tombstone (propagates) — a merge on one device just _happens_ on the other
+via the existing engine, no new sync code. The survivor's `updatedAt` is bumped so it wins
+LWW against a concurrent edit to the loser elsewhere. Endpoints/owners are already
+entity-typed, so a future `mergePets` / generalized `mergeEntities` is a small follow-on.
 
 ## The sync substrate (V3)
 

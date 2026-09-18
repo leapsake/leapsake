@@ -11,6 +11,7 @@ import {
   scoreDuplicate,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import type { NotADuplicateRepo } from "./not-a-duplicate-repo.js";
 
 /**
  * Duplicate *detection* over the people list — the read half of reconciliation
@@ -57,6 +58,13 @@ export interface DuplicateService {
    */
   findCandidates(excludePairs: Set<string>): Promise<DuplicateCandidate[]>;
   /**
+   * The unresolved candidates: {@link DuplicateService.findCandidates} over the
+   * pairs this device has already been told are not the same. The one place that
+   * exclusion is applied, so `duplicates.*` and the Home nudge cannot disagree
+   * about what is still outstanding.
+   */
+  unresolvedCandidates(): Promise<DuplicateCandidate[]>;
+  /**
    * Score one **not-yet-stored** contact against every active person and return
    * the matches (tier `none`/`low` dropped), high first. Used by contact import
    * to flag likely-existing people in the review before anything is written. The
@@ -93,7 +101,10 @@ function pairKey(idA: string, idB: string): string {
   return idA < idB ? `${idA}:${idB}` : `${idB}:${idA}`;
 }
 
-export function createDuplicateService(driver: SqliteDriver): DuplicateService {
+export function createDuplicateService(
+  driver: SqliteDriver,
+  repos: { notADuplicate: NotADuplicateRepo },
+): DuplicateService {
   /**
    * Load every active **published** person as a ready {@link DuplicateInput} (id
    * kept alongside), with contacts indexed by owner and re-normalized
@@ -243,5 +254,10 @@ export function createDuplicateService(driver: SqliteDriver): DuplicateService {
     return matches;
   }
 
-  return { findCandidates, matchContact };
+  return {
+    findCandidates,
+    matchContact,
+    unresolvedCandidates: () =>
+      repos.notADuplicate.listPairs().then(findCandidates),
+  };
 }
