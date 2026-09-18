@@ -41,8 +41,11 @@ rather than quietly on a renumbered one; the runner filters and sorts by version
 existing migrations are never edited or reordered.
 
 **Some tables are device-local and never replicate:** `content_key`, `key_wrap`, `sync_state`,
-`account` and `device`. None is a syncable repo, and none is in the sync engine's allowlist. The
-key tables are empty until an account exists, so code reading them treats "no rows" as normal.
+`account`, `device` and `device_contact_links`. None is a syncable repo, and none is in the sync
+engine's allowlist. The key tables are empty until an account exists, so code reading them
+treats "no rows" as normal. A `device_contact_links` row (an address-book contact id means
+nothing in another address book) is never tombstoned when its person is deleted or merged: it
+still being there is what stops the next sync re-importing them.
 
 The table conventions every migration follows — a `TEXT` `id` primary key, `INTEGER` epoch-ms
 `created_at`/`updated_at`/`deleted_at`, `snake_case`, no `CHECK` constraints — are asserted
@@ -88,6 +91,13 @@ stays here is the substrate they run on: **`defineSyncable`** — the primitive 
 entity syncable in one call, reconciled with `resolveMerge` (whole-row LWW) — and
 **`SyncStateRepo`**, the durable watermarks in a device-local `sync_state` table. The
 canonical "how to add a synced entity" recipe is the `defineSyncable` module doc comment.
+
+**A row every device must agree on gets a fixed primary key, not a unique column.**
+`self_person` is a singleton under a constant id, and `notification_settings` uses the device
+id as its `id`. Two devices writing the same primary key resolve by whole-row last-writer-wins,
+where a unique index on `people.is_self` would fail the merge outright, and `account.self_id`
+could not sync at all (`account` never replicates). The same trick lets both ride
+`defineSyncable`, which addresses rows by `id`.
 Design and status: [`plans/encryption/`](../../plans/encryption/) and
 [`plans/status.md`](../../plans/status.md).
 

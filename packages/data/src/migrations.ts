@@ -404,14 +404,8 @@ export const migrations: Migration[] = [
   {
     version: 20,
     async up(driver) {
-      // Mentions — the synced, indexed backlink for inline `@mentions` embedded in
-      // freeform text (plans reminder-mentions). A mention is derived from a token
-      // in the bearer's text (the text is the source of truth), and materialized
-      // here so "what mentions this person?" is an indexed lookup, not a scan.
-      // Both axes are polymorphic: `bearer_*` is what holds the text (a reminder
-      // today), `target_*` is the referenced entity (person/pet). Same partial-
-      // unique + soft-delete convention as `taggings` (migration 3). Row ids are
-      // deterministic (schema/mention.ts), so cross-device re-derivation converges.
+      // Mentions: an indexed backlink materialized from tokens in the bearer's
+      // text, which stays the source of truth. Row ids are deterministic.
       await driver.exec(`
         CREATE TABLE mentions (
           id          TEXT    PRIMARY KEY,
@@ -436,20 +430,8 @@ export const migrations: Migration[] = [
   {
     version: 21,
     async up(driver) {
-      // Per-milestone reminder rules (plans per-milestone reminder settings) —
-      // the staggered-reminder schedule a milestone offers: an action (get a
-      // gift, send a card, give a call…) `offset_days` before the occurrence,
-      // on or off. Plaintext row (no per-item content key), like reminders
-      // themselves: reminder policy is scheduling metadata, not a share target,
-      // and rides whole-DB-at-rest + the master-key sync seal. `bearer_*` is
-      // polymorphic — "milestone" today, reserving "holiday" for the future
-      // holidays increment with no schema change. `action` is free text in the
-      // DB (constrained to the reminderActionSchema enum in Zod, portable across
-      // node:sqlite and expo-sqlite); `label` carries the user's text for the
-      // `other` action. A milestone with NO rows rides its kind's defaults
-      // (schema resolveReminderSchedule); rows exist only once customised. This
-      // increment stores/edits them — wiring them into the reminder engine is
-      // the next increment.
+      // Per-bearer reminder rules. A bearer with no rows rides its kind's
+      // defaults; rows exist only once customised.
       await driver.exec(`
         CREATE TABLE reminder_rules (
           id          TEXT    PRIMARY KEY,
@@ -471,40 +453,8 @@ export const migrations: Migration[] = [
   {
     version: 22,
     async up(driver) {
-      // Holidays (`@leapsake/holidays` README) — three tables that together
-      // extend the automated-reminder engine to a second family of recurring
-      // dated facts about people. All plaintext rows, all synced.
-      //
-      // `holidays` holds BOTH the shipped catalog and user-authored entries,
-      // told apart by `origin`; catalog rows are read-only, and a user "forks"
-      // one by hiding it and creating their own (§2.6). A catalog row's `id` is
-      // derived from its `slug` (schema/holiday.ts), so every device mints the
-      // same uuid and seeded rows converge even without syncing. `recurrence`
-      // is deliberately opaque TEXT — the canonical JSON of a rule union owned
-      // by @leapsake/holidays — so a device whose *code* predates a rule type
-      // in its *data* still stores and relays the row instead of rejecting it.
-      //
-      // `observances` is who observes what. It is the reminder rule's bearer,
-      // not the holiday, which is what makes per-person schedules ("gift Violet
-      // 30 days before Christmas" vs "just call Grandma day-of") fall out of
-      // the existing polymorphic bearer pair with no schema change (§1). One
-      // table with a polarity flag rather than the relationships/dismissals
-      // pair, because the payload is thin and symmetric: no row = the implicit
-      // answer, observes=1 = explicit yes, observes=0 = explicit override (§2.1).
-      // A row exists only where it DIVERGES from the implicit answer (§2.2).
-      //
-      // `hidden_holidays` is the negative assertion that suppresses a catalog
-      // holiday entirely — its own table rather than a column, because writing
-      // a column would be an edit to a catalog row and would fight the next
-      // catalog update (§2.6). It syncs: hiding suppresses generated reminders,
-      // and an input to the reminder engine must sit on the same side of the
-      // sync boundary as the reminders it generates, or one device's prune
-      // tombstones a row the other keeps regenerating.
-      //
-      // Both join tables use the partial-unique-active idiom (migration 20) so
-      // one key has at most one live row while soft-delete history is kept, and
-      // both derive their ids from that key so two offline devices asserting
-      // the same thing converge on one row instead of colliding on the index.
+      // Holidays (catalog and user rows), who observes what, and hidden
+      // catalog holidays. Ids derive from their keys, so devices converge.
       await driver.exec(`
         CREATE TABLE holidays (
           id                TEXT    PRIMARY KEY,
@@ -556,25 +506,8 @@ export const migrations: Migration[] = [
   {
     version: 23,
     async up(driver) {
-      // The self-person — a synced singleton pointing
-      // at the Person that is "you". Gifts are the first feature to need a self
-      // concept (who gave / received); it is also the future kinship ego anchor
-      // and the "me" of vCard export.
-      //
-      // A **fixed-PK singleton**, deliberately not `account.self_id` and not
-      // `people.is_self` + a partial-unique-index. A local-only user has no
-      // `account` row and `account` is off the sync allowlist (zero-knowledge),
-      // so `self_id` would have nowhere to live and couldn't ride the people
-      // channel. And two devices each marking a *different* person as self via a
-      // `people.is_self` unique index would collide on merge — a hard, manual-
-      // only sync failure. Here both devices write the *same* primary key (the
-      // constant SELF_PERSON_ID), so whole-row LWW resolves it like everything
-      // else: one row, last writer wins, no error.
-      //
-      // Plaintext synced row (no per-item content key), like reminders: a self
-      // pointer is not a share target and rides whole-DB-at-rest + the master-key
-      // sync seal. No FK on `person_id` — it points into the synced people rows
-      // and resolves at read, never enforced at write (sync rows carry no FKs).
+      // The self-person: a singleton under a fixed primary key, so two devices
+      // setting it resolve by last-writer-wins instead of colliding.
       await driver.exec(`
         CREATE TABLE self_person (
           id         TEXT    PRIMARY KEY,
@@ -589,14 +522,8 @@ export const migrations: Migration[] = [
   {
     version: 24,
     async up(driver) {
-      // Gift ideas — "a thing in the world", reusable
-      // and person-agnostic: `title` (required) plus optional `url` and `notes`.
-      // The first of the two gift tables; `gift_recipients` pairs an idea with a
-      // person or pet, but an idea alone is a standalone
-      // shopping/idea list. Plaintext synced row (no per-item content key), like
-      // reminders — not a share target, protected by whole-DB-at-rest + the
-      // master-key sync seal. Near-duplicate titles are tolerated by design (the
-      // reconciliation substrate is the eventual de-dup, not a unique index here).
+      // Gift ideas: reusable and person-agnostic. Near-duplicate titles are
+      // tolerated; no unique index.
       await driver.exec(`
         CREATE TABLE gift_ideas (
           id         TEXT    PRIMARY KEY,
@@ -613,30 +540,8 @@ export const migrations: Migration[] = [
   {
     version: 25,
     async up(driver) {
-      // Gift recipients — one gift idea paired with one person or pet, and
-      // whether it has been given to them ("George would like a copy of Tom Sawyer", and
-      // later, "…and now he has one").
-      //
-      // This replaces what were two tables: `gift_suggestions` (a candidate) and
-      // `gifts` (a *dated* giving, with a giver and an occasion). That split was
-      // load-bearing only while a giving carried a date — it is what made the
-      // cardinalities differ, one suggestion to N givings. With dates and
-      // occasions out of v0.1 scope, "given twice" is unrepresentable and the
-      // query over the second table returns a boolean, so the two rows are one
-      // row with a stamp. See `gift-recipient.ts`; `git log` at `41ee888` has the
-      // model that had both.
-      //
-      // `given_at` is NULLABLE and records **when the box was ticked**, not when
-      // the gift changed hands — an audit stamp in the `created_at` family. Every
-      // read treats it as a boolean; nothing formats it. A real gift date, if it
-      // ever comes back, is a different column.
-      //
-      // `recipient_*` is polymorphic (person | pet), reserving `relationship` for
-      // later with no schema change. No unique index on
-      // `(gift_idea_id, recipient_*)`: two devices can each mint a row for the
-      // same pair, and the rest of the sync model dedupes on read rather than at
-      // the constraint. Plaintext synced row, no FKs — recipient and idea resolve
-      // at read.
+      // Gift recipients: an idea paired with a person or pet. `given_at` stamps
+      // when the box was ticked, not when the gift changed hands.
       await driver.exec(`
         CREATE TABLE gift_recipients (
           id             TEXT    PRIMARY KEY,
@@ -658,57 +563,16 @@ export const migrations: Migration[] = [
   {
     version: 27,
     async up(driver) {
-      // Retire `milestone.note` as a per-item-content-key consumer (encryption
-      // `model.md` §2.1), reverting migration 12. Under *encryption follows
-      // custody* (§7.2) layer 3 bought a domain field nothing: an **Unauthenticated** store
-      // has no key to seal with, and a **Authenticated** store is already whole-file
-      // ciphertext at rest. `note` is a plain TEXT column again.
-      //
-      // **This drops any note that was stored as ciphertext.** Migrations run
-      // *before* the key session exists — that is why migration 12 could only
-      // leave legacy rows to upgrade lazily — so this step cannot decrypt what it
-      // is removing, and the plaintext `note` of such a row is NULL. Accepted
-      // deliberately: pre-v0.1 there are no real users, and the only affected
-      // installs are dev profiles with an unlocked key, which are cheaper to
-      // recreate than a two-phase post-key migration is to write and maintain.
-      //
-      // Layer 3 itself stays — `content_key`, `key_wrap`, and
-      // `createContentCipher` are untouched, because photos are its real
-      // consumer (`plans/v0-2.md`). Existing `content_key` rows for milestones
-      // are left as harmless orphans; the ciphertext they protected is gone, and
-      // key GC is a tracked sync-era concern.
+      // `milestone.note` is plain TEXT again. A note stored as ciphertext is
+      // lost: migrations run before the key exists.
       await driver.exec(`ALTER TABLE milestones DROP COLUMN note_ciphertext;`);
     },
   },
   {
     version: 28,
     async up(driver) {
-      // Snooze — “put this off, ask me later” on any reminder. Two facts, and
-      // deliberately **not** onboarding-flavoured: `snoozed_until` is when the row
-      // becomes visible again, `snooze_count` is how many times it has been put off
-      // — equally true of a dentist reminder someone has dodged four times. The
-      // onboarding nudges (`packages/reminders/README.md`) are simply the first consumer;
-      // `source` already separates *the product asked and the user declined*
-      // (`system`) from *someone hiding their own reminder* (`user`), so neither
-      // case needs storage of its own.
-      //
-      // `snooze_count` is NOT NULL DEFAULT 0 because a count has an obvious zero:
-      // every existing row backfills for free, with no data step.
-      //
-      // ⚠️ **Store what happened, never what to do next** (`packages/reminders/README.md`). `snoozed_until` is a stored date and therefore the one place that
-      // rule can be broken by accident. It is legitimate only as *generic* snooze —
-      // a user-chosen “hide until Tuesday” is a fact about what the user did. The
-      // re-prompt **policy** must stay derived: a step's `duration` is applied by a
-      // pure function at the moment the user snoozes, and the give-up decision is
-      // re-derived from `snooze_count` against the step's `repetitions` on every
-      // reconcile. (That budget is gone: migration 37 dropped the count.) Never persist “this step's next prompt is on 15 August” — doing
-      // so bakes today's policy into rows you can no longer reach, and every future
-      // tweak then needs a data migration to match.
-      //
-      // **No owner column.** One store is one user today. The product model
-      // anticipates multi-user-per-client (`plans/v0-2.md`), and the seam
-      // is left explicit here on purpose: adding a nullable owner column later is a
-      // cheap migration, and guessing its shape now is not.
+      // Snooze on any reminder: `snoozed_until` is a user-chosen fact.
+      // Re-prompt policy stays derived, never stored.
       await driver.exec(`
         ALTER TABLE reminders ADD COLUMN snoozed_until INTEGER;
         ALTER TABLE reminders ADD COLUMN snooze_count INTEGER NOT NULL DEFAULT 0;
@@ -718,32 +582,8 @@ export const migrations: Migration[] = [
   {
     version: 29,
     async up(driver) {
-      // Local-notification policy — a synced, one-row-per-device settings
-      // table. **`id` holds the device id**,
-      // not a freshly minted row id: like `self_person`'s fixed PK, this rides
-      // the standard EntityRepo/defineSyncable machinery (which hardcodes
-      // `WHERE id = ?`) by making the device id *be* the primary key, rather than
-      // fighting that machinery with a custom `device_id` column + codec.
-      //
-      // Per-device, but **editable from any device** — set the phone's policy
-      // from the laptop, and vice versa. That single requirement is why this
-      // isn't device-local `AsyncStorage`: every device may write any row, and
-      // two devices racing the same row is plain last-writer-wins, correct for
-      // a preference.
-      //
-      // `label`/`platform` are denormalized here rather than joined from
-      // `device`, because `device` deliberately does not sync (migration 14's
-      // zero-knowledge boundary) — the cross-device settings UI still needs to
-      // name the devices it lists.
-      //
-      // `permission_state` is a fact ("what did the OS last say"), not a plan —
-      // it exists so a device editing a *peer's* policy doesn't lie about
-      // whether that peer can actually receive it, and it is written only by
-      // the owning device.
-      //
-      // No pending-notification data lives here — that set is derived fresh
-      // from reminder rows on every reconcile: store what happened, never what
-      // to do next.
+      // Per-device notification policy, editable from any device. `id` is the
+      // device id; `label`/`platform` are copied, since `device` never syncs.
       await driver.exec(`
         CREATE TABLE notification_settings (
           id                TEXT    PRIMARY KEY,
@@ -762,26 +602,8 @@ export const migrations: Migration[] = [
   {
     version: 30,
     async up(driver) {
-      // A person needs *some* name, not a first one and a last one. `personSchema`
-      // now takes any one of the three parts and rejects only a person with none
-      // (`hasAnyName`); this is the storage half of that, dropping `NOT NULL`
-      // from the two columns that were enforcing the old pair of requirements.
-      //
-      // Two features wanted it independently, which is what settled it: a person
-      // known only as somebody's relation ("Ruth", with no surname to give), and
-      // contact import, whose vCard reader deliberately parses a mononym or an
-      // organisation-only card with an empty `lastName` rather than inventing
-      // one — and whose ingest guard then had to refuse every such card.
-      //
-      // **SQLite cannot drop a NOT NULL in place**, so the table is rebuilt: the
-      // 12-step ALTER TABLE procedure from the SQLite docs, minus the steps that
-      // don't apply here (`people` carries no index, trigger, view or foreign
-      // key, and nothing references it — the relationship and tagging tables
-      // point at entities polymorphically, by `(type, id)` pair, with no FK).
-      //
-      // The column list is spelled out on both sides of the copy rather than
-      // relying on `SELECT *` positional order, so the rebuild survives the
-      // columns having been added over four separate migrations (1, 2, 13).
+      // Rebuild `people` so first and last name are nullable: SQLite cannot
+      // drop NOT NULL in place. Columns are listed explicitly on both sides.
       await driver.exec(`
         CREATE TABLE people_new (
           id          TEXT    PRIMARY KEY,
@@ -808,21 +630,8 @@ export const migrations: Migration[] = [
   {
     version: 31,
     async up(driver) {
-      // Where an entity stands in the user's catalog (`standingSchema`). The one
-      // value in use besides the default is `unpublished`: someone who exists
-      // only as a fact about a published person — a coworker's wife, recorded as
-      // a name on the relationship — who is kept out of People & Pets, out of
-      // every picker, and out of duplicate detection until they become more than
-      // that. `draft` is reserved and nothing writes it yet.
-      //
-      // `NOT NULL DEFAULT 'published'` is what makes this a one-line ALTER
-      // instead of another rebuild: every row that already exists is one of the
-      // user's own people, which is exactly what the default says.
-      //
-      // Deliberately **no** index. Both tables are small (a personal address
-      // book), the catalog read is a full scan either way, and an index on a
-      // column with two values and a 99%-`published` distribution would earn
-      // nothing while costing a write on every update.
+      // Where an entity stands in the catalog. Existing rows are the user's
+      // own, so `published`. No index: two values, small tables.
       await driver.exec(`
         ALTER TABLE people ADD COLUMN standing TEXT NOT NULL DEFAULT 'published';
         ALTER TABLE pets   ADD COLUMN standing TEXT NOT NULL DEFAULT 'published';
@@ -832,22 +641,8 @@ export const migrations: Migration[] = [
   {
     version: 32,
     async up(driver) {
-      // Which messaging platforms a number reaches (`@leapsake/contact-links`).
-      // WhatsApp and Signal are addressed *by phone number*, so tapping through
-      // to one needs no new contact method — only the one thing Leapsake cannot
-      // work out for itself, which is whether this person is actually there. The
-      // user ticks it once on the phone form and the action appears from then on.
-      //
-      // Stored as a JSON array of platform ids in one column rather than a
-      // boolean column per platform, so that the *registry* stays the single
-      // source of which platforms exist: the form renders a checkbox per
-      // phone-keyed entry in `PHONE_PLATFORMS`, and adding Telegram-by-phone
-      // later is an entry in that file rather than a migration and a new column.
-      // Decoded by the `json` codec option (`syncable.ts`).
-      //
-      // Nullable with no backfill: a NULL decodes to `undefined`, which lets the
-      // Zod field's own `[]` default mean "not yet asked" for every row that
-      // already exists.
+      // Messaging platforms a phone number reaches, as a JSON array of platform
+      // ids; NULL decodes to "not yet asked".
       await driver.exec(`
         ALTER TABLE phone_numbers ADD COLUMN reachable_on TEXT;
       `);
@@ -856,24 +651,8 @@ export const migrations: Migration[] = [
   {
     version: 33,
     async up(driver) {
-      // The fourth contact method: someone's account on a messaging or social
-      // platform. Same spine as the other three (polymorphic owner, free-text
-      // label, sync-safe timestamps + soft delete), with a per-owner partial
-      // index and a non-unique `normalized` index for lookup — dedupe stays
-      // permissive here as it is everywhere else.
-      //
-      // `platform` holds a `@leapsake/contact-links` id as free text. The list
-      // of known platforms deliberately does **not** reach the database: a
-      // CHECK constraint would freeze it into stored data, so a row synced from
-      // a device running a newer build would be rejected, and every new
-      // platform would cost a migration. An unknown id is stored happily and
-      // rendered from `url`.
-      //
-      // `platform_user_id` is null on almost every row. It exists because X,
-      // Discord and their like key DMs on an opaque numeric id they do not
-      // publish beside the handle, so without one a handle can only reach a
-      // profile. `url` is the escape hatch a genuinely open platform list needs:
-      // a pasted profile URL for something with no template.
+      // Social and messaging accounts, the fourth contact method. `platform` is
+      // free text, so an unknown platform id syncs and renders from `url`.
       await driver.exec(`
         CREATE TABLE social_profiles (
           id               TEXT    PRIMARY KEY,
@@ -899,92 +678,31 @@ export const migrations: Migration[] = [
   {
     version: 34,
     async up(driver) {
-      // **Sweep every generated reminder, tombstones included.** Reminder
-      // windows just became a property of the action rather than one 30-day
-      // constant, and `wish` — the only thing on by default — went from a
-      // month-long run-up to day-of. Every already-materialized wish row is
-      // therefore no longer wanted, and the engine's prune retires an unwanted
-      // row by **soft-deleting** it.
-      //
-      // That is the problem. `reconcile` never resurrects a tombstone, and a
-      // system reminder's id is keyed on the occurrence **year**, so a row
-      // pruned today would stay dead until the birthday came round again — the
-      // upgrade would silently cost the user this year's birthday, on the very
-      // morning it mattered. A soft delete cannot be undone from inside the
-      // engine, so it has to be undone from underneath it.
-      //
-      // Hard delete rather than a resurrection rule: the ids are deterministic,
-      // so everything still wanted is re-minted unchanged on the next
-      // reconcile, and nothing about identity changes. The cost is that a
-      // genuine "dismiss this" on a system reminder is forgotten once —
-      // acceptable pre-release (owner, 2026-09-04), and cheaper than teaching
-      // the engine to tell a stale tombstone from a deliberate one.
+      // Hard-delete system reminders, tombstones too: a soft-pruned row stays
+      // dead until next year. Deterministic ids re-mint what is still wanted.
       await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
     },
   },
   {
     version: 35,
     async up(driver) {
-      // **Reminder actions became `verb:qualifier`.** The action string is a
-      // reminder's identity, and a flat one could not tell buying a card from
-      // posting it — two errands on two clocks that had to share a single `card`
-      // action, and therefore a single derived id. Splitting the verb from an
-      // open qualifier is what lets them be two reminders (schema's
-      // `ReminderAction`).
-      //
-      // **Rewrite, don't drop.** These rows are the user's own configured
-      // schedules, and — since rows-existing is how the `plan` prompt knows an
-      // occasion has been answered — dropping them would also un-answer every
-      // prompt anyone had answered. The rename is exact, so there is nothing to
-      // reason about. It is not optional either: `reminderRuleSchema` parses on
-      // every read, and a leftover `gift` would fail the read outright rather
-      // than degrade.
-      //
-      // `text` becomes `message:sms` rather than `send:text`: `message` is the
-      // verb that takes the platform qualifiers (`message:discord`), and SMS is
-      // simply the first of them.
+      // Actions become `verb:qualifier`. Rewritten, not dropped: these are the
+      // user's schedules, and their existence answers the `plan` prompt.
       await driver.exec(`
         UPDATE reminder_rules SET action = 'get:gift'    WHERE action = 'gift';
         UPDATE reminder_rules SET action = 'send:card'   WHERE action = 'card';
         UPDATE reminder_rules SET action = 'message:sms' WHERE action = 'text';
       `);
 
-      // Then migration 34's sweep, for migration 34's reason. Three of those
-      // actions just changed identity, so the rows minted under the old ids are
-      // no longer wanted — and the engine retires an unwanted row by **soft
-      // delete**, which it never resurrects. Since a system reminder's id is
-      // keyed on the occurrence **year**, a row pruned today would stay dead
-      // until the occasion came round again: the upgrade would silently cost the
-      // user this year's birthday, on the morning it mattered. A soft delete
-      // cannot be undone from inside the engine, so it is undone from
-      // underneath it.
-      //
-      // Hard delete rather than a resurrection rule: the ids are deterministic,
-      // so everything still wanted is re-minted on the next reconcile. The cost
-      // is that a genuine "dismiss this" is forgotten once — acceptable
-      // pre-release (owner, 2026-09-04).
+      // The same sweep as migration 34, since three actions changed identity.
       await driver.exec(`DELETE FROM reminders WHERE source = 'system'`);
     },
   },
   {
     version: 36,
     async up(driver) {
-      // **Which phone contacts this device has already brought in**, so keeping
-      // People in step with the address book can tell a contact it has never seen
-      // from one it has. Without it the only way to tell is to compare names,
-      // which is the duplicate detector's fuzzy job, not an identity.
-      //
-      // Device-local, like `sync_state`, and for the same reason: `contact_id`
-      // is the address book's own record id, which means nothing in any other
-      // address book — so it never replicates and is not a SyncableRepo.
-      //
-      // **A row outlives the person it made, on purpose.** It is never
-      // tombstoned or cleared when that person is deleted or merged away; the
-      // row still being here is exactly what stops the next sync bringing them
-      // back. A NULL entity means "seen, and deliberately not imported" — a
-      // card with no name at all, which is almost always a business — so it is
-      // not refused again every time the app opens. A factory reset deletes the
-      // store and these rows with it, which is what makes a reset start over.
+      // Device-local links from address-book contacts to what they imported.
+      // A row outlives its person, so the next sync does not re-import them.
       await driver.exec(`
         CREATE TABLE device_contact_links (
           contact_id  TEXT    PRIMARY KEY,
@@ -998,18 +716,8 @@ export const migrations: Migration[] = [
   {
     version: 37,
     async up(driver) {
-      // **Snooze stops counting** *(owner, 2026-09-11)*. `snooze_count` was the
-      // nag budget migration 28 added: the engine read it on every reconcile and
-      // retired a nudge or a question once it had been put off enough times.
-      // Nothing retires by being put off any more — a row goes when it is done,
-      // when its condition is met, or on an explicit *don't ask again* — so the
-      // count has no reader left, and goes.
-      //
-      // `snoozed_until` changes meaning in the same step, from an instant to a
-      // civil day encoded like `due_date` (UTC midnight): "remind me tomorrow"
-      // means the start of tomorrow. Flooring a live snooze to its UTC day keeps
-      // it within a day of what was asked for, which is all the precision a day
-      // has; clearing them instead would bring back rows someone had just put off.
+      // Drop `snooze_count`, and floor `snoozed_until` to a civil day encoded
+      // like `due_date`.
       await driver.exec(`
         ALTER TABLE reminders DROP COLUMN snooze_count;
         UPDATE reminders
@@ -1020,11 +728,8 @@ export const migrations: Migration[] = [
   },
 ];
 
-/**
- * Apply any migrations newer than the database's current `user_version`, each
- * inside a transaction, then bump `user_version`. Cheap hand-rolled runner in
- * place of a migration library (packages/data/README.md).
- */
+/** Apply every migration newer than `user_version`, each in a transaction,
+ *  bumping `user_version` as it goes. */
 export async function runMigrations(
   driver: SqliteDriver,
   steps: Migration[] = migrations,
