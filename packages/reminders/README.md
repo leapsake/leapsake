@@ -84,7 +84,9 @@ not any more: how you reach someone is an **affordance on the acknowledgment** �
 "wish them a happy birthday", rendered from their contact methods when the reminder fires — not a
 row you schedule weeks ahead. The read behind those buttons is `reminders.targets` in
 `@leapsake/core`, which also answers the case where there are none: a wish for someone unreachable
-offers to collect a way in. ⚠️ _A nudge, never a wall_ binds there — the reminder stays completable
+offers to collect a way in. A postal address is never one of those buttons: posting has its own
+errand, `send:card`, due a week or more earlier, so on the day it is an affordance for a deadline
+already gone. ⚠️ _A nudge, never a wall_ binds there — the reminder stays completable
 by someone who never adds one. They keep their `actionDefs`
 entries so a rule stored under one still renders its real copy, and they are excluded from
 `SCHEDULABLE_ACTIONS`, which is the list every picker reads. The distinction that matters here is
