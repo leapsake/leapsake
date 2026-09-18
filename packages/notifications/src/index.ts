@@ -1,6 +1,6 @@
 /**
- * `@leapsake/notifications` — the local-notification **planner**
- * (`plans/v0-1_08_local-notifications.md`, Inc 2): a pure core that computes
+ * `@leapsake/notifications` — the local-notification **planner**: a pure core
+ * that computes
  * which OS notifications a device should have pending, and reconciles the
  * OS's actual pending set to it.
  *

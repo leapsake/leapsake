@@ -25,7 +25,7 @@ const DEFAULTS = {
 export interface NotificationSettingsRepo extends EntityRepo<NotificationSettings> {
   /**
    * Upsert `deviceId`'s policy fields — the "every device may write any
-   * device's row" surface (`plans/v0-1_08_local-notifications.md`). Creates the
+   * device's row" surface. Creates the
    * row (defaulting anything omitted: `off`, 09:00, no label) if this device has
    * never had one, else merges the patch and bumps the clock. Not scoped to
    * "this device" — the caller supplies whichever deviceId the cross-device

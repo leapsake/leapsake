@@ -243,8 +243,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // up once, before the core is built — can reach the *current* core (which a
   // later join/recover swaps) to regenerate system reminders on foreground.
   const coreRef = useRef<CoreApi | null>(null);
-  // This device's stable id (Inc 1's `ensureLocalDeviceId`,
-  // `plans/v0-1_08_local-notifications.md`) — minted once at boot,
+  // This device's stable id (`ensureLocalDeviceId`) — minted once at boot,
   // independent of any account, and read back unchanged after. Keys the
   // `notification_settings` row this device's own reconcile and (eventually)
   // its settings screen address.
@@ -313,8 +312,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     };
 
     /**
-     * The second reconcile, one layer out
-     * (`plans/v0-1_08_local-notifications.md`): compute this device's desired
+     * The second reconcile, one layer out: compute this device's desired
      * OS notifications from its policy + the live reminder set
      * (`@leapsake/notifications`' `planNotifications`), diff against what the
      * OS actually has pending, and drive the scheduler port through the delta

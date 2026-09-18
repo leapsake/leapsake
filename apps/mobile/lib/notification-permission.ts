@@ -1,10 +1,9 @@
 /**
- * The permission request and its persistence (Inc 3 §4,
- * `plans/v0-1_08_local-notifications.md`). Injected ports, mirroring
+ * The permission request and its persistence. Injected ports, mirroring
  * `forget-account.ts`'s convention for OS-touching calls: keeps this testable
  * without mocking `expo-notifications`, and leaves the real
  * `Notifications.requestPermissionsAsync` call assembled at the actual call
- * site — the settings mode picker (§7) — rather than behind a factory here,
+ * site — the settings mode picker — rather than behind a factory here,
  * since that is the only place this may legitimately run (**never at
  * launch**, only at the moment the user turns notifications on).
  *

@@ -845,8 +845,8 @@ export const migrations: Migration[] = [
   {
     version: 29,
     async up(driver) {
-      // Local-notification policy (`plans/v0-1_08_local-notifications.md`) — a
-      // synced, one-row-per-device settings table. **`id` holds the device id**,
+      // Local-notification policy — a synced, one-row-per-device settings
+      // table. **`id` holds the device id**,
       // not a freshly minted row id: like `self_person`'s fixed PK, this rides
       // the standard EntityRepo/defineSyncable machinery (which hardcodes
       // `WHERE id = ?`) by making the device id *be* the primary key, rather than
@@ -869,8 +869,8 @@ export const migrations: Migration[] = [
       // the owning device.
       //
       // No pending-notification data lives here — that set is derived fresh
-      // from reminder rows on every reconcile (`plans/v0-1_08_local-notifications.md`
-      // → "store what happened, never what to do next", migration 28's rule).
+      // from reminder rows on every reconcile: store what happened, never what
+      // to do next.
       await driver.exec(`
         CREATE TABLE notification_settings (
           id                TEXT    PRIMARY KEY,

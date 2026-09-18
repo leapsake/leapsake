@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /**
- * How a device wants its reminders to reach it when the app isn't open
- * (`plans/v0-1_08_local-notifications.md`). `off` is the default on a fresh
+ * How a device wants its reminders to reach it when the app isn't open.
+ * `off` is the default on a fresh
  * install; `digest` bundles a day's reminders into one 09:00 notification;
  * `each` explodes the same content into one notification per reminder — it is
  * not more timely, only a tap target per item.

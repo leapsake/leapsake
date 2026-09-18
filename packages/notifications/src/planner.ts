@@ -1,11 +1,11 @@
 /**
- * The pure core of `08 Inc 2` (`plans/v0-1_08_local-notifications.md`): compute
+ * The pure core of the planner: compute
  * the set of OS notifications that *should* be pending, given the reminder rows
  * and a device's policy. No `@leapsake/core` or `@leapsake/data` dependency, no
  * OS calls — {@link planNotifications} is deterministic in `now` and
  * independently unit-testable.
  *
- * The ~30-day horizon the plan describes is **not enforced here**. It falls out
+ * The ~30-day horizon is **not enforced here**. It falls out
  * of reading reminder rows as-is: a `system` reminder simply doesn't exist in
  * the store until its own action says it belongs on display (`activeDays` in
  * `@leapsake/reminders`), so the candidate set this planner sees is already

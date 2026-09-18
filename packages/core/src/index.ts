@@ -161,9 +161,8 @@ export type { ExportArchive } from "@leapsake/export";
 export { exportDataSchema } from "@leapsake/export";
 export type { ExportData } from "@leapsake/export";
 
-// The local-notification policy row shape (`plans/v0-1_08_local-notifications.md`,
-// migration 29), re-exported so the settings UI can type what `notificationSettings`
-// reads and writes.
+// The local-notification policy row shape, re-exported so the settings UI can
+// type what `notificationSettings` reads and writes.
 export type { NotificationMode, NotificationSettings } from "@leapsake/schema";
 
 // The custody Phase 0 bootstrap: the first KeyStore consumer, run between
@@ -860,8 +859,8 @@ export function createCore(driver: SqliteDriver) {
       },
     },
 
-    // Local-notification policy (`plans/v0-1_08_local-notifications.md`), Inc 1:
-    // the substrate only — no planner, no OS calls. Every method is scoped by
+    // Local-notification policy: the substrate only — no planner, no OS calls.
+    // Every method is scoped by
     // an explicit deviceId rather than an ambient "this device", so a
     // cross-device settings UI can read/edit any device's row, exactly like
     // `reminders.snooze(id, days)` takes an explicit id.

@@ -69,9 +69,8 @@ export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
     createHolidaysRepo(driver),
     createObservancesRepo(driver),
     createHiddenHolidaysRepo(driver),
-    // Local-notification policy — per-device, but editable from any device
-    // (plans/v0-1_08_local-notifications.md), so it rides ordinary sync like
-    // any other preference row.
+    // Local-notification policy — per-device, but editable from any device,
+    // so it rides ordinary sync like any other preference row.
     createNotificationSettingsRepo(driver),
     tags,
     tags.taggings,

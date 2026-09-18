@@ -196,7 +196,7 @@ export function createSyncScheduler(opts: {
  * does not match invisible rather than wrong. Every entry below past the original
  * `create|update|edit|softDelete` was a gap found in production, not by a test —
  * `snooze`, then `setPolicy`/`setPermissionState` for the cross-device
- * notification policy (`plans/v0-1_08_local-notifications.md`), then a batch of
+ * notification policy, then a batch of
  * nine (`commit`, `merge`, `reject`, `clear`, `regenerate`, and `set` widened to
  * cover `holidays.set*` and `self.set`).
  *

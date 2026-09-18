@@ -44,8 +44,8 @@ function formatDeliveryTime(minute: number): string {
   return `${hour12}:${min.toString().padStart(2, "0")} ${period}`;
 }
 
-/** Every half-hour of the day — `deliveryMinute`'s picker granularity
- *  (`plans/v0-1_08_local-notifications.md` §7). `SelectField`'s value type must
+/** Every half-hour of the day — `deliveryMinute`'s picker granularity.
+ *  `SelectField`'s value type must
  *  be a string, so the minute travels as one and is parsed back on change. */
 const TIME_OPTIONS: { value: string; label: string }[] = Array.from(
   { length: 48 },
@@ -61,12 +61,10 @@ const TIME_OPTIONS: { value: string; label: string }[] = Array.from(
  * on its own alongside Holidays, Gifts, Data, etc. — nothing about the section
  * itself changed in the move.
  *
- * Notification policy is pre-account by design (Inc 1,
- * `plans/v0-1_08_local-notifications.md`) — a device gets a policy the moment
- * it mints a local id, before any account exists.
+ * Notification policy is pre-account by design — a device gets a policy the
+ * moment it mints a local id, before any account exists.
  *
- * **Notification policy** (Inc 3 §7, `plans/v0-1_08_local-notifications.md`) —
- * off by default, per-device, but editable from any device. Two pickers for
+ * **Notification policy** — off by default, per-device, but editable from any device. Two pickers for
  * *this* device (mode, delivery time) plus a read-and-edit list of every
  * other device that has ever written a policy row. Editing another device's
  * row calls the exact same `setPolicy(otherId, patch)` this device's own

@@ -84,8 +84,7 @@ export const KEYSTORE_SECRET_IDS = [
  * (`plans/encryption/model.md` §7.2), {@link ensureDeviceMasterKey} runs only
  * once a store is Authenticated, so an account-less install otherwise has no
  * device id at all — a gap the local-notification policy needs closed, since
- * its per-device settings row is keyed on this id pre-account too
- * (`plans/v0-1_08_local-notifications.md`).
+ * its per-device settings row is keyed on this id pre-account too.
  *
  * Touches only the OS keychain — no DB write, no enclave secret, no master
  * key — so it is safe to call regardless of custody state. Minted once, read

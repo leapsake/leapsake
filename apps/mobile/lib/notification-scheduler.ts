@@ -25,8 +25,7 @@ export interface MobileNotificationScheduler extends NotificationScheduler {
  * package: `withNotificationsAndroid.js` writes that id straight into an FCM
  * meta-data tag and nothing else). So "declared before it's used" means
  * created once at the top of this module, awaited by `schedule` below —
- * not, as `plans/v0-1_08_local-notifications.md` originally assumed, a
- * manifest declaration ahead of first launch. iOS has no channel concept;
+ * not a manifest declaration ahead of first launch. iOS has no channel concept;
  * `setNotificationChannelAsync` no-ops there (confirmed against the base,
  * non-`.android.` implementation), so this runs unconditionally.
  */
@@ -77,8 +76,7 @@ export const PLATFORM_NOTIFICATION_BUDGET =
     : IOS_NOTIFICATION_BUDGET;
 
 /**
- * The `expo-notifications`-backed implementation (Inc 3 §3,
- * `plans/v0-1_08_local-notifications.md`). `schedule`/`cancel` drive the OS
+ * The `expo-notifications`-backed implementation. `schedule`/`cancel` drive the OS
  * directly, addressing each notification by `DesiredNotification.id` — the
  * same id `@leapsake/notifications`' `reconcile` computed, passed straight
  * through as `NotificationRequestInput.identifier` rather than letting the OS

@@ -104,8 +104,7 @@ describe("ensureDeviceMasterKey", () => {
 });
 
 /**
- * The pre-account half of Phase 0 (`plans/v0-1_08_local-notifications.md`):
- * a device id must exist before any account does, since "encryption follows
+ * A device id must exist before any account does, since "encryption follows
  * custody" means {@link ensureDeviceMasterKey} never runs for a plaintext
  * store.
  */
