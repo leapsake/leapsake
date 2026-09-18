@@ -12,9 +12,10 @@ the company exists and the iOS record transfers to it ([`shipping.md`](./shippin
 
 **Android stopped waiting** _(owner, 2026-09-13)_ — it ships from the **personal** account on the
 same rung ladder as iOS: `alpha`→internal, `beta`→closed, which is also how it earns production
-access ([`android-pipeline.md`](./android-pipeline.md)). The whole path is scripted as of
-2026-09-16 — the Console bootstrap it needed is done, and `pnpm release` now ships both phones
-from one tag. What is left is the first real run, then recruiting 12 testers for 14 days.
+access ([`android-pipeline.md`](./android-pipeline.md)). **`v0.1.0-beta.9` shipped both phones
+from one tag on 2026-09-18** — Android 374643 to the closed track, iOS 374687 into beta review —
+so the scripted path is proven and `--only` is retired. Next there is the Console-precondition
+preflight that bare releases now need, then the 14-day tester clock.
 
 **The release path is finished** _(2026-09-13)_. `rc` builds, hands the build to testers **and**
 submits it to App Store review; `final` builds nothing — it releases the approved version and tags

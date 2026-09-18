@@ -2,10 +2,11 @@
 
 > **In flight** *(owner, 2026-09-13)*. Android ships from the **personal** Play account to the
 > internal and closed tracks; a later app transfer moves it to the company for $25. The build
-> half, the Console paperwork and the closed track are done, and `v0.1.0-beta.8` is live on the
-> closed track — `git log` has how each was built. **What is left is one scripted run that
-> completes end to end, and then dropping `--only`.** Production access, and with it `rc` and
-> `final`, waits on a tester clock that runs in the background.
+> half, the Console paperwork and the closed track are done, and the scripted path is **proven
+> end to end** — `v0.1.0-beta.9` shipped both platforms from one tag on 2026-09-18, so `--only`
+> is retired and a bare `pnpm release beta` is the default. `git log` has how each was built.
+> **What is left is the preflight that bare releases now need**, below. Production access, and
+> with it `rc` and `final`, waits on a tester clock that runs in the background.
 >
 > **This doc is written to be read cold** — by a person or an agent arriving with no context —
 > because the work spans a repo and a web console and neither half makes sense alone. It carries
@@ -22,63 +23,35 @@
 > which documents itself. ⚠️ *Play declarations and their revisit triggers* below must be **moved,
 > not deleted** — it outlives this document.
 
-## Next: `beta.9` proves the scripted path
+## The scripted path is proven; bare releases are the default
 
-**`v0.1.0-beta.8` is live on the closed track** *(2026-09-17)* — version code 373668, built by
-`pnpm release beta --only=android` from commit `6b3861c`, which is baked into the AAB as
-`LeapsakeCommit` and recorded in `refs/notes/releases`. iOS was deliberately skipped at this tag.
+**`v0.1.0-beta.9` shipped both platforms from one tag** *(2026-09-18)* — Android version code
+374643 to the closed track, iOS build 374687 to TestFlight and into beta review, both recorded
+in `refs/notes/releases` against the commit they were built from. Android ran first as
+`pnpm release beta --only=android`; iOS followed from the same tag with
+`pnpm release --from-tag=v0.1.0-beta.9 --only=ios`, while `tagOnHead` still held.
 
-⚠️ **Its rollout was done by hand in the Console**, because the scripted `publish()` hit two
-Console preconditions in a row (below). `build()` is fully proven — Gradle, the keytool
-fingerprint check, the commit baking, and `uploadBundle` all ran. `tracks.update` and the edit
-`:commit` were then proven separately by promoting the same bundle to the internal track over
-the API, so **every call `publish()` makes has now succeeded at least once** — just never all in
-one run. `beta.9` is where that happens.
+That was the last thing `--only` was protecting. **Drop it: `pnpm release beta` is now the
+whole command.** The asymmetry that justified the flag — `index.mjs` ships iOS first, so an
+Android failure would have spent an iOS build number and a review slot on a tag being abandoned
+— is no longer worth the two-step, because the tag stands through a partial failure and the
+summary prints the re-run: `pnpm release --from-tag=<tag> --only=<failed>`.
 
-### 1. `beta.9`, scripted, and what it proves
+⚠️ **One run each is not a habit.** Both runs hit a transient API failure and recovered on
+retry — Play's `POST /edits` and App Store Connect's `GET /v1/apps` — so the retries are load
+bearing rather than decoration, and a red that survives four attempts is a real one.
 
-```sh
-pnpm release beta --only=android
-```
+**After a release, read the closed track back.** The release should carry the *tag's* name
+(`0.1.0-beta.9`, not `0.1.0`), and `tracks.update` replaces the `releases` array wholesale, so
+anything not sent is gone.
 
-⚠️ **Keep `--only=android` one more time.** Every call is individually proven but the sequence is
-not, and the asymmetry that justified it the first time is unchanged: `index.mjs` ships iOS first
-and catches per target, so a bare run that fails on Android has already spent an iOS build
-number, a TestFlight distribution and a review slot on a tag being abandoned. Once one scripted
-run completes end to end, drop the flag for good.
+### What bare releases now need
 
-Afterwards, read the closed track back and confirm `tracks.update` left it as expected — the
-release should carry the **tag's** name now (`0.1.0-beta.9`, not `0.1.0`), and the
-`releases` array is replaced wholesale, so anything not sent is gone.
-
-Then ship iOS from the same tag, **before committing anything**, while `tagOnHead` still holds:
-
-```sh
-pnpm release --from-tag=v0.1.0-beta.9 --only=ios
-```
-
-⚠️ It re-runs the full suite, so `beta.9` costs the ~30-minute catalog twice. **iOS skipped
-`beta.8`** *(owner, 2026-09-17)*, and skipping a rung costs nothing in itself — the store version
-is `0.1.0` either way, build numbers come from the clock, and `refs/notes/releases` records which
-platform shipped which tag.
-
-⚠️ **What has changed is what that skip now spans.** The reason given for it was that every commit
-between `v0.1.0-beta.8` and `beta.9` was scripts, plans, tests, or the Android-only
-`blockedPermissions` key, so the two iOS binaries would be identical. **That stopped being true
-hours after it was written**: the relay removal and the core decomposition both landed on
-2026-09-17, and over that same interval `apps/mobile` is 222 insertions against **3050 deletions**,
-core is split into per-domain packages, and both clients are cut to the local account. So `beta.9`
-is not the pipeline-proving no-op this section was written around — it is the **first tester build
-of the single-device architecture**, and the first iOS binary since `beta.7`.
-
-⚠️ **Smoke-test a build on a simulator before spending the tag.** A version code can never be
-reused, the suite does not launch either client, and nothing between here and a tester catches an
-app that installs and then opens to a white screen.
-
-### 2. Then bare releases, and what still blocks them
-
-- ☐ **A Console-precondition preflight**, deliberately deferred until bare releases are routine —
-  *Still to build* has the shape, the reasoning and the assumption it rests on.
+- ☐ **A Console-precondition preflight — now due.** It was deferred *until* bare releases were
+  routine, on the reasoning that while `--only=android` was in use, hitting an unknown Console
+  gate cost a wasted suite run rather than a half-shipped release. **That protection is what
+  dropping the flag gives up**, so this is the next thing to build. *Still to build* has its
+  shape, and the assumption it rests on.
 - ☐ **`final` is structurally mixed.** iOS's `final` is a marker rung (`ios.mjs`, `marker: true`)
   that tags what Apple approved; Android's is a real production rollout. `index.mjs` refuses the
   combination with an actionable message rather than shipping half, so a bare `pnpm release final`
@@ -86,6 +59,14 @@ app that installs and then opens to a white screen.
   production access exists.
 - ☐ **`rc` and `final` on Android wait on production access**, which waits on the 14 days —
   *Production access: the tester clock*, below.
+
+⚠️ **The suite is one gate for both platforms, and `--only` never narrowed it.** `index.mjs`
+runs `pnpm test:all` once, before any target builds, and the mobile tiers drive *both* an
+emulator and a simulator whatever `--only` says. So an iOS flow going red stops an
+Android-only release — which is exactly what happened on 2026-09-17, when
+`e2e/04-create-account.yaml` reddened on the simulator and no AAB was built. Publishing is the
+half that is per-target: `index.mjs` catches around each target, so one platform failing to
+publish leaves the other shipped and the tag standing.
 
 ## The two Console preconditions that failed, and what they teach
 
@@ -305,12 +286,12 @@ it pulls in Play billing policy.
 closed half, `final` refuses. It and `play.mjs` document their own reasoning; the target contract
 is in `scripts/release/targets/index.mjs`. What remains:
 
-- ☐ **A Console-precondition preflight.** ⚠️ **Not yet — do not build this on spec.** It waits
-  until a bare `pnpm release beta` is shipping both platforms consistently *(owner, 2026-09-17)*.
-  Both known gates are satisfied and are one-time-per-app, so the next one is a different unknown
-  that this either catches generically or not at all; and while `--only=android` is still in use,
-  hitting one costs a wasted suite run rather than a half-shipped release. The moment it earns its
-  place is when `--only` is dropped for good.
+- ☐ **A Console-precondition preflight — the next thing to build.** It waited until a bare
+  `pnpm release beta` was shipping both platforms *(owner, 2026-09-17)*; `v0.1.0-beta.9` did that
+  on 2026-09-18 and `--only` is retired, so the condition is met. Both known gates are satisfied
+  and are one-time-per-app, so the next one is a different unknown that this either catches
+  generically or not at all — the argument for building it now is that a half-shipped release is
+  what an unknown gate costs once iOS is no longer held back.
 
   Both 2026-09-17 failures refused the *edit commit*,
   after the suite, the Gradle build and the upload had all been spent. They are knowable in
