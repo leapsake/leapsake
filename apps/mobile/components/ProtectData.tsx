@@ -66,9 +66,6 @@ export function passwordHint(password: string): string {
  *    that never leave the phone are *accountless* in every sense a user cares
  *    about. The heading softens the word; the mechanism is unchanged.
  *
- * Until this existed, mobile reached account creation only through the
- * relay-bound signup step in Settings — so a phone-only user who didn't want sync
- * had no way to encrypt their store at all, while a desktop user did.
  */
 export function CreateAccountForm({
   onCreated,
@@ -187,16 +184,9 @@ export function CreateAccountForm({
  */
 export function RecoveryKeyReveal({
   recoveryKey,
-  escrowPending,
   onDone,
 }: {
   recoveryKey: string;
-  /**
-   * The rotation could not reach the relay, so the account's escrow still answers
-   * to the *previous* phrase. Only ever true for a rotation — a new account has no
-   * previous phrase, and a local-only account has no escrow.
-   */
-  escrowPending: boolean;
   onDone: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -210,14 +200,6 @@ export function RecoveryKeyReveal({
         lose both, your data cannot be recovered.
       </Text>
       <RecoveryPhraseWords phrase={recoveryKey} />
-      {escrowPending && (
-        <Text style={styles.danger} accessibilityRole="alert">
-          Keep your old phrase until this device next syncs. Leapsake couldn't
-          reach your relay, so recovering your account on a new device still
-          needs the old phrase. This one takes over automatically the next time
-          this device syncs.
-        </Text>
-      )}
       <View style={[styles.rowMeta, { marginTop: 0 }]}>
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
         {/*

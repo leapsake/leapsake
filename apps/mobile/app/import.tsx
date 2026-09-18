@@ -258,11 +258,7 @@ export default function ImportScreen() {
         <Stack.Screen
           options={{ title: "Protect your data", headerBackVisible: false }}
         />
-        <RecoveryKeyReveal
-          recoveryKey={state.phrase}
-          escrowPending={false}
-          onDone={startImport}
-        />
+        <RecoveryKeyReveal recoveryKey={state.phrase} onDone={startImport} />
       </>
     );
   }

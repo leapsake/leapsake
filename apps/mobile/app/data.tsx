@@ -80,24 +80,22 @@ const FORGET_ACCOUNT_PHRASE = "DELETE";
  * this device. Named as removal so it can never be mistaken for signing out.
  *
  * The wording is **driven by a check, not hardcoded** (§7.3.1): the provider asks
- * the relay whether it keeps a durable copy and reports `durableBackup`. Absent an
- * answer — today's universal case, since no relay advertises the capability yet —
- * it is `false` and this shows the alarming version, hard-confirm and all. When
- * server-side backup ships, that copy stops appearing on its own.
+ * whether anything keeps a durable copy and reports `durableBackup`. Absent an
+ * answer — today's universal case — it is `false` and this shows the alarming
+ * version, hard-confirm and all. When server-side backup ships, that copy stops
+ * appearing on its own.
  */
 function ForgetAccountSection() {
   const sync = useSync();
   const [info, setInfo] = useState<{
     username?: string;
-    relayUrl?: string;
     durableBackup: boolean;
   } | null>(null);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 
-  // Read on entering the confirmation rather than on mount: it reaches out to
-  // the relay, and there is no reason to do that for every visit to this screen.
+  // Read on entering the confirmation rather than on mount.
   function beginConfirm() {
     setError(null);
     sync
@@ -118,8 +116,7 @@ function ForgetAccountSection() {
     setError(null);
   }
 
-  // A relay that keeps a durable copy makes this ordinary — sign back in and
-  // re-pull. Without one, the data on this device is the last copy.
+  // Nothing keeps a durable copy, so the data on this device is the last copy.
   const lastCopy = info !== null && !info.durableBackup;
   const armed =
     !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
@@ -173,10 +170,8 @@ function ForgetAccountSection() {
               {info.username !== undefined
                 ? `the account “${info.username}”`
                 : "this account"}{" "}
-              on this device.{" "}
-              {info.relayUrl === undefined
-                ? "This account is only on this device, so there is no other copy."
-                : `${info.relayUrl} does not keep a backup of your data, so if this is your only device there is no other copy.`}
+              on this device. This account is only on this device, so there is
+              no other copy.
             </Text>
             <ExportFirstOffer disabled={working} />
             <View style={styles.field}>
@@ -202,14 +197,14 @@ function ForgetAccountSection() {
             {info.username !== undefined
               ? `“${info.username}”`
               : "this account"}{" "}
-            from this device? {info.relayUrl} keeps a copy of your data, so you
-            can sign back in to get it again.
+            from this device? A copy of your data is kept elsewhere, so you can
+            get it again.
           </Text>
         )}
         {/* Offered in **both** branches, not only when this is the last copy: a
             user is entitled to their own file whether or not somebody else is
-            holding one, and `durableBackup` is a claim by a relay rather than
-            something this device can verify. Only the wording above branches. */}
+            holding one, and `durableBackup` is a claim this device cannot
+            verify. Only the wording above branches. */}
         {!lastCopy && <ExportFirstOffer disabled={working} />}
         <Pressable
           style={[
