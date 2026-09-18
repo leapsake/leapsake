@@ -2,11 +2,7 @@ import { rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { KeyStore } from "@leapsake/crypto";
 import type { SqliteDriver } from "@leapsake/core";
-import {
-  type AccountBootstrap,
-  clearLocalAccount,
-  createLocalAccount,
-} from "@leapsake/core";
+import { createLocalAccount } from "@leapsake/core";
 import {
   type AccountRoster,
   UNAUTHENTICATED_STORE_SLOT,
@@ -43,15 +39,6 @@ export async function createAccountOnThisDevice(opts: {
   userDataPath: string;
   username: string;
   password: string;
-  /** Set when this act also binds a relay (§7.5 Phase 1). */
-  relayUrl?: string;
-  /**
-   * Publish the account to its relay. Called **before** the store is converted,
-   * so a rejected registration (a taken username, an unreachable relay) rolls the
-   * account back and leaves the device exactly as it was — still Unauthenticated, still
-   * plaintext, nothing to undo on disk.
-   */
-  registerWithRelay?: (bootstrap: AccountBootstrap) => Promise<void>;
   /** Close the store's handle; the conversion needs the file quiescent. */
   closeStore: () => Promise<void>;
 }): Promise<{ accountId: string; recoveryPhrase: string; storePath: string }> {
@@ -66,27 +53,14 @@ export async function createAccountOnThisDevice(opts: {
 
   // 1. Keys + account rows, written into the store while it is still plaintext —
   //    the conversion copies whatever is there, so these must precede it.
-  const { accountId, recoveryPhrase, dbKey, passwordSidecar, bootstrap } =
+  const { accountId, recoveryPhrase, dbKey, passwordSidecar } =
     await createLocalAccount({
       keyStore,
       driver,
       username,
       password,
-      relayUrl: opts.relayUrl,
       platform: "desktop",
     });
-
-  // 1b. Bind the relay, if this act is doing that too. Before the conversion on
-  //     purpose: it is the step most likely to fail, and failing here costs
-  //     nothing irreversible.
-  if (opts.registerWithRelay !== undefined) {
-    try {
-      await opts.registerWithRelay(bootstrap);
-    } catch (cause) {
-      await clearLocalAccount({ driver });
-      throw cause;
-    }
-  }
 
   const encryptedPath = join(userDataPath, storePath(accountId));
   await opts.closeStore();

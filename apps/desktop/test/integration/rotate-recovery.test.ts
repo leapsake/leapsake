@@ -13,7 +13,6 @@ import { utf8ToBytes } from "@leapsake/bytes";
 import {
   type SqliteDriver,
   createKeyWrapRepo,
-  createSyncStateRepo,
   runMigrations,
 } from "@leapsake/data";
 import {
@@ -28,10 +27,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
 /**
- * Custody slice 8 — **replacing the recovery phrase**, in the half that needs no
- * relay: a local-only account, where rotation is complete the moment it returns.
- * The relay half (the escrow, the offline flush, a peer catching up) is proved
- * against a live server in `apps/server/test/relay.test.ts`.
+ * **Replacing the recovery phrase** on a local-only account, where the rotation is
+ * complete the moment it returns.
  *
  * The property under test throughout is that a rotation moves the phrase in *all*
  * the places it is fastened at once — the db-key door, the account's `key_wrap`
@@ -103,20 +100,13 @@ describe("rotating the recovery phrase", () => {
     const { keyStore, masterKey, dbKey, phrase } = await localAccount();
     const door = captureDoor();
 
-    const { recoveryPhrase, escrowPending } =
-      await rotateRecoveryPhraseForAccount({
-        keyStore,
-        driver,
-        password: PASSWORD,
-        writeRecoveryDoor: door.write,
-      });
+    const { recoveryPhrase } = await rotateRecoveryPhraseForAccount({
+      keyStore,
+      driver,
+      password: PASSWORD,
+      writeRecoveryDoor: door.write,
+    });
 
-    // A local-only account has no escrow, so nothing is deferred: the phrase this
-    // returns is live everywhere the moment it is shown.
-    expect(escrowPending).toBe(false);
-    expect(await createSyncStateRepo(driver).getRecoveryEscrowPending()).toBe(
-      false,
-    );
     expect(recoveryPhrase).not.toBe(phrase);
 
     const rotated = decodeRecoveryPhrase(recoveryPhrase);

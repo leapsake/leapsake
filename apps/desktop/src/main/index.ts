@@ -13,36 +13,18 @@ import {
   type CoreApi,
   type KeySession,
   type SqliteDriver,
-  type SyncScheduler,
-  bindRelayToAccount,
   createCore,
-  createSyncScheduler,
   establishKeySession,
-  convergeRecoveryKey,
   fetchRelayCapabilities,
-  getAutoSync,
   getSyncStatus,
-  isRelayAuthError,
-  isUsernameTakenError,
-  joinAccountViaRelay,
   lockThisDevice,
-  lookupAccount,
-  lookupAccountId,
   MIN_PASSWORD_LENGTH,
-  reauthenticateViaRelay,
-  recoverAccountViaRelay,
-  reconcileOnJoin,
-  registerAccountWithRelay,
   rotateRecoveryPhraseForAccount,
-  runAccountSync,
   runMigrations,
   seedHolidayCatalog,
-  setAutoSync,
-  withSyncKick,
 } from "@leapsake/core";
 import type { KeyStore } from "@leapsake/crypto";
 import {
-  flag,
   flagSnapshot,
   parseFlagOverrides,
   setFlagOverrides,
@@ -74,12 +56,10 @@ import {
   type ArgParser,
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
-import { adoptAccountOnThisDevice } from "./db/adopt-account-flow.js";
 import { destroyStoreFiles } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
-import { mergeAccountOnThisDevice } from "./db/merge-account-flow.js";
 import {
   type UnlockAnswer,
   type UnlockRequest,
@@ -111,35 +91,22 @@ let keyStore: KeyStore;
 
 // The unlocked device key material (custody Phase 0), passed into createCore so
 // it can encrypt sensitive fields at rest under per-item content keys. Mutable
-// because joining an existing account (sync:join) adopts a *different* master key
-// and rebuilds the core around it (see registerSyncIpc).
+// because every store swap re-establishes it (see openActiveStore).
 let keySession: KeySession | undefined;
 export function getKeySession(): KeySession | undefined {
   return keySession;
 }
 
 // Why this device cannot prove which master key is the account's, when that is the
-// case: the *Degraded* state (custody slice 10, `model.md` §7.5). Set by every open,
-// so a repaired device clears it by re-opening, and read by the boot IPC — the
-// renderer keeps a banner up while it is set, and every sync surface refuses with
-// this message rather than the misleading "sync is not enabled for this store".
-//
-// `relayBound` is carried because it changes what is *true* for the user, not just
-// how it is worded: an account with a relay has sync, and it has stopped; an account
-// with no relay never had any, so telling that person "sync is paused" invents a
-// feature they do not have and a loss they have not suffered.
-let custodyDegraded: { detail: string; relayBound: boolean } | undefined;
+// case: the *Degraded* state (`model.md` §7.5). Set by every open, so a repaired
+// device clears it by re-opening, and read by the boot IPC — the renderer keeps a
+// banner up while it is set.
+let custodyDegraded: { detail: string } | undefined;
 
-// The live core the IPC handlers forward to. Reassigned when sync:join adopts the
-// account master key; registerIpc reads it through a getter so the handlers never
-// need re-registering (ipcMain.handle throws on a second registration). It is
-// wrapped with withSyncKick so a renderer write debounce-kicks a background sync.
+// The live core the IPC handlers forward to. Reassigned whenever a store swap
+// rebuilds it; registerIpc reads it through a getter so the handlers never need
+// re-registering (ipcMain.handle throws on a second registration).
 let activeCore: CoreApi | undefined;
-
-// The background-sync scheduler (seamless sync): writes kick it, window focus and
-// the interval trigger it, and the manual "Sync now" button routes through it so
-// they share single-flight. Built in whenReady once the driver/keystore exist.
-let scheduler: SyncScheduler | undefined;
 
 // True from the instant the store's handle is closed for replacement until the
 // new one is open. `driver` is unusable in that window, so every entry point that
@@ -149,16 +116,10 @@ let scheduler: SyncScheduler | undefined;
 // one-time recovery phrase was on screen.
 let storeSwapping = false;
 
-/**
- * Build the live core around `session` and wrap it so each local write kicks a
- * (debounced) background sync. Used at bootstrap and again after sync:join adopts
- * a different master key. The kick reads `scheduler` lazily, so it is safe even
- * before the scheduler is built.
- */
+/** Build the live core around `session`. Called at bootstrap and again after
+ *  every store swap. */
 function setActiveCore(session: KeySession | undefined): void {
-  activeCore = withSyncKick(createCore(driver, session), () =>
-    scheduler?.kick(),
-  );
+  activeCore = createCore(driver, session);
 }
 
 /**
@@ -242,10 +203,8 @@ async function openActiveStore(): Promise<void> {
   //
   // It reports rather than throws: a device that cannot prove which master key is
   // the account's is *Degraded* — the store opens and the data is readable, but
-  // `keySession` stays undefined, which is already this process's "do not sync"
-  // signal (the scheduler thunk and `catchUpRecoveryKey` both check it), so nothing
-  // divergent is pushed and no stray key can reach the relay's escrow. The renderer
-  // shows `custodyDegraded` and the way out.
+  // `keySession` stays undefined. The renderer shows `custodyDegraded` and the
+  // way out.
   const established = await establishKeySession({
     keyStore,
     driver,
@@ -255,10 +214,7 @@ async function openActiveStore(): Promise<void> {
   });
   custodyDegraded =
     established.state === "degraded"
-      ? {
-          detail: established.message,
-          relayBound: (await getSyncStatus({ driver })).relayUrl !== undefined,
-        }
+      ? { detail: established.message }
       : undefined;
   keySession = established.state === "ok" ? established.keySession : undefined;
   if (established.state === "degraded") {
@@ -274,20 +230,12 @@ async function openActiveStore(): Promise<void> {
  * Re-open the store after an operation replaced it, and hand the running app back
  * a working database. The caller has already closed the old handle (the file
  * cannot be converted or deleted while one is open), so between that close and
- * this call **every core IPC and the background scheduler are pointed at a dead
- * driver** — hence the scheduler stop here, and hence keeping that window as short
- * as an `await`.
- *
- * The auto-sync preference is re-read because it lives *inside* the store: the
- * converted store carries the user's setting across, a reset store has the
- * default, and the scheduler must follow whichever it now is.
+ * this call **every core IPC is pointed at a dead driver** — hence keeping that
+ * window as short as an `await`.
  */
 async function reopenActiveStore(): Promise<void> {
-  scheduler?.stop();
   await openActiveStore();
   storeSwapping = false;
-  scheduler?.setAutoEnabled(await getAutoSync({ driver }));
-  scheduler?.start();
   // Reconcile against the store that just arrived. Every swap can change what the
   // onboarding nudges are asking for — creating an account answers the account
   // invitation and the sign-in nudge both, and a factory reset puts a fresh store
@@ -311,16 +259,14 @@ async function reopenActiveStore(): Promise<void> {
  *
  * The two failure shapes need different answers, and {@link storeSwapping} is what
  * distinguishes them, because it is set by the operation's own `closeStore`
- * callback at the exact moment the handle dies. A failure *before* that (a taken
- * username, an unreachable relay — `createAccountOnThisDevice` registers with the
- * relay first for precisely this reason) leaves the original store open and
- * untouched, so only the scheduler needs resuming. A failure *after* it means the
- * handle is gone and the app must genuinely re-open — and re-resolving custody
- * from the roster picks the right store either way: the original if the conversion
- * never got as far as a roster entry, the converted one if it did.
+ * callback at the exact moment the handle dies. A failure *before* that leaves the
+ * original store open and untouched, so there is nothing to restore. A failure
+ * *after* it means the handle is gone and the app must genuinely re-open — and
+ * re-resolving custody from the roster picks the right store either way: the
+ * original if the conversion never got as far as a roster entry, the converted one
+ * if it did.
  */
 async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
-  scheduler?.stop();
   try {
     const result = await operation();
     await restoreLiveStore(); // a failure here is real — let it surface
@@ -338,141 +284,50 @@ async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Put the app back on a live store: a genuine re-open when the handle was closed,
- *  otherwise just resume the scheduler ticks {@link withStoreSwap} paused. */
+/** Put the app back on a live store: a genuine re-open when the handle was
+ *  closed, otherwise a no-op — the original store is still open. */
 async function restoreLiveStore(): Promise<void> {
   if (storeSwapping) await reopenActiveStore();
-  else scheduler?.start();
 }
 
 /**
- * Persist this device's at-rest **password door** beside the store it opens — the
- * {@link PasswordDoorWriter} every credential-establishing path is handed, so none
- * of them can quietly skip it.
+ * Persist this device's at-rest **recovery door** beside the store it opens,
+ * handed to the rotation that changes this device's recovery key.
  *
  * `dbPath` is read at call time, so this always lands beside whichever store is
- * live. Core skips calling it entirely while a store has no db-key (see
- * `sealPasswordDoorIfProtected`), so this never writes a door onto a plaintext
- * store.
- *
- * ⚠️ **Not for the paths that convert the store.** Account creation, join and
- * recovery all seal a door for a store that does not exist yet, so `dbPath` is the
- * wrong answer while they run — it still names the Unauthenticated store they are about to
- * delete. Those flows capture the bytes and write them at the converted path
- * instead (`create-account-flow.ts`, `adopt-account-flow.ts`).
- */
-async function writeThisDevicePasswordDoor(sidecar: Uint8Array): Promise<void> {
-  writeSidecar(passwordSidecarPath(dbPath), sidecar);
-}
-
-/**
- * The recovery-door counterpart of {@link writeThisDevicePasswordDoor}, handed to
- * the two paths that change this device's recovery key: a rotation here, and
- * adopting one performed on another device.
- *
- * Unlike the password door this one has no "not for the converting paths" caveat —
- * neither caller runs during a store conversion. The boot path writes the same
- * file from the keychain key on every launch (`open.ts`), which is what makes a
- * missed write self-correcting rather than permanent.
+ * live. The boot path writes the same file from the keychain key on every launch
+ * (`open.ts`), which is what makes a missed write self-correcting rather than
+ * permanent.
  */
 async function writeThisDeviceRecoveryDoor(door: Uint8Array): Promise<void> {
   writeSidecar(recoverySidecarPath(dbPath), door);
 }
 
 /**
- * Once per launch, take on a recovery phrase rotated on another device (custody
- * slice 8) — and, on a device that lost its recovery key at sign-out, get one
- * back. Both are the same act: the account's key differs from this device's, so
- * this device adopts it and re-seals its own doors.
- *
- * Fire-and-forget, and silent on failure by design. It is a convergence step, not
- * something the user asked for: an unreachable relay, an Unauthenticated store, or a
- * local-only account all simply mean there is nothing to converge on right now,
- * and the old phrase keeps opening this device's file until there is.
- */
-async function catchUpRecoveryKey(): Promise<void> {
-  // No key session covers the Degraded device too, and load-bearingly so: this
-  // publishes `wrap(recoveryKey, MK)` to the relay, so a device whose master key is
-  // unproven must not reach it (custody slice 9's account-wide-exposure note).
-  if (keySession === undefined || storeSwapping) return;
-  try {
-    await convergeRecoveryKey({
-      keyStore,
-      driver,
-      masterKey: keySession.masterKey,
-      writeRecoveryDoor: writeThisDeviceRecoveryDoor,
-    });
-  } catch (error) {
-    console.error("recovery-key catch-up failed:", error);
-  }
-}
-
-/**
- * Reconcile this device's pre-existing local people against the account it just
- * adopted: pull first, then report how many possible duplicates that surfaced so
- * the renderer can prompt the user to review them (no auto-merge).
- *
- * Runs *after* the store swap, against the re-opened handles — the join wrote the
- * account master key into the enclave, so the reopen's `ensureDeviceMasterKey`
- * hands back that same key. Best-effort: a reconcile failure must never fail an
- * otherwise-good join.
- */
-async function reconcileAfterAdopt(): Promise<number> {
-  if (activeCore === undefined || keySession === undefined) return 0;
-  try {
-    const { duplicateCount } = await reconcileOnJoin({
-      driver,
-      masterKey: keySession.masterKey,
-      core: activeCore,
-    });
-    return duplicateCount;
-  } catch {
-    return 0;
-  }
-}
-
-/**
  * Reconcile the automated (`system`) reminders — upcoming birthdays — against the
  * live core, then, only if anything actually changed, refresh the renderer in
- * place and kick a sync so the rows propagate. Called at boot and on window focus
- * (a new local day can bring a birthday into range). Best-effort: a failure here
- * must never break launch, so it is logged and swallowed. `regenerateSystem` is
- * not a sync-kicking mutation (it runs off a user write), hence the explicit kick.
+ * place. Called at boot and on window focus (a new local day can bring a birthday
+ * into range). Best-effort: a failure here must never break launch, so it is
+ * logged and swallowed.
  */
 async function regenerateSystemReminders(): Promise<void> {
   if (activeCore === undefined || storeSwapping) return;
   try {
     const { created, updated, removed } =
       await activeCore.reminders.regenerateSystem();
-    if (created > 0 || updated > 0 || removed > 0) {
-      broadcastSyncActivity({ changed: true });
-      scheduler?.kick();
-    }
+    if (created > 0 || updated > 0 || removed > 0) broadcastDataChanged();
   } catch (error) {
     console.error("regenerate system reminders failed:", error);
   }
 }
 
-/** Push a background-sync activity update to every renderer (so Settings can show
- *  "last synced" / a non-fatal error even when the sync wasn't button-initiated).
- *  `changed` signals a pull that applied records, so the renderer can revalidate
- *  the active route in place (reactive invalidation). */
-function broadcastSyncActivity(payload: {
-  at?: number;
-  error?: string;
-  changed?: boolean;
-  needsReauth?: boolean;
-}): void {
+/** Tell every renderer that the main process changed rows behind its back, so it
+ *  can re-run the active route's loaders in place. */
+function broadcastDataChanged(): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send("sync:activity", payload);
+    window.webContents.send("app:changed");
   }
 }
-
-/** The user-facing prompt shown when a sync 401s because the account password was
- *  reset on another device. Both the background scheduler's `onError` and the
- *  manual "Sync now" path surface it, so it lives here to stay identical. */
-const REAUTH_PROMPT =
-  "Your password was changed on another device. Re-enter it to reconnect.";
 
 /** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
@@ -585,407 +440,14 @@ function requireText(value: unknown, field: string): string {
 }
 
 /**
- * Turn a relay request failure into a message the user can act on. `fetch`
- * rejects with `TypeError: fetch failed` when the relay is unreachable (e.g. the
- * server isn't running); the transport throws `relay … failed: <status>` for an
- * HTTP error, so a 409 means the username is taken.
- */
-function relayErrorMessage(cause: unknown, relayUrl: string): string {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  if (message.includes("fetch failed")) {
-    return `Couldn't reach the relay at ${relayUrl}. Make sure the sync server is running, then try again.`;
-  }
-  if (message.includes("409")) {
-    return "That username is already taken on this relay. Pick another.";
-  }
-  if (message.includes("401")) {
-    return "Incorrect username or password for this account.";
-  }
-  if (message.includes("404")) {
-    return "No account found for that username on this relay.";
-  }
-  return `Relay request failed: ${message}`;
-}
-
-/**
- * The sync/account custody surface, separate from {@link registerIpc} because it
- * is *not* part of {@link CoreApi}: enabling sync wraps the device master key
+ * The account custody surface, separate from {@link registerIpc} because it is
+ * *not* part of {@link CoreApi}: creating an account wraps the device master key
  * under a password-derived KEK, so it needs the {@link KeyStore} + driver
  * directly rather than the transactional core. Exposed to the renderer as
  * `window.sync` (a distinct bridge from `window.api`).
- *
- * `sync:enable` is the renderer's trust boundary for the password, so it checks
- * the length here before deriving anything, and returns the one-time recovery
- * key **base64-encoded for display** — the raw key bytes never cross IPC.
  */
 function registerSyncIpc(): void {
   ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
-
-  // Prelogin existence probe for the combined sign-up / log-in flow: does this
-  // username already have an account on the relay? A connection failure surfaces
-  // as the friendly "couldn't reach the relay" message.
-  ipcMain.handle(
-    "sync:lookup",
-    async (_event, args: { username?: unknown; relayUrl?: unknown }) => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      try {
-        return { exists: await lookupAccount({ relayUrl, username }) };
-      } catch (cause) {
-        throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-      }
-    },
-  );
-
-  // Enable sync on this (first) device: establish the account + password door,
-  // then register the bootstrap ciphertext with the relay so a second device can
-  // log in. Returns the one-time recovery key base64-encoded for display.
-  ipcMain.handle(
-    "sync:enable",
-    async (
-      _event,
-      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
-    ) => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      const password = args?.password;
-      if (
-        typeof password !== "string" ||
-        password.length < MIN_PASSWORD_LENGTH
-      ) {
-        throw new Error(
-          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-        );
-      }
-      // Enabling sync **is** creating an account that also binds a relay, so it
-      // runs the same flow as the local-only path (@leapsake/key-custody): the store is
-      // converted to encrypted here too. Before this it created the account and
-      // left the store plaintext — a half-Authenticated state §7.2 does not have.
-      // The store was converted underneath this process, so withStoreSwap re-opens
-      // the app around the new one before this resolves. The renderer keeps the
-      // one-time phrase on screen throughout; nothing restarts.
-      const { accountId, recoveryPhrase } = await withStoreSwap(() =>
-        createAccountOnThisDevice({
-          keyStore,
-          driver,
-          roster: deviceRoster(),
-          userDataPath,
-          username,
-          password,
-          relayUrl,
-          // Registering is the second half of enabling; a failure (server down,
-          // username taken) rolls the account back before anything on disk moves.
-          registerWithRelay: async (bootstrap) => {
-            try {
-              await registerAccountWithRelay({ relayUrl, bootstrap });
-            } catch (cause) {
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-          closeStore: async () => {
-            storeSwapping = true;
-            await driver.close?.();
-          },
-        }),
-      );
-      // Kick the account's first sync now, against the live handle.
-      void scheduler?.autoTrigger();
-      return { accountId, recoveryKey: recoveryPhrase };
-    },
-  );
-
-  // Join an existing account from this fresh device: log in over the relay, adopt
-  // the account master key under this device's enclave, and convert this device's
-  // store to encrypted — the conversion lands before the first sync pull, so no
-  // account data ever reaches a plaintext file (@leapsake/key-custody). Before this it
-  // adopted the key and left the store plaintext, so every device past the first
-  // was unencrypted at rest.
-  ipcMain.handle(
-    "sync:join",
-    async (
-      _event,
-      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
-    ) => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      const password = requireText(args?.password, "Password");
-      // The store is converted underneath this process, so withStoreSwap re-opens
-      // the app around the new one before this resolves — and on a failure puts the
-      // app back on whichever store the roster still names.
-      await withStoreSwap(() =>
-        adoptAccountOnThisDevice({
-          keyStore,
-          driver,
-          roster: deviceRoster(),
-          userDataPath,
-          username,
-          adopt: async (writePasswordSidecar) => {
-            try {
-              return await joinAccountViaRelay({
-                keyStore,
-                driver,
-                relayUrl,
-                username,
-                password,
-                platform: "desktop",
-                writePasswordSidecar,
-              });
-            } catch (cause) {
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-          closeStore: async () => {
-            storeSwapping = true;
-            await driver.close?.();
-          },
-        }),
-      );
-      // Past the swap, `driver`, `keySession` and `activeCore` are the converted
-      // store's — the pre-swap handles are closed, so the reconcile has to run
-      // here rather than beside the join.
-      const duplicateCount = await reconcileAfterAdopt();
-      void scheduler?.autoTrigger(); // push this device's data + pull any remainder
-      return { duplicateCount };
-    },
-  );
-
-  // Recover an existing account on this fresh device from the recovery phrase
-  // (forgot password): unwrap MK from the relay's recovery escrow, set a new
-  // password, adopt MK under this device's enclave, and rebuild the core.
-  ipcMain.handle(
-    "sync:recover",
-    async (
-      _event,
-      args: {
-        username?: unknown;
-        recoveryPhrase?: unknown;
-        newPassword?: unknown;
-        relayUrl?: unknown;
-      },
-    ) => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      const recoveryPhrase = requireText(
-        args?.recoveryPhrase,
-        "Recovery phrase",
-      );
-      const newPassword = args?.newPassword;
-      if (
-        typeof newPassword !== "string" ||
-        newPassword.length < MIN_PASSWORD_LENGTH
-      ) {
-        throw new Error(
-          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-        );
-      }
-      // Recovering onto a fresh device converts its store exactly as joining does;
-      // the only difference is which door the relay was opened with.
-      await withStoreSwap(() =>
-        adoptAccountOnThisDevice({
-          keyStore,
-          driver,
-          roster: deviceRoster(),
-          userDataPath,
-          username,
-          adopt: async (writePasswordSidecar) => {
-            try {
-              return await recoverAccountViaRelay({
-                keyStore,
-                driver,
-                relayUrl,
-                username,
-                recoveryPhrase,
-                newPassword,
-                platform: "desktop",
-                writePasswordSidecar,
-              });
-            } catch (cause) {
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-          closeStore: async () => {
-            storeSwapping = true;
-            await driver.close?.();
-          },
-        }),
-      );
-      // Same post-adopt reconcile: a recovering device may hold local data too.
-      const duplicateCount = await reconcileAfterAdopt();
-      void scheduler?.autoTrigger();
-      return { duplicateCount };
-    },
-  );
-
-  // **Start syncing an account that already exists here** — bind a relay to a
-  // local-only account (`encryption/model.md` §7.2.2). Publishes what the store
-  // already holds; no keys are minted, no store is converted, and the recovery
-  // phrase the user wrote down still works.
-  //
-  // **A taken username is a return value, not a throw.** It is the one outcome
-  // here that hides two readings the user must choose between — *"that is my own
-  // account"* (→ `sync:merge`) and *"that is a stranger"* (→ bind again under
-  // another handle) — so the renderer forks on it. Every other failure is still
-  // an error, because none of them is a question.
-  ipcMain.handle(
-    "sync:bindRelay",
-    async (
-      _event,
-      args: { username?: unknown; relayUrl?: unknown },
-    ): Promise<
-      | { status: "bound"; accountId: string; username: string }
-      | { status: "username-taken"; username: string }
-    > => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      // No password: binding publishes the `wrap(MK, KEK)` row the account
-      // already holds, so it never re-derives a KEK (see `bindRelayToAccount`).
-      try {
-        const bound = await bindRelayToAccount({
-          keyStore,
-          driver,
-          username,
-          relayUrl,
-          registerWithRelay: async (bootstrap) => {
-            try {
-              await registerAccountWithRelay({ relayUrl, bootstrap });
-            } catch (cause) {
-              // Pass a 409 through unwrapped: `relayErrorMessage` would flatten
-              // the status into prose, and the fork below could never see it.
-              if (isUsernameTakenError(cause)) throw cause;
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-        });
-        // Bound, so this account now syncs — start it without waiting.
-        void scheduler?.autoTrigger();
-        return { status: "bound", ...bound };
-      } catch (cause) {
-        if (isUsernameTakenError(cause)) {
-          return { status: "username-taken", username };
-        }
-        throw cause;
-      }
-    },
-  );
-
-  // Merge this device's **local-only account** into an existing synced one
-  // (@leapsake/key-custody): the store is re-homed under the synced
-  // account's id, keeps every row, and from the next launch opens under *that*
-  // account's password.
-  //
-  // A separate channel from `sync:join` rather than a mode of it. Join is an
-  // accountless device's act and refuses a store that holds an account; this one
-  // retires an account, and the two have different guards, a different ordering
-  // (the relay half runs against a copy) and different copy. Folding them
-  // together would rebuild the polymorphic entry point the flow docs say was
-  // deliberately cut.
-  ipcMain.handle(
-    "sync:merge",
-    async (
-      _event,
-      args: { username?: unknown; password?: unknown; relayUrl?: unknown },
-    ) => {
-      const username = requireText(args?.username, "Username");
-      const relayUrl = requireText(args?.relayUrl, "Relay URL");
-      // No length check: this is the *account's* existing password, not a new
-      // one, so a minimum here could only lock out an older account.
-      const password = requireText(args?.password, "Password");
-      await withStoreSwap(() =>
-        mergeAccountOnThisDevice({
-          keyStore,
-          driver,
-          roster: deviceRoster(),
-          userDataPath,
-          username,
-          prelogin: async () => {
-            try {
-              return await lookupAccountId({ relayUrl, username });
-            } catch (cause) {
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-          // Note the driver: the merge hands over a copy of this device's store,
-          // not the live one, so a refused login damages nothing.
-          adopt: async (copy, writePasswordSidecar) => {
-            try {
-              return await joinAccountViaRelay({
-                keyStore,
-                driver: copy,
-                relayUrl,
-                username,
-                password,
-                platform: "desktop",
-                writePasswordSidecar,
-              });
-            } catch (cause) {
-              throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-            }
-          },
-          closeStore: async () => {
-            storeSwapping = true;
-            await driver.close?.();
-          },
-        }),
-      );
-      // Same post-swap reconcile as joining: this device's people are all
-      // pre-existing-local, so overlaps land in duplicate review rather than
-      // being fused.
-      const duplicateCount = await reconcileAfterAdopt();
-      void scheduler?.autoTrigger();
-      return { duplicateCount };
-    },
-  );
-
-  // Re-authenticate this device after the account password was reset elsewhere:
-  // re-derive this device's relay credential from the re-entered password (the MK
-  // stays in the enclave), then kick a sync so a success reconnects immediately.
-  ipcMain.handle("sync:reauthenticate", async (_event, args: unknown) => {
-    const password = requireText(
-      (args as { password?: unknown } | undefined)?.password,
-      "Password",
-    );
-    const { relayUrl } = await getSyncStatus({ driver });
-    try {
-      await reauthenticateViaRelay({
-        keyStore,
-        driver,
-        password,
-        writePasswordSidecar: writeThisDevicePasswordDoor,
-      });
-    } catch (cause) {
-      throw new Error(relayErrorMessage(cause, relayUrl ?? ""), { cause });
-    }
-    await scheduler?.trigger();
-  });
-
-  // Run one push→pull cycle for the enabled account, routed through the scheduler
-  // so the manual button and background syncs share single-flight. Returns the
-  // completion time for a "last synced" indicator; a guarded skip (sync not
-  // enabled) surfaces as the same error the direct call used to throw.
-  ipcMain.handle("sync:now", async () => {
-    // A Degraded device skips for a completely different reason than a store with no
-    // account, and telling it "sync is not enabled" would send the user to create an
-    // account they already have. Say what is actually wrong (custody slice 10).
-    if (custodyDegraded !== undefined) throw new Error(custodyDegraded.detail);
-    try {
-      const result = await scheduler?.trigger();
-      if (result === undefined) {
-        throw new Error("Sync is not enabled for this store.");
-      }
-      return result;
-    } catch (error) {
-      // A manual "Sync now" 401s the same way a background sync does when the
-      // password was reset on another device. The background path routes that to
-      // the re-auth prompt via onError; do the same here (the scheduler's manual
-      // trigger rethrows instead of calling onError) so the button surfaces the
-      // friendly prompt, not a raw "failed: 401". The original error still
-      // propagates (carrying the 401) so the caller can recognize it too.
-      if (isRelayAuthError(error)) {
-        broadcastSyncActivity({ error: REAUTH_PROMPT, needsReauth: true });
-      }
-      throw error;
-    }
-  });
 
   // **Create an account on this device** (@leapsake/key-custody) — the act that turns
   // encryption on. Fully local: no relay, no email, nothing leaves the machine.
@@ -1134,15 +596,9 @@ function registerSyncIpc(): void {
     mainWindow?.webContents.reload();
   });
 
-  // Replace this device's recovery phrase (custody slice 8, model.md §6). This
-  // handler **replaced an on-demand reveal**, which is the point of the slice: a
-  // phrase is shown once at account creation, and the only later route to one is
-  // a rotation that retires the old.
-  //
-  // The gate is the password, checked locally by core, so this works on a
-  // local-only account and offline. `escrowPending` comes back true when the relay
-  // could not be told — the renderer must pass that on, because until the next
-  // sync the *old* phrase is still what recovers the account.
+  // Replace this device's recovery phrase (model.md §6): a phrase is shown once
+  // at account creation, and this rotation is the only later route to one.
+  // The gate is the password, checked locally by core.
   ipcMain.handle("sync:rotateRecoveryPhrase", async (_event, args: unknown) => {
     const { password } = (args ?? {}) as { password?: unknown };
     // Not `requireText`: that trims, and a password is verified byte for byte
@@ -1156,16 +612,6 @@ function registerSyncIpc(): void {
       password,
       writeRecoveryDoor: writeThisDeviceRecoveryDoor,
     });
-  });
-
-  // The per-client "Sync automatically" preference (default on). Read at render
-  // time for the Settings toggle; the setter persists it *and* flips the live
-  // scheduler so the change takes effect immediately (and survives a restart).
-  ipcMain.handle("sync:getAutoSync", () => getAutoSync({ driver }));
-  ipcMain.handle("sync:setAutoSync", async (_event, enabled: unknown) => {
-    const next = enabled === true;
-    await setAutoSync({ driver, enabled: next });
-    scheduler?.setAutoEnabled(next);
   });
 }
 
@@ -1354,48 +800,6 @@ void app.whenReady().then(async () => {
   // runs again if account creation or a factory reset replaces the store later.
   await openActiveStore();
 
-  // Seamless background sync: the run thunk is the "is sync even enabled" guard
-  // (a quiet no-op until an account is set up and relay-bound), reading the
-  // current keySession so a later sync:join is picked up. Results/errors are
-  // pushed to the renderer for the Settings "last synced" line.
-  scheduler = createSyncScheduler({
-    autoEnabled: await getAutoSync({ driver }),
-    run: async () => {
-      // The outermost guard, and the one that makes "sync is held back" true of
-      // the background too: with `multiDevice` off nothing on this device may
-      // talk to a relay, however the store got bound.
-      if (!flag("multiDevice")) return undefined;
-      if (keySession === undefined || storeSwapping) return undefined;
-      const status = await getSyncStatus({ driver });
-      if (!status.hasAccount || status.relayUrl === undefined) return undefined;
-      return runAccountSync({
-        keyStore,
-        driver,
-        masterKey: keySession.masterKey,
-      });
-    },
-    onResult: ({ at, applied }) =>
-      broadcastSyncActivity({
-        at,
-        changed: applied !== undefined && applied > 0,
-      }),
-    onError: (error) => {
-      // A 401 means the relay rejected this device's credential — almost always
-      // because the password was reset on another device. Flag it so Settings can
-      // prompt for the new password instead of showing a raw "failed: 401".
-      if (isRelayAuthError(error)) {
-        broadcastSyncActivity({ error: REAUTH_PROMPT, needsReauth: true });
-        return;
-      }
-      // Any other background failure: log it (autoTrigger swallows the rejection
-      // so it no longer surfaces in the terminal on its own) and surface it in UI.
-      console.error("auto-sync failed:", error);
-      broadcastSyncActivity({
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  });
-
   // The core is already built (openActiveStore). Both bridges read their target
   // through module state, so a later store swap needs no re-registration —
   // ipcMain.handle throws on a second registration anyway.
@@ -1408,17 +812,12 @@ void app.whenReady().then(async () => {
   });
   registerSyncIpc();
 
-  scheduler.start(); // backstop interval
   void regenerateSystemReminders(); // populate today's birthdays atop Home
-  void scheduler.autoTrigger(); // initial on-launch sync (skipped if auto off)
-  void catchUpRecoveryKey(); // adopt a phrase rotated on another device
 
-  // Pull the peer's edits in the moment the user returns to the app — the cheap,
-  // event-driven companion to write-kicked pushes. Regenerating here too keeps a
-  // birthday appearing the day it comes into range without a restart.
+  // Regenerating on focus keeps a birthday appearing the day it comes into range
+  // without a restart.
   app.on("browser-window-focus", () => {
     void regenerateSystemReminders();
-    void scheduler?.autoTrigger();
   });
 
   // The core is live — let the gate render the app (the window was created up

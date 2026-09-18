@@ -235,8 +235,7 @@ export function rekeyStore(opts: {
  *
  * **Custody-blind, and named that way on purpose.** It unlinks bytes; whether
  * they were plaintext or ciphertext is the caller's business. Account creation
- * and the join/recover adopt destroy a *plaintext* original; the merge flow
- * (`merge-account-flow.ts`) destroys an *encrypted* one. There is also the
+ * destroys a *plaintext* original. There is also the
  * boot-time sweep in `index.ts`, where an Authenticated launch still finding an
  * Unauthenticated store means a crash between the roster write and this call
  * left a plaintext copy of data the user has already asked to encrypt.

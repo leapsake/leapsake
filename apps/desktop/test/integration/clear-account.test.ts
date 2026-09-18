@@ -9,7 +9,6 @@ import {
   enableSync,
   ensureDeviceMasterKey,
   getSyncStatus,
-  unlockWithPassword,
 } from "@leapsake/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -19,14 +18,8 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
  * and the portable doors are removed, but the master key survives in the enclave
  * so data stays readable and an account can be established again.
  *
- * That "again" is the whole point of the tests below, and it is why this is worth
- * covering even though no button calls it. Its one caller per client is the
- * relay-registration failure path of account creation (a taken username, an
- * unreachable relay), which must leave the device *exactly* as it was — able to
- * retry immediately. The user-facing "Disconnect account" button this also used
- * to back was removed 2026-07-28: it cleared these rows without clearing the
- * roster, which under per-account stores left a device Authenticated on disk while
- * reporting no account. See `clearLocalAccount`'s doc comment for the full story.
+ * No client calls it today; it is the rollback an account-establishing flow needs
+ * when a later step fails, and it must leave the device exactly as it was.
  */
 describe("clearLocalAccount", () => {
   let driver: SqliteDriver;
@@ -46,7 +39,7 @@ describe("clearLocalAccount", () => {
     cleanup();
   });
 
-  it("clears the account but keeps the enclave master key, and allows re-enabling", async () => {
+  it("clears the account but keeps the enclave master key", async () => {
     await enableSync({ keyStore, driver, password: "old-password" });
     expect((await getSyncStatus({ driver })).hasAccount).toBe(true);
 
@@ -70,24 +63,6 @@ describe("clearLocalAccount", () => {
         masterKey,
       ),
     ).toBe(true);
-
-    // Re-enabling with the coordinates the first account lacked succeeds (no
-    // unique-index collision) and binds a new password door to the same MK.
-    await enableSync({
-      keyStore,
-      driver,
-      password: "new-password",
-      username: "ada",
-      relayUrl: "https://relay.example",
-    });
-    const status = await getSyncStatus({ driver });
-    expect(status.hasAccount).toBe(true);
-    expect(status.username).toBe("ada");
-    const unlocked = await unlockWithPassword({
-      driver,
-      password: "new-password",
-    });
-    expect(equalBytes(unlocked.masterKey, masterKey)).toBe(true);
   });
 
   it("is a no-op when no account is set up", async () => {

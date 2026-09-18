@@ -23,6 +23,14 @@ if (!container) throw new Error("Root element #root not found");
 // boot.
 let appRouter: ReturnType<typeof createAppRouter> | undefined;
 
+// Reactive invalidation: the main process regenerates the automated birthday
+// reminders at boot and on window focus, so re-run the active route's loaders in
+// place when it says rows changed. `revalidate()` keeps the old data on screen
+// until the new resolves (no spinner/flicker).
+window.app.onChanged(() => {
+  void appRouter?.revalidate();
+});
+
 /**
  * The boot gate: the renderer mounts before the database is open, so it watches
  * the main process's boot phase and renders the at-rest recovery prompt while the
