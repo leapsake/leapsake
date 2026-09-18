@@ -43,15 +43,12 @@ emulator needs hardware virtualization, which the Apple-silicon macOS runners ar
 offer — step 6 verifies); a hands-off `rc`/`final` (Apple's review and Play's tester clock sit in
 the middle).
 
-**Reversal recorded.** The 2026-09-16 doc `release-targets-per-rung.md` (folded into this one,
-now deleted) said a per-rung `status` must not be re-introduced because a target-level `status`
-plus per-rung `requires` says everything. Decision 5 reverses that, for a reason that doc did not
-weigh: a `requires` check failing means _misconfigured_ (a missing credential, a wrong key role)
-and must fail the release; a rung a platform is _not allowed to ship yet_ (Play has not granted
-production access) is policy, must not fail the release, and must not be silently waived either.
-Those are different answers and need different expressions. `requires` keeps the first; a
-per-cell `status: "blocked"` with a `note` carries the second. The other half of that doc — the
-gate runs only the platforms in the release — is step 3 here.
+**Why decision 5 needs a per-cell status when `requires` already exists.** A `requires` check
+failing means _misconfigured_ (a missing credential, a wrong key role) and must fail the release;
+a rung a platform is _not allowed to ship yet_ (Play has not granted production access) is
+policy, must not fail the release, and must not be silently waived either. Those are different
+answers and need different expressions. `requires` keeps the first; a per-cell
+`status: "blocked"` with a `note` carries the second.
 
 ### Portability rules (decision 7)
 
