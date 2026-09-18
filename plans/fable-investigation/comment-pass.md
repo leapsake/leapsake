@@ -73,9 +73,39 @@ already be. Check that it is, and do not duplicate it back.
 replace a comment. If a comment turns out to be the only thing that explains a real bug,
 leave it and open the bug separately.
 
-## Steps, each a commit
+## The check: two oxlint rules, scoped by step
 
-1. `packages/schema`: `reminder-rule.ts`, `milestone.ts`, `relationship.ts`, `composer-draft.ts`.
+`AGENTS.md` says anything a program can check is a check. No existing ESLint or oxlint rule caps
+how many lines a comment block runs (`max-lines` counts code; `multiline-comment-style` is about
+style), so the check is a local oxlint JS plugin, `scripts/lint/comment-rules.mjs`, run by the
+existing `pnpm lint`:
+
+- **`leapsake/max-comment-lines`**, max 2 from day one. It counts consecutive own-line `//`
+  comments as one block and a `/** */` block by its prose lines. It does not start loose and
+  ratchet down: the limit is the rule.
+- **`leapsake/no-decision-comments`** flags the markers above that are precise enough to lint:
+  an ISO date, `§`, a `plans/` path, `(owner`, `slice N`. It catches the short decision comments a
+  length limit never sees. `used to`, `no longer` and `migration N` stay a reviewer's call, because
+  they are just as often behaviour.
+
+**The rare long comment is an exception you can see:**
+`// oxlint-disable-next-line leapsake/max-comment-lines -- <why>`. Anyone can grep for those, and
+a reviewer can question each one.
+
+**The ratchet is scope, not N.** The rules are on only for directories the pass has finished,
+through an `overrides` entry in `.oxlintrc.json` whose `files` list grows by one directory per
+step. Test files are out of scope. When step 7 lands, the rules move to the top level and the
+override goes away.
+
+The check stops long essays from coming back and catches the obvious history markers. It does not
+do the pass: most of the cut is judgment on comments that are short and phrase-free.
+
+## Steps, each a commit series
+
+Each step ends by adding its directories to the rules' scope.
+
+1. `packages/schema`, biggest share first: `reminder-rule.ts`, `milestone.ts`, `relationship.ts`,
+   `composer-draft.ts`, then the rest of the package.
 2. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
    either order works, but do not do both in one commit).
 3. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
@@ -83,12 +113,3 @@ leave it and open the bug separately.
 5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
 7. Everything else, by directory. `scripts/` last.
-
-## Keeping it true: a check, not a paragraph
-
-`AGENTS.md` says anything a program can check is a check. Add
-`scripts/comment-budget.test.mjs` beside `typography.test.mjs`: it fails when a non-test
-source file has a comment block longer than N consecutive lines, with N starting at the
-current worst and ratcheting down in later commits, the way the E2E gate ratchets. Exempt
-license headers and the one-line JSDoc summary. Without the check, this pass will be needed
-again in six months.
