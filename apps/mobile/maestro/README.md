@@ -374,11 +374,11 @@ rather than the flow.
 
 What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only — **plus both
 of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), and **`rc`'s out-of-band
-custody assertions** on Flows 1 and 4, all of which landed 2026-09-09. What `rc` still owes
-is the **key-store row** (deferred: `simctl keychain` has no read verb) and turning the
-catalog requirement in `scripts/release/targets/ios.mjs` into a `requires:` check; see
-[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate*
-→ §C's rung table.
+custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
+keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
+the catalog becomes a release *check* rather than a `manual:` sentence when the tag-triggered
+pipeline lands (`plans/fable-investigation/remote-releases.md`); see
+[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate* for the rung table.
 
 ### The out-of-band half: what the bytes say, not the screen
 
@@ -415,6 +415,17 @@ prints `this build encrypted nothing` — the encrypting-nothing build, simulate
 the app itself wrote and no code change. The `e2e` tier in `scripts/test-all.mjs` is `ready` — it went `ready` only
 once the _whole_ beta bar was there, because a partial catalog that ran and went green would
 read as the gate being met.
+
+Two shapes the checks must respect, each pinned by a unit test so nobody "fixes" them:
+
+- **"Gone" means the file, not the directory.** After a conversion or a Forget, `stores/local/`
+  and the old `stores/<accountId>/` remain as **empty directories** while their `.db` files are
+  deleted. An assertion written as "the directory does not exist" goes red against a correct app.
+- **Assert on rows, not on a doors file.** `doors.ts` and `roster-storage.ts` both run
+  `CREATE TABLE IF NOT EXISTS` on *every* open, read included, so an empty `door` or `roster`
+  table is a state a correct app reaches. And the checks must **create nothing**: a bare
+  `new DatabaseSync(path)` creates the file, so a check asking "does the roster exist?" could
+  otherwise answer by planting one.
 
 **Two of the seven do not fit the "ordered arc" description above, and the exceptions are the
 point.** `07c` must *follow* `04` — it needs the store, the data and the password `04` leaves
