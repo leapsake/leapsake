@@ -140,6 +140,161 @@ Three things about this app specifically, all of which cost an evening to learn 
   `ITSAppUsesNonExemptEncryption` a build lands at _Missing Compliance_ and cannot be
   distributed to anyone, internal testers included.
 
+### Android and the Play Console
+
+Android ships from the **personal** Play account to the internal and closed tracks; a later
+app transfer moves it to the company. What is still unbuilt on this side is
+[`plans/android-pipeline.md`](../../plans/android-pipeline.md). Everything below is settled.
+
+**A rung means the same thing on every platform, and each store's vocabulary bends to fit it.**
+Where a store cannot express a rung, the rung is **withheld**, never redefined.
+
+| Rung    | Play track                                                       | What happens                                                  |
+| ------- | ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| `alpha` | `internal`                                                       | ≤100 testers, live in minutes, no review wait                 |
+| `beta`  | `alpha` _(closed)_                                               | the tester list; reviewed; testers join by opt-in link        |
+| `rc`    | `alpha` _(closed)_ **plus a held production release, once possible** | testers get it, Google reviews it, it waits               |
+| `final` | `production`                                                     | publishes what review approved; the tag names the commit that did |
+
+⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's `alpha` is closed
+testing and its **`beta` is open testing, the whole internet**. No rung here may ever target it;
+`android.release.test.mjs` asserts that, because drifting by one name would publish a beta to
+strangers and report success. `final` refuses on Android until production access exists, from
+the preflight pass rather than mid-release; `rc` is closed-only for the same reason.
+
+**Play facts that will not be re-derived:**
+
+- **The 12-tester/14-day wall gates _production access_ only.** It binds personal accounts
+  created after 2023-11-13 (ours). You run a closed test and _then_ apply. It is not a tax on
+  uploading, and the closed-track uploads `beta` makes are exactly the activity that earns it.
+  **Internal testing sits outside it entirely.**
+- **App transfers are routine.** Package name, users, statistics, ratings, reviews and listing
+  all move: $25 on the receiving side, about two business days. ⚠️ **The app signing key stays
+  with the app unless the receiving account requests a key upgrade. Never request one**, or
+  Android buys the entire iOS re-key cost ([`@leapsake/key-custody`](../../packages/key-custody/README.md)
+  → _The signing identity owns the enclave key_) for nothing; the **Change key** button on the
+  App signing page is that trap. Two things do **not** ride along: the service account's grant,
+  which must be re-invited under the receiving account's _Users and permissions_, and **Android
+  developer verification**, which every account needs on its own.
+- **`tracks.update` replaces the whole `releases` array**, so a release body must always be
+  complete: anything omitted is gone. Tester lists live behind a separate resource
+  (`edits/{id}/testers/{track}`) that reads `{}` for an email-list track, because it only ever
+  exposed Google Groups. That also means **no tooling can watch the opt-in count**; the Console's
+  _Testers_ tab is the only place the real number lives.
+- ⚠️ **The Play Developer API cannot create an app.** It only edits an app that already has a
+  bundle, which is why the first AAB went through the Console by hand.
+- **Play has one review gate where Apple has two.** Play reviews a release when it rolls out to a
+  track, with no separate "submit" action.
+- ⚠️ **Google's own API documentation is not reliable here.** The
+  [APKs and Tracks](https://developers.google.com/android-publisher/tracks) page calls the
+  internal track `qa` and never says which of `alpha`/`beta` is closed. `edits.tracks.list`
+  against the app is the authority: `internal`, `alpha`, `beta`, `production`.
+- **The Console and the API do not enforce the same preconditions.** A hand rollout was accepted
+  while the API refused the same app over the advertising-ID declaration. "It worked by hand" is
+  not evidence the scripted path will work; the cheap way to find the next gate is an API call
+  against a disposable track. `consolePreconditions` in `scripts/release/targets/android.mjs`
+  asks with `:validate` before anything is built. ⚠️ Whether `:validate` reports the two
+  one-time refusals it was written for (a _draft app_ accepting only `status: "draft"`; a missing
+  advertising-ID declaration) is **unverified**, because reproducing either means breaking a
+  declaration on a live listing. If a `:commit` is ever refused while the preflight passed, that
+  is the finding, and the fallback is a preflight that reads _App content_ state directly.
+- **Retries are load-bearing.** Play's `POST /edits` and App Store Connect's `GET /v1/apps` have
+  both failed transiently and recovered on retry; a red that survives four attempts is real.
+- **After a release, read the closed track back.** The release should carry the _tag's_ name
+  (`0.1.0-beta.9`, not `0.1.0`).
+
+**Decisions made, do not relitigate:**
+
+1. **Ship from the personal account now**, transfer to the company later. A Play transfer costs
+   users nothing while the signing key stays put, so data safety does not decide where Android
+   launches, and nothing else does either.
+2. **Automatic protection stays OFF** (_Protected with Play_). It injects installer and
+   anti-tamper checks and has Google re-sign modified APKs, which sits badly against an AGPL-3.0
+   repo, against self-host parity, and against the `LeapsakeCommit`/receipts provenance chain,
+   since it ships bytes we did not build.
+3. **Testers are an email list, not a Google Group.** The Group argument was convenience; the
+   email list wins on privacy, since Group members can see each other by default. ⚠️ Whether
+   changing tester method preserves tester continuity was never established, so switch, if ever,
+   before a 14-day clock starts.
+4. **The closed track targets all countries.** It is invite-only regardless, so restricting it
+   buys nothing and adds a third way a tester silently fails. Adding countries later is free;
+   removing one strands whoever already installed.
+5. **The placeholder feature graphic ships for the closed test.** Play leads a listing with the
+   screenshot carousel, and closed testers arrive through an opt-in link, so the asset is
+   invisible to them and a listing review holds up neither the rollout nor the clock. It has to
+   be right for GA, which buys a review cycle anyway.
+
+**Play declarations and their revisit triggers.** Each row is answered for **what ships**, and
+each becomes wrong on a specific event. A declaration that no longer matches the app is a policy
+problem, not stale paperwork; declaration changes go through review, so they cannot be flipped on
+rollout morning. Sequence them **with** the release that changes the behaviour, not after it.
+
+| Declaration                         | Answered                                                                                         | Becomes wrong when                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Data safety                         | no data collected, no data shared                                                                | the **relay** ships (v0.2)                                                                                              |
+| Sign in details                     | No, nothing restricted                                                                           | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run                  |
+| Advertising ID                      | **No**: no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath   | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
+| Content rating                      | _Everyone_, All Other App Types                                                                  | **purchases**, **sharing**, or **multimedia** land                                                                      |
+| Target audience                     | **18 and over** only                                                                             | GA, _if_ teens ever become an audience worth designing for                                                              |
+| App Store **App Privacy** (iOS)     | mirrors Data safety                                                                              | the **relay** ships. ⚠️ Same event, _different store_                                                                   |
+
+⚠️ **The relay is one event that invalidates three declarations across two stores.** Updating
+Play alone and shipping a stale iOS declaration is the failure this table exists to prevent. A
+version-parity preflight that refuses a release until each answer has been re-confirmed since the
+behaviour it describes changed is the check that should eventually replace this table
+([`plans/android-pipeline.md`](../../plans/android-pipeline.md)).
+
+Four answers are right for non-obvious reasons:
+
+- **Sign in details → No**, and _not_ because v0.1 has no login. It ships a **local account**
+  whose creation is what turns encryption on. The answer is No because nothing is _restricted_:
+  there is no launch gate, every feature works without one, and there is no server-side account
+  to provision for a reviewer. ⚠️ A **mandatory** PIN, password or biometric at first run would
+  put this in play, and would first have to reverse the rule that first-run onboarding never
+  forces account setup ([`@leapsake/key-custody`](../../packages/key-custody/README.md)).
+- **Cash rewards / gift cards → No** despite the Gifts feature: those are private records of
+  presents, not instruments of transferable value.
+- **Web browser or search engine → No** despite the Search tab: it searches local records.
+- **User Content Sharing stays No even after the relay ships.** Sync moves one user's data
+  between their own devices, which is not exchanging content with _other_ users. Only sharing
+  changes it.
+
+⚠️ **Target audience is 18+, with "restrict users Google determines to be minors" left OFF.**
+The declaration says who the app is _designed and marketed for_ and is not an access control;
+_that checkbox_ is, and it would block minors from an app rated **Everyone** for no benefit.
+Reconsider at GA with multimedia. Answer _Store presence_ consistently, since contradicting the
+target-age answer is its own flag. ⚠️ **Purchases are the sharp one**: answering yes to digital
+goods pulls in Play billing policy, not merely a rating change.
+
+**Navigating the Console:**
+
+- **There is no global search box.**
+- **The Console is two-level.** The account-level sidebar (Policy status, Users and permissions,
+  Developer account…) does _not_ contain app pages: click **View app →** first. Conversely
+  _Users and permissions_ is **not** reachable from inside an app.
+- **App signing lives somewhere non-obvious:** _Protected with Play → Play Store protection →
+  Manage Play app signing_ (slug `/keymanagement`), not under _Test and release_.
+- **Deep links** follow `play.google.com/console/u/0/developers/<accountId>/app/<appId>/<slug>`.
+  Read both IDs from the address bar.
+- **The app Dashboard's "View tasks" flow is the authoritative setup path.** Prefer it to any
+  click-path written down here.
+- **The closed-test opt-in link** is on _Test and release → Testing → Closed testing →
+  **Testers** tab_, below the tester list, as "Copy link"; testers must already be on the email
+  list to use it. Play does not reliably email testers on your behalf.
+
+**Traps that have already cost time:**
+
+- **Testers must match in two independent places.** The Google account in the **browser** that
+  opens the opt-in link joins the test; the account **active in the Play Store app** performs the
+  install. If they differ the app silently does not appear, with no error. **Send this
+  instruction along with the opt-in link.**
+- **A first test link takes hours to propagate**, sometimes into the next day. "Item not found"
+  after opting in is the expected symptom. ⚠️ **Do not republish to "fix" it**: each attempt
+  burns a version code that can never be reused.
+- **"Not reviewed" on an internal release is normal.** Internal testing requires no review.
+- **Play's "no deobfuscation file" warning is expected** until minification is turned on and an
+  R8 mapping is uploaded with it.
+
 ## Why the driver test needs a device
 
 **expo-sqlite's real engine cannot run in a headless Node/Vitest process.** It is a native
