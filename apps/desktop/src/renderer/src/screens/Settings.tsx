@@ -18,7 +18,7 @@ export function Settings() {
   const [revealed, setRevealed] = useState<string | null>(null);
 
   function refreshStatus() {
-    void window.sync.status().then(setStatus);
+    void window.account.status().then(setStatus);
   }
 
   useEffect(refreshStatus, []);
@@ -118,7 +118,7 @@ function SignOut() {
     // would leave a "Signing out…" button on a screen that has already been
     // replaced by the gate. A rejection still surfaces: it means the sign out was
     // refused up front, and this screen is still on top.
-    window.sync.signOut().catch((cause: unknown) => {
+    window.account.signOut().catch((cause: unknown) => {
       setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
     });
   }
@@ -165,7 +165,7 @@ function ForgetAccount() {
 
   function beginConfirm() {
     setError(null);
-    window.sync
+    window.account
       .forgetInfo()
       .then(setInfo)
       .catch((cause: unknown) => {
@@ -193,7 +193,7 @@ function ForgetAccount() {
     setError(null);
     setWorking(true);
     try {
-      await window.sync.forgetAccount();
+      await window.account.forgetAccount();
       // Unreachable in practice: the renderer is reloaded before this resolves.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't remove it.");
@@ -348,7 +348,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
     }
     setBusy(true);
     try {
-      const { recoveryPhrase } = await window.sync.createAccount({
+      const { recoveryPhrase } = await window.account.createAccount({
         username,
         password,
       });
@@ -538,7 +538,7 @@ function FactoryReset() {
     setError(null);
     setWorking(true);
     try {
-      await window.sync.factoryReset();
+      await window.account.factoryReset();
       // Unreachable in practice: the renderer is reloaded before this resolves.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't reset.");
@@ -639,7 +639,7 @@ function RecoveryPhraseSection({
     setWorking(true);
     try {
       const { recoveryPhrase } =
-        await window.sync.rotateRecoveryPhrase(password);
+        await window.account.rotateRecoveryPhrase(password);
       setPassword("");
       setConfirming(false);
       // Straight into the same one-time reveal account creation uses: this is the

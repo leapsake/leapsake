@@ -439,10 +439,10 @@ function requireText(value: unknown, field: string): string {
  * *not* part of {@link CoreApi}: creating an account wraps the device master key
  * under a password-derived KEK, so it needs the {@link KeyStore} + driver
  * directly rather than the transactional core. Exposed to the renderer as
- * `window.sync` (a distinct bridge from `window.api`).
+ * `window.account` (a distinct bridge from `window.api`).
  */
-function registerSyncIpc(): void {
-  ipcMain.handle("sync:status", () => getSyncStatus({ driver }));
+function registerAccountIpc(): void {
+  ipcMain.handle("account:status", () => getSyncStatus({ driver }));
 
   // **Create an account on this device** (@leapsake/key-custody) — the act that turns
   // encryption on. Fully local: no relay, no email, nothing leaves the machine.
@@ -594,20 +594,23 @@ function registerSyncIpc(): void {
   // Replace this device's recovery phrase (model.md §6): a phrase is shown once
   // at account creation, and this rotation is the only later route to one.
   // The gate is the password, checked locally by core.
-  ipcMain.handle("sync:rotateRecoveryPhrase", async (_event, args: unknown) => {
-    const { password } = (args ?? {}) as { password?: unknown };
-    // Not `requireText`: that trims, and a password is verified byte for byte
-    // against a verifier derived from what the user actually typed.
-    if (typeof password !== "string" || password === "") {
-      throw new Error("Password is required.");
-    }
-    return rotateRecoveryPhraseForAccount({
-      keyStore,
-      driver,
-      password,
-      writeRecoveryDoor: writeThisDeviceRecoveryDoor,
-    });
-  });
+  ipcMain.handle(
+    "account:rotateRecoveryPhrase",
+    async (_event, args: unknown) => {
+      const { password } = (args ?? {}) as { password?: unknown };
+      // Not `requireText`: that trims, and a password is verified byte for byte
+      // against a verifier derived from what the user actually typed.
+      if (typeof password !== "string" || password === "") {
+        throw new Error("Password is required.");
+      }
+      return rotateRecoveryPhraseForAccount({
+        keyStore,
+        driver,
+        password,
+        writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+      });
+    },
+  );
 }
 
 /**
@@ -792,7 +795,7 @@ void app.whenReady().then(async () => {
     if (activeCore === undefined) throw new Error("Core is not initialized.");
     return activeCore;
   });
-  registerSyncIpc();
+  registerAccountIpc();
 
   void regenerateSystemReminders(); // populate today's birthdays atop Home
 

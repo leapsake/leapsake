@@ -19,7 +19,7 @@ import {
   observeDeviceContactSync,
   syncDeviceContacts,
 } from "../lib/device-contacts-sync";
-import { useCore, useSync } from "../lib/core-context";
+import { useCore, useAccount } from "../lib/core-context";
 import {
   CreateAccountForm,
   RecoveryKeyReveal,
@@ -78,7 +78,7 @@ type State =
 
 export default function ImportScreen() {
   const core = useCore();
-  const sync = useSync();
+  const account = useAccount();
   const router = useRouter();
   const [state, setState] = useState<State>({ phase: "checking" });
   // Gates the import effect below. Set by taking or declining the offer, and by
@@ -97,7 +97,7 @@ export default function ImportScreen() {
     let live = true;
     void (async () => {
       try {
-        const status = await sync.status();
+        const status = await account.status();
         if (!live) return;
         if (status.hasAccount) startImport();
         else setState({ phase: "offer" });
@@ -111,7 +111,7 @@ export default function ImportScreen() {
     return () => {
       live = false;
     };
-  }, [sync]);
+  }, [account]);
 
   useEffect(() => {
     if (!importing) return;

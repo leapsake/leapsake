@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MIN_PASSWORD_LENGTH } from "@leapsake/core";
-import { useSync } from "../lib/core-context";
+import { useAccount } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
 /**
@@ -72,7 +72,7 @@ export function CreateAccountForm({
 }: {
   onCreated: (phrase: string) => void;
 }) {
-  const sync = useSync();
+  const account = useAccount();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -95,7 +95,10 @@ export function CreateAccountForm({
     }
     setBusy(true);
     try {
-      const { recoveryKey } = await sync.createAccount({ username, password });
+      const { recoveryKey } = await account.createAccount({
+        username,
+        password,
+      });
       onCreated(recoveryKey);
     } catch (cause) {
       setError(

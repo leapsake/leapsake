@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
-import { useSync } from "../lib/core-context";
+import { useAccount } from "../lib/core-context";
 import {
   CreateAccountForm,
   RecoveryKeyReveal,
@@ -22,17 +22,17 @@ import { colors, styles } from "../lib/styles";
  * header title, which the tab navigator used to.
  */
 export default function SettingsScreen() {
-  const sync = useSync();
+  const account = useAccount();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   // The phrase currently on screen for its one-and-only showing — from account
   // creation, or from the rotation that replaced it.
   const [revealed, setRevealed] = useState<string | null>(null);
 
   function refreshStatus() {
-    void sync.status().then(setStatus);
+    void account.status().then(setStatus);
   }
 
-  useEffect(refreshStatus, [sync]);
+  useEffect(refreshStatus, [account]);
 
   // One-time reveal takes over the screen until acknowledged. It keeps the same
   // header title as the screen it took over, so each branch declares it — the
@@ -114,7 +114,7 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
  * teach users to tap through the confirmations that *do* matter.
  */
 function SignOutSection() {
-  const sync = useSync();
+  const account = useAccount();
   const [error, setError] = useState<string | null>(null);
 
   function signOut() {
@@ -123,7 +123,7 @@ function SignOutSection() {
     // part of this call, so this screen unmounts into the unlock gate. A
     // rejection still lands here — it means the sign out was refused up front,
     // and the screen is still mounted.
-    sync.signOut().catch((cause: unknown) => {
+    account.signOut().catch((cause: unknown) => {
       setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
     });
   }
@@ -164,7 +164,7 @@ function RecoveryPhraseSection({
 }: {
   onRotated: (phrase: string) => void;
 }) {
-  const sync = useSync();
+  const account = useAccount();
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
   const [working, setWorking] = useState(false);
@@ -175,7 +175,7 @@ function RecoveryPhraseSection({
     setError(null);
     setWorking(true);
     try {
-      const { recoveryPhrase } = await sync.rotateRecoveryPhrase(password);
+      const { recoveryPhrase } = await account.rotateRecoveryPhrase(password);
       setPassword("");
       setConfirming(false);
       // Straight into the same one-time reveal account creation uses: this is the

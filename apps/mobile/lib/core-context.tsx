@@ -84,10 +84,10 @@ import {
 /**
  * The account surface (custody Phase 1). Kept deliberately separate from
  * {@link CoreApi}: creating an account isn't a transactional core op, so —
- * exactly like desktop's separate `window.sync` bridge (not folded into
+ * exactly like desktop's separate `window.account` bridge (not folded into
  * `window.api`) — it lives in its own context rather than on the core.
  */
-export interface SyncApi {
+export interface AccountApi {
   status(): Promise<SyncStatus>;
   /**
    * **Create an account on this device** (`model.md` §7.2.1) — the act that
@@ -104,7 +104,7 @@ export interface SyncApi {
   /**
    * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
    * it, so the password is needed to get back in. The data stays on this device,
-   * encrypted — {@link SyncApi.forgetAccount} is the one that removes it. Rebuilds
+   * encrypted — {@link AccountApi.forgetAccount} is the one that removes it. Rebuilds
    * in place, landing on the unlock gate the bootstrap already hosts.
    */
   signOut(): Promise<void>;
@@ -150,7 +150,7 @@ interface UnlockAnswer {
   door: "password" | "phrase";
   secret: string;
 }
-const SyncContext = createContext<SyncApi | null>(null);
+const AccountContext = createContext<AccountApi | null>(null);
 // A monotonically-increasing counter bumped whenever the provider changes rows
 // behind a screen's back. `useFocusedData` depends on it, so a bump re-runs the
 // focused screen's load — the in-process analogue of desktop's
@@ -178,12 +178,12 @@ export function useCore(): CoreApi {
 }
 
 /** Access the account surface. Throws if used outside a CoreProvider. */
-export function useSync(): SyncApi {
-  const sync = useContext(SyncContext);
-  if (sync === null) {
-    throw new Error("useSync must be used within a CoreProvider");
+export function useAccount(): AccountApi {
+  const account = useContext(AccountContext);
+  if (account === null) {
+    throw new Error("useAccount must be used within a CoreProvider");
   }
-  return sync;
+  return account;
 }
 
 /**
@@ -210,7 +210,7 @@ export function useDeviceId(): string {
 
 export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
-  const [sync, setSync] = useState<SyncApi | null>(null);
+  const [account, setAccount] = useState<AccountApi | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The boot-time at-rest unlock prompt (model.md §6, §7.5): set when this
   // device's enclave key is gone but a sidecar survives, so the user must supply
@@ -795,7 +795,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       // The account surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
-      setSync({
+      setAccount({
         status: () => getSyncStatus({ driver }),
         createAccount: ({ username, password }) =>
           createAccountHere({ username, password }),
@@ -823,7 +823,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             );
           }
           setCore(null);
-          setSync(null);
+          setAccount(null);
           await driver.close?.();
           await lockThisDevice({ keyStore });
           keySession.current = null;
@@ -851,7 +851,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             throw new Error("There is no account on this device to forget.");
           }
           setCore(null);
-          setSync(null);
+          setAccount(null);
           await driver.close?.();
           await forgetAccountOnThisDevice({
             keyStore,
@@ -880,7 +880,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // just erased and mint a fresh key over an empty encrypted database,
           // landing them back in an Authenticated state.
           setCore(null);
-          setSync(null);
+          setAccount(null);
           await driver.close?.();
           await SQLite.deleteDatabaseAsync(activeStore.path);
           await doors?.destroy();
@@ -930,7 +930,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (core === null || sync === null) {
+  if (core === null || account === null) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
@@ -940,7 +940,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <CoreContext.Provider value={core}>
-      <SyncContext.Provider value={sync}>
+      <AccountContext.Provider value={account}>
         <DataVersionContext.Provider value={dataVersion}>
           <DeviceIdContext.Provider value={deviceIdState}>
             {degraded === null ? (
@@ -948,14 +948,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             ) : (
               <DegradedFrame
                 degraded={degraded}
-                onSignOut={() => sync.signOut()}
+                onSignOut={() => account.signOut()}
               >
                 {children}
               </DegradedFrame>
             )}
           </DeviceIdContext.Provider>
         </DataVersionContext.Provider>
-      </SyncContext.Provider>
+      </AccountContext.Provider>
     </CoreContext.Provider>
   );
 }

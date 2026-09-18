@@ -5,7 +5,7 @@ import Constants from "expo-constants";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
-import { useCore, useSync } from "../lib/core-context";
+import { useCore, useAccount } from "../lib/core-context";
 import { exportAndShare } from "../lib/export-share";
 import { colors, styles } from "../lib/styles";
 
@@ -34,12 +34,12 @@ import { colors, styles } from "../lib/styles";
  * (`model.md` §7.2/§7.3) and this was a relocation, not a redesign.
  */
 export default function DataScreen() {
-  const sync = useSync();
+  const account = useAccount();
   const [status, setStatus] = useState<SyncStatus | null>(null);
 
   useEffect(() => {
-    void sync.status().then(setStatus);
-  }, [sync]);
+    void account.status().then(setStatus);
+  }, [account]);
 
   return (
     <>
@@ -86,7 +86,7 @@ const FORGET_ACCOUNT_PHRASE = "DELETE";
  * appearing on its own.
  */
 function ForgetAccountSection() {
-  const sync = useSync();
+  const account = useAccount();
   const [info, setInfo] = useState<{
     username?: string;
     durableBackup: boolean;
@@ -98,7 +98,7 @@ function ForgetAccountSection() {
   // Read on entering the confirmation rather than on mount.
   function beginConfirm() {
     setError(null);
-    sync
+    account
       .forgetInfo()
       .then(setInfo)
       .catch((cause: unknown) => {
@@ -126,7 +126,7 @@ function ForgetAccountSection() {
     setError(null);
     setWorking(true);
     try {
-      await sync.forgetAccount();
+      await account.forgetAccount();
       // The provider rebuilds in place; this screen unmounts to the fresh app.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't remove it.");
@@ -259,7 +259,7 @@ const FACTORY_RESET_PHRASE = "ERASE";
  * into a clean app — there is no completion state to render.
  */
 function FactoryResetSection() {
-  const sync = useSync();
+  const account = useAccount();
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -272,7 +272,7 @@ function FactoryResetSection() {
     setError(null);
     setWorking(true);
     try {
-      await sync.factoryReset();
+      await account.factoryReset();
       // The provider rebuilds in place; this screen unmounts to the fresh app.
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't reset.");

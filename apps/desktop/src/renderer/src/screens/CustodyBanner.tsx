@@ -26,7 +26,7 @@ export function CustodyBanner({ detail }: { detail: string }) {
     setSignOutError(null);
     // Resolves only *after* the user unlocks (the re-open parks in the gate), so
     // nothing awaits it here — the gate takes over the window either way.
-    void window.sync.signOut().catch((cause: unknown) => {
+    void window.account.signOut().catch((cause: unknown) => {
       // The one refusal that matters: a device with no password door would be
       // locked behind the phrase alone, so sign out declines. Show it, because the
       // honest answer then is Forget account in Settings.

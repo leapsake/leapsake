@@ -12,7 +12,7 @@ import { buildBridgeApi } from "../shared/ipc-bridge.js";
  *
  * A Person's or Pet's tags are saved alongside it (the create/update calls carry
  * the full desired tag-name list), so they commit in the same transaction as the
- * entity itself. `window.sync` and `window.boot` below are *not* part of
+ * entity itself. `window.account` and `window.boot` below are *not* part of
  * `CoreApi` (event subscriptions, key custody), so they stay hand-written.
  */
 const api: CoreApi = buildBridgeApi(API_CHANNELS, (channel, args) =>
@@ -22,14 +22,14 @@ const api: CoreApi = buildBridgeApi(API_CHANNELS, (channel, args) =>
 contextBridge.exposeInMainWorld("api", api);
 
 /**
- * The account custody surface, exposed as a **separate** `window.sync` bridge
+ * The account custody surface, exposed as a **separate** `window.account` bridge
  * rather than folded into `window.api`. Creating an account is not a
  * {@link CoreApi} operation — it derives a KEK in the main process and touches
  * the OS keystore — so keeping it off the generated `window.api` surface above
  * stops the IPC contract and core from drifting.
  */
-const sync = {
-  status: (): Promise<SyncStatus> => ipcRenderer.invoke("sync:status"),
+const account = {
+  status: (): Promise<SyncStatus> => ipcRenderer.invoke("account:status"),
   /**
    * Create an account on this device (@leapsake/key-custody) — the act that turns
    * encryption on. Fully local. Resolves with the 24-word recovery phrase for its
@@ -84,12 +84,12 @@ const sync = {
   rotateRecoveryPhrase: (
     password: string,
   ): Promise<{ recoveryPhrase: string }> =>
-    ipcRenderer.invoke("sync:rotateRecoveryPhrase", { password }),
+    ipcRenderer.invoke("account:rotateRecoveryPhrase", { password }),
 };
 
-contextBridge.exposeInMainWorld("sync", sync);
+contextBridge.exposeInMainWorld("account", account);
 
-export type Sync = typeof sync;
+export type Account = typeof account;
 
 /** Which doors the store being unlocked actually offers (`model.md` §7.5). */
 export interface UnlockDoors {

@@ -156,7 +156,7 @@ Point them at a local relay to exercise sync — see
 it is how every custody slice was verified. Add `--remote-debugging-port=9333` to the command
 above, then talk CDP to the renderer: `curl -s localhost:9333/json` gives the page's
 `webSocketDebuggerUrl`, and `Runtime.evaluate` over that socket runs anything in the
-renderer — `window.api.*`, `window.sync.*`, `window.boot.*`, or DOM clicks. Node 22+ has a
+renderer — `window.api.*`, `window.account.*`, `window.boot.*`, or DOM clicks. Node 22+ has a
 built-in `WebSocket`, so the driver is ~40 lines and needs no dependency.
 
 Pair it with **out-of-band assertions on the profile directory** — the store's first 16 bytes
