@@ -73,7 +73,9 @@ release should carry the **tag's** name now (`0.1.0-beta.9`, not `0.1.0`), and t
 ### 3. Then bare releases, and what still blocks them
 
 - ☐ **A Console-precondition preflight.** The two failures below cost a full suite run and four
-  minutes of Gradle to discover something knowable in one API call. See *Still to build*.
+  minutes of Gradle to discover something knowable in one API call. **Deliberately deferred until
+  `beta` ships to both platforms from a bare `pnpm release beta`, consistently** *(owner,
+  2026-09-17)* — see *Still to build* for the shape and the assumption it rests on.
 - ☐ **`final` is structurally mixed.** iOS's `final` is a marker rung (`ios.mjs`, `marker: true`)
   that tags what Apple approved; Android's is a real production rollout. `index.mjs` refuses the
   combination with an actionable message rather than shipping half, so a bare `pnpm release final`
@@ -278,7 +280,14 @@ it pulls in Play billing policy.
 closed half, `final` refuses. It and `play.mjs` document their own reasoning; the target contract
 is in `scripts/release/targets/index.mjs`. What remains:
 
-- ☐ **A Console-precondition preflight.** Both 2026-09-17 failures refused the *edit commit*,
+- ☐ **A Console-precondition preflight.** ⚠️ **Not yet — do not build this on spec.** It waits
+  until a bare `pnpm release beta` is shipping both platforms consistently *(owner, 2026-09-17)*.
+  Both known gates are satisfied and are one-time-per-app, so the next one is a different unknown
+  that this either catches generically or not at all; and while `--only=android` is still in use,
+  hitting one costs a wasted suite run rather than a half-shipped release. The moment it earns its
+  place is when `--only` is dropped for good.
+
+  Both 2026-09-17 failures refused the *edit commit*,
   after the suite, the Gradle build and the upload had all been spent. They are knowable in
   seconds: open an edit, write the target track's current releases back to it unchanged, and ask
   Play to `:validate` rather than `:commit` — the same shape a real publish takes, with nothing
