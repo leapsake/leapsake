@@ -516,6 +516,34 @@ deterministically.
   join and recovery all write `wrap(MK, KEK)` locally. The keychain-loss repair unlocks through
   it, so a path that skips it leaves a device whose password opens the file but not the master
   key. Join once did, and it was found only by driving a joined device through a wiped keychain.
+- **Every path that establishes or changes a password reseals the password door** (the
+  `seal(db-key, KEK)` sidecar): creation, join and recovery (a second device has its own
+  db-key), and re-authentication after a reset elsewhere, whose old sidecar still expects the
+  old password and says nothing until the keychain is lost. `sealPasswordDoor` reads the salt
+  from the account row, because a password paired with the wrong salt yields a sidecar that looks
+  written and never opens; a caller that rotates the salt persists it first.
+- **Sign out clears the db-key *and* the recovery key, and never `device-id` or `enclave`.** The
+  recovery sidecar sits beside the store in plain view, so keychain plus sidecar would still
+  rebuild the db-key with no user secret. `device-id` and `enclave` open nothing once the db-key
+  is gone (their wrap row is inside the encrypted store), and clearing them would make the next
+  `ensureDeviceMasterKey` mint a new master key. Signing out and back in must change nothing
+  above the at-rest layer.
+- **Rotating the phrase takes the master key from the password door, never the enclave.** A
+  device that came back through a door after a keychain loss may hold a stray enclave key, and
+  an escrow wrapped around it would stop the phrase recovering the account anywhere. Rotation is
+  local, so it works offline and without a relay; the relay's escrow follows on the next sync
+  (`flushPendingRecoveryEscrow` in core), and until then the *old* phrase still recovers the
+  account, which the caller must say. Adopting a key writes the db-key door, then the recovery
+  key-wrap, then the keychain, so a crash part-way leaves the user's saved phrase working.
+- **The boot's repair flag is set before the adopt.** Adopting the key and rewinding the sync
+  watermarks are two durable writes; a crash between them would leave the right key with a holed
+  history. Only a real repair (`"adopted"`) rewinds, since a plain sign-out answers
+  `"unchanged"`; a flag found with no door rewinds anyway, since one redundant full sync
+  converges and a missed one does not.
+- **Binding a relay publishes, then persists, and never checks first.** If the process dies after
+  the register and before the local write, the retry re-registers the same account id, which the
+  relay answers `"exists"`, and falls through to the write. A registration check before the act
+  would race it.
 
 ## Tests
 

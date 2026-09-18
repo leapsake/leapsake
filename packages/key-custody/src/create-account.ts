@@ -8,36 +8,8 @@ import { sealPasswordDoor } from "./password-door.js";
 import { type AccountBootstrap, enableSync } from "./session.js";
 
 /**
- * **Custody Phase 0.5 — creating an account** (`model.md` §7.2.1): the single act
- * that turns encryption on. Everything here is local; no relay is involved and
- * nothing leaves the device.
- *
- * This is the *key* half of the flow. It runs against the still-open **Unauthenticated**
- * (plaintext) store and leaves it holding the account, device, and key-wrap rows —
- * which the caller then carries into an encrypted store by converting it (§8.1).
- * That ordering is deliberate: the conversion copies whatever is in the store, so
- * the account rows must exist *before* it runs.
- *
- * The caller owns the irreversible half — convert the store, write the roster
- * entry, destroy the plaintext original — because those are filesystem-shaped and
- * differ per platform. See each client's account-creation flow.
- *
- * ### What gets minted
- *
- * `enableSync` already mints and persists the master key, the KDF salt, the
- * password KEK's `wrap(MK, KEK)`, the recovery key with its `wrap(MK, RK)`, and
- * the auth verifier — the verifier now even though no relay exists, so that
- * binding one later adds no new ritual (§7.5 Phase 1). What it does *not* mint is
- * the **db-key**, because until this change that key was minted at first launch;
- * under *encryption follows custody* nothing mints it until here.
- *
- * ### The recovery phrase
- *
- * Returned so the caller can show it **exactly once**, framed as the
- * *forgot-password* backstop (§7.2.1). It is not a second copy of the data and
- * must not be sold as one: an account protects **access**, not against a dead
- * SSD. Treat the reveal as the user's **only** chance to record it — the Settings
- * reveal is being retired in favour of a re-auth-gated rotation.
+ * Create an account on the plaintext store, the act that turns encryption on.
+ * The caller then converts the store; the phrase is returned to show once.
  */
 export async function createLocalAccount(opts: {
   keyStore: KeyStore;
@@ -45,11 +17,7 @@ export async function createLocalAccount(opts: {
   driver: SqliteDriver;
   username: string;
   password: string;
-  /**
-   * Recorded on the account when the same act also binds a relay. The account
-   * itself is local either way — binding only publishes what already exists
-   * (§7.5 Phase 1) — so this changes nothing about the keys minted here.
-   */
+  /** Recorded when the same act also binds a relay; the keys are the same. */
   relayUrl?: string;
   label?: string;
   platform?: string;
@@ -59,13 +27,8 @@ export async function createLocalAccount(opts: {
   recoveryPhrase: string;
   /** The at-rest key the caller must convert the store under. */
   dbKey: Uint8Array;
-  /**
-   * The **password door** sidecar for this device (`sealPasswordDoor`), returned
-   * rather than written because its destination does not exist yet: the caller is
-   * about to convert the store to a *new* path, and the sidecar belongs beside the
-   * converted file. Write it once the conversion lands — an Authenticated store without
-   * it can only ever be reopened with the recovery phrase.
-   */
+  /** The password-door sidecar, for the caller to write beside the converted
+   *  store; without it only the recovery phrase reopens the store. */
   passwordSidecar: Uint8Array;
   /** What a relay needs if this account is being bound to one. */
   bootstrap: AccountBootstrap;
@@ -90,10 +53,8 @@ export async function createLocalAccount(opts: {
   // Minted here, not at boot: this is the moment the store stops being plaintext.
   const dbKey = await ensureDatabaseKey(keyStore);
 
-  // Both doors onto that key are minted in the same breath (§7.5 Phase 0.5). The
-  // recovery one is sealed by the boot path, which holds the recovery key on every
-  // Authenticated launch; the password one can only be sealed here, because this is the
-  // last moment the password is in hand.
+  // Sealed here because this is the last moment the password is in hand; the
+  // boot path seals the recovery door.
   const passwordSidecar = await sealPasswordDoor({
     keyStore,
     driver,
