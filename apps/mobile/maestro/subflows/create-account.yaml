@@ -46,8 +46,9 @@ appId: com.leapsake.app
 # turn Settings -> AutoFill & Passwords off once per simulator, and that had been done here.
 # Installing the iOS 26.5 (23F77) runtime on 2026-09-08 put it back, and `04` — whose form
 # code had not changed since it was last green on 2026-08-28 — went red the same day.
-# A release gate cannot rest on a setting a runtime update can undo, so this survives either
-# state and the toggle is a convenience rather than a precondition.
+# This defeats the card, but **not** the persistent cover view a freshly erased simulator
+# draws — that one swallows the second attempt too. `../ios-autofill.yaml` is the preflight
+# that catches the toggle being on before the catalog spends a suite on it.
 #
 # **Tapping any other field dismisses the card, and iOS does not offer it twice**, so the
 # fix is to type the password, tap away, and type it again into an erased field. The second

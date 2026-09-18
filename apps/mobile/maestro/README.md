@@ -740,18 +740,28 @@ A field with `textContentType="newPassword"` holds the value you typed but rende
 in a screenshot. Judge by a side effect instead — the password-strength hint below the field,
 or the submit button enabling — never by looking for dots. Its sibling trap:
 
-### AutoFill Passwords: turn it off, but never depend on it being off
+### AutoFill Passwords: a real precondition, enforced by a preflight
 
 With **Settings → AutoFill & Passwords** on, iOS's "Automatic Strong Password" cover view
-swallows keystrokes into `textContentType="newPassword"` fields entirely. Turn it off once per
-simulator — but treat that as a convenience, not a precondition.
+swallows keystrokes into `textContentType="newPassword"` fields entirely.
 
-**It comes back.** It was off on this machine's iPhone 16 Pro until the iOS 26.5 (23F77)
-runtime was installed on 2026-09-08, which reset it; Flow 4 went red that day on a form whose
-code had not changed since the flow was last green on 2026-08-28, and the red named the
-password length rather than the cover view. So `e2e/04-create-account.yaml` now types the
-password, taps away, and types it again into an erased field — iOS does not offer the card
-twice, the second attempt lands in full, and the flow no longer cares how the toggle is set.
+**It comes back**, and two different things bring it back: installing the iOS 26.5 (23F77)
+runtime did on 2026-09-08, and a `simctl erase` does (2026-09-17). Both times Flow 4 reddened
+on a form whose code had not changed, naming the *password length* rather than the cover view.
+
+There are two manifestations, and they are not equally survivable. The one-shot **"Use Strong
+Password?" card** is defeated by `subflows/create-account.yaml` typing the password, tapping
+away, and typing it again — iOS does not offer the card twice. The persistent **cover view**,
+which is what a freshly erased simulator produces, is not: the second attempt is swallowed
+too. This section used to say the toggle was "a convenience, not a precondition" on the
+strength of the first; the second cost a `pnpm release beta` 22 minutes into its suite on
+2026-09-17.
+
+So the toggle is now a precondition and the harness enforces it. `ios-autofill.yaml` reads the
+switch through the Settings app — the setting is in no preference plist, so its own UI is the
+only reader — and `scripts/lib/mobile-harness.mjs` runs it before the catalog: it fails in
+seconds naming AutoFill, and under `--provision` turns it off instead. Keep the double-type in
+the subflow; it costs a second and still covers the card.
 
 **Nothing in the harness can see the card**, which is why the fix is unconditional rather
 than guarded: it is drawn by a system process and absent from the hierarchy Maestro reads, so

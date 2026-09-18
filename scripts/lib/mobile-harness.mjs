@@ -65,6 +65,7 @@ const DEV_CLIENT_LINK = `${SCHEME}://expo-development-client/?url=${encodeURICom
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const MAESTRO_DIR = join(ROOT, "apps", "mobile", "maestro");
 const IOS_PREPARE_FLOW = join(MAESTRO_DIR, "ios-prepare.yaml"); // iOS bundle-load helper
+const IOS_AUTOFILL_FLOW = join(MAESTRO_DIR, "ios-autofill.yaml"); // iOS AutoFill preflight
 
 // **What the emulator is given, rather than what its AVD happens to say.** Android Studio
 // creates AVDs with as little as one core and 2GB of RAM, and a React Native dev client on
@@ -653,6 +654,9 @@ const androidDriver = {
         };
   },
 
+  // Nothing to check: the AutoFill preflight guards an iOS-only system behaviour.
+  preflight: () => ({ ok: true }),
+
   stop: (ctx) =>
     run(ctx.adb, ["-s", ctx.device, "shell", "am", "force-stop", APP_ID]),
 
@@ -990,6 +994,44 @@ const iosDriver = {
       : container;
   },
 
+  /**
+   * Refuse to run the catalog while iOS AutoFill would eat the passwords it types.
+   *
+   * With **Settings → AutoFill & Passwords** on, iOS covers every
+   * `textContentType="newPassword"` field with its "Automatic Strong Password" view and
+   * swallows the keystrokes. Flow 4 then submits a short password and reddens on the
+   * password *length* — a red that names the form and not the cause, 22 minutes into a
+   * suite. This turns that into a ten-second failure carrying the real reason.
+   *
+   * **The toggle is machine-local and it comes back.** A `simctl erase` resets it
+   * (2026-09-17, which cost a `pnpm release beta`), and so did installing the iOS 26.5
+   * runtime (2026-09-08). It is in no preference plist, so the Settings UI is the only
+   * reader — hence a Maestro flow rather than a `defaults read`.
+   *
+   * Under `--provision` the flow turns it off rather than only reporting it, the same
+   * bargain the rest of provisioning makes: the harness owns the device, so a precondition
+   * it can satisfy itself is not a verdict.
+   */
+  preflight(ctx, provision) {
+    const check = run(maestro, [
+      "--udid",
+      ctx.device,
+      "test",
+      "-e",
+      `FIX=${provision ? "true" : "false"}`,
+      IOS_AUTOFILL_FLOW,
+    ]);
+    if (check.status === 0) return { ok: true };
+    return {
+      ok: false,
+      detail:
+        "Settings → AutoFill & Passwords is on for this simulator, so iOS would swallow " +
+        "the passwords Flow 4 types and redden on the password length instead. Turn it " +
+        "off in the simulator: Settings → General → AutoFill & Passwords. Or re-run with " +
+        "--provision, which turns it off for you.",
+    };
+  },
+
   stop: (ctx) => run("xcrun", ["simctl", "terminate", ctx.device, APP_ID]),
 
   shutdown: (ctx) => run("xcrun", ["simctl", "shutdown", ctx.device]),
@@ -1124,7 +1166,14 @@ async function runPlatform(driver, provision, suite) {
   console.log(`\n→ ${suite.key} — ${driver.label} ${suite.what} (Maestro)`);
   console.log(`  device: ${ctx.device}`);
 
-  // 2. dev-client installed (booted but not installed = broken env → fail).
+  // 2. device-level preconditions no flow can see for itself.
+  //
+  // Before the install, because that can spend a native build on a device the catalog was
+  // never going to pass on.
+  const pre = driver.preflight(ctx, provision);
+  if (!pre.ok) return wrap(FAIL, pre.detail);
+
+  // 3. dev-client installed (booted but not installed = broken env → fail).
   if (!driver.installed(ctx)) {
     if (!provision) return wrap(FAIL, driver.installHint);
     if (!driver.install(ctx)) {
@@ -1141,7 +1190,7 @@ async function runPlatform(driver, provision, suite) {
     }
   }
 
-  // 3. Metro serving (host-side, shared across platforms).
+  // 4. Metro serving (host-side, shared across platforms).
   if (provision) {
     const metro = await ensureMetro();
     if (!metro.ok) return wrap(FAIL, metro.detail);
@@ -1153,7 +1202,7 @@ async function runPlatform(driver, provision, suite) {
     );
   }
 
-  // 4. wipe the app back to a genuine first run, from outside the app.
+  // 5. wipe the app back to a genuine first run, from outside the app.
   //
   // **This is what makes a run's verdict independent of the run before it.** The catalog
   // is an ordered arc whose flows share state, and it ends on Flow 4 — an account, an
@@ -1172,7 +1221,7 @@ async function runPlatform(driver, provision, suite) {
   const wiped = driver.wipe(ctx);
   if (!wiped.ok) return wrap(FAIL, wiped.detail);
 
-  // 5. load the bundle + wait for the app home (platform-specific prepare).
+  // 6. load the bundle + wait for the app home (platform-specific prepare).
   let prep = await driver.prepare(ctx);
   if (!prep.ok && provision) {
     // The gap `installed()` cannot see: iOS reconnects through the dev-launcher's
@@ -1189,7 +1238,7 @@ async function runPlatform(driver, provision, suite) {
   }
   if (!prep.ok) return wrap(FAIL, prep.detail);
 
-  // 6. run the suite's flows in order; the first red one is the verdict.
+  // 7. run the suite's flows in order; the first red one is the verdict.
   //
   // **Stop the app on the way out, however this ended.** A flow that goes red leaves the
   // app running and mid-whatever-it-was-doing, and the next platform is driven on the same

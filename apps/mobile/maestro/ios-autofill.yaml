@@ -1,0 +1,66 @@
+# iOS-only preflight — Settings → AutoFill & Passwords must be off before the catalog runs.
+#
+# **What it protects.** With AutoFill on, iOS draws an "Automatic Strong Password" cover
+# view over any `textContentType="newPassword"` field and swallows the keystrokes meant for
+# it. Flow 4 then submits a short password and goes red naming the *password length*, which
+# is a true statement about the form and a lie about the cause — so the red points at app
+# code that is fine. `../README.md` → *AutoFill Passwords* has the measurements.
+#
+# **Why a preflight rather than a mitigation in the flow.** `subflows/create-account.yaml`
+# types the password twice to defeat the one-shot "Use Strong Password?" *card*, and that
+# still works. It does not defeat the *cover view*, which is a different manifestation and
+# is what a freshly erased simulator produces (measured 2026-09-17, after a `simctl erase`
+# reset the toggle and killed a `pnpm release beta` 22 minutes into its suite). Nothing in
+# the app can see either one: both are drawn by a system process and absent from the
+# hierarchy Maestro reads, so no in-flow condition can key on them.
+#
+# **The toggle is readable even though the setting is not.** It lives in no preference plist
+# on the device — toggling it changes nothing under `data/Library/Preferences` (diffed, 2026-
+# 09-17) — so the only way to read it is the Settings app's own UI, where the switch carries
+# `AutoFillToggle` and a `checked` attribute.
+#
+# `FIX=true` turns it off instead of only reporting it; the harness passes that under
+# `--provision`. Driven by `scripts/lib/mobile-harness.mjs`, never by the catalog.
+appId: com.apple.Preferences
+---
+# Settings reopens on whatever pane it was last left on, so walk back to the root before
+# navigating. Both labels appear as back buttons depending on depth; each tap is guarded, so
+# an already-rooted Settings simply skips all six passes.
+- launchApp
+- repeat:
+    times: 6
+    commands:
+      - runFlow:
+          when:
+            visible: "Back"
+          commands:
+            - tapOn: "Back"
+      - runFlow:
+          when:
+            visible: "^Settings$"
+          commands:
+            - tapOn: "^Settings$"
+
+- tapOn: "General"
+- tapOn: ".*AutoFill.*"
+
+# Under FIX, flip it only when it is on — tapping unconditionally would turn it back on.
+#
+# **The point is not decoration.** `AutoFillToggle`'s bounds are the whole row, so a plain
+# `tapOn` lands on the label and Maestro reports COMPLETED having changed nothing; the
+# switch sits at the row's right edge. A point *inside the element* hits it at any screen
+# size, which a screen percentage would not.
+- runFlow:
+    when:
+      true: ${FIX == 'true'}
+      visible:
+        id: "AutoFillToggle"
+        checked: true
+    commands:
+      - tapOn:
+          id: "AutoFillToggle"
+          point: "90%,50%"
+
+- assertVisible:
+    id: "AutoFillToggle"
+    checked: false
