@@ -57,12 +57,23 @@ Then ship iOS from the same tag, **before committing anything**, while `tagOnHea
 pnpm release --from-tag=v0.1.0-beta.9 --only=ios
 ```
 
-⚠️ It re-runs the full suite, so `beta.9` costs the ~30-minute catalog twice. **iOS has no
-`beta.8`** and does not need one *(owner, 2026-09-17)*: every commit between `v0.1.0-beta.8` and
-`beta.9` is scripts, plans, tests, or the Android-only `blockedPermissions` key, so the two iOS
-binaries would be identical. A platform skipping a rung costs nothing — the store version is
-`0.1.0` either way, build numbers come from the clock, and `refs/notes/releases` records which
+⚠️ It re-runs the full suite, so `beta.9` costs the ~30-minute catalog twice. **iOS skipped
+`beta.8`** *(owner, 2026-09-17)*, and skipping a rung costs nothing in itself — the store version
+is `0.1.0` either way, build numbers come from the clock, and `refs/notes/releases` records which
 platform shipped which tag.
+
+⚠️ **What has changed is what that skip now spans.** The reason given for it was that every commit
+between `v0.1.0-beta.8` and `beta.9` was scripts, plans, tests, or the Android-only
+`blockedPermissions` key, so the two iOS binaries would be identical. **That stopped being true
+hours after it was written**: the relay removal and the core decomposition both landed on
+2026-09-17, and over that same interval `apps/mobile` is 222 insertions against **3050 deletions**,
+core is split into per-domain packages, and both clients are cut to the local account. So `beta.9`
+is not the pipeline-proving no-op this section was written around — it is the **first tester build
+of the single-device architecture**, and the first iOS binary since `beta.7`.
+
+⚠️ **Smoke-test a build on a simulator before spending the tag.** A version code can never be
+reused, the suite does not launch either client, and nothing between here and a tester catches an
+app that installs and then opens to a white screen.
 
 ### 2. Then bare releases, and what still blocks them
 
