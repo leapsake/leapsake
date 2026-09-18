@@ -211,27 +211,15 @@ export async function clearLocalAccount(opts: {
   });
 }
 
-/**
- * The master key unwrapped by a non-enclave door (password or recovery key). It
- * is intentionally *not* a {@link KeySession}: unlocking by password yields the
- * account's master key without any device involvement, so binding it to a
- * device (a fresh enclave wrapping, the §6 unlock cache) is the separate Phase-2
- * adoption step — it needs that device's {@link KeyStore} and ships with the
- * second-device / relay wiring.
- */
+/** The master key opened by a password or recovery door. Not a
+ *  {@link KeySession}: binding it to a device is a separate step. */
 export interface UnlockedMasterKey {
   accountId: string;
   masterKey: Uint8Array;
 }
 
-/**
- * Everything the relay needs to let a *second* device join this account by
- * username + password. {@link enableSync} returns it so
- * the caller can hand it to `HttpSyncTransport.register`. It is all
- * public-or-blind: the `authVerifier` authenticates login without revealing the
- * KEK (model.md §9.3), and `wrappedMasterKey` = `wrap(MK, password-KEK)` is
- * ciphertext the relay stores but can never read (the "protected symmetric key").
- */
+/** What the relay needs for a second device to join by username and password.
+ *  All public or blind: the relay can store it but never read MK. */
 export interface AccountBootstrap {
   accountId: string;
   /** The chosen login handle, or `null` if the account is not yet relay-bound. */
@@ -239,52 +227,29 @@ export interface AccountBootstrap {
   kdfSalt: Uint8Array;
   authVerifier: Uint8Array;
   wrappedMasterKey: Uint8Array;
-  /**
-   * Ciphertext `wrap(recoveryKey, MK)` — lets a password-joining device recover
-   * the account recovery key from MK alone, so every device shows one phrase. The
-   * inverse of {@link wrappedMasterKeyRecovery}: escrowed on the relay and handed
-   * back over the already-authenticated bootstrap channel, where a joining device
-   * holds MK (just unwrapped it) but never had the recovery phrase.
-   */
+  /** `wrap(recoveryKey, MK)`, so a password-joining device recovers the account's
+   *  phrase from MK and every device shows one phrase. */
   wrappedRecoveryKey: Uint8Array;
-  /**
-   * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow. Escrowed on the
-   * relay (alongside the password wrap) so a device that lost its password can
-   * recover the master key from the recovery phrase alone (`model.md` §6).
-   */
+  /** `wrap(MK, recoveryKey)`, the recovery escrow: a device that lost its
+   *  password recovers MK from the phrase alone. */
   wrappedMasterKeyRecovery: Uint8Array;
-  /**
-   * The recovery auth verifier ({@link deriveRecoveryVerifier}); the relay stores
-   * only its hash, so it can authenticate a recovery without learning the key.
-   */
+  /** The recovery auth verifier; the relay stores only its hash. */
   recoveryVerifier: Uint8Array;
 }
 
-/**
- * Normalize a username to its canonical form (matches the relay's normalization).
- *
- * Package-internal rather than private: {@link bindRelayToAccount} claims a handle
- * on the relay from a *different* file, and a second copy of this rule is how the
- * client and the relay end up disagreeing about which names collide.
- */
+/** A username's canonical form, matching the relay's. Exported so
+ *  `bindRelayToAccount` shares this one rule. */
 export function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
 }
 
-/**
- * The relay's account-bootstrap channel, as {@link joinAccount} needs it — the
- * minimal slice of `HttpSyncTransport` that the join uses (a real transport
- * satisfies it structurally). It is *not* part of the `SyncTransport` port: these
- * are account-adoption concerns, not the per-record sync the engine drives.
- */
+/** The slice of the relay transport {@link joinAccount} needs; account
+ *  adoption, not per-record sync. */
 export interface AccountBootstrapChannel {
   /** Prelogin: resolve a username → account id + public salt (unauthed). */
   lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
-  /**
-   * Bearer-authed (with the derived creds): fetch `wrap(MK, KEK)` ciphertext, plus
-   * the optional `wrap(recoveryKey, MK)` escrow a joining device adopts so it
-   * reveals the account phrase (`wrappedRecoveryKey` absent from a pre-change relay).
-   */
+  /** Bearer-authed: `wrap(MK, KEK)`, plus the `wrap(recoveryKey, MK)` escrow
+   *  when the relay has one. */
   fetchBootstrap(creds: {
     accountId: string;
     authVerifier: Uint8Array;
@@ -294,12 +259,8 @@ export interface AccountBootstrapChannel {
   }>;
 }
 
-/**
- * The relay channel {@link recoverAccount} needs — the recovery siblings of the
- * bootstrap channel. `fetchRecovery` proves possession of the recovery key (its
- * verifier) to fetch `wrap(MK, recoveryKey)`; `resetCredentials` replaces the
- * account's password door under the same proof, so a recovered device can sync.
- */
+/** The relay channel {@link recoverAccount} needs: fetch the recovery escrow,
+ *  and replace the password door, both proved by the recovery verifier. */
 export interface RecoveryChannel {
   lookup(username: string): Promise<{ accountId: string; kdfSalt: Uint8Array }>;
   fetchRecovery(creds: {
@@ -316,31 +277,8 @@ export interface RecoveryChannel {
 }
 
 /**
- * Custody Phase 1 (README.md): **enable sync** — promote a
- * single, enclave-only device to an account with a portable **password** unlock
- * door, plus a one-time **recovery key**. This is the first crypto that leaves
- * AEAD-only territory: it derives a KEK with Argon2id (@leapsake/crypto).
- *
- * The KEK layer (`model.md` §4) is the whole point: the master key is unchanged
- * and **nothing is re-encrypted** — we only add two *new wrappings* of the same
- * MK (one under the Argon2id KEK, one under the recovery key) alongside the
- * existing enclave wrapping. The server-stored `auth_verifier` is a separate
- * HKDF branch of the password seed, so it authenticates login while revealing
- * nothing about the KEK (`model.md` §9.3).
- *
- * Takes an optional unique `username` (and the `relayUrl` this account will sync
- * through) so a second device can later log in: both are persisted on the
- * account row, and the returned {@link AccountBootstrap} carries what the relay
- * must hold for that login (`HttpSyncTransport.register`). They are optional
- * because a device can establish an account *locally* before any relay is
- * chosen; a username is required only to actually register with a relay (the
- * apps collect it when they wire sync).
- *
- * Returns the created {@link Account}, the recovery key to show the user
- * **once** (the caller/UI owns display + encoding; we never store it), and the
- * bootstrap (its `username` is `null` until one is chosen). Refuses if sync is
- * already enabled — the recovery key cannot be re-derived, so re-enabling must
- * be an explicit reset, not a silent overwrite.
+ * Create the account: add password and recovery wraps of the existing master
+ * key, re-encrypting nothing. Returns the phrase to show once; refuses a repeat.
  */
 export async function enableSync(opts: {
   keyStore: KeyStore;
@@ -372,24 +310,16 @@ export async function enableSync(opts: {
 
   const salt = generateSalt();
   const { kek, authVerifier } = deriveKeyMaterial(password, salt);
-  // Reuse this device's enclave recovery key (minted at first launch, and already
-  // wrapping the at-rest db-key) rather than minting a fresh one, so a single
-  // recovery phrase opens both the local file and — via the escrow below — the
-  // account (`model.md` §6). Idempotent: it's the same key shown in Settings.
+  // The device's existing recovery key, already sealing the db-key, so one
+  // phrase opens both the file and the account.
   const recoveryKey = await ensureRecoveryKey(keyStore);
   const recoveryVerifier = deriveRecoveryVerifier(recoveryKey);
-  // The protected symmetric key: wrap(MK, password-KEK). Persisted locally as the
-  // `password` door *and* handed to the relay so a second device can recover MK.
+  // The local `password` door, also handed to the relay for joining devices.
   const wrappedMasterKey = wrapKey(masterKey, kek);
-  // The recovery escrow: wrap(MK, recoveryKey). Stored locally as the `recovery`
-  // door *and* handed to the relay, so a device that forgot its password can
-  // recover MK from the phrase alone.
+  // The local `recovery` door, also escrowed on the relay.
   const wrappedMasterKeyRecovery = wrapKey(masterKey, recoveryKey);
-  // The inverse escrow: wrap(recoveryKey, MK). Handed to the relay so a
-  // password-joining device — which holds MK but never had the phrase — can
-  // recover the *account* recovery key and reveal the same phrase (one account,
-  // one phrase). A circular wrap of two independent random keys; leaks nothing new
-  // (MK compromise is already total).
+  // The inverse escrow, so a joining device can reveal the same phrase. Leaks
+  // nothing: MK compromise is already total.
   const wrappedRecoveryKey = wrapKey(recoveryKey, masterKey);
 
   const account = await accountRepo.create({
@@ -436,16 +366,8 @@ export async function enableSync(opts: {
   };
 }
 
-/**
- * Custody Phase 2 / login (README.md): unlock the account's
- * master key from the **password** alone — no enclave, no device secret. This is
- * exactly what a second device does after the account's ciphertext arrives over
- * the relay: derive the KEK from the password + the public salt, authenticate
- * with the verifier, then unwrap `wrap(MK, KEK)`.
- *
- * Throws on an incorrect password (the verifier mismatch is caught **before** any
- * unwrap is attempted) and if sync has not been enabled.
- */
+/** Unlock the account's master key from the password alone. Throws on a wrong
+ *  password, checked by verifier before any unwrap. */
 export async function unlockWithPassword(opts: {
   driver: SqliteDriver;
   password: string;
@@ -472,11 +394,8 @@ export async function unlockWithPassword(opts: {
   };
 }
 
-/**
- * The recovery sibling of {@link unlockWithPassword}: unwrap the master key from
- * the one-time recovery key shown at sync-enable (`model.md` §6). No verifier —
- * the recovery key is high-entropy, so a wrong key simply fails the AEAD unwrap.
- */
+/** Unlock the master key from the recovery key. No verifier: the key is
+ *  high-entropy, so a wrong one fails the AEAD unwrap. */
 export async function unlockWithRecoveryKey(opts: {
   driver: SqliteDriver;
   recoveryKey: Uint8Array;
@@ -493,15 +412,8 @@ export async function unlockWithRecoveryKey(opts: {
 }
 
 /**
- * Which door a boot came through, carrying the key material that door already
- * derived — never the password itself.
- *
- * The password sidecar is sealed under the *account's* salt, so opening it yields
- * the very KEK that wraps the master key: the boot path has already done the one
- * expensive derivation and {@link adoptAccountMasterKey} needs no second. That is
- * what makes the repair affordable on mobile, where an Argon2id pass on unJITted
- * Hermes runs for minutes. It also keeps the typed password inside the unlock loop
- * — everything downstream handles 32-byte keys.
+ * The door a boot came through, with the key it already derived, never the
+ * password: the repair reuses that KEK instead of a second Argon2id pass.
  */
 export type AdoptionDoor =
   | { kind: "password"; kek: Uint8Array; authVerifier: Uint8Array }
