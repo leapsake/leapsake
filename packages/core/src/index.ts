@@ -2,6 +2,7 @@ import {
   type DuplicateCandidate,
   type DuplicateMatch,
   type GenderResult,
+  type RelationshipService,
   type SqliteDriver,
   type TagListItem,
   createContactMethodsRepo,
@@ -19,6 +20,7 @@ import {
   createNotificationSettingsRepo,
   createPeopleRepo,
   createPetsRepo,
+  createRelationshipService,
   createRelationshipsRepo,
   createGiftIdeasRepo,
   createGiftRecipientsRepo,
@@ -28,6 +30,7 @@ import {
   createSelfPersonRepo,
   createSyncStateRepo,
   createTagsRepo,
+  endpointsOf,
   listContactMethods,
   listTimelineForEntity,
   promotes,
@@ -93,8 +96,6 @@ import {
   civilFromDueMs,
   daysUntil,
   entityLabel,
-  genderedVariant,
-  impliedGender,
   inverseRole,
   isPublished,
   isReminderEditable,
@@ -103,11 +104,9 @@ import {
   parseHashtags,
   parseMentions,
   planOffers,
-  relationshipPairLabel,
   splitName,
   resolveObservanceReminderSchedule,
   resolveReminderSchedule,
-  roleDefs,
   todayCivil,
   verbOf,
 } from "@leapsake/schema";
@@ -605,7 +604,7 @@ export function createCore(driver: SqliteDriver) {
       rows.map(async (m) => ({
         targetType: m.targetType,
         targetId: m.targetId,
-        label: (await resolveLabel(m.targetType, m.targetId)) ?? null,
+        label: (await entities.label(m.targetType, m.targetId)) ?? null,
       })),
     );
   };
@@ -631,18 +630,14 @@ export function createCore(driver: SqliteDriver) {
     notADuplicate,
     driver,
   });
-
-  // Resolve an entity to its display label for relationship rows and timeline
-  // annotations, using the shared `@leapsake/schema` formatters so every client
-  // labels entities identically. Returns undefined when the entity is gone so
-  // callers can skip a missing neighbor.
-  async function resolveLabel(
-    type: EntityType,
-    id: string,
-  ): Promise<string | undefined> {
-    const entity = await entities.resolve(type, id);
-    return entity ? entityLabel(type, entity) : undefined;
-  }
+  const relationshipsSvc = createRelationshipService({
+    people,
+    pets,
+    relationships,
+    self,
+    entities,
+    driver,
+  });
 
   /**
    * The entity an incoming card's `UID` names, or `null` when it names none —
@@ -664,18 +659,6 @@ export function createCore(driver: SqliteDriver) {
     return entity === undefined
       ? null
       : { type, id: contact.uid, name: entityLabel(type, entity) };
-  }
-
-  /** A relationship's two endpoints as `(type, id)` pairs; `[]` when it is gone. */
-  function endpointsOf(
-    rel: Relationship | undefined,
-  ): { type: EntityType; id: string }[] {
-    return rel === undefined
-      ? []
-      : [
-          { type: rel.aType, id: rel.aId },
-          { type: rel.bType, id: rel.bId },
-        ];
   }
 
   /**
@@ -722,27 +705,8 @@ export function createCore(driver: SqliteDriver) {
     bearerId: string,
   ): Promise<string | null> {
     return bearerType === "relationship"
-      ? relationshipLabel(bearerId)
-      : ((await resolveLabel(bearerType, bearerId)) ?? null);
-  }
-
-  async function relationshipLabel(id: string): Promise<string | null> {
-    const rel = await relationships.get(id);
-    if (rel === undefined) return null;
-    const selfId = (await self.getSelf())?.personId;
-    const ends = endpointsOf(rel).filter(
-      (e) => !(e.type === "person" && e.id === selfId),
-    );
-    const named = (
-      await Promise.all(ends.map((e) => resolveLabel(e.type, e.id)))
-    ).filter((label): label is string => label !== undefined);
-    if (named.length === 0) return null;
-    // One name is the ordinary case for a relationship you are in, and also what
-    // a half-deleted pair degrades to — better a reminder naming whoever is left
-    // than none at all.
-    return named.length === 1
-      ? named[0]
-      : relationshipPairLabel(named[0], named[1]);
+      ? relationshipsSvc.label(bearerId)
+      : ((await entities.label(bearerType, bearerId)) ?? null);
   }
 
   // An idea's links joined with each recipient's current label (a link whose
@@ -752,7 +716,7 @@ export function createCore(driver: SqliteDriver) {
     const rows = await giftRecipients.listForIdea(ideaId);
     const joined = await Promise.all(
       rows.map(async (row) => {
-        const recipientLabel = await resolveLabel(
+        const recipientLabel = await entities.label(
           row.recipientType,
           row.recipientId,
         );
@@ -761,159 +725,6 @@ export function createCore(driver: SqliteDriver) {
       }),
     );
     return joined.filter((row): row is GiftForIdea => row !== null);
-  }
-
-  // Orient each stored row touching the subject and resolve the *other* end's
-  // label + role, so callers never see the raw a/b endpoints. Shared by the
-  // `relationships.listForEntity` surface and the view builders.
-  async function orientedNeighbors(
-    type: EntityType,
-    id: string,
-  ): Promise<RelationshipNeighbor[]> {
-    const rows = await relationships.listForEntity(type, id);
-    const neighbors: RelationshipNeighbor[] = [];
-    for (const rel of rows) {
-      const subjectIsA = rel.aType === type && rel.aId === id;
-      const otherType = subjectIsA ? rel.bType : rel.aType;
-      const otherId = subjectIsA ? rel.bId : rel.aId;
-      const otherRole = subjectIsA ? rel.bRole : rel.aRole;
-      const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
-      const other = await entities.resolve(otherType, otherId);
-      if (other === undefined) continue; // other end gone — skip
-      neighbors.push({
-        relationshipId: rel.id,
-        otherType,
-        otherId,
-        otherLabel: entityLabel(otherType, other),
-        otherStanding: other.standing,
-        otherRole,
-        otherRoleLabel: roleDefs[otherRole].label,
-        otherRoleNote,
-        origin: "explicit",
-      });
-    }
-    return neighbors;
-  }
-
-  // A relationship written from a subject's perspective: the subject is the `a`
-  // endpoint, and its own role is the gender-neutral inverse of the chosen other
-  // role. This is the single home for the "imply my role from the other end"
-  // rule, shared by the add-from-subject, create-form, and derived-materialise
-  // paths so no client re-derives it.
-  function createFromSubject(input: {
-    subjectType: EntityType;
-    subjectId: string;
-    otherType: EntityType;
-    otherId: string;
-    otherRole: RelationshipRole;
-    otherRoleNote?: string | null;
-  }): Promise<Relationship> {
-    return driver.transaction(async () => {
-      const created = await relationships.create({
-        aType: input.subjectType,
-        aId: input.subjectId,
-        aRole: inverseRole(input.otherRole),
-        bType: input.otherType,
-        bId: input.otherId,
-        bRole: input.otherRole,
-        bRoleNote: input.otherRoleNote ?? null,
-      });
-      // An unpublished entity holds exactly one relationship — the one it was
-      // created with. Either end reaching here is therefore an end acquiring a
-      // *second*, which is a connection of its own and more than being a name on
-      // somebody else's page. Note this is how the invariant is kept: by
-      // promoting, not by refusing. `createWithNewOther` writes the first edge
-      // without coming through here, which is why it doesn't trip this.
-      await entities.publishIfUnpublished(input.subjectType, input.subjectId);
-      await entities.publishIfUnpublished(input.otherType, input.otherId);
-      return created;
-    });
-  }
-
-  /**
-   * Record a relationship to somebody who isn't in the user's list — creating
-   * them, unpublished, as part of the same write.
-   *
-   * This is the way an unpublished entity comes into being, and the only one:
-   * you type a name into the relationship form, nothing matches it, and you save.
-   * What you get is a person (or pet) that exists as a fact about the subject —
-   * absent from People & Pets, from every picker, and from duplicate detection —
-   * plus the single relationship that is their entire reason for being there.
-   *
-   * One transaction, because half of this is nothing: an entity with no edge is
-   * unreachable, and an edge to nobody is not writable.
-   *
-   * The name is taken **verbatim** for a pet and split on the first space for a
-   * person, the same rule the vCard reader falls back on for a bare `FN`. Nothing
-   * cleverer: "Ruth" and "Ruth Dakin" are both whole names now, so there is no
-   * missing part to guess at, and a two-word name that isn't first-and-last is
-   * one edit away from being right on the person's own page.
-   */
-  function createWithNewOther(input: {
-    subjectType: EntityType;
-    subjectId: string;
-    otherType: EntityType;
-    otherName: string;
-    otherRole: RelationshipRole;
-    otherRoleNote?: string | null;
-  }): Promise<{ other: Person | Pet; relationship: Relationship }> {
-    return driver.transaction(async () => {
-      const name = input.otherName.trim();
-      const other =
-        input.otherType === "person"
-          ? await people.create({ ...splitName(name), standing: "unpublished" })
-          : await pets.create({ name, standing: "unpublished" });
-      const relationship = await relationships.create({
-        aType: input.subjectType,
-        aId: input.subjectId,
-        aRole: inverseRole(input.otherRole),
-        bType: input.otherType,
-        bId: other.id,
-        bRole: input.otherRole,
-        bRoleNote: input.otherRoleNote ?? null,
-      });
-      return { other, relationship };
-    });
-  }
-
-  // Edit a subject-scoped relationship: only the *other* end's role changes; the
-  // subject's own role re-derives as the neutral inverse but keeps the gendering
-  // it already had (so editing a wife→husband couple doesn't flatten the unedited
-  // "husband" back to "spouse"). The stored row may hold the subject on either
-  // end, so we fetch it to learn the orientation before mapping roles onto a/b.
-  function editFromSubject(input: {
-    subjectType: EntityType;
-    subjectId: string;
-    relId: string;
-    otherRole: RelationshipRole;
-    otherRoleNote: string | null;
-  }): Promise<Relationship | undefined> {
-    return driver.transaction(async () => {
-      const rel = await relationships.get(input.relId);
-      if (!rel) return undefined;
-      const subjectIsA =
-        rel.aType === input.subjectType && rel.aId === input.subjectId;
-      const subjectRole = genderedVariant(
-        inverseRole(input.otherRole),
-        impliedGender(subjectIsA ? rel.aRole : rel.bRole),
-      );
-      return relationships.update(
-        input.relId,
-        subjectIsA
-          ? {
-              aRole: subjectRole,
-              aRoleNote: null,
-              bRole: input.otherRole,
-              bRoleNote: input.otherRoleNote,
-            }
-          : {
-              aRole: input.otherRole,
-              aRoleNote: input.otherRoleNote,
-              bRole: subjectRole,
-              bRoleNote: null,
-            },
-      );
-    });
   }
 
   /**
@@ -951,7 +762,7 @@ export function createCore(driver: SqliteDriver) {
         ...(await milestones.listForBearer("person", other.id)),
       ].some((m) => m.kind === kind);
       if (dated) continue;
-      const partnerLabel = await resolveLabel(other.type, other.id);
+      const partnerLabel = await entities.label(other.type, other.id);
       if (partnerLabel === undefined) continue; // partner gone
       found.push({
         relationshipId: rel.id,
@@ -1161,7 +972,7 @@ export function createCore(driver: SqliteDriver) {
           ),
         ),
       resolveLabel: async (bearerType, bearerId) =>
-        (await resolveLabel(bearerType, bearerId)) ?? null,
+        (await entities.label(bearerType, bearerId)) ?? null,
     },
     // Unresolved duplicate pairs — the fourth family. Always supplied, for the
     // same reason `holidays` is: an omitted port prunes (and tombstones) the
@@ -1280,14 +1091,21 @@ export function createCore(driver: SqliteDriver) {
     listTags: (type, id) => tags.listForEntity(type, id),
     getRelationship: (id) => relationships.get(id),
     listMilestones: (type, id) => milestones.listForBearer(type, id),
-    orientedNeighbors,
+    orientedNeighbors: (type, id) =>
+      relationshipsSvc.orientedNeighbors(type, id),
     neighborsFor: (type, id) => kinship.neighborsFor(type, id),
     genderFor: (type, id) => kinship.genderFor(type, id),
     timelineFor: (type, id) =>
-      listTimelineForEntity(milestones, relationships, resolveLabel, type, id),
+      listTimelineForEntity(
+        milestones,
+        relationships,
+        entities.label,
+        type,
+        id,
+      ),
     listContactMethods: (type, id) =>
       listContactMethods(contactMethods, { type, id }),
-    resolveLabel,
+    resolveLabel: entities.label,
   });
 
   return {
@@ -1541,9 +1359,10 @@ export function createCore(driver: SqliteDriver) {
       listForEntity: (
         type: EntityType,
         id: string,
-      ): Promise<RelationshipNeighbor[]> => orientedNeighbors(type, id),
+      ): Promise<RelationshipNeighbor[]> =>
+        relationshipsSvc.orientedNeighbors(type, id),
       // Write a relationship from a subject's perspective, implying the subject's
-      // own role from the chosen other role. See {@link createFromSubject}.
+      // own role from the chosen other role.
       //
       // These three reconcile afterwards for the same reason `create`/`update`
       // above do — and they are the ones that matter in practice, since this is
@@ -1552,27 +1371,26 @@ export function createCore(driver: SqliteDriver) {
       // "with whom?" flow calls them mid-write and reconciles once, after its
       // own commit.
       createFromSubject: async (
-        ...args: Parameters<typeof createFromSubject>
+        ...args: Parameters<RelationshipService["createFromSubject"]>
       ): Promise<Relationship> => {
-        const created = await createFromSubject(...args);
+        const created = await relationshipsSvc.createFromSubject(...args);
         await regenerateSystem();
         return created;
       },
       // The same, for an other end that doesn't exist yet: creates them
-      // unpublished alongside the edge. See {@link createWithNewOther}.
+      // unpublished alongside the edge.
       createWithNewOther: async (
-        ...args: Parameters<typeof createWithNewOther>
+        ...args: Parameters<RelationshipService["createWithNewOther"]>
       ): Promise<{ other: Person | Pet; relationship: Relationship }> => {
-        const created = await createWithNewOther(...args);
+        const created = await relationshipsSvc.createWithNewOther(...args);
         await regenerateSystem();
         return created;
       },
       // Edit a subject-scoped relationship, re-deriving the subject's own role.
-      // See {@link editFromSubject}.
       editFromSubject: async (
-        ...args: Parameters<typeof editFromSubject>
+        ...args: Parameters<RelationshipService["editFromSubject"]>
       ): Promise<Relationship | undefined> => {
-        const updated = await editFromSubject(...args);
+        const updated = await relationshipsSvc.editFromSubject(...args);
         await regenerateSystem();
         return updated;
       },
@@ -1592,7 +1410,7 @@ export function createCore(driver: SqliteDriver) {
         listTimelineForEntity(
           milestones,
           relationships,
-          resolveLabel,
+          entities.label,
           type,
           id,
         ),
@@ -1965,7 +1783,7 @@ export function createCore(driver: SqliteDriver) {
             reminderId: t.id,
             personId: t.bearerId,
             // `wishes` is filtered to people above, so the bearer is one.
-            subject: (await resolveLabel("person", t.bearerId)) ?? "",
+            subject: (await entities.label("person", t.bearerId)) ?? "",
             methods: reachableMethods(
               await listContactMethods(contactMethods, {
                 type: "person",
@@ -2432,7 +2250,8 @@ export function createCore(driver: SqliteDriver) {
           milestonesFor: (bearerType, bearerId) =>
             milestones.listForBearer(bearerType, bearerId),
           tagsFor: (type, id) => tags.listForEntity(type, id),
-          neighborsFor: (type, id) => orientedNeighbors(type, id),
+          neighborsFor: (type, id) =>
+            relationshipsSvc.orientedNeighbors(type, id),
           selfPersonId: async () => (await self.getSelf())?.personId ?? null,
           data: {
             listReminders: () => reminders.list(),

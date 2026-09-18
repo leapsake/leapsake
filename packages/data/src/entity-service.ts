@@ -2,6 +2,7 @@ import {
   type EntityType,
   type Person,
   type Pet,
+  entityLabel,
   isPublished,
 } from "@leapsake/schema";
 import type { ContactMethodsRepo } from "./contact-methods-repo.js";
@@ -60,6 +61,10 @@ export interface EntityService {
    *  label — currently its `standing`. Neither `get` filters on standing, so an
    *  unpublished entity resolves here like any other. */
   resolve(type: EntityType, id: string): Promise<Person | Pet | undefined>;
+  /** An entity's display label, through the shared `@leapsake/schema` formatter
+   *  so every client labels entities identically. `undefined` when the entity is
+   *  gone, so callers can skip a missing neighbor. */
+  label(type: EntityType, id: string): Promise<string | undefined>;
   softDelete(type: EntityType, id: string): Promise<void>;
   removeFacts(type: EntityType, id: string): Promise<void>;
   attachedUnpublished(
@@ -102,6 +107,14 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     id: string,
   ): Promise<Person | Pet | undefined> =>
     type === "person" ? people.get(id) : pets.get(id);
+
+  const label = async (
+    type: EntityType,
+    id: string,
+  ): Promise<string | undefined> => {
+    const entity = await resolve(type, id);
+    return entity ? entityLabel(type, entity) : undefined;
+  };
 
   const softDelete = (type: EntityType, id: string): Promise<void> =>
     type === "person" ? people.softDelete(id) : pets.softDelete(id);
@@ -214,6 +227,7 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
 
   return {
     resolve,
+    label,
     softDelete,
     removeFacts,
     attachedUnpublished,
