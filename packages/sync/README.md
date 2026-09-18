@@ -79,6 +79,12 @@ already-rare window. It stays available as an *additive, per-entity* escalation,
 the whole-row `updatedAt` is a valid field-clock floor — a missing field clock falls
 back to it and old rows keep working.
 
+**Why it converges:** `resolveMerge` returns the maximum of a total order on rows, keyed
+`(hasHistory(row), updatedAt, canonical(row))`, and a `max` folds a batch to the same answer in
+any order. Every part of that key reads one row alone. A `hasHistory` predicate that consulted the
+pair would pass every two-row test and still stop devices converging; the permutation test in
+`merge.test.ts` is the one that catches it.
+
 ## How a second device gets the master key
 
 Not through this package's sync log — every record in it is sealed under MK, which a
