@@ -1,6 +1,6 @@
 import { bytesToBase64 } from "@leapsake/bytes";
 import { describe, expect, it } from "vitest";
-import { lookupAccount } from "../src/sync.js";
+import { lookupAccount } from "../src/account.js";
 
 /**
  * The prelogin existence probe behind the combined sign-up / log-in flow: a hit

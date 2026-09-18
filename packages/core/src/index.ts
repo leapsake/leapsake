@@ -210,8 +210,8 @@ export {
 // The production sync-engine assembly: the canonical syncable allowlist plus a
 // one-call cycle for an enabled account, so each client drives sync the same way
 // (desktop now; mobile in Phase C) instead of hand-rolling the repo registry.
+export { syncableRepos } from "./sync.js";
 export {
-  syncableRepos,
   createAccountSyncEngine,
   lookupAccount,
   lookupAccountId,
@@ -227,11 +227,11 @@ export {
   convergeRecoveryKey,
   reconcileOnJoin,
   selectJoinDuplicates,
-  type JoinReconcileResult,
-  type PasswordDoorWriter,
   getAutoSync,
   setAutoSync,
-} from "./sync.js";
+  type JoinReconcileResult,
+  type PasswordDoorWriter,
+} from "@leapsake/sync";
 
 // The bundled holiday catalog's seed, applied at store open once per bundle
 // version. Re-exported so a client never depends on `@leapsake/holidays`

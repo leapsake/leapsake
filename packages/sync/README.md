@@ -1,8 +1,10 @@
 # @leapsake/sync
 
 The client half of V3 convergence: the `SyncTransport` port and its two adapters, the
-registry-driven `SyncEngine`, and the scheduling layer above it. Depends on `data` for
-**types only** (`SyncableRepo`, `SyncStateRepo`) plus `crypto` and `schema`.
+registry-driven `SyncEngine`, the scheduling layer above it, and the **account lifecycle over
+a relay** (`account.ts`) — registering, joining, recovering, re-authenticating, running a
+cycle, and the recovery-escrow round-trip. Depends on `data` for types plus `crypto`,
+`schema`, and `key-custody` for the doors those flows open.
 
 ## Why it is its own package
 
@@ -16,6 +18,17 @@ Pulling them together also made a latent property structural: the blind relay
 (`apps/server`) imports the **wire format** from here and no longer depends on
 `@leapsake/data` in production at all. The relay cannot see the app's data layer because
 it does not link against it.
+
+## `account.ts` is dormant, deliberately
+
+The relay half has **no caller today**: the clients' relay flows were deleted on 2026-09-17
+and return in v0.2. It is kept, and kept tested (`apps/server/test/relay.test.ts` exercises it
+against a live relay), so the rebuild starts from working code rather than from a diff.
+
+**What syncs is not decided here.** `createAccountSyncEngine`, `runAccountSync` and
+`reconcileOnJoin` take the allowlist as a `repos` argument; the allowlist itself is
+`syncableRepos` in [`@leapsake/core`](../core/README.md), which is the composition root and
+the one place that says which repositories may leave the device. A guard test pins that set.
 
 ## The four pieces
 

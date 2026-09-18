@@ -29,6 +29,7 @@ import {
   registerAccountWithRelay,
   rotateRecoveryPhraseForAccount,
   runAccountSync,
+  syncableRepos,
   unlockWithPassword,
   unlockWithRecoveryKey,
 } from "@leapsake/core";
@@ -633,6 +634,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: mk.masterKey,
     });
 
@@ -658,6 +660,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: session.masterKey,
     });
     expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
@@ -735,6 +738,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: mk.masterKey,
     });
 
@@ -755,6 +759,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: d2session.masterKey,
     });
     expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
@@ -781,6 +786,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       runAccountSync({
         keyStore: d2.keyStore,
         driver: d2.driver,
+        repos: syncableRepos(d2.driver),
         masterKey: d2session.masterKey,
       }),
     ).rejects.toThrow(/401/);
@@ -799,6 +805,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       runAccountSync({
         keyStore: d2.keyStore,
         driver: d2.driver,
+        repos: syncableRepos(d2.driver),
         masterKey: d2session.masterKey,
       }),
     ).rejects.toThrow(/401/);
@@ -818,11 +825,13 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d3.keyStore,
       driver: d3.driver,
+      repos: syncableRepos(d3.driver),
       masterKey: d3session.masterKey,
     });
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: d2session.masterKey,
     });
     expect(await reposFor(d2.driver).people.get(henry.id)).toEqual(henry);
@@ -844,6 +853,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: mk1,
     });
 
@@ -877,6 +887,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     const d2Core = createCore(d2.driver);
     const { duplicateCount } = await reconcileOnJoin({
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: session.masterKey,
       core: d2Core,
     });
@@ -904,11 +915,13 @@ describe("multi-device login over the relay (enable → join → converge)", () 
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: session.masterKey,
     });
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: mk1,
     });
     const onD1 = (await d1People.list()).map((p) => p.id);
@@ -1113,6 +1126,7 @@ describe("multi-device login over the relay (enable → join → converge)", () 
       await runAccountSync({
         keyStore: d1.keyStore,
         driver: d1.driver,
+        repos: syncableRepos(d1.driver),
         masterKey,
       });
       expect(
@@ -1378,6 +1392,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: d1.masterKey,
     });
 
@@ -1399,6 +1414,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: session.masterKey,
     });
     expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);
@@ -1425,6 +1441,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
     await runAccountSync({
       keyStore: d1.keyStore,
       driver: d1.driver,
+      repos: syncableRepos(d1.driver),
       masterKey: d1.masterKey,
     });
     // The 24 words the user wrote down at account creation, before any relay.
@@ -1448,6 +1465,7 @@ describe("binding a relay to a local-only account (bind → join → converge)",
     await runAccountSync({
       keyStore: d2.keyStore,
       driver: d2.driver,
+      repos: syncableRepos(d2.driver),
       masterKey: session.masterKey,
     });
     expect(await reposFor(d2.driver).people.get(mary.id)).toEqual(mary);

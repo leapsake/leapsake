@@ -51,3 +51,23 @@ export {
   createSyncScheduler,
   withSyncKick,
 } from "./scheduler.js";
+export {
+  createAccountSyncEngine,
+  lookupAccount,
+  lookupAccountId,
+  registerAccountWithRelay,
+  joinAccountViaRelay,
+  recoverAccountViaRelay,
+  reauthenticateViaRelay,
+  isRelayAuthError,
+  isUsernameTakenError,
+  runAccountSync,
+  rotateRecoveryPhraseForAccount,
+  flushPendingRecoveryEscrow,
+  convergeRecoveryKey,
+  reconcileOnJoin,
+  selectJoinDuplicates,
+  getAutoSync,
+  setAutoSync,
+} from "./account.js";
+export type { JoinReconcileResult, PasswordDoorWriter } from "./account.js";

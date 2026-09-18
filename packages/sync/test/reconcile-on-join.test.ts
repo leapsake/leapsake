@@ -1,6 +1,6 @@
 import type { DuplicateCandidate } from "@leapsake/data";
 import { describe, expect, it } from "vitest";
-import { selectJoinDuplicates } from "../src/sync.js";
+import { selectJoinDuplicates } from "../src/account.js";
 
 /**
  * The pure half of reconcile-on-join (reconciliation Increment C): from the

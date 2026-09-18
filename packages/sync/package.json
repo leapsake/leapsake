@@ -13,6 +13,7 @@
     "@leapsake/bytes": "workspace:*",
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
+    "@leapsake/key-custody": "workspace:*",
     "@leapsake/schema": "workspace:*"
   }
 }
