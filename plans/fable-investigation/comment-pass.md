@@ -14,19 +14,30 @@ whichever name part they have" is behaviour and earns its two lines. "Retired on
 (migration 27) because layer 3's only consumer went away" is a decision and belongs to the
 commit that made it.
 
+## Status
+
+**Step 1 (`packages/schema`) is done and lint-enforced. Step 2 (`packages/reminders`) is next.**
+The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
+directories are finished.
+
 ## Why this is worth a pass
 
-| File                                   |      Total |    Comment |  Code |   Share |
-| -------------------------------------- | ---------: | ---------: | ----: | ------: |
-| `packages/reminders/src/engine.ts`     |      1,899 |      1,091 |   739 |     57% |
-| `packages/key-custody/src/session.ts`  |      1,091 |        475 |   549 |     43% |
-| `packages/data/src/migrations.ts`      |      1,174 |        496 |   665 |     42% |
-| `apps/mobile/lib/core-context.tsx`     |      2,166 |        769 | 1,343 |     35% |
-| `apps/desktop/src/main/index.ts`       |      1,437 |        514 |   855 |     35% |
-| `packages/core/src/index.ts`           |      2,894 |      1,004 | 1,802 |     34% |
-| **Repo, non-test source**              | **73,155** | **23,079** |       | **31%** |
+The biggest remaining files, measured 2026-09-18:
 
-Decision-history markers in non-test source, by grep:
+| File                                  | Total | Comment | Share |
+| ------------------------------------- | ----: | ------: | ----: |
+| `packages/reminders/src/engine.ts`    | 1,858 |   1,061 |   57% |
+| `packages/key-custody/src/session.ts` | 1,090 |     474 |   43% |
+| `packages/reminders/src/api.ts`       | 1,017 |     436 |   43% |
+| `packages/data/src/migrations.ts`     | 1,174 |     496 |   42% |
+| `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
+| `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
+| `packages/core/src/index.ts`          | 1,153 |     271 |   24% |
+
+"Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
+about 2,850 comment lines to about 900.
+
+Decision-history markers in non-test source, by grep, before the pass began:
 
 | Pattern                                                    | Hits |
 | ---------------------------------------------------------- | ---: |
@@ -45,7 +56,8 @@ moves, and the repo's own `plans/README.md` already says finished work leaves `p
 
 ## The procedure
 
-Work file by file, biggest share first (the table above is the order). For every comment:
+Work step by step (_Steps_ below), and within a step file by file, biggest share first. For
+every comment:
 
 1. **Restates the code** (`// increment the counter`, a JSDoc that repeats the signature)
    → delete.
@@ -82,7 +94,7 @@ existing `pnpm lint`:
   comments as one block and a `/** */` block by its prose lines. It does not start loose and
   ratchet down: the limit is the rule.
 - **`leapsake/no-decision-comments`** flags the markers above that are precise enough to lint:
-  an ISO date, `§`, a `plans/` path, `(owner`, `slice N`. It catches the short decision comments a
+  an ISO date, `§`, a `plans/` path, `(owner,`, `slice N`. It catches the short decision comments a
   length limit never sees. `used to`, `no longer` and `migration N` stay a reviewer's call, because
   they are just as often behaviour.
 
@@ -92,26 +104,61 @@ a reviewer can question each one.
 
 **The ratchet is scope, not N.** The rules are on only for directories the pass has finished,
 through an `overrides` entry in `.oxlintrc.json` whose `files` list grows by one directory per
-step. Test files are out of scope. When the last step lands, the rules move to the top level and the
+step. Test files are out of scope. When step 7 lands, the rules move to the top level and the
 override goes away.
 
 The check stops long essays from coming back and catches the obvious history markers. It does not
 do the pass: most of the cut is judgment on comments that are short and phrase-free.
 
+## Working a step
+
+1. **Read the package's `README.md` first**, so you know which "why" already has a home there.
+   Most deleted history needs nothing added, because the README or `git log` already has it.
+2. **See what the rules flag** in a directory that is not yet in scope:
+   ```sh
+   pnpm exec oxlint -c scripts/lint/comment-rules.oxlintrc.json packages/reminders/src
+   ```
+   The findings are a floor, not the job: _The procedure_ item 2 also covers short comments no
+   lint rule sees.
+3. **Edit one file (or a few small ones), then, before committing, prove only comments changed:**
+   ```sh
+   node scripts/lint/comments-only.mjs          # every changed .ts/.tsx/.mjs against HEAD
+   pnpm exec oxfmt <the .ts files you touched>
+   ```
+   `comments-only.mjs` prints each file with TypeScript's printer, comments stripped, and compares
+   it to `HEAD`. Anything reported as `CODE CHANGED` is a mistake unless it is a deliberate rename
+   or extraction, which the commit message must then name.
+4. **Commit per file or small group, straight to `main`.** The message says where the deleted
+   history lives (a README section, a commit hash) and ends "Code is unchanged." Durable "why"
+   that no README holds goes into the owning package's `README.md` as a sentence or two;
+   forward-looking notes go to the matching section of `plans/v0-2.md`.
+5. **Finish the step:** add the directory to the comment-rules override's `files` list in
+   `.oxlintrc.json`, run the verification in [`README.md`](./README.md) → _Rules that apply to
+   every workstream_, update the _Status_ and the table here, and commit.
+
+Conventions the schema step settled:
+
+- **Wrap comments at 80 columns** in `packages/`, as the code there is. Nothing checks this, so a
+  two-line limit is two lines of 80, not two lines of 100.
+- **A section banner** (`// ---` / `// Title` / `// ---`) counts as three lines. Make it a single
+  `// Title`.
+- **Never run `oxfmt` on Markdown.** The repo excludes `*.md` from formatting, and running it
+  on a README rewrites unrelated emphasis and tables.
+- **README history markers stay.** `(owner, 2026-09-05)` in a package README is the right home
+  for a decision; the lint rules apply to source only.
+- **A trailing `//` comment on a code line** is not grouped with its neighbours, so a column of
+  field comments is fine as long as each stays short.
+
 ## Steps, each a commit series
 
-Each step ends by adding its directories to the rules' scope. `packages/schema` is done and in
-scope; the `files` list in `.oxlintrc.json` is the record of what is.
-
-1. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
-   either order works, but do not do both in one commit).
-2. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
-3. `packages/core` (after workstream 2, so the pass is over the small file).
-4. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
-5. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
-6. Everything else, by directory. `scripts/` last.
-
-**How the schema step was verified, and how to repeat it:** each file was checked to print
-identically to `HEAD` once comments are stripped (TypeScript's printer with `removeComments`), so
-the pass provably changed no code. Durable "why" that no README held went into the owning
-package's README (`reminders`, `holidays`, `sync`) or, when forward-looking, `plans/v0-2.md`.
+1. ✅ `packages/schema`. Done 2026-09-18, in scope.
+2. **`packages/reminders/src`**: `engine.ts`, then `api.ts` and `index.ts`. Tests in
+   `packages/reminders/test` are out of scope. `packages/reminders/README.md` (about 800 lines)
+   already carries most of the reasoning these files repeat: identity, windows, the prompt,
+   schedules, onboarding nudges, merge safety. Check it before adding anything. Scope entry to
+   add when done: `"packages/reminders/src/**"`.
+3. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
+4. `packages/core`.
+5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
+6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
+7. Everything else, by directory. `scripts/` last.

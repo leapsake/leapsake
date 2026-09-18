@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "categories": { "correctness": "off", "suspicious": "off" },
+  "jsPlugins": ["./comment-rules.mjs"],
+  "rules": {
+    "leapsake/max-comment-lines": "error",
+    "leapsake/no-decision-comments": "error"
+  }
+}
