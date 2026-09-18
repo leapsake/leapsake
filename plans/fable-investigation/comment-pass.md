@@ -16,8 +16,8 @@ commit that made it.
 
 ## Status
 
-**Steps 1 (`packages/schema`) and 2 (`packages/reminders`) are done and lint-enforced. Step 3
-(`packages/key-custody`) is next.**
+**Steps 1 (`packages/schema`) and 2 (`packages/reminders`) are done and lint-enforced. Step 3 is
+half done: `packages/key-custody/src` is in scope, and `packages/data/src` is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -27,14 +27,14 @@ The biggest remaining files, measured 2026-09-18:
 
 | File                                  | Total | Comment | Share |
 | ------------------------------------- | ----: | ------: | ----: |
-| `packages/key-custody/src/session.ts` | 1,090 |     474 |   43% |
 | `packages/data/src/migrations.ts`     | 1,174 |     496 |   42% |
 | `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
 | `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
 | `packages/core/src/index.ts`          | 1,153 |     271 |   24% |
 
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
-about 2,850 comment lines to about 900, and `packages/reminders/src` from 1,522 to 383.
+about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383, and
+`packages/key-custody/src` from 940 to 213.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
