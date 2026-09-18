@@ -56,7 +56,7 @@ import {
   planNotifications,
   reconcile as reconcileNotificationSchedule,
 } from "@leapsake/notifications";
-import { addContactsChangeListener } from "expo-contacts";
+import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
 import {
   createAccountRoster,
@@ -376,9 +376,29 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // A contact added while the app is open — typed on another device and
+    // arriving over iCloud, say — should not wait for the next foreground. The
+    // new contact's own commit reconciles reminders, so this needs neither of
+    // the reconciles above.
+    //
+    // Android rejects the observer without READ_CONTACTS, so it attaches only
+    // once permission exists and retries on each foreground.
+    let contactsSub: ReturnType<typeof addContactsChangeListener> | null = null;
+    let unwatched = false;
+    const watchContacts = async () => {
+      if (contactsSub !== null || unwatched) return;
+      if (!(await getPermissionsAsync()).granted) return;
+      if (unwatched) return; // torn down while the permission was being read
+      contactsSub = addContactsChangeListener(() => {
+        if (coreRef.current !== null) void bringInNewContacts(coreRef.current);
+      });
+    };
+    void watchContacts();
+
     // Catch up on what changed while the app was away.
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      void watchContacts();
       if (coreRef.current !== null) {
         const core = coreRef.current;
         // Sequenced, not parallel `void`s: `reconcileNotifications` reads
@@ -388,14 +408,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           .then(() => regenerateSystemReminders(core))
           .then(() => reconcileNotifications(core));
       }
-    });
-
-    // A contact added while the app is open — typed on another device and
-    // arriving over iCloud, say — should not wait for the next foreground. The
-    // new contact's own commit reconciles reminders, so this needs neither of
-    // the reconciles above.
-    const contactsSub = addContactsChangeListener(() => {
-      if (coreRef.current !== null) void bringInNewContacts(coreRef.current);
     });
 
     // Park the bootstrap on the unlock gate until the user submits a secret. The
@@ -894,8 +906,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     })().catch((e) => setError(String(e)));
 
     return () => {
+      unwatched = true;
       appStateSub.remove();
-      contactsSub.remove();
+      contactsSub?.remove();
     };
   }, [resetVersion]);
 
