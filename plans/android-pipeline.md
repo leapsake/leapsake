@@ -70,6 +70,19 @@ Afterwards, read the closed track back and confirm `tracks.update` left it as ex
 release should carry the **tag's** name now (`0.1.0-beta.9`, not `0.1.0`), and the
 `releases` array is replaced wholesale, so anything not sent is gone.
 
+Then ship iOS from the same tag, **before committing anything**, while `tagOnHead` still holds:
+
+```sh
+pnpm release --from-tag=v0.1.0-beta.9 --only=ios
+```
+
+⚠️ It re-runs the full suite, so `beta.9` costs the ~30-minute catalog twice. **iOS has no
+`beta.8`** and does not need one *(owner, 2026-09-17)*: every commit between `v0.1.0-beta.8` and
+`beta.9` is scripts, plans, tests, or the Android-only `blockedPermissions` key, so the two iOS
+binaries would be identical. A platform skipping a rung costs nothing — the store version is
+`0.1.0` either way, build numbers come from the clock, and `refs/notes/releases` records which
+platform shipped which tag.
+
 ### 3. Then bare releases, and what still blocks them
 
 - ☐ **A Console-precondition preflight.** The two failures below cost a full suite run and four
