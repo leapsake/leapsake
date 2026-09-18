@@ -20,19 +20,8 @@ if (!container) throw new Error("Root element #root not found");
 // The data router is built lazily once boot is "ready" (see Root): `createHashRouter`
 // runs its initial loader eagerly, so creating it at module load would fire
 // `views.entityList` before the main process registers its IPC during a recovery
-// boot. We hold the instance here so the sync-activity subscription can revalidate
-// it once it exists (and harmlessly no-op before then).
+// boot.
 let appRouter: ReturnType<typeof createAppRouter> | undefined;
-
-// Reactive invalidation: when a background sync pull applies remote changes,
-// re-run the active route's loaders in place so the visible screen reflects the
-// peer's edits without a manual navigation. `revalidate()` keeps the old data on
-// screen until the new resolves (no spinner/flicker); gating on `changed` avoids
-// a pointless re-read on pure-push or no-op pulls. Wiring to the activity event
-// (not a specific trigger) means a manual "Sync now" still revalidates too.
-window.sync.onActivity((payload) => {
-  if (payload.changed) void appRouter?.revalidate();
-});
 
 /**
  * The boot gate: the renderer mounts before the database is open, so it watches
@@ -53,9 +42,7 @@ function Root() {
   // Degraded state (custody slice 10). It rides along with "ready" rather than
   // being a phase of its own, because the app genuinely is ready — see
   // {@link CustodyBanner}.
-  const [degraded, setDegraded] = useState<
-    { detail: string; relayBound: boolean } | undefined
-  >();
+  const [degraded, setDegraded] = useState<{ detail: string } | undefined>();
 
   useEffect(() => {
     const offNeeded = window.boot.onUnlockNeeded(({ error: err, doors: d }) => {
@@ -88,12 +75,7 @@ function Root() {
   if (phase === "ready" && appRouter !== undefined)
     return (
       <>
-        {degraded !== undefined && (
-          <CustodyBanner
-            detail={degraded.detail}
-            relayBound={degraded.relayBound}
-          />
-        )}
+        {degraded !== undefined && <CustodyBanner detail={degraded.detail} />}
         <RouterProvider router={appRouter} />
       </>
     );

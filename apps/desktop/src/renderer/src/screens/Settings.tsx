@@ -1,60 +1,24 @@
-import { MIN_PASSWORD_LENGTH, type SyncStatus } from "@leapsake/core";
-import { flag } from "@leapsake/flags";
+import type { SyncStatus } from "@leapsake/core";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
-/** Prefilled relay origin for local development (apps/server defaults to :4000). */
-const DEFAULT_RELAY_URL = "http://localhost:4000";
 
 /** The word a user must type to arm the (irreversible) factory reset. */
 const FACTORY_RESET_PHRASE = "ERASE";
 
 /**
- * A humble, dependency-free password hint. It does not pretend to score entropy
- * (no zxcvbn) — it enforces the length floor and steers toward a passphrase,
- * which is the guidance that actually helps for a key-deriving secret.
- */
-function passwordHint(password: string): string {
-  if (password === "") return "";
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Too short — use at least ${MIN_PASSWORD_LENGTH} characters.`;
-  }
-  if (!password.includes(" ") && password.length < 16) {
-    return "A passphrase of 3–4 random words is stronger than a short complex password.";
-  }
-  return "Looks reasonable. Longer is stronger.";
-}
-
-/**
- * Account & sync setup (custody Phase 1/2). Deliberately a *stateful* screen, not
+ * Account settings (custody Phase 1/2). Deliberately a *stateful* screen, not
  * a router loader/action: the recovery key is shown exactly once and must not
  * survive a navigation or a loader re-run, so it lives in local state and is
  * dropped the moment the user confirms they've saved it.
- *
- * Device-to-device sync is real now: a first
- * device sets a password + username and registers with a relay; a second device
- * logs in to the same account; "Sync now" pushes/pulls the encrypted records.
  */
 export function Settings() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
   // The phrase currently on screen for its one-and-only showing — from account
-  // creation, or from the rotation that replaced it. `escrowPending` is only ever
-  // true for the latter (see {@link RecoveryPhraseSection}).
-  const [revealed, setRevealed] = useState<{
-    phrase: string;
-    escrowPending: boolean;
-  } | null>(null);
-  // How many possible duplicates the most recent join surfaced — a prompt to
-  // review them (0 = nothing to review). Set when a join completes.
-  const [reviewCount, setReviewCount] = useState(0);
+  // creation, or from the rotation that replaced it.
+  const [revealed, setRevealed] = useState<string | null>(null);
 
   function refreshStatus() {
     void window.sync.status().then(setStatus);
-  }
-
-  function onJoined(duplicateCount: number) {
-    setReviewCount(duplicateCount);
-    refreshStatus();
   }
 
   useEffect(refreshStatus, []);
@@ -65,8 +29,7 @@ export function Settings() {
   if (revealed !== null) {
     return (
       <RecoveryKeyReveal
-        recoveryKey={revealed.phrase}
-        escrowPending={revealed.escrowPending}
+        recoveryKey={revealed}
         onDone={() => {
           setRevealed(null);
           refreshStatus();
@@ -81,45 +44,14 @@ export function Settings() {
         <Link to="/">&larr; Back</Link>
       </p>
       <h1>Settings</h1>
-      {/*
-        The heading names sync only when there is sync to name — with
-        `multiDevice` held back the word would be the only place a v0.1 user
-        meets the idea, and it would go nowhere.
-      */}
-      <h2>{flag("multiDevice") ? "Account & sync" : "Account"}</h2>
+      <h2>Account</h2>
 
       {status === null ? (
         <p>Loading…</p>
       ) : status.hasAccount ? (
-        <AccountEnabled
-          status={status}
-          reviewCount={reviewCount}
-          onReviewed={() => setReviewCount(0)}
-          onJoined={onJoined}
-        />
+        <AccountEnabled status={status} />
       ) : (
-        <>
-          <CreateAccount
-            onCreated={(phrase) =>
-              setRevealed({ phrase, escrowPending: false })
-            }
-          />
-          {/*
-            Creating an account stays — it is what turns encryption on, and it is
-            entirely local. Only the relay half is held back.
-          */}
-          {flag("multiDevice") && (
-            <>
-              <hr />
-              <SyncSetup
-                onEnabled={(phrase) =>
-                  setRevealed({ phrase, escrowPending: false })
-                }
-                onJoined={onJoined}
-              />
-            </>
-          )}
-        </>
+        <CreateAccount onCreated={setRevealed} />
       )}
 
       {/*
@@ -169,8 +101,7 @@ export function Settings() {
  * Two things it is deliberately not. It is not a *Lock* button: Locked is a
  * state, not an affordance, and the app is meant to enter it on the user's behalf
  * once idle locking ships (v0.2). And it is not two behaviors wearing one name —
- * the promise is identical whether or not the account is relay-bound (*nobody can
- * see my data on this device anymore*), so the copy never branches on it. The one
+ * the promise is *nobody can see my data on this device anymore*. The one
  * difference, that the encrypted bytes remain, is stated plainly because it is the
  * part a local-only user would otherwise worry about.
  *
@@ -218,24 +149,20 @@ const FORGET_ACCOUNT_PHRASE = "DELETE";
  *
  * The wording is **driven by a check, not hardcoded** (§7.3.1). Forgetting an
  * account on its last remaining device is functionally a deletion unless a server
- * durably holds a copy, so the main process asks the relay and reports
- * `durableBackup`; absent an answer — today's universal case, since no relay
- * advertises the capability yet — it is `false` and this shows the alarming
- * version, hard-confirm and all. When server-side backup ships, the alarming copy
- * stops appearing on its own rather than having to be hunted down.
+ * durably holds a copy, so the main process asks and reports `durableBackup`;
+ * absent an answer — today's universal case — it is `false` and this shows the
+ * alarming version, hard-confirm and all. When server-side backup ships, the
+ * alarming copy stops appearing on its own rather than having to be hunted down.
  */
 function ForgetAccount() {
   const [info, setInfo] = useState<{
     username?: string;
-    relayUrl?: string;
     durableBackup: boolean;
   } | null>(null);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 
-  // Read on entering the confirmation rather than on mount: it reaches out to the
-  // relay, and there is no reason to do that for every visit to Settings.
   function beginConfirm() {
     setError(null);
     window.sync
@@ -256,8 +183,7 @@ function ForgetAccount() {
     setError(null);
   }
 
-  // A relay that keeps a durable copy makes this ordinary — sign back in and
-  // re-pull. Without one, the data on this device is the last copy.
+  // Nothing keeps a durable copy, so the data on this device is the last copy.
   const lastCopy = info !== null && !info.durableBackup;
   const armed =
     !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
@@ -308,14 +234,11 @@ function ForgetAccount() {
               )}{" "}
               on this device.
             </strong>{" "}
-            {info.relayUrl === undefined
-              ? "This account is only on this device, so there is no other copy."
-              : `${info.relayUrl} does not keep a backup of your data, so if this is your only device there is no other copy.`}
+            This account is only on this device, so there is no other copy.
           </p>
           <p>
-            If you might want this data later, close this and copy your{" "}
-            <code>stores</code> folder somewhere safe first — Leapsake cannot
-            export it yet.
+            If you might want this data later, close this and export your data
+            first.
           </p>
           <p>
             Type <strong>{FORGET_ACCOUNT_PHRASE}</strong> to confirm.
@@ -325,8 +248,8 @@ function ForgetAccount() {
         <p>
           Remove{" "}
           {info.username !== undefined ? `“${info.username}”` : "this account"}{" "}
-          from this device? {info.relayUrl} keeps a copy of your data, so you
-          can sign back in on this or another device to get it again.
+          from this device? A copy of your data is kept elsewhere, so you can
+          get it again.
         </p>
       )}
       <form
@@ -367,93 +290,10 @@ function ForgetAccount() {
   );
 }
 
-/** Shown once sync is enabled: the account exists; sync runs on demand. */
-function AccountEnabled({
-  status,
-  reviewCount,
-  onReviewed,
-  onJoined,
-}: {
-  status: SyncStatus;
-  reviewCount: number;
-  onReviewed: () => void;
-  /** A merge landed: same shape as a join, because it ends in the same place. */
-  onJoined: (duplicateCount: number) => void;
-}) {
-  const [lastSynced, setLastSynced] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  // Set when a sync 401s because the password was reset on another device — shows
-  // the re-enter-password prompt below. Cleared on the next successful sync.
-  const [needsReauth, setNeedsReauth] = useState(false);
-  // The per-client "Sync automatically" preference (default on). Null until loaded.
-  const [autoSync, setAutoSync] = useState<boolean | null>(null);
-  // Whether this device is *Degraded* — it holds the account but cannot prove the
-  // account's master key, so it syncs nothing (custody slice 10). The boot path is
-  // the only thing that knows, hence `window.boot` rather than `window.sync`.
-  const [degraded, setDegraded] = useState(false);
-
-  // Background syncs (interval / window focus / after a local write) complete out
-  // of band, so subscribe to keep the "last synced" line and error current even
-  // when the user didn't press the button.
-  useEffect(
-    () =>
-      window.sync.onActivity((payload) => {
-        if (payload.at !== undefined) {
-          setLastSynced(payload.at);
-          setError(null);
-          setNeedsReauth(false);
-        }
-        if (payload.error !== undefined) setError(payload.error);
-        if (payload.needsReauth === true) setNeedsReauth(true);
-      }),
-    [],
-  );
-
-  // Load the current "Sync automatically" preference once.
-  useEffect(() => {
-    void window.sync.getAutoSync().then(setAutoSync);
-    void window.boot
-      .status()
-      .then((s) => setDegraded(s.degraded !== undefined));
-  }, []);
-
-  async function toggleAutoSync(next: boolean) {
-    setAutoSync(next); // optimistic; the IPC call is the source of truth
-    await window.sync.setAutoSync(next);
-  }
-
-  async function syncNow() {
-    setError(null);
-    setSyncing(true);
-    try {
-      const { at } = await window.sync.syncNow();
-      setLastSynced(at);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Couldn't sync.";
-      // A 401 means the account password was reset on another device. The main
-      // process broadcasts the re-auth prompt via sync:activity (the onActivity
-      // effect above sets the friendly text); flip the prompt on and suppress the
-      // raw "…failed: 401" so the friendly message wins instead of leaking.
-      if (message.includes("401")) setNeedsReauth(true);
-      else setError(message);
-    } finally {
-      setSyncing(false);
-    }
-  }
-
+/** Shown once this device has an account: what it is, and where it lives. */
+function AccountEnabled({ status }: { status: SyncStatus }) {
   return (
     <>
-      {reviewCount > 0 && (
-        <p role="status">
-          Logging in found <strong>{reviewCount}</strong> possible{" "}
-          {reviewCount === 1 ? "duplicate" : "duplicates"} between this device
-          and your account.{" "}
-          <Link to="/duplicates" onClick={onReviewed}>
-            Review duplicates
-          </Link>
-        </p>
-      )}
       <p>
         Your account is set up and protected by your password and recovery key.
       </p>
@@ -463,161 +303,13 @@ function AccountEnabled({
             Username <strong>{status.username}</strong>.{" "}
           </>
         )}
-        {status.relayUrl !== undefined && <>Relay {status.relayUrl}. </>}
         Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </p>
-      {/*
-        No relay means an account created locally (`CreateAccount` below), which
-        has nothing to sync to. The controls are not shown rather than shown and
-        failing: every one of them ended in "Sync is not enabled for this store."
-      */}
-      {/*
-        `multiDevice` off takes this branch whatever the account holds: a store
-        that got relay-bound while the flag was on is a developer-only state, and
-        showing sync controls in a build with no way to reach them would be the
-        worse half of the trade. The copy below is written for a local-only
-        account and reads as a small lie in that one state.
-      */}
-      {status.relayUrl === undefined || !flag("multiDevice") ? (
-        <>
-          <p>
-            This account is on this computer only. Nothing is sent anywhere, so
-            nothing here needs syncing.
-          </p>
-          {/*
-            The two ways out of a local-only account, and between them the reason
-            it is not a trap (@leapsake/key-custody).
-
-            They are siblings rather than one flow because they answer opposite
-            questions — *publish the account that is already here* versus *move
-            this data into one that exists elsewhere* — and a user knows which of
-            those they want before they know any of the mechanics. The 409 fork
-            inside `StartSyncing` is what carries the person who guessed wrong
-            across to the other one.
-
-            Both are relay work, so both wait for `multiDevice`. What is left
-            without them is the true statement that this account is local, which
-            is the whole of what v0.1 has to say here.
-          */}
-          {flag("multiDevice") && (
-            <>
-              <StartSyncing
-                username={status.username}
-                onBound={() => onJoined(0)}
-                onMerged={onJoined}
-              />
-              <MergeSetup username={status.username} onMerged={onJoined} />
-            </>
-          )}
-        </>
-      ) : degraded ? (
-        /*
-          Degraded (custody slice 10): the controls are hidden for the same reason
-          they are on a relay-less account — every one of them would fail, and
-          pressing "Sync now" to be told why is a worse way to learn it. The banner
-          at the top of the window carries the cause and the fix.
-        */
-        <p>
-          Sync is paused until this device is re-linked to your account — see
-          the notice at the top of the window.
-        </p>
-      ) : (
-        <>
-          {autoSync !== null && (
-            <p>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={autoSync}
-                  onChange={(event) =>
-                    void toggleAutoSync(event.target.checked)
-                  }
-                />{" "}
-                Sync automatically
-              </label>
-              {!autoSync && (
-                <>
-                  {" "}
-                  <small>
-                    Changes sync only when you press “Sync now” on this device.
-                  </small>
-                </>
-              )}
-            </p>
-          )}
-          <p>
-            <button type="button" onClick={syncNow} disabled={syncing}>
-              {syncing ? "Syncing…" : "Sync now"}
-            </button>
-          </p>
-          {lastSynced !== null && (
-            <p>Last synced {new Date(lastSynced).toLocaleTimeString()}.</p>
-          )}
-        </>
-      )}
-      {error !== null && <p role="alert">{error}</p>}
-      {needsReauth && (
-        <ReconnectForm
-          onReconnected={() => {
-            setNeedsReauth(false);
-            setError(null);
-          }}
-          onError={setError}
-        />
-      )}
+      <p>
+        This account is on this computer only. Nothing is sent anywhere, and
+        nothing leaves this device.
+      </p>
     </>
-  );
-}
-
-/**
- * Re-enter the (new) password to reconnect this device after the account password
- * was reset on another device. Re-derives this device's relay credential from the
- * password — the master key and local data are untouched — then resumes sync.
- */
-function ReconnectForm({
-  onReconnected,
-  onError,
-}: {
-  onReconnected: () => void;
-  onError: (message: string) => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [working, setWorking] = useState(false);
-
-  async function reconnect() {
-    if (password.length === 0) return;
-    setWorking(true);
-    try {
-      await window.sync.reauthenticate(password);
-      setPassword("");
-      onReconnected();
-    } catch (cause) {
-      onError(cause instanceof Error ? cause.message : "Couldn't reconnect.");
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        void reconnect();
-      }}
-    >
-      <label>
-        New password{" "}
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-        />
-      </label>{" "}
-      <button type="submit" disabled={working || password.length === 0}>
-        {working ? "Reconnecting…" : "Reconnect"}
-      </button>
-    </form>
   );
 }
 
@@ -681,7 +373,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
         is sent anywhere.{" "}
         <strong>It protects access to your data, not the data itself:</strong>{" "}
         if this computer is lost or breaks, a password won't bring your data
-        back. Set up sync or keep a backup for that.
+        back. Keep a backup for that.
       </p>
       <form onSubmit={(event) => void onSubmit(event)}>
         <p>
@@ -726,831 +418,6 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
 }
 
 /**
- * The combined sign-up / log-in flow (identity-first, like "continue with
- * email"). Step 1 takes a relay + username and asks the relay whether that
- * account exists (`window.sync.lookup`) — a miss routes to **create an account**,
- * a hit routes to **log in**. The existence probe is the same unauthenticated
- * prelogin a join already does, so it exposes nothing new; both branches then
- * require an explicit confirmation before the dangerous action runs.
- */
-function SyncSetup({
-  onEnabled,
-  onJoined,
-}: {
-  onEnabled: (recoveryKey: string) => void;
-  onJoined: (duplicateCount: number) => void;
-}) {
-  const [username, setUsername] = useState("");
-  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
-  const [resolved, setResolved] = useState<{ exists: boolean } | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function onContinue(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (username.trim() === "" || relayUrl.trim() === "") {
-      setError("Username and relay URL are required.");
-      return;
-    }
-    setChecking(true);
-    try {
-      setResolved(await window.sync.lookup({ username, relayUrl }));
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
-      );
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  // Step 2: branch on whether the account already exists.
-  if (resolved !== null) {
-    const back = () => {
-      setResolved(null);
-      setError(null);
-    };
-    return resolved.exists ? (
-      <LoginStep
-        username={username}
-        relayUrl={relayUrl}
-        onBack={back}
-        onJoined={onJoined}
-      />
-    ) : (
-      <SignupStep
-        username={username}
-        relayUrl={relayUrl}
-        onBack={back}
-        onEnabled={onEnabled}
-      />
-    );
-  }
-
-  // Step 1: identity.
-  return (
-    <>
-      <h3>Set up or log in to sync</h3>
-      <p>
-        Enter a username and relay. We'll check whether that account exists,
-        then help you create it or log in.
-      </p>
-      <form onSubmit={onContinue}>
-        <p>
-          <label>
-            Username
-            <br />
-            <input
-              type="text"
-              value={username}
-              autoComplete="username"
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Relay URL
-            <br />
-            <input
-              type="text"
-              value={relayUrl}
-              onChange={(e) => setRelayUrl(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={checking}>
-          {checking ? "Checking…" : "Continue"}
-        </button>
-      </form>
-    </>
-  );
-}
-
-/**
- * **Start syncing an account that already exists on this computer** — binding a
- * relay to a local-only account (`model.md` §7.2,
- * `encryption/model.md` §7.2.2).
- *
- * No password field, and that is not an omission: binding publishes the
- * `wrap(MK, KEK)` the account already holds, so there is nothing to re-derive.
- * Asking for a password here would imply something is being re-established, and
- * nothing is — the same phrase and the same password keep working.
- *
- * ### The collision is the whole reason this is not a one-shot form
- *
- * The username was chosen with no relay in sight, so it may already belong to
- * someone. That `409` hides **two readings that want opposite outcomes**, and
- * only the user can tell them apart:
- *
- * - *"That is my own account, from my other device"* → merge into it, keeping
- *   this computer's data ({@link LoginStep} in its `merge` variant, reached
- *   without a second lookup — a 409 already proves the account is there).
- * - *"That is a stranger"* → pick another handle and bind again. There is no
- *   rename primitive because nothing was ever published; the retry *is* the
- *   rename.
- *
- * Guessing on the user's behalf is the one thing this must not do. Joining a
- * stranger's account would hand them your data, and refusing outright would
- * strand the person whose own account it is.
- */
-function StartSyncing({
-  username: localUsername,
-  onBound,
-  onMerged,
-}: {
-  /** This account's local username — the handle it will try to claim. */
-  username: string | undefined;
-  onBound: () => void;
-  onMerged: (duplicateCount: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [username, setUsername] = useState(localUsername ?? "");
-  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
-  // The handle the relay refused, which is what raises the fork below. Null
-  // whenever there is no unresolved collision on screen.
-  const [taken, setTaken] = useState<string | null>(null);
-  // Set once the user says the taken handle is their own account: hands off to
-  // the merge, which needs no lookup — the 409 was the existence proof.
-  const [merging, setMerging] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (merging) {
-    return (
-      <LoginStep
-        username={taken ?? username}
-        relayUrl={relayUrl}
-        merge
-        onBack={() => setMerging(false)}
-        onJoined={onMerged}
-      />
-    );
-  }
-
-  if (!open) {
-    return (
-      <p>
-        <button type="button" onClick={() => setOpen(true)}>
-          Start syncing this account to your other devices
-        </button>
-      </p>
-    );
-  }
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (username.trim() === "" || relayUrl.trim() === "") {
-      setError("Username and relay URL are required.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const result = await window.sync.bindRelay({ username, relayUrl });
-      if (result.status === "username-taken") setTaken(result.username);
-      else onBound();
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (taken !== null) {
-    return (
-      <>
-        <h3>
-          “{taken}” is already taken on {relayUrl}
-        </h3>
-        <p>
-          Someone already syncs under that name. If that someone is{" "}
-          <strong>you</strong> — an account you set up on another device — you
-          can log in to it and bring this computer's data along. Otherwise pick
-          a different name for this account.
-        </p>
-        <p>
-          <button type="button" onClick={() => setMerging(true)}>
-            That's my account — log in and bring this data with me
-          </button>{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setTaken(null);
-              setError(null);
-            }}
-          >
-            Someone else has it — pick a different name
-          </button>
-        </p>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <h3>Start syncing this account</h3>
-      <p>
-        Your account and everything in it stays exactly as it is — the same
-        password opens it, and the recovery phrase you saved still works. This
-        only publishes it to a relay so your other devices can log in.
-      </p>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Username
-            <br />
-            <input
-              value={username}
-              autoComplete="username"
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Relay URL
-            <br />
-            <input
-              value={relayUrl}
-              onChange={(e) => setRelayUrl(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? "Starting…" : "Start syncing"}
-        </button>{" "}
-        <button type="button" onClick={() => setOpen(false)} disabled={busy}>
-          Cancel
-        </button>
-      </form>
-    </>
-  );
-}
-
-/**
- * **Merging a local-only account into a synced one** — {@link SyncSetup}'s
- * counterpart for a device that already *has* an account
- * (`encryption/model.md` §7.2.2).
- *
- * A sibling rather than a branch of `SyncSetup`, because one thing it must never
- * do is offer to create a *second* account: this device already has one, and
- * making another is precisely the mistake this flow exists to undo. A username
- * the relay does not know is therefore a dead end here, not a sign-up.
- *
- * It lives inside `AccountEnabled`, so it unmounts on its own once the merge
- * lands and the account gains a relay.
- */
-function MergeSetup({
-  username: localUsername,
-  onMerged,
-}: {
-  /** This device's current (local-only) username, shown to keep the two apart. */
-  username: string | undefined;
-  onMerged: (duplicateCount: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [username, setUsername] = useState("");
-  const [relayUrl, setRelayUrl] = useState(DEFAULT_RELAY_URL);
-  const [resolved, setResolved] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!open) {
-    return (
-      <p>
-        <button type="button" onClick={() => setOpen(true)}>
-          Already have an account on another device? Log in and bring this data
-          with you
-        </button>
-      </p>
-    );
-  }
-
-  if (resolved) {
-    return (
-      <LoginStep
-        username={username}
-        relayUrl={relayUrl}
-        merge
-        onBack={() => {
-          setResolved(false);
-          setError(null);
-        }}
-        onJoined={onMerged}
-      />
-    );
-  }
-
-  async function onContinue(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (username.trim() === "" || relayUrl.trim() === "") {
-      setError("Username and relay URL are required.");
-      return;
-    }
-    setChecking(true);
-    try {
-      const { exists } = await window.sync.lookup({ username, relayUrl });
-      if (exists) setResolved(true);
-      else {
-        setError(
-          `No account called “${username}” on ${relayUrl}. This computer ` +
-            "already has an account, so there is nothing to create here — " +
-            "check the username you used on your other device.",
-        );
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn't reach the relay.",
-      );
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  return (
-    <>
-      <h3>Log in to an account you already have</h3>
-      <p>
-        Everything on this computer moves into that account and keeps syncing
-        from there.
-        {localUsername !== undefined && (
-          <>
-            {" "}
-            The local account <strong>{localUsername}</strong> is retired in the
-            process.
-          </>
-        )}
-      </p>
-      <form onSubmit={onContinue}>
-        <p>
-          <label>
-            Username on your other device
-            <br />
-            <input
-              type="text"
-              value={username}
-              autoComplete="username"
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Relay URL
-            <br />
-            <input
-              type="text"
-              value={relayUrl}
-              onChange={(e) => setRelayUrl(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={checking}>
-          {checking ? "Checking…" : "Continue"}
-        </button>{" "}
-        <button type="button" onClick={() => setOpen(false)}>
-          Cancel
-        </button>
-      </form>
-    </>
-  );
-}
-
-/**
- * Create-account branch: the username is free on the relay. Collect a password
- * (with confirmation), then require an explicit confirm before creating the
- * account — after which the parent reveals the one-time recovery key.
- */
-function SignupStep({
-  username,
-  relayUrl,
-  onBack,
-  onEnabled,
-}: {
-  username: string;
-  relayUrl: string;
-  onBack: () => void;
-  onEnabled: (recoveryKey: string) => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-
-  function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
-    setConfirming(true);
-  }
-
-  async function create() {
-    setError(null);
-    setWorking(true);
-    try {
-      const { recoveryKey } = await window.sync.enable({
-        username,
-        password,
-        relayUrl,
-      });
-      onEnabled(recoveryKey);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn't create the account.",
-      );
-      setWorking(false);
-      setConfirming(false);
-    }
-  }
-
-  if (confirming) {
-    return (
-      <>
-        <h3>Create this account?</h3>
-        <p>
-          This creates a new account <strong>{username}</strong> on {relayUrl}.
-          You'll be shown a one-time recovery key to save.
-        </p>
-        <p>
-          <button type="button" onClick={create} disabled={working}>
-            {working ? "Creating…" : "Create account"}
-          </button>{" "}
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            disabled={working}
-          >
-            Cancel
-          </button>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-      </>
-    );
-  }
-
-  const hint = passwordHint(password);
-
-  return (
-    <>
-      <h3>Create account “{username}”</h3>
-      <p>
-        No account named <strong>{username}</strong> exists on {relayUrl}.
-        Choose a password to create one and sync across devices.
-      </p>
-      <p>
-        <strong>There is no password reset.</strong> Leapsake can't see your
-        password, so if you forget it and have no other signed-in device, only
-        your recovery key can recover your data. You'll be shown that key next —
-        save it.
-      </p>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Password
-            <br />
-            <input
-              type="password"
-              value={password}
-              autoComplete="new-password"
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          {hint !== "" && (
-            <>
-              <br />
-              <small>{hint}</small>
-            </>
-          )}
-        </p>
-        <p>
-          <label>
-            Confirm password
-            <br />
-            <input
-              type="password"
-              value={confirm}
-              autoComplete="new-password"
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit">Continue</button>{" "}
-        <button type="button" onClick={onBack}>
-          Back
-        </button>
-      </form>
-    </>
-  );
-}
-
-/**
- * Log-in branch: the account exists. Collect the password, then require an
- * explicit confirm before logging in. The confirmation checks whether this
- * device actually has local data, so the warning is proportionate to what is
- * at stake.
- *
- * Joining **keeps** this device's data and sends overlaps to duplicate review
- * (`reconcileOnJoin`). It did once replace it, and this comment said so for a
- * while after it stopped being true.
- *
- * `merge` switches the destination without forking the form. Both routes are a
- * password login against the same account; what differs is what this device
- * brings and what it gives up, which is copy, not control flow.
- */
-function LoginStep({
-  username,
-  relayUrl,
-  merge = false,
-  onBack,
-  onJoined,
-}: {
-  username: string;
-  relayUrl: string;
-  /** Merge this device's local-only account in, rather than join from scratch. */
-  merge?: boolean;
-  onBack: () => void;
-  onJoined: (duplicateCount: number) => void;
-}) {
-  const [password, setPassword] = useState("");
-  const [confirming, setConfirming] = useState(false);
-  const [hasLocalData, setHasLocalData] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-  const [recovering, setRecovering] = useState(false);
-
-  if (recovering) {
-    return (
-      <RecoverStep
-        username={username}
-        relayUrl={relayUrl}
-        onBack={() => setRecovering(false)}
-        onJoined={onJoined}
-      />
-    );
-  }
-
-  function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (password === "") {
-      setError("Password is required.");
-      return;
-    }
-    // Find out whether logging in would discard anything on this device, so the
-    // confirmation can be honest. Treat a read failure as "might have data".
-    setHasLocalData(null);
-    void window.api.views
-      .entityList()
-      .then((rows) => setHasLocalData(rows.length > 0))
-      .catch(() => setHasLocalData(true));
-    setConfirming(true);
-  }
-
-  async function login() {
-    setError(null);
-    setWorking(true);
-    try {
-      const { duplicateCount } = await (
-        merge ? window.sync.merge : window.sync.join
-      )({ username, password, relayUrl });
-      onJoined(duplicateCount);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't log in.");
-      setWorking(false);
-      setConfirming(false);
-    }
-  }
-
-  if (confirming) {
-    return (
-      <>
-        <h3>Log in as “{username}”?</h3>
-        {hasLocalData === null ? (
-          <p>Checking this device…</p>
-        ) : hasLocalData ? (
-          <p>
-            <strong>This device already has data.</strong> Logging in to{" "}
-            <strong>{username}</strong> keeps it and combines it with the
-            account's data; any people that look like duplicates are flagged for
-            you to review and merge.
-          </p>
-        ) : (
-          <p>
-            Log in to <strong>{username}</strong> on {relayUrl} and sync this
-            device.
-          </p>
-        )}
-        {/*
-          The merge's one genuinely non-mechanical part. After it lands the store
-          opens under the *account's* password, and `joinAccount` replaces this
-          device's recovery key with the account's — so both doors this computer
-          has today stop working. Unlike a fresh join, the user is giving up
-          credentials that currently work, so it has to be said before, not
-          discovered after. A warning and not a hoop: no re-typing, no phrase
-          re-entry, because the people most likely to be here are the least
-          likely to get through one.
-        */}
-        {merge && (
-          <p>
-            <strong>This computer's password will stop working.</strong> From
-            now on it opens with <strong>{username}</strong>'s password, and{" "}
-            <strong>{username}</strong>'s recovery phrase replaces the one this
-            computer has now. Make sure you have them before you continue. This
-            cannot be undone.
-          </p>
-        )}
-        <p>
-          <button
-            type="button"
-            onClick={login}
-            disabled={working || hasLocalData === null}
-          >
-            {working ? "Logging in…" : "Log in"}
-          </button>{" "}
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            disabled={working}
-          >
-            Cancel
-          </button>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <h3>Log in as “{username}”</h3>
-      <p>
-        Account <strong>{username}</strong> exists on {relayUrl}. Enter its
-        password to log in and sync this device.
-      </p>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Password
-            <br />
-            <input
-              type="password"
-              value={password}
-              autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit">Continue</button>{" "}
-        <button type="button" onClick={onBack}>
-          Back
-        </button>
-      </form>
-      {/*
-        Not offered on the merge route. `recoverAccount` carries the same "this
-        device is already part of an account" refusal that made the merge flow
-        necessary in the first place, so there is no merge-by-phrase path built
-        (owner, 2026-08-08: password-only for this increment). A button that can
-        only throw is worse than one that isn't there.
-      */}
-      {!merge && (
-        <p>
-          <button type="button" onClick={() => setRecovering(true)}>
-            Forgot your password? Recover with your recovery phrase
-          </button>
-        </p>
-      )}
-    </>
-  );
-}
-
-/**
- * Forgot-password recovery branch (model.md §6): the account exists but the user
- * lost the password. They enter their recovery phrase and choose a new password;
- * the master key is recovered from the relay's escrow and the password reset.
- */
-function RecoverStep({
-  username,
-  relayUrl,
-  onBack,
-  onJoined,
-}: {
-  username: string;
-  relayUrl: string;
-  onBack: () => void;
-  onJoined: (duplicateCount: number) => void;
-}) {
-  const [recoveryPhrase, setRecoveryPhrase] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    if (recoveryPhrase.trim() === "") {
-      setError("Enter your recovery phrase.");
-      return;
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords don't match.");
-      return;
-    }
-    setWorking(true);
-    try {
-      const { duplicateCount } = await window.sync.recover({
-        username,
-        recoveryPhrase,
-        newPassword: password,
-        relayUrl,
-      });
-      onJoined(duplicateCount);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't recover.");
-      setWorking(false);
-    }
-  }
-
-  return (
-    <>
-      <h3>Recover “{username}”</h3>
-      <p>
-        Enter your recovery phrase to recover <strong>{username}</strong> on{" "}
-        {relayUrl} and choose a new password. Your old password can't be
-        recovered — this replaces it.
-      </p>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label>
-            Recovery phrase
-            <br />
-            <textarea
-              value={recoveryPhrase}
-              rows={3}
-              style={{ width: "100%", fontFamily: "monospace" }}
-              onChange={(e) => setRecoveryPhrase(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            New password
-            <br />
-            <input
-              type="password"
-              value={password}
-              autoComplete="new-password"
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Confirm new password
-            <br />
-            <input
-              type="password"
-              value={confirm}
-              autoComplete="new-password"
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </label>
-        </p>
-        {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={working}>
-          {working ? "Recovering…" : "Recover"}
-        </button>{" "}
-        <button type="button" onClick={onBack} disabled={working}>
-          Back
-        </button>
-      </form>
-    </>
-  );
-}
-
-/**
  * The one-time recovery-key reveal. Irreversible: the phrase is shown **once** and
  * has no reveal-it-later surface, so the user must copy it and tick the
  * acknowledgement before continuing.
@@ -1562,16 +429,9 @@ function RecoverStep({
  */
 function RecoveryKeyReveal({
   recoveryKey,
-  escrowPending,
   onDone,
 }: {
   recoveryKey: string;
-  /**
-   * The rotation could not reach the relay, so the account's escrow still answers
-   * to the *previous* phrase. Only ever true for a rotation — a new account has no
-   * previous phrase, and a local-only account has no escrow.
-   */
-  escrowPending: boolean;
   onDone: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
@@ -1594,14 +454,6 @@ function RecoveryKeyReveal({
         password — if you lose both, your data cannot be recovered.
       </p>
       <RecoveryPhraseWords phrase={recoveryKey} />
-      {escrowPending && (
-        <p role="alert">
-          <strong>Keep your old phrase until this device next syncs.</strong>{" "}
-          Leapsake couldn't reach your relay, so recovering your account on a
-          new device still needs the <em>old</em> phrase. This one takes over
-          automatically the next time this device syncs.
-        </p>
-      )}
       <p>
         <label>
           <input
@@ -1620,8 +472,8 @@ function RecoveryKeyReveal({
 }
 
 /** The numbered word grid + a copy button — used by the one-time reveal, which
- *  since custody slice 8 is the *only* place a phrase is ever displayed (at
- *  account creation, and at the rotation that replaces it). */
+ *  is the *only* place a phrase is ever displayed (at account creation, and at
+ *  the rotation that replaces it). */
 function RecoveryPhraseWords({ phrase }: { phrase: string }) {
   const [copied, setCopied] = useState(false);
   const words = phrase.split(" ");
@@ -1664,9 +516,9 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
  *
  * **Shown only while this device is Unauthenticated** (`model.md` §7.2) — with an account,
  * {@link ForgetAccount} is the same act under the name that fits, and offering
- * both was offering one act twice. That is also why this no longer branches its
- * copy on whether sync is set up: an Unauthenticated device has no account, so the data
- * here is by definition the only copy, and "erase" means exactly what it says.
+ * both was offering one act twice. An Unauthenticated device has no account, so
+ * the data here is by definition the only copy, and "erase" means exactly what it
+ * says.
  *
  * Gated behind a type-to-confirm step (the button stays disabled until the user
  * types {@link FACTORY_RESET_PHRASE}) because nothing about it is recoverable.
@@ -1762,24 +614,19 @@ function FactoryReset() {
 
 /**
  * Replace the recovery phrase — **only rendered once an account exists**, and only
- * ever a *replacement*. It used to be a "Reveal recovery phrase" button; custody
- * slice 8 retired that (owner, 2026-07-28). The phrase is shown once at account
- * creation and never again, so this is the one later route to holding one.
+ * ever a *replacement*. The phrase is shown once at account creation and never
+ * again, so this is the one later route to holding one.
  *
- * Two things the copy has to get right, because both are counter-intuitive:
- *
- * - **It is not a way back in.** It requires the password, and the phrase exists
- *   for when the password is gone. Its real job is compromise response — "my
- *   phrase leaked" — and someone arriving here after forgetting their password
- *   needs to be sent to the unlock gate instead.
- * - **Other devices catch up on their own**, at their next sync, rather than
- *   instantly. Until then the old phrase still opens *their* local files. Saying
- *   nothing would be claiming an account-wide switch that has not happened yet.
+ * The copy has to get this right, because it is counter-intuitive: **it is not a
+ * way back in.** It requires the password, and the phrase exists for when the
+ * password is gone. Its real job is compromise response — "my phrase leaked" —
+ * and someone arriving here after forgetting their password needs to be sent to
+ * the unlock gate instead.
  */
 function RecoveryPhraseSection({
   onRotated,
 }: {
-  onRotated: (revealed: { phrase: string; escrowPending: boolean }) => void;
+  onRotated: (phrase: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
@@ -1791,13 +638,13 @@ function RecoveryPhraseSection({
     setError(null);
     setWorking(true);
     try {
-      const { recoveryPhrase, escrowPending } =
+      const { recoveryPhrase } =
         await window.sync.rotateRecoveryPhrase(password);
       setPassword("");
       setConfirming(false);
       // Straight into the same one-time reveal account creation uses: this is the
       // only time these words are ever displayed.
-      onRotated({ phrase: recoveryPhrase, escrowPending });
+      onRotated(recoveryPhrase);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Couldn't replace the phrase.",
@@ -1846,10 +693,6 @@ function RecoveryPhraseSection({
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-          </p>
-          <p>
-            Other devices on this account keep using the old phrase for their
-            own files until they next sync, then switch over on their own.
           </p>
           <p>
             <button type="submit" disabled={password === "" || working}>

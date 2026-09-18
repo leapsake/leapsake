@@ -1,10 +1,9 @@
 import { useState } from "react";
 
 /**
- * The **Degraded** state's standing notice (custody slice 10, encryption
- * `model.md` §7.5): this device's store opened and every screen works, but the
- * device cannot prove which master key belongs to the account, so it syncs nothing
- * until that is repaired.
+ * The **Degraded** state's standing notice (encryption `model.md` §7.5): this
+ * device's store opened and every screen works, but the device cannot prove which
+ * master key belongs to the account until that is repaired.
  *
  * It is a banner rather than a gate on purpose. The cause is invisible to the person
  * it happens to — an OS reinstall, a restored machine, a changed signing identity —
@@ -19,21 +18,7 @@ import { useState } from "react";
  * it. That is why the CTA is sign-out and not a bespoke prompt: the gate, the doors,
  * and the repair all already exist and are proven.
  */
-export function CustodyBanner({
-  detail,
-  relayBound,
-}: {
-  detail: string;
-  /**
-   * Whether this account has a relay. It decides what the banner may honestly say
-   * has stopped: an account with a relay *had* sync and no longer has it, while an
-   * account with none never did — telling that person "sync is paused" invents both
-   * a feature they do not use and a loss they have not suffered. The repair matters
-   * to them either way, because the moment they add a relay or a second device this
-   * device would be the odd one out.
-   */
-  relayBound: boolean;
-}) {
+export function CustodyBanner({ detail }: { detail: string }) {
   const [expanded, setExpanded] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -58,16 +43,10 @@ export function CustodyBanner({
         padding: "0.75rem 1rem",
       }}
     >
-      <strong>
-        {relayBound
-          ? "⚠ Sync is paused on this device."
-          : "⚠ This device needs to be re-linked to your account."}
-      </strong>{" "}
+      <strong>⚠ This device needs to be re-linked to your account.</strong>{" "}
       <span>
-        Your data is safe and still here.{" "}
-        {relayBound
-          ? "This device needs to be re-linked to your account before it can sync again."
-          : "Nothing is lost — but until you re-link it, this device can't sync or be joined by another device."}
+        Your data is safe and still here. Nothing is lost — but until you
+        re-link it, this device can't confirm that it holds your account's key.
       </span>{" "}
       <button type="button" onClick={() => setExpanded(!expanded)}>
         {expanded ? "Hide details" : "How to fix this"}
