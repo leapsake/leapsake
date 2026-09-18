@@ -16,7 +16,8 @@ commit that made it.
 
 ## Status
 
-**Step 1 (`packages/schema`) is done and lint-enforced. Step 2 (`packages/reminders`) is next.**
+**Steps 1 (`packages/schema`) and 2 (`packages/reminders`) are done and lint-enforced. Step 3
+(`packages/key-custody`) is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -26,16 +27,14 @@ The biggest remaining files, measured 2026-09-18:
 
 | File                                  | Total | Comment | Share |
 | ------------------------------------- | ----: | ------: | ----: |
-| `packages/reminders/src/engine.ts`    | 1,858 |   1,061 |   57% |
 | `packages/key-custody/src/session.ts` | 1,090 |     474 |   43% |
-| `packages/reminders/src/api.ts`       | 1,017 |     436 |   43% |
 | `packages/data/src/migrations.ts`     | 1,174 |     496 |   42% |
 | `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
 | `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
 | `packages/core/src/index.ts`          | 1,153 |     271 |   24% |
 
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
-about 2,850 comment lines to about 900.
+about 2,850 comment lines to about 900, and `packages/reminders/src` from 1,522 to 383.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
@@ -148,16 +147,21 @@ Conventions the schema step settled:
   for a decision; the lint rules apply to source only.
 - **A trailing `//` comment on a code line** is not grouped with its neighbours, so a column of
   field comments is fine as long as each stays short.
+- **Keep the README's _Where to look_ rows true.** When a row points at a source comment you are
+  deleting, move the reasoning into the README and point the row there instead.
 
 ## Steps, each a commit series
 
 1. ✅ `packages/schema`. Done 2026-09-18, in scope.
-2. **`packages/reminders/src`**: `engine.ts`, then `api.ts` and `index.ts`. Tests in
-   `packages/reminders/test` are out of scope. `packages/reminders/README.md` (about 800 lines)
-   already carries most of the reasoning these files repeat: identity, windows, the prompt,
-   schedules, onboarding nudges, merge safety. Check it before adding anything. Scope entry to
-   add when done: `"packages/reminders/src/**"`.
-3. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
+2. ✅ `packages/reminders/src`. Done 2026-09-18, in scope.
+3. **`packages/key-custody/src`**: `session.ts` (52 findings) first, then `boot.ts`,
+   `bind-relay.ts` and the small files. `packages/key-custody/README.md` (519 lines) should
+   already hold the custody reasoning, and `§` references into `plans/encryption/model.md` are
+   the most common marker there. Then **`packages/data/src`**: `migrations.ts` (57),
+   `search-service.ts` (34), `syncable.ts` (17), the rest. `packages/data/README.md` is only 87
+   lines, so expect more of data's durable "why" to need a sentence there. Scope entries to add
+   when done: `"packages/key-custody/src/**"` and `"packages/data/src/**"`, each once its
+   directory is clean.
 4. `packages/core`.
 5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.

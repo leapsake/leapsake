@@ -26,7 +26,7 @@
   "overrides": [
     {
       // The comment rules, on only where the code already meets them.
-      "files": ["packages/schema/src/**"],
+      "files": ["packages/schema/src/**", "packages/reminders/src/**"],
       "rules": {
         "leapsake/max-comment-lines": "error",
         "leapsake/no-decision-comments": "error"
