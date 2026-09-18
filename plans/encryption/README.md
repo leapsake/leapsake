@@ -1,30 +1,20 @@
 # Leapsake Encryption, Privacy & Sync — design docs
 
-Three docs, for the parts of the privacy design that are **not built yet**. Everything that
+Two docs, for the parts of the privacy design that are **not built yet**. Everything that
 *is* built is documented where it lives — see the table below before looking here.
-
-> **Six docs became three.** `custody-sequence.md` and `local-custody-options.md` folded into
-> `model.md` in 2026-07 once their decisions were made. On 2026-08-14 `schema.md`,
-> `security-findings.md` and `security-review.md` were retired for a different reason: the
-> things they specified are **built**, so the code, its schemas and its tests are the
-> reference, and a prose second copy could only drift from them. `sync.md` lost the same way
-> — most of it described a shipped transport — and is now only its two open decisions.
 
 | Doc | What it is | When to read it |
 |---|---|---|
 | [`model.md`](./model.md) | The conceptual model and the locked decisions — the three layers, the envelope/key hierarchy, **all of custody** (§7: states, exits, store layout, key lifecycle), the trust boundary, the honest limits. | Always start here. Mandatory before touching onboarding, the boot path, or key handling. |
 | [`sync.md`](./sync.md) | The two sync decisions with no code yet: **P2P as a deferred adapter**, and **OPAQUE at the hosted-relay gate**. | When evaluating P2P, or before any hosted relay. |
 
-> **Custody is [`model.md`](./model.md) §7, and only there** — §7.2 the states, §7.2.1 the
-> act that turns encryption on, §7.3 Locked / Sign out / Forget account, §7.4 one store per
-> account, §7.5 the key lifecycle, plus §8.1 for converting a store. Nothing in this folder
-> or anywhere else restates it; if you are about to, edit §7 instead.
+> **Custody is specified in [`@leapsake/key-custody`](../../packages/key-custody/README.md), and
+> only there.** `model.md` §7 is a pointer. Nothing in this folder or anywhere else restates it;
+> if you are about to, edit that README instead.
 
 ## Where the built design is documented
 
-**Stages 1–2 (zero-knowledge sync, at-rest) are done** and verified over the wire and on disk;
-custody is finished on both clients; relay hardening is complete through H3. None of that is
-described here — it is described next to itself:
+Everything built is described next to itself:
 
 | What | Where |
 |---|---|
@@ -43,7 +33,7 @@ This folder holds *design*, never a backlog:
 |---|---|
 | Building the SSR / PWA client — what an `apps/web` inherits from the spike | [`../v0-2.md`](../v0-2.md) → *Post-launch* item 1 |
 | Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, the `createCore` cleanup, the relay-backup capability, the open security findings | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
-| Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) — explicitly v0.2 *(owner, 2026-07-27)* |
+| Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) → *v0.2 proper* |
 | Stages 3–4 (sharing, the web app), the hosted-relay gate, passkeys, device management | [`../v0-2.md`](../v0-2.md) → *Post-launch* |
 
 The **open design questions** tied to a not-yet-started stage — the asymmetric scheme, the
@@ -66,7 +56,7 @@ minimization, the SSR enclave ceiling — are listed with the stage that will an
   on this device, the **sync envelope** (`seal(row, MK)`) is what makes the relay blind, and
   **per-item content keys** exist for *sharing granularity*. Know which one you mean — the
   relay is kept honest by the envelope, not by the per-item keys.
-- **Encryption follows custody** (`model.md` §7.2): no account → no keys → plaintext store;
+- **Encryption follows custody** (`model.md` §7): no account → no keys → plaintext store;
   account → all layers on, with the password as the way back in.
 - **Envelope encryption** (`model.md` §3): every shareable item gets a random **content
   key**, which is **wrapped** for whichever principals may read it (the owner's master

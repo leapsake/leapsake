@@ -1,50 +1,40 @@
 # Leapsake Encryption, Privacy & Sharing — The Model
 
-> **This is the *stable* "why" doc — the conceptual model and the locked decisions.**
-> It rarely changes. It is the source of truth for *how* Leapsake protects data and
-> shares it, and it feeds the V3 work tracked in [`status.md`](../status.md). The point of
-> writing the model first is the same as the sync-safe-from-day-one decision (`AGENTS.md`):
-> encryption and key-custody decisions are brutally expensive to reverse, so we decide the
-> *model* before we touch
-> a row.
+> **The stable "why" for the parts of the privacy design that are not built yet**: the three
+> layers, the envelope and the key hierarchy, the custody dial, recovery, and the server-side
+> decryption, web and sharing designs. Encryption and key-custody decisions are brutally expensive
+> to reverse, so the model is decided before a row is touched, and this doc should read the same
+> whether a thing shipped yesterday or ships next year. Nothing here records what is built or
+> when; what is ahead is [`../v0-2.md`](../v0-2.md).
 >
-> **For *when* each part ships and *what is built*, see [`status.md`](../status.md)** —
-> the single source of truth for the staged delivery plan, the build log, and the next
-> slice. This doc describes the full target; `status.md` says when each piece lands.
-> The KEK layer (§4) is what makes that staging cheap: every later capability is *one
-> more wrapping of the master key, with no re-encryption of existing data.*
->
-> **This doc owns custody end to end** — the states (§7.2), the exits (§7.3), the store
-> layout (§7.4), and the key lifecycle phase by phase (§7.5). If you are touching
-> onboarding, the boot path, or anything that assumes a key exists, §7 is the section.
->
-> **Companion docs:** [`sync.md`](./sync.md) (the transport seam + merge model + the P2P
-> decision),
-> and, for the constructions themselves, [`packages/crypto`](../../packages/crypto/README.md)
-> (why each primitive holds these properties) plus
-> [`apps/server/README.md`](../../apps/server/README.md) → *Threat register* (the attacks the
-> relay is built against). Start at [`README.md`](./README.md) if you're new to this folder.
+> **Custody is built and is specified in its code.**
+> [`@leapsake/key-custody`](../../packages/key-custody/README.md) owns the states, the exits, the
+> key lifecycle and the store conversion; §7 below is only a pointer. The constructions themselves
+> are [`packages/crypto`](../../packages/crypto/README.md), and the attacks the relay is built
+> against are [`apps/server/README.md`](../../apps/server/README.md) → *Threat register*. Start at
+> [`README.md`](./README.md) if you're new to this folder.
 
 ## 1. Goals
 
 - **Offline-first, single-device-complete.** The app works fully on one device with
   **no account, no password, and no sync *required to start*.** Sync is opt-in; nothing
   about the privacy model may require a server to use Leapsake.
-- **Encryption follows custody** *(decided 2026-07-26 — §7.2)*. Leapsake encrypts as soon
+- **Encryption follows custody** (§7). Leapsake encrypts as soon
   as the user holds a secret that can open the encryption, and not before. A brand-new
   install with no account is **plaintext on disk and mints no keys at all**; creating an
   account (username + password) is the single act that turns encryption on. The reason is
-  in §7.2: a key the user does not hold protects little and can lose everything.
+  is the same one that opens §7: a key the user does not hold protects little and can lose
+  everything.
 - **Default to the safest practice; let the user choose otherwise.** A core product
   theme: *default to the practices that protect and respect the user, but give them
   control to use their data how they want.* Security is a **configurable dial**, set
   high by default, not a fixed wall.
-- **Accessibility is the tiebreak** *(decided 2026-07-05)*. Leapsake should feel as close
+- **Accessibility is the tiebreak.** Leapsake should feel as close
   to a familiar centralized app as possible while being safer under the hood. When a
   safest-practice *default* would force a layperson through hoops (a second secret to
   carry, an unfamiliar ritual), re-evaluate it: keep the safe **mechanism**, but make the
   hoop **opt-in** rather than default. Laypeople get sensible defaults; power users get
-  the dials. (Worked example: the auth-hardening decision in [`sync.md`](./sync.md) §4 —
+  the dials. (Worked example: the auth-hardening decision in [`sync.md`](./sync.md) §2:
   OPAQUE over a user-held Secret Key.)
 - **Zero-knowledge by default.** Servers should, by default, store only ciphertext
   they cannot read. The user holds the keys.
@@ -69,7 +59,7 @@ Three consequences worth internalizing:
 
 - **Layer 1 does nothing for sync.** Sync ships rows over HTTP, not the file. Turning the
   file lock off would not expose one byte to a relay; turning it on protects nothing that
-  leaves the device. This is the piece that fights our `node:sqlite` choice (§8), and it is
+  leaves the device. This is the piece that costs a native module on desktop (§8), and it is
   mostly about device theft / other-process access.
 - **Layer 2 is what makes the relay blind, and it is the high-value, hard-to-retrofit
   property.** Every synced row is sealed *whole* under MK before it is pushed
@@ -81,38 +71,19 @@ Three consequences worth internalizing:
   contact if everything is sealed under your single master key — you need a per-item key
   you can re-wrap for them (§11, Stage 3).
 
-#### 2.1 Layer 3 keeps its mechanism and loses its only user *(decided 2026-07-27; **done 2026-07-28**)*
+#### 2.1 Layer 3 has no domain consumer today, on purpose
 
-> ✅ **Built — migration 27.** `milestone.note` is a plain column; `createMilestonesRepo`
-> takes no cipher and `syncableRepos` no longer takes a master key, because no repo is
-> anything but plaintext-row. `content_key`, `key_wrap`, `createContentCipher`, and
-> `EncryptedRecord.wrappedKey` are all untouched, awaiting photos.
->
-> One correction to the paragraph below: *"migrate existing notes back to the plaintext
-> column"* is **not possible** and was not done. Migrations run before the key session
-> exists — the very reason migration 12 could only upgrade rows lazily — so migration 27
-> cannot decrypt what it drops. A note written while a key was held is lost with the column.
-> Accepted pre-v0.1 (dev profiles only) rather than solved with a two-phase post-key pass.
-
-Today exactly one field uses layer 3 — `milestone.note` — and it earns nothing. Layer 2
-already seals the whole row containing that note, and on sync the note is *decrypted on
-collect and re-sealed under the receiving device's own key*, so the wrapped key never even
-travels. It is also **not a rehearsal for photos**, which is the reason it was worth
-keeping: those are two different patterns that merely share primitives.
+`milestone.note` was the only field ever sealed under a per-item key, and it earned nothing:
+layer 2 already sealed the whole row, and on sync the note was decrypted on collect and
+re-sealed under the receiving device's key, so the wrapped key never even travelled. It is a
+plain column now. `content_key`, `key_wrap`, `createContentCipher` and
+`EncryptedRecord.wrappedKey` all stay, awaiting photos, and photos are **not** the same pattern,
+which is why the mechanism was kept while its consumer was dropped:
 
 | | What the CK encrypts | Where the wrapped CK goes |
 |---|---|---|
 | **Photo (v0.2)** | bytes in a blob *outside* the database | on the wire, in `EncryptedRecord.wrappedKey` |
-| **`milestone.note` (today)** | a field *inside* the database | nowhere — re-sealed per device |
-
-**So: drop `milestone.note` as a consumer; keep the mechanism.** Concretely, remove the
-`(note, note_ciphertext)` split and the decrypt-on-collect / re-seal-on-apply path, and
-migrate existing notes back to the plaintext column. Keep `content_key`,
-`createContentCipher`, and the reserved `wrappedKey` slot untouched. The immediate payoff is
-that a whole axis disappears from the custody work: layer 3 no longer has to behave
-correctly in both custody states, and step 6 of the §8.1 conversion vanishes. Only dev
-installs hold encrypted notes today, so the migration is nearly free now and will not be
-later.
+| **A field inside the database** | a column | nowhere: re-sealed per device, so it buys nothing |
 
 > **Do not read this as "layer 3 is speculative."** It is the *only* layer that can protect
 > a photo, because a blob living outside the database is reachable by neither layer 1 nor
@@ -199,12 +170,8 @@ Why the indirection matters:
 - **Per-item content keys are constant** regardless of how the master key is
   protected, so sharing works identically at every security level.
 
-Primitives we expect to use (subject to a security review at design time): Argon2id
-for the KDF; XChaCha20-Poly1305 (or AES-256-GCM) for symmetric content/wrapping;
-X25519 sealed-box / age-style recipients for asymmetric wrapping to public keys;
-Ed25519 for signing. A `packages/crypto` (client-agnostic, portable — beside `core`)
-should own these so every client does crypto identically (the same posture as
-`schema`/`core`).
+The primitives are pinned, with the reason each holds the model's properties, in
+[`packages/crypto`](../../packages/crypto/README.md) → *Pinned algorithms*.
 
 ## 5. Configurable security — the custody dial
 
@@ -214,7 +181,7 @@ together.
 
 | Tier | Master key custody | Server can read? | Recovery | Enables |
 |---|---|---|---|---|
-| **3 — No custody** (first run) | **there is no master key** — nothing is encrypted | n/a (cannot sync) | n/a — nothing to recover *from* | zero-setup evaluation of the app (§7.2) |
+| **3 — No custody** (first run) | **there is no master key** — nothing is encrypted | n/a (cannot sync) | n/a — nothing to recover *from* | zero-setup evaluation of the app (§7) |
 | **2 — Zero-knowledge** (default once an account exists) | password / recovery / enclave only | **No** | recovery phrase only (lose password **and** phrase → data gone) | strongest privacy |
 | **1 — Recoverable** | *also* wrapped under a server-held key | **Yes** | email / password reset | "encrypted SaaS" convenience |
 | **0 — Server-readable** | server holds key / no envelope | **Yes** | trivial | server-side compute: search, SSR, Alexa |
@@ -228,9 +195,9 @@ Dialing down = **adding another wrapping** of the master key (under a server key
 Dialing up = removing it and rotating. Same mechanism; the per-item content-key
 architecture stays constant across all tiers.
 
-> **Staging ([`status.md`](../status.md)).** Only **Tier 2** ships in the Stage-1 core. Tier 1 (server
-> escrow) and Tier 0 are **Stage 2+** — each is literally "add one more MK wrapping,"
-> so deferring them costs nothing and re-encrypts nothing.
+> Only **Tier 2** exists. Tier 1 (server escrow) and Tier 0 are each literally "add one more MK
+> wrapping," so deferring them costs nothing and re-encrypts nothing
+> ([`../v0-2.md`](../v0-2.md) → *Post-launch*).
 
 **The honest impossibility result.** If the user holds **no secret at all**, then for
 data to be usable on a second device or the web, *someone else must hold the key —
@@ -261,12 +228,6 @@ deliberately**, not bolted on:
   generated **at account creation — never before** — and shown once, right there, as the
   *forgot-password backstop*. It is another wrapping of the master key, so a lost password
   ≠ lost data *if* the phrase was kept.
-  > **This replaces the earlier "mint it at first launch" rule** *(reversed 2026-07-26)*.
-  > That rule existed because the recovery key sealed the at-rest sidecar, so a keyless
-  > user needed one from the first run. Under §7.2 a keyless user has **no sidecar and no
-  > db-key**, so there is nothing to seal and nothing to fall back *from*. Minting a phrase
-  > before an account now protects nothing and creates the exact ritual it was meant to
-  > justify.
 - **Server-escrow recovery** (opt-in, Tier 1) — wrap a copy of the master key under a
   server-held key so email/password reset works. This is the same act as dialing to
   Tier 1; it trades zero-knowledge for recoverability, with informed consent.
@@ -274,7 +235,7 @@ deliberately**, not bolted on:
   Shamir's Secret Sharing among trusted contacts; architecturally it is just another
   wrapping, so the model already allows it.
 
-### 6.1 The phrase is shown twice in its life, and replaced rather than revealed *(decided 2026-07-28)*
+### 6.1 The phrase is shown twice in its life, and replaced rather than revealed
 
 There is **no way to see the phrase again.** It is displayed at account creation, and at
 the **rotation** that replaces it — nowhere else. A standing "reveal" control put a
@@ -313,26 +274,21 @@ Two invariants that are easy to get wrong, both learned the hard way:
 
 ## 7. Custody — specified in the code, not here
 
-**Custody moved to [`@leapsake/key-custody`](../../packages/key-custody/README.md) on
-2026-08-14.** It is built on both clients, so its specification lives with its implementation:
-the two custody states and why the "encrypt always" default was reversed, first launch and the
-"Already using Leapsake?" branch, creating an account as the act that turns encryption on, the
-two exits from local-only (bind vs. merge), Locked / Sign out / Forget account, forgetting the
-last device, and the key lifecycle phase by phase with its per-phase ledger.
-
-Two pieces of the old §7 went elsewhere, each to the package that owns it:
-
-- **One store per account, and the roster** — [`@leapsake/store-layout`](../../packages/store-layout/README.md).
-- **The later phases** — creating a share (Phase 3) and granting a constrained principal
-  (Phase 4) — are **not built**, so they stay design: §11 and §9.2 below.
+Custody is built on both clients, so its specification lives with its implementation.
+[`@leapsake/key-custody`](../../packages/key-custody/README.md) owns the two custody states and
+why "encrypt always" was reversed, first launch and the "Already using Leapsake?" branch, creating
+an account as the act that turns encryption on, the two exits from local-only, Locked / Sign out /
+Forget account, forgetting the last device, and the key lifecycle phase by phase. One store per
+account and the roster are [`@leapsake/store-layout`](../../packages/store-layout/README.md). The
+later phases, creating a share and granting a constrained principal, are **not built**, so they
+stay design: §11 and §9.2 below.
 
 The decisions that shaped custody but reach past it stay here, because they constrain sections
 that are still unbuilt:
 
-- **Encryption follows custody** *(decided 2026-07-26, reversing "encrypted by default, never
-  plaintext")* — the app encrypts once the user holds a secret that opens it, and not before.
-  It is the reason §5's tiers are reachable at all, and the reason §12's honest limits read the
-  way they do.
+- **Encryption follows custody**, reversing "encrypted by default, never plaintext": the app
+  encrypts once the user holds a secret that opens it, and not before. It is the reason §5's
+  tiers are reachable at all, and the reason §12's honest limits read the way they do.
 - **Single-device is first-class; sync is fully optional** — **first-run onboarding must not
   force account/password setup.** The binding constraint is *at first run*: nothing may stand
   between opening the app and using it. It does **not** forbid inviting an account later.
@@ -348,93 +304,29 @@ that are still unbuilt:
   what the server knows (§9).
 
 
-## 8. Encryption at rest, and the `node:sqlite` tension
+## 8. Encryption at rest
 
-> **Stage 2 ([`status.md`](../status.md)) — shipped on both clients.** At-rest was **not**
-> in the Stage-1 core (Stage 1 shipped the high-value sync envelope first, §2). **Decided:**
-> at-rest was worth a backend swap — the `node:sqlite` preference (chosen to stay
-> native-module-free) **yielded** to it: desktop runs
-> `better-sqlite3-multiple-ciphers`, mobile runs `expo-sqlite` with `useSQLCipher`. Under
-> §7.2 this layer is now **conditional on custody** — it protects an Authenticated store and is
-> simply absent from an Unauthenticated one.
+Layer 1 is **whole-database encryption**, SQLCipher-style: the file on disk is ciphertext, the
+engine decrypts pages into memory as you query, and a key is supplied at open time. It keeps the
+file unqueryable-until-unlocked **while preserving everything built on plaintext queries**:
+search-folding, kinship and timelines all run on in-memory plaintext, untouched. Field-level
+encryption was rejected for the same reason (§3). Desktop runs `better-sqlite3-multiple-ciphers`
+and mobile `expo-sqlite` with SQLCipher; the price of that native module on desktop is the ABI
+dance in [`../../AGENTS.md`](../../AGENTS.md), and its exit is [`../v0-2.md`](../v0-2.md) → *The
+N-API exit*. Under §7 this layer is **conditional on custody**: it protects an Authenticated store
+and is simply absent from an Unauthenticated one.
 
-The right shape is **whole-database encryption** (SQLCipher-style: the file on disk is
-ciphertext, the engine decrypts pages into memory as you query, a key is supplied at
-open time). This keeps the file unqueryable-until-unlocked **while preserving
-everything already built** — search-folding, kinship, timelines all run on in-memory
-plaintext, untouched.
+At-rest and per-item keys **compose cleanly and are orthogonal**: they are layers 1 and 3 of §2,
+and neither is what protects sync (that is layer 2).
 
-The tension: **`node:sqlite` has no encryption support**, and it was adopted (reboot
-plan §3 note) specifically to *delete* the native-module ABI dance. Full-DB
-encryption reintroduces a native or WASM dependency on **desktop**:
+### 8.1 Converting an Unauthenticated store to Authenticated
 
-- **SQLCipher binding** — back to a native module on desktop (the thing we escaped).
-- **SQLite WASM "multiple-ciphers"** in Electron — avoids the native ABI problem,
-  pure-ish, but a perf/architecture change.
-- **OS-level** (encrypted container / keychain-gated file) — weakest match to
-  "portable + unqueryable," OS-specific.
-
-Mitigations: the `SqliteDriver` port ([`packages/data`](../../packages/data/README.md)) was explicitly built so the
-backend is "a one-adapter swap" — an encrypted backend is the same kind of swap.
-**Mobile** is easier: expo-sqlite has a SQLCipher path (verify current SDK-56 state
-before relying on it), plausibly a config + key-supply change rather than a new
-engine.
-
-At-rest and per-item keys **compose cleanly and are orthogonal** — they are layers 1 and 3
-of §2, and neither is what protects sync (that is layer 2).
-
-### 8.1 Converting an Unauthenticated store to Authenticated — one pattern, both platforms
-
-Account creation (§7.2.1) has to turn a plaintext database into an encrypted one. The two
-platforms' *native* shortcuts are mirror images, and **neither works on the other**
-(verified 2026-07-26 against the shipped desktop engine):
-
-| | `PRAGMA rekey` from plaintext | `sqlcipher_export()` |
-|---|---|---|
-| **Desktop** — `better-sqlite3-multiple-ciphers@12` | ✅ works | ❌ function does not exist (nor `sqlite3mc_export`/`sqlite3mc_vacuum`) |
-| **Mobile** — `expo-sqlite` + SQLCipher | ❌ SQLCipher refuses to rekey a plaintext DB | ✅ the documented route |
-
-So **use neither.** The portable pattern uses only ordinary SQL and is what
-`sqlcipher_export` does internally — verified working end-to-end on desktop (tables, rows,
-and indexes preserved; the output genuinely ciphertext on disk):
-
-1. Open the plaintext store.
-2. **Pin the cipher first** — `PRAGMA cipher='sqlcipher'` *before* the attach, or the new
-   file is written with the library's default cipher and later fails to open with the
-   misleading `file is not a database`. This bit is easy to get wrong and hard to diagnose.
-3. `ATTACH` a new keyed (encrypted) file.
-4. Copy schema then rows across, reading the definitions from `sqlite_master`.
-5. Detach, close, move the new file into `stores/<accountId>/`, **delete the plaintext
-   original** — including any `.plaintext.bak` (see below).
-6. ~~Re-seal the layer-3 fields through the now-existing content cipher.~~ **This step does not
-   exist.** `milestone.note` was dropped as a content-key consumer (§2.1) on 2026-07-28,
-   *before* this conversion was written — deliberately, so it never grew a re-seal pass it
-   would only have to delete. Layer 3 has **no domain consumer**; if one exists when you get
-   here, something was built out of order: check `../status.md`.
-
-> **No `<db>.plaintext.bak` may survive this path — and none is written any more.** Desktop's
-> legacy pre-Stage-2 upgrade kept that backup as a safety net for a one-time migration; under
-> *encryption follows custody* that upgrade has no reason to exist, and the code that wrote it
-> is **deleted** (`apps/desktop/src/main/db/open.ts` now refuses a plaintext file at an
-> authenticated boot rather than re-keying it in place, and
-> `apps/desktop/test/integration/create-account.test.ts` asserts the file's absence). The rule
-> stands as an invariant on any future conversion: on the account-creation path such a backup
-> is a plaintext copy of exactly what the user just asked to encrypt — a footgun, not a net.
-
-**Verified on device (2026-07-27, iOS simulator):** expo-sqlite's SQLCipher build (a)
-creates *and reopens across connections* a plaintext database when no key is supplied, and
-(b) runs the attach-and-copy above — schema, rows and indexes all survive, and the output
-refuses a keyless read. Both halves are pinned by the custody suite in
-`apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
-`pnpm test:native`, and each positive is paired with the negative that keeps it
-non-vacuous. Confirmed RED by sabotage before being trusted GREEN.
-
-> **One correction to step 2, mobile only:** `PRAGMA cipher='sqlcipher'` is a **no-op on
-> mobile** — SQLCipher has exactly one cipher, and the conversion was verified to pass
-> without it. The pin is a *desktop* requirement, where
-> `better-sqlite3-multiple-ciphers` supports several and silently writes the default one.
-> It stays in both platforms' sequence so the conversion reads identically; just don't go
-> hunting for a mobile bug it isn't causing.
+Built on both clients and specified with the code: the two `convert-store.ts` files carry the
+invariants a change must preserve, and
+[`@leapsake/key-custody`](../../packages/key-custody/README.md) → *Before you change the
+conversion* says how they are gated. The shape is plain-SQL attach-and-copy on both platforms,
+because neither platform's native shortcut works on the other; and **no plaintext copy may survive
+the account-creation path**, because such a copy is exactly what the user just asked to encrypt.
 
 ## 9. Zero-knowledge sync, and safe server-side decryption
 
@@ -447,8 +339,8 @@ model (1Password / Signal-style). One consequence to accept up front:
 > resolution must happen entirely on the **client**, after decryption.
 
 This *simplifies* the server to an **ordered, encrypted blob store + transport +
-auth**. All CRDT / last-write-wins logic (now decided in [`sync.md`](./sync.md) §4) moves
-client-side, which the sync-safe model (UUIDs, soft deletes, timestamps,
+auth**. All merge logic ([`@leapsake/sync`](../../packages/sync/README.md) → *The merge model*)
+moves client-side, which the sync-safe model (UUIDs, soft deletes, timestamps,
 `deleted_at`-scoped indexes) already supports.
 
 ### 9.2 When the server *does* decrypt — minimize four exposures
@@ -467,8 +359,7 @@ server needs the user's key for the session; make the holding thin:
   the server unwraps the master key into **request-scoped memory**, renders, then
   discards. A stolen session store is useless without cookies; a stolen cookie is
   useless without the store — the server holds nothing standing-decryptable at rest.
-- **Wrap the `authVerifier` under the session key too** *(added 2026-08-12, after
-  building it)*. The session store cannot hold only the master key: relay sessions are
+- **Wrap the `authVerifier` under the session key too.** The session store cannot hold only the master key: relay sessions are
   in-memory per relay process, so a relay restart invalidates them and the render host
   must re-authenticate **without the password**. That means it must keep the
   `authVerifier` — which is a standing relay credential. Held in the clear beside the
@@ -478,15 +369,13 @@ server needs the user's key for the session; make the holding thin:
 - **Memory-only, request-scoped, zeroized.** Keys/plaintext never touch disk, logs,
   swap, error traces, or APM. Rendered HTML with plaintext is `Cache-Control:
   private, no-store` — never in a shared cache/CDN.
-- **The decrypted *store* is request-scoped too — warm the key, not the database**
-  *(measured 2026-08-12)*. The tempting optimization is a per-session decrypted SQLite
-  kept between requests, and it would quietly break the bullet above: a fully decrypted
-  database in server memory, readable without any cookie, for the session's lifetime.
-  It is also unnecessary. Argon2id — not the pull — dominates the cold path (~355 ms at
-  every store size), so a **warm key with a cold store** is both the private answer and
-  a fast one: rebuilding the store per request costs a **6.6 ms p50 at 100 people and
-  36.8 ms at 1 000**. Build cold; if a store ever grows large enough to hurt, the answer
-  is an incremental sync cursor, not a warm database.
+- **The decrypted *store* is request-scoped too: warm the key, not the database.** The
+  tempting optimization is a per-session decrypted SQLite kept between requests, and it would
+  quietly break the bullet above: a fully decrypted database in server memory, readable without
+  any cookie, for the session's lifetime. It is also unnecessary. Argon2id, not the pull,
+  dominates the cold path, and rebuilding the store per request costs milliseconds at realistic
+  store sizes. Build cold; if a store ever grows large enough to hurt, the answer is an
+  incremental sync cursor, not a warm database.
 - **Short session TTL + re-auth** for sensitive actions.
 - **Ceiling (later, if ever):** run the decrypting renderer inside a
   **confidential-computing enclave** (AWS Nitro / GCP Confidential VM) so the key and
@@ -552,21 +441,11 @@ The app **fully works with no JS** (the accessibility requirement) and
 **automatically becomes zero-knowledge when JS is available**. JS just moves the
 decryption boundary from server to client.
 
-*The read path is proven, and the gap is named* **(2026-08-12)**. A person's page
-server-renders with JavaScript disabled — every mutation on it is already expressed as
-navigation to a `/new`, `/edit`, or `/delete` route, so it needed no shared-package
-change. Two sections are **not** there yet and are the accessibility floor's actual
-backlog: `HolidaysSection`, whose add-field is a Combobox (a `<form>` + `<select>` is a
-direct swap, the data being loaded already), and `GiftsSection`, where `GiftCaptureForm`
-emits a bare `<form>` with no `method`, no `action`, and no `name` on any field — so a
-no-JS submit posts nothing, nowhere. Until those land, "fully works with no JS" is the
-requirement, not yet a description. This resolves the latent contradiction in
-the V3 web goal ("server-rendered… no client JS required", [`status.md`](../status.md)) vs.
-client-side-only decryption: **encrypted content is client-rendered when JS is present and
-server-rendered (trusted) when it is not.** *(The V3 web scope in `status.md` states this
-explicitly.)*
+**Encrypted content is client-rendered when JS is present and server-rendered (trusted) when it
+is not.** The floor's remaining gaps, and everything else an `apps/web` inherits, are
+[`../v0-2.md`](../v0-2.md) → *Post-launch* item 1.
 
-### 10.1 The web client requires a sync account — durability is not grantable *(owner, 2026-08-15)*
+### 10.1 The web client requires a sync account — durability is not grantable
 
 **A browser cannot promise to keep what you store in it, so the web client must never hold
 the only copy of anything.** Desktop and mobile write to app-data directories that no eviction
@@ -574,18 +453,7 @@ heuristic touches; a browser's storage is evictable by policy, and no API upgrad
 guarantee. This is a platform fact, not a preference, and it is the one place where a client
 cannot be given the same promise as the others.
 
-Measured on the spike's *installed* PWA (Chrome 151, `localhost`, 2026-08-14):
-
-```
-best-effort (evictable) storage — persist() was refused, 8.8 MiB used of 10.0 GiB
- · running as: standalone
-```
-
-`standalone` is the install having taken effect, so that is the installed origin's answer, not a
-tab's. It **contradicts Chrome's own documented criteria**, which name PWA installation as one of
-the things that grants persistence — leaving site engagement (zero on a minute-old install) or a
-`localhost` exclusion as the explanations. Not chased further: *no more measurement*
-**(owner, 2026-08-14)**.
+`storage.persist()` was refused on an **installed** PWA, so an install is not the fix.
 
 **Durability is unguaranteed, not absent** — and the distinction is load-bearing, because someone
 will eventually observe a granted bucket and should not conclude this rule was wrong. Chrome may
@@ -608,7 +476,7 @@ the requirement is *an account with sync* — self-hosted or hosted, free or pai
 pricing question that must be free to move without anyone thinking this safety rule lapsed.
 
 **This does not weaken offline.** Offline-capable and sole-copy are different claims: the spike's
-installed client resumed in 69.3 ms with 0 bytes on the wire, and that result stands whole. It is
+installed client resumed in tens of milliseconds with nothing on the wire. It is
 filed under availability and speed rather than durability, and the local store is a **cache that
 happens to be fast** rather than a home.
 
@@ -642,22 +510,13 @@ Per the product philosophy: **default to capability links; make "hosted link" an
 explicit, clearly-labeled opt-in** the sharer chooses when they specifically want
 no-JS/preview behavior.
 
-*Both flavors are built and observed, and one product rule falls out*
-**(2026-08-12)**. The spike made and viewed each one: a capability link's key was seen
-never to reach the server (the request line arrives with the fragment already stripped)
-and the page it serves carries ciphertext and no plaintext; the hosted link renders the
-same payload through the *same shared screen*, server-side, with no `<script>` in the
-response at all. The mechanism is one code path — seal under a content key — differing
-only in whether the server keeps that key. Two things the design should absorb:
-**a capability link can never be re-shown** (its key exists only for the duration of the
-request that mints it, so "copy it now" is a rule the sharing UI has to state, where a
-hosted link can always be looked up again); and **every mode in the table above renders
-somebody else's screen**, which the shared screens are not yet shaped for — rendered
-unauthenticated, `RelationshipScreen` still offers Edit / Delete / Add-milestone and
-leaks the item's internal id. A read-only mode is small, and it is a prerequisite for
-sharing rather than a polish item. Evidence:
-[`../v0-2.md`](../v0-2.md) → *Post-launch* item 1, and in full at
-`git show web-spike-final:apps/web-spike/README.md` → *Increment 4*.
+Two product rules fall out of having built both flavors. **A capability link can never be
+re-shown**: its key exists only for the duration of the request that mints it, so "copy it now" is
+a rule the sharing UI has to state, where a hosted link can always be looked up again. And **every
+mode in the table above renders somebody else's screen**, which the shared screens are not yet
+shaped for: rendered unauthenticated they still offer Edit / Delete / Add-milestone and leak the
+item's internal id. A read-only mode is small, and it is a prerequisite for sharing rather than a
+polish item ([`../v0-2.md`](../v0-2.md) → *Post-launch*).
 
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
 SQLite rows). Same per-item-key model — encrypt each blob with a content key, store
@@ -681,14 +540,14 @@ State these explicitly; they are conscious decisions, not gaps:
   record counts, sync timing. Hiding metadata is a much larger project; **out of
   scope** for V3.
 - **Lost password + lost recovery phrase = unrecoverable data** at Tier 2 (§6).
-- **Before an account exists, nothing on disk is encrypted** (§7.2). An Unauthenticated store is a
+- **Before an account exists, nothing on disk is encrypted** (§7). An Unauthenticated store is a
   readable SQLite file, exactly like most local-first apps, and is covered only by the
   platform's own full-disk encryption. This is a deliberate trade against a worse failure
-  (§7.2's reasoning), not an oversight.
-- **Data written before an account may leave traces after conversion** (§7.2.1). The live
+  (§7's reasoning), not an oversight.
+- **Data written before an account may leave traces after conversion** (§7). The live
   database is rewritten and the plaintext original deleted, but deleted bytes can linger in
   free space and are not reliably erasable on SSDs.
-- **The on-device account roster is unencrypted** (§7.4) — the usernames present on a
+- **The on-device account roster is unencrypted** (§7) — the usernames present on a
   client are readable without any key, because the login picker must render before
   anything is unlocked.
 
@@ -714,8 +573,7 @@ The payoff: a client that can't do client-side crypto (Alexa) or can't hold keys
 specific item keys to, at the security level the user chose." The mechanism is
 uniform; clients differ only in *which keys they may hold and where they store them.*
 
-**The PWA row in three parts, because "weak" hid the fact that something works** *(built and
-measured 2026-08-13/14)*:
+**The PWA row in three parts, because "weak" hid the fact that something works:**
 
 - **The port is satisfied today.** A non-extractable `AES-GCM` `CryptoKey` per secret in
   IndexedDB implements `getSecret` / `setSecret` / `deleteSecret` **as written** — ~60 lines, no

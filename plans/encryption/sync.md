@@ -1,15 +1,14 @@
 # Leapsake — Sync: the decisions not yet built
 
-> **What this doc is now.** The transport port, the blind relay, the merge model and the
-> account-bootstrap channel are all **built**, so they are documented where they live:
+> The transport port, the blind relay, the merge model and the account-bootstrap channel are
+> built and documented where they live:
 > [`@leapsake/sync`](../../packages/sync/README.md) (the port, the merge model and its
 > accepted cost, how a second device gets the master key, the P2P invariants),
 > [`apps/server`](../../apps/server/README.md) (the relay, its auth, why username +
 > password, the threat register), and `packages/schema/src/merge.ts` (the resolver).
 >
-> What is left here is the two sync decisions with **no code yet**: whether we ever do
-> true P2P, and what replaces the password verifier before anyone else's data is hosted.
-> Both shape work that is scheduled but unstarted, which is why they are still in `plans/`.
+> What is here is the two sync decisions with **no code yet**: whether we ever do true P2P,
+> and what replaces the password verifier before anyone else's data is hosted.
 
 ## 1. P2P — a deferred adapter, not a closed door
 
@@ -45,7 +44,7 @@ so it is consumable from TypeScript.
   already makes untrusted; it provides no envelope, no at-rest encryption, no capability
   links, and no merge model. A transport adapter and nothing more.
 
-## 2. Auth hardening — OPAQUE at the hosted-relay gate *(decided 2026-07-05)*
+## 2. Auth hardening — OPAQUE at the hosted-relay gate
 
 **The problem:** the relay observes the raw auth verifier, so against a curious *operator* —
 the exact adversary a blind relay is designed for — account confidentiality reduces to
