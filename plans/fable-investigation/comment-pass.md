@@ -18,9 +18,7 @@ commit that made it.
 
 | File                                   |      Total |    Comment |  Code |   Share |
 | -------------------------------------- | ---------: | ---------: | ----: | ------: |
-| `packages/schema/src/reminder-rule.ts` |        944 |        549 |   350 |     58% |
 | `packages/reminders/src/engine.ts`     |      1,899 |      1,091 |   739 |     57% |
-| `packages/schema/src/milestone.ts`     |        973 |        458 |   475 |     47% |
 | `packages/key-custody/src/session.ts`  |      1,091 |        475 |   549 |     43% |
 | `packages/data/src/migrations.ts`      |      1,174 |        496 |   665 |     42% |
 | `apps/mobile/lib/core-context.tsx`     |      2,166 |        769 | 1,343 |     35% |
@@ -94,7 +92,7 @@ a reviewer can question each one.
 
 **The ratchet is scope, not N.** The rules are on only for directories the pass has finished,
 through an `overrides` entry in `.oxlintrc.json` whose `files` list grows by one directory per
-step. Test files are out of scope. When step 7 lands, the rules move to the top level and the
+step. Test files are out of scope. When the last step lands, the rules move to the top level and the
 override goes away.
 
 The check stops long essays from coming back and catches the obvious history markers. It does not
@@ -102,14 +100,18 @@ do the pass: most of the cut is judgment on comments that are short and phrase-f
 
 ## Steps, each a commit series
 
-Each step ends by adding its directories to the rules' scope.
+Each step ends by adding its directories to the rules' scope. `packages/schema` is done and in
+scope; the `files` list in `.oxlintrc.json` is the record of what is.
 
-1. `packages/schema`, biggest share first: `reminder-rule.ts`, `milestone.ts`, `relationship.ts`,
-   `composer-draft.ts`, then the rest of the package.
-2. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
+1. `packages/reminders/src/engine.ts` (after workstream 2 has added `api.ts` there, or before;
    either order works, but do not do both in one commit).
-3. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
-4. `packages/core` (after workstream 2, so the pass is over the small file).
-5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
-6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
-7. Everything else, by directory. `scripts/` last.
+2. `packages/key-custody`, `packages/data/src/migrations.ts`, the rest of `data`.
+3. `packages/core` (after workstream 2, so the pass is over the small file).
+4. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
+5. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
+6. Everything else, by directory. `scripts/` last.
+
+**How the schema step was verified, and how to repeat it:** each file was checked to print
+identically to `HEAD` once comments are stripped (TypeScript's printer with `removeComments`), so
+the pass provably changed no code. Durable "why" that no README held went into the owning
+package's README (`reminders`, `holidays`, `sync`) or, when forward-looking, `plans/v0-2.md`.

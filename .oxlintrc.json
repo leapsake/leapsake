@@ -4,6 +4,7 @@
     "correctness": "error",
     "suspicious": "warn"
   },
+  "jsPlugins": ["./scripts/lint/comment-rules.mjs"],
   "rules": {
     // Off because `packages/*` run on mobile's Hermes engine, where `Array#toSorted`
     // does not exist — the rule's suggested fix is the one thing we cannot ship. The
@@ -23,6 +24,21 @@
     ]
   },
   "overrides": [
+    {
+      // The comment rules, on only where the code already meets them.
+      "files": ["packages/schema/src/**"],
+      "rules": {
+        "leapsake/max-comment-lines": "error",
+        "leapsake/no-decision-comments": "error"
+      }
+    },
+    {
+      "files": ["**/*.test.*"],
+      "rules": {
+        "leapsake/max-comment-lines": "off",
+        "leapsake/no-decision-comments": "off"
+      }
+    },
     {
       "files": ["apps/mobile/lib/notification-scheduler.ts", "apps/mobile/app/notifications.tsx"],
       "rules": {
