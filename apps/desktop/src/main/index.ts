@@ -11,7 +11,6 @@ import {
 import {
   type AdoptionDoor,
   type CoreApi,
-  type KeySession,
   type SqliteDriver,
   createCore,
   establishKeySession,
@@ -83,13 +82,6 @@ let dbPath: string;
 let userDataPath: string;
 let keystorePath: string;
 let keyStore: KeyStore;
-
-// The unlocked device key material (custody Phase 0). Mutable because every store
-// swap re-establishes it (see openActiveStore).
-let keySession: KeySession | undefined;
-export function getKeySession(): KeySession | undefined {
-  return keySession;
-}
 
 // Why this device cannot prove which master key is the account's, when that is the
 // case: the *Degraded* state (`model.md` §7.5). Set by every open, so a repaired
@@ -196,9 +188,8 @@ async function openActiveStore(): Promise<void> {
   // creation, not here.
   //
   // It reports rather than throws: a device that cannot prove which master key is
-  // the account's is *Degraded* — the store opens and the data is readable, but
-  // `keySession` stays undefined. The renderer shows `custodyDegraded` and the
-  // way out.
+  // the account's is *Degraded* — the store opens and the data is readable. The
+  // renderer shows `custodyDegraded` and the way out.
   const established = await establishKeySession({
     keyStore,
     driver,
@@ -210,7 +201,6 @@ async function openActiveStore(): Promise<void> {
     established.state === "degraded"
       ? { detail: established.message }
       : undefined;
-  keySession = established.state === "ok" ? established.keySession : undefined;
   if (established.state === "degraded") {
     console.error(
       "this device's master key could not be re-adopted:",

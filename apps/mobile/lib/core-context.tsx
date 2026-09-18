@@ -25,7 +25,6 @@ import * as SQLite from "expo-sqlite";
 import {
   type AdoptionDoor,
   type CoreApi,
-  type KeySession,
   type RecoveryDoorWriter,
   type SyncStatus,
   createCore,
@@ -240,9 +239,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // keys have been wiped, so the app re-mints a fresh key over an empty DB in
   // place — the mobile stand-in for desktop's process relaunch.
   const [resetVersion, setResetVersion] = useState(0);
-  // The unlocked device key material (custody Phase 0), passed into createCore so
-  // it can encrypt sensitive fields at rest under per-item content keys.
-  const keySession = useRef<KeySession | null>(null);
   // The live core, mirrored in a ref so the AppState (foreground) listener — set
   // up once, before the core is built — can reach the *current* core (which a
   // later join/recover swaps) to regenerate system reminders on foreground.
@@ -578,9 +574,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // rather than a sequence each client writes out.
       //
       // It reports rather than throws. A device that cannot prove which master key
-      // is the account's is *Degraded*: the store opens and every screen works, but
-      // `keySession` stays null, so nothing that needs the account's master key
-      // runs on this device until the repair lands.
+      // is the account's is *Degraded*: the store opens and every screen works, and
+      // the banner stays up until the repair lands.
       const established = await establishKeySession({
         keyStore,
         driver,
@@ -599,11 +594,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           ? { detail: established.message }
           : null,
       );
-      // Custody Phase 0.5, not Phase 0: the master key is minted by account
-      // creation, so an Unauthenticated store runs the core with no key session at all.
-      keySession.current =
-        established.state === "ok" ? (established.keySession ?? null) : null;
-
       // Refresh the recovery sidecar to the *current* enclave recovery key on
       // every launch (not just when missing), so it stays in step if the key was
       // later adopted — e.g. after recovering an account. An Unauthenticated store has no
@@ -826,7 +816,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           setAccount(null);
           await driver.close?.();
           await lockThisDevice({ keyStore });
-          keySession.current = null;
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
@@ -863,7 +852,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             // a second account on this device keeps both of its own (slice 7b).
             deleteDoors: () => accountDoors(accountId).destroy(),
           });
-          keySession.current = null;
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
@@ -888,7 +876,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           for (const id of KEYSTORE_SECRET_IDS) {
             await keyStore.deleteSecret(id);
           }
-          keySession.current = null;
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
