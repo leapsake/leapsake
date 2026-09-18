@@ -17,18 +17,8 @@ import type { PetsRepo } from "./pets-repo.js";
 import type { RelationshipsRepo } from "./relationships-repo.js";
 import type { TagsRepo } from "./tags-repo.js";
 
-/**
- * Whether an edit to an entity's own row makes it more than a name.
- *
- * A name is the one thing an unpublished entity is *allowed* to have, so
- * correcting "Ruth" to "Ruth Dakin" leaves her exactly what she was. Anything
- * else on the row — a gender, a pet's species — is a fact of her own, and so is
- * a tag, which arrives beside the patch rather than in it.
- *
- * A patch that names `standing` itself is left alone: the caller has said what
- * they want, and inferring over the top of that would make an explicit demotion
- * impossible to write.
- */
+/** Whether a patch makes an entity more than a name. A name edit does not; a
+ *  patch that sets `standing` itself is left alone. */
 export function promotes(
   input: Record<string, unknown>,
   nameFields: readonly string[],
@@ -57,13 +47,10 @@ export interface EntityServiceDeps {
 }
 
 export interface EntityService {
-  /** The row behind an endpoint, for callers that want more of it than its
-   *  label — currently its `standing`. Neither `get` filters on standing, so an
-   *  unpublished entity resolves here like any other. */
+  /** The row behind an endpoint, unpublished included. */
   resolve(type: EntityType, id: string): Promise<Person | Pet | undefined>;
-  /** An entity's display label, through the shared `@leapsake/schema` formatter
-   *  so every client labels entities identically. `undefined` when the entity is
-   *  gone, so callers can skip a missing neighbor. */
+  /** An entity's display label, from the shared formatter; `undefined` when
+   *  it is gone. */
   label(type: EntityType, id: string): Promise<string | undefined>;
   softDelete(type: EntityType, id: string): Promise<void>;
   removeFacts(type: EntityType, id: string): Promise<void>;
@@ -77,16 +64,8 @@ export interface EntityService {
   mergePeople(survivorId: string, loserId: string): Promise<void>;
 }
 
-/**
- * The cross-repo writes that treat a person or a pet as a whole: deleting one
- * along with every fact that references it, promoting one that has stopped
- * being only a fact about someone else, and merging two that turned out to be
- * the same person.
- *
- * Every method here spans repositories, which is why none of them belongs on
- * one. They sit beside `createKinshipService` and `createDuplicateService` for
- * the same reason.
- */
+/** Cross-repo writes on a whole person or pet: cascade delete, promotion out
+ *  of unpublished, and merging two people. */
 export function createEntityService(deps: EntityServiceDeps): EntityService {
   const {
     people,
@@ -119,17 +98,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
   const softDelete = (type: EntityType, id: string): Promise<void> =>
     type === "person" ? people.softDelete(id) : pets.softDelete(id);
 
-  /**
-   * Soft-delete every fact hanging off an entity.
-   *
-   * The list the Person and Pet cascades share, in one place so the two cannot
-   * drift apart — and so the unpublished-entity cascade below sweeps exactly what
-   * a deliberate delete would. Contact methods are the one asymmetry: only a
-   * person owns them.
-   *
-   * Transaction-free, like the repo building blocks it calls; every caller is
-   * already inside one.
-   */
+  /** Soft-delete every fact on an entity; the one list both cascades share.
+   *  Transaction-free: callers are already inside one. */
   async function removeFacts(type: EntityType, id: string): Promise<void> {
     await tags.removeAllForEntity(type, id);
     await relationships.removeAllForEntity(type, id);
@@ -142,13 +112,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     await giftRecipients.removeAllForRecipient(type, id);
   }
 
-  /**
-   * The entities that exist only because this one does: the unpublished ends of
-   * its explicit relationships.
-   *
-   * **Must be read before the relationships are removed**, because the edge is
-   * the only thing identifying such an entity as belonging to this one.
-   */
+  /** The unpublished ends of this entity's explicit relationships. Read before
+   *  the relationships are removed: the edge is what ties them here. */
   async function attachedUnpublished(
     type: EntityType,
     id: string,
@@ -169,19 +134,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     return attached;
   }
 
-  /**
-   * Soft-delete an entity, its facts, and anyone who existed only as a fact
-   * about it.
-   *
-   * A coworker's wife recorded as a name on his relationship is not a person the
-   * user has any other way to reach; leaving her behind when he goes would strand
-   * a row nothing links to. So she goes too — the deliberate counterpart of the
-   * catalog rule that keeps her out of every list in the first place.
-   *
-   * One level deep, and that is not an approximation: an unpublished entity holds
-   * exactly one explicit relationship, to a published one, so there is never a
-   * second rung to walk down.
-   */
+  /** Soft-delete an entity, its facts, and the unpublished entities attached to
+   *  it. One level deep, since those hold a single edge. */
   async function softDeleteCascade(
     type: EntityType,
     id: string,
@@ -195,23 +149,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     }
   }
 
-  /**
-   * Publish an entity that has just stopped being only a fact about someone else.
-   *
-   * The rule the whole feature turns on: an unpublished entity is one that is
-   * nothing but a name on somebody's relationship, so the moment it acquires a
-   * fact of its own — a birthday, a gender, a contact method, a tag, a second
-   * relationship — it is no longer that, and belongs in the catalog. Every core
-   * write that records such a fact calls this, which is why the user never meets
-   * the idea: they fill something in, and the person is simply there afterwards.
-   *
-   * A no-op for the overwhelmingly common case of an already-published entity,
-   * and for the derived readings (a gender inferred from a role) that store
-   * nothing and so make nobody more than they were.
-   *
-   * Transaction-free: callers fold it into the transaction of the write that
-   * triggered it, so the fact and the promotion land together or not at all.
-   */
+  /** Publish an entity that just gained a fact of its own. Transaction-free, so
+   *  it lands with the write that triggered it. */
   async function publishIfUnpublished(
     type: EntityType,
     id: string,
@@ -241,15 +180,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
         ? publishIfUnpublished(type, id)
         : Promise.resolve(),
 
-    /**
-     * Absorb the `loser` person into the `survivor`, in one transaction: the
-     * mirror of {@link EntityService.softDeleteCascade}, re-pointing every fact
-     * onto the survivor instead of removing it, then tombstoning the loser. The
-     * survivor's own scalar fields (name, gender) win as-is — survivorship v1
-     * is deliberately blunt, with no per-field picker. Re-points bump each row's
-     * updated_at and the loser's tombstone propagates, so the merge replicates
-     * across devices over normal sync with no merge-specific code.
-     */
+    /** Absorb `loser` into `survivor` in one transaction: re-point every fact,
+     *  then tombstone the loser. The survivor's own fields win as they are. */
     mergePeople: async (survivorId: string, loserId: string): Promise<void> => {
       if (survivorId === loserId) {
         throw new Error("mergePeople: survivor and loser are the same person");

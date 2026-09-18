@@ -19,12 +19,8 @@ import type { PeopleRepo } from "./people-repo.js";
 import type { PetsRepo } from "./pets-repo.js";
 import type { RelationshipsRepo } from "./relationships-repo.js";
 
-/**
- * How many *intermediate* hops the derivation walk may take. `1` gives the
- * one-hop inference in §0 (parent's sibling ⇒ uncle, etc.). This is the single
- * knob for future multi-hop: raising it lets the same generic walk + composition
- * table reach great-grandparents and cousins-of-cousins without new logic.
- */
+/** Intermediate hops the derivation walk may take; raising it reaches further
+ *  relatives through the same walk and composition table. */
 const MAX_DEPTH = 1;
 
 /** A gender read: the value plus whether it was stored or inferred. */
@@ -34,20 +30,12 @@ export interface GenderResult {
 }
 
 export interface KinshipService {
-  /**
-   * The entity's gender. Explicit (stored on the row) when set; otherwise
-   * derived from the explicitly-gendered roles on the entity's own end of its
-   * relationships. Agreeing implications win; conflicting ones yield null (never
-   * a guess). Derivation seeds only from explicit roles — no chaining.
-   */
+  /** Explicit gender, else derived from gendered roles on the entity's own end;
+   *  conflicting implications give null, never a guess. */
   genderFor(type: EntityType, id: string): Promise<GenderResult>;
 
-  /**
-   * The entity's relationships as oriented neighbors: every stored ("explicit")
-   * edge, plus the ("derived") edges the one-hop inference engine computes live.
-   * Derived edges that duplicate an explicit pair, are dismissed, or conflict are
-   * dropped.
-   */
+  /** Explicit edges plus live one-hop derived ones, minus derived edges that
+   *  are duplicated, dismissed or conflicting. */
   neighborsFor(type: EntityType, id: string): Promise<RelationshipNeighbor[]>;
 }
 
@@ -72,12 +60,8 @@ function ownRole(rel: Relationship, type: EntityType, id: string) {
   return rel.aType === type && rel.aId === id ? rel.aRole : rel.bRole;
 }
 
-/**
- * The kinship inference engine. Pure rules live in `@leapsake/schema`; this
- * layer only fetches rows and orchestrates the compute-on-read derivations, so
- * deleting a source fact makes its implications vanish on the next read with no
- * cascade code.
- */
+/** Kinship inference, computed on read over rules from `@leapsake/schema`, so
+ *  deleting a fact removes its implications with no cascade code. */
 export function createKinshipService(
   // The service reads through the repositories; the driver is part of the
   // factory signature for symmetry with the others and future direct queries.
@@ -91,9 +75,7 @@ export function createKinshipService(
 ): KinshipService {
   const { people, pets, relationships, dismissals } = repos;
 
-  /** The row behind an endpoint, or undefined when it's gone/soft-deleted. Note
-   *  `get` does not filter on standing, so an unpublished endpoint resolves here
-   *  like any other — this service is reached from the page it appears on. */
+  /** The row behind an endpoint, unpublished included; undefined when gone. */
   async function getEntity(
     type: EntityType,
     id: string,
@@ -115,31 +97,12 @@ export function createKinshipService(
     id: string,
   ): Promise<string | undefined> {
     const entity = await getEntity(type, id);
-    // Through `entityLabel` rather than interpolating the name parts: every part
-    // is optional, so a surname-less person built by hand here would come out as
-    // " Dakin" — with a leading space, on every relationship row that names them.
+    // `entityLabel`, since any name part may be absent.
     return entity === undefined ? undefined : entityLabel(type, entity);
   }
 
-  /**
-   * Whether an endpoint is one of the user's own entities, and so eligible to
-   * take part in inference. An unpublished entity is not: it exists as a fact
-   * about the one person it is attached to, and belongs on that person's page
-   * alone. Left out of the walk in both directions — never a destination, never
-   * a route.
-   *
-   * This bites today. `compositionTable` composes `(parent, sibling) → pibling`,
-   * so an unpublished sibling of someone's parent would otherwise surface as a
-   * derived aunt or uncle on that someone's page — a second page, which is the
-   * whole thing the standing is meant to prevent.
-   *
-   * It also forecloses a worse version. The table deliberately omits
-   * `(parent, spouse) → parent`, noting it as a future addition; if that lands,
-   * every unpublished spouse becomes a derived parent of their partner's
-   * children. That inference is unsound anyway — Ernie's wife need not be the
-   * mother of Ernie's son — but this rule means adding it cannot leak an
-   * unpublished person onto anyone's page regardless.
-   */
+  /** Whether an endpoint may take part in inference. Unpublished entities never
+   *  do (README, "Unpublished entities"). */
   async function takesPartInInference(
     type: EntityType,
     id: string,
@@ -176,10 +139,7 @@ export function createKinshipService(
   ): Promise<RelationshipNeighbor[]> {
     const neighbors: RelationshipNeighbor[] = [];
 
-    // 1. Explicit edges: orient each stored relationship to the subject. These
-    //    are shown whatever the other end's standing — an unpublished entity
-    //    appears here, on the page of the one person it is a fact about, and
-    //    nowhere else.
+    // 1. Explicit edges, shown whatever the other end's standing.
     const explicitRels = await relationships.listForEntity(type, id);
     const explicitPairs = new Set<string>();
     // Which of the subject's own neighbours are unpublished, noted while we have
@@ -207,16 +167,11 @@ export function createKinshipService(
       });
     }
 
-    // An unpublished subject stops here, with its one explicit edge. The rule is
-    // symmetric — such an entity is no more a *subject* of inference than a
-    // destination of it — and without this, opening the page of someone who is
-    // barely more than a name on a relationship would offer them a derived niece
-    // and nephew inferred through the one person they hang off.
+    // An unpublished subject gets no derived edges either.
     if (!(await takesPartInInference(type, id))) return neighbors;
 
-    // 2. Derived edges: a generic depth-capped walk over explicit edges, gathering
-    //    candidates whose composed role is defined. `visited` (seeded with the
-    //    subject) keeps the walk cycle-safe; MAX_DEPTH bounds it.
+    // 2. Derived edges: a depth-capped walk over explicit edges. `visited`,
+    // seeded    with the subject, keeps it cycle-safe.
     interface Candidate {
       otherType: EntityType;
       otherId: string;
@@ -232,11 +187,7 @@ export function createKinshipService(
     const visited = new Set<string>([key(type, id)]);
     let frontier: Frontier[] = explicitRels
       .map((rel) => orient(rel, type, id))
-      // An unpublished neighbour is not a route. Under the one-edge rule it could
-      // not lead anywhere new anyway (its only edge is the one back to the
-      // subject, which `visited` already blocks), so this is belt-and-braces —
-      // but it states the rule where a reader will look for it, and it holds even
-      // for a row that somehow carries a second edge.
+      // An unpublished neighbour is not a route.
       .filter((o) => !inertNeighbors.has(key(o.otherType, o.otherId)))
       .map((o) => ({
         type: o.otherType,
@@ -252,9 +203,7 @@ export function createKinshipService(
         for (const rel of mRels) {
           const o = orient(rel, m.type, m.id);
           if (visited.has(key(o.otherType, o.otherId))) continue;
-          // ...and not a destination — see `takesPartInInference`. Without this,
-          // an unpublished sibling of a parent composes into a derived pibling and
-          // shows up on a second person's page.
+          // ...and not a destination.
           if (!(await takesPartInInference(o.otherType, o.otherId))) continue;
           const composed = composeRoles(m.roleRelSubject, o.otherRole);
           if (composed === undefined) continue;

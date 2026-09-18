@@ -43,24 +43,14 @@ export interface RelationshipServiceDeps {
 }
 
 export interface RelationshipService {
-  /**
-   * Orient each stored row touching the subject and resolve the *other* end's
-   * label + role, so callers never see the raw a/b endpoints.
-   */
+  /** Each stored row touching the subject, oriented, with the other end's label
+   *  and role. */
   orientedNeighbors(
     type: EntityType,
     id: string,
   ): Promise<RelationshipNeighbor[]>;
-  /**
-   * What to call a milestone borne by a **relationship** — "Harry & Tilly", or
-   * just "Violet" for a relationship the self-person is one end of, since a
-   * reminder about your own anniversary is addressed to you and names your
-   * partner.
-   *
-   * `null` only when there is no name left to use: the relationship is gone, or
-   * both its endpoints are. That distinction is load-bearing — the reminder
-   * engine reads a null label as "the bearer is gone" and skips the milestone.
-   */
+  /** A relationship's name ("Harry & Tilly", or your partner for your own).
+   *  `null` only when no name is left: the engine reads it as gone. */
   label(id: string): Promise<string | null>;
   createFromSubject(input: {
     subjectType: EntityType;
@@ -87,15 +77,8 @@ export interface RelationshipService {
   }): Promise<Relationship | undefined>;
 }
 
-/**
- * Creating and editing edges in the relationship graph, and reading one back
- * oriented around a subject.
- *
- * Distinct from `createKinshipService`, which *derives* over the graph
- * (inferred neighbors, gender). This one writes it, and owns the single rule
- * every writing path shares: a subject's own role is the gender-neutral inverse
- * of the role it gives the other end.
- */
+/** Writes to the relationship graph. Owns the rule every write shares: a
+ *  subject's own role is the gender-neutral inverse of the other end's. */
 export function createRelationshipService(
   deps: RelationshipServiceDeps,
 ): RelationshipService {
@@ -141,9 +124,7 @@ export function createRelationshipService(
       await Promise.all(ends.map((e) => entities.label(e.type, e.id)))
     ).filter((name): name is string => name !== undefined);
     if (named.length === 0) return null;
-    // One name is the ordinary case for a relationship you are in, and also what
-    // a half-deleted pair degrades to — better a reminder naming whoever is left
-    // than none at all.
+    // One name: your own relationship, or a half-deleted pair.
     return named.length === 1
       ? named[0]
       : relationshipPairLabel(named[0], named[1]);
@@ -153,11 +134,8 @@ export function createRelationshipService(
     orientedNeighbors,
     label,
 
-    // A relationship written from a subject's perspective: the subject is the `a`
-    // endpoint, and its own role is the gender-neutral inverse of the chosen other
-    // role. This is the single home for the "imply my role from the other end"
-    // rule, shared by the add-from-subject, create-form, and derived-materialise
-    // paths so no client re-derives it.
+    // The subject is the `a` end, its role the neutral inverse of the chosen
+    // one; shared by every path so no client re-derives it.
     createFromSubject: (input) =>
       driver.transaction(async () => {
         const created = await relationships.create({
@@ -169,36 +147,15 @@ export function createRelationshipService(
           bRole: input.otherRole,
           bRoleNote: input.otherRoleNote ?? null,
         });
-        // An unpublished entity holds exactly one relationship — the one it was
-        // created with. Either end reaching here is therefore an end acquiring a
-        // *second*, which is a connection of its own and more than being a name on
-        // somebody else's page. Note this is how the invariant is kept: by
-        // promoting, not by refusing. `createWithNewOther` writes the first edge
-        // without coming through here, which is why it doesn't trip this.
+        // A second relationship promotes an unpublished end;
+        // `createWithNewOther` writes the first without coming through here.
         await entities.publishIfUnpublished(input.subjectType, input.subjectId);
         await entities.publishIfUnpublished(input.otherType, input.otherId);
         return created;
       }),
 
-    /**
-     * Record a relationship to somebody who isn't in the user's list — creating
-     * them, unpublished, as part of the same write.
-     *
-     * This is the way an unpublished entity comes into being, and the only one:
-     * you type a name into the relationship form, nothing matches it, and you save.
-     * What you get is a person (or pet) that exists as a fact about the subject —
-     * absent from People & Pets, from every picker, and from duplicate detection —
-     * plus the single relationship that is their entire reason for being there.
-     *
-     * One transaction, because half of this is nothing: an entity with no edge is
-     * unreachable, and an edge to nobody is not writable.
-     *
-     * The name is taken **verbatim** for a pet and split on the first space for a
-     * person, the same rule the vCard reader falls back on for a bare `FN`. Nothing
-     * cleverer: "Ruth" and "Ruth Dakin" are both whole names now, so there is no
-     * missing part to guess at, and a two-word name that isn't first-and-last is
-     * one edit away from being right on the person's own page.
-     */
+    /** Record a relationship to someone new, created unpublished in the same
+     *  transaction (README, "Unpublished entities"). */
     createWithNewOther: (input) =>
       driver.transaction(async () => {
         const name = input.otherName.trim();
@@ -221,11 +178,8 @@ export function createRelationshipService(
         return { other, relationship };
       }),
 
-    // Edit a subject-scoped relationship: only the *other* end's role changes; the
-    // subject's own role re-derives as the neutral inverse but keeps the gendering
-    // it already had (so editing a wife→husband couple doesn't flatten the unedited
-    // "husband" back to "spouse"). The stored row may hold the subject on either
-    // end, so we fetch it to learn the orientation before mapping roles onto a/b.
+    // Only the other end's role changes; the subject's re-derives but keeps its
+    // gendering. The row is fetched to learn which end is the subject.
     editFromSubject: (input) =>
       driver.transaction(async () => {
         const rel = await relationships.get(input.relId);

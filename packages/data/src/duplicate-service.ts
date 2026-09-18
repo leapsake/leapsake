@@ -13,14 +13,8 @@ import {
 import type { SqliteDriver } from "./driver.js";
 import type { NotADuplicateRepo } from "./not-a-duplicate-repo.js";
 
-/**
- * Duplicate *detection* over the people list — the read half of reconciliation
- * Increment B (packages/core/README.md). A read-only cross-table
- * aggregator in the same shape as {@link createSearchService}: pull the small set
- * of active rows, derive in memory, and hand each candidate pair to the pure
- * {@link scoreDuplicate}. It only *proposes* — every actual merge still goes
- * through `core.people.merge` behind a confirm.
- */
+/** Duplicate detection over the people list: read-only, scored by
+ *  {@link scoreDuplicate}. It only proposes; merges go through core. */
 
 /** One person in a candidate pair, with enough to display and to act on. */
 export interface DuplicateCandidatePerson {
@@ -37,11 +31,8 @@ export interface DuplicateCandidate {
   reasons: string[];
 }
 
-/**
- * An existing person a not-yet-stored contact (e.g. one being imported) looks
- * like: which person, and the pure scorer's tier + reasons. Same `propose, never
- * auto-act` contract — the importer decides whether to skip or merge.
- */
+/** An existing person a not-yet-stored contact looks like, with the scorer's
+ *  tier and reasons. The caller decides what to do. */
 export interface DuplicateMatch {
   personId: string;
   name: string;
@@ -50,32 +41,16 @@ export interface DuplicateMatch {
 }
 
 export interface DuplicateService {
-  /**
-   * Score every pair of active people, drop the pairs the caller already
-   * remembers as "not a duplicate" (the `"lower:higher"` keys from
-   * `notADuplicate.listPairs()`), and return the rest sorted by tier (high
-   * first). Tier `none`/`low` never appears in the result.
-   */
+  /** Every pair of active people not in `excludePairs` (`"lower:higher"` keys),
+   *  tier `high` first; `none` and `low` are dropped. */
   findCandidates(excludePairs: Set<string>): Promise<DuplicateCandidate[]>;
-  /**
-   * The unresolved candidates: {@link DuplicateService.findCandidates} over the
-   * pairs this device has already been told are not the same. The one place that
-   * exclusion is applied, so `duplicates.*` and the Home nudge cannot disagree
-   * about what is still outstanding.
-   */
+  /** {@link findCandidates} minus the remembered "not a duplicate" pairs; the
+   *  one place that exclusion is applied. */
   unresolvedCandidates(): Promise<DuplicateCandidate[]>;
-  /**
-   * The same candidates as canonical `"lower:higher"` pair keys — the identity
-   * the Home nudge is content-addressed on. Names never leave this layer.
-   */
+  /** The same candidates as `"lower:higher"` keys; names never leave here. */
   unresolvedPairKeys(): Promise<string[]>;
-  /**
-   * Score one **not-yet-stored** contact against every active person and return
-   * the matches (tier `none`/`low` dropped), high first. Used by contact import
-   * to flag likely-existing people in the review before anything is written. The
-   * caller passes raw name/emails/phones/handles; this normalizes them the same
-   * way the stored rows were, so keys line up.
-   */
+  /** Score one not-yet-stored contact against every active person, normalizing
+   *  its fields as the stored rows were. For contact import. */
   matchContact(contact: {
     name: string;
     emails: string[];
@@ -110,20 +85,8 @@ export function createDuplicateService(
   driver: SqliteDriver,
   repos: { notADuplicate: NotADuplicateRepo },
 ): DuplicateService {
-  /**
-   * Load every active **published** person as a ready {@link DuplicateInput} (id
-   * kept alongside), with contacts indexed by owner and re-normalized
-   * defensively. Shared by {@link findCandidates} (pairwise) and
-   * {@link matchContact} (one-vs-all).
-   *
-   * Unpublished people are out of the pool on purpose. They exist only as facts
-   * about somebody else and are offered by no picker, so the same name arriving
-   * twice means two different people — a "Ruth" on one coworker and a "Ruth" on
-   * another are not a pair to review, and with names now allowed to be a single
-   * word they would collide constantly. Detection is instead run at the moment
-   * one is promoted, when they first become someone the user can pick and there
-   * is a real question of whether they are already in the list.
-   */
+  /** Every active **published** person as a scorer input, contacts indexed by
+   *  owner. Unpublished people are out (README, "Unpublished entities"). */
   async function loadInputs(): Promise<
     { id: string; input: DuplicateInput }[]
   > {
@@ -146,9 +109,7 @@ export function createDuplicateService(
       ),
     ]);
 
-    // Index normalized contacts by owner so the scorer gets ready arrays. The
-    // columns are already normalized at write time, but re-normalize defensively
-    // so the keys match exactly however they were stored.
+    // Re-normalized defensively, so keys match however they were stored.
     const emailsBy = new Map<string, string[]>();
     for (const row of emails) {
       const list = emailsBy.get(row.owner_id) ?? [];
@@ -173,9 +134,7 @@ export function createDuplicateService(
     }
 
     return people.map((p) => {
-      // Any part of a name may be absent, so the parts are joined rather than
-      // interpolated — otherwise a surname-only person folds to " davis" and
-      // matches nothing, including the identical person entered the other way.
+      // Joined, not interpolated: any name part may be absent.
       const name = joinNameParts(p.first_name, p.last_name);
       const input: DuplicateInput = {
         name,

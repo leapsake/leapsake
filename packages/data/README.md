@@ -84,13 +84,68 @@ via the existing engine, no new sync code. The survivor's `updatedAt` is bumped 
 LWW against a concurrent edit to the loser elsewhere. Endpoints/owners are already
 entity-typed, so a future `mergePets` / generalized `mergeEntities` is a small follow-on.
 
+### Unpublished entities
+
+An unpublished person or pet exists only as a fact about one published entity: a coworker's wife
+recorded as a name on his relationship. It holds exactly one explicit relationship, to that
+entity, and the rules that keep it on that one page are spread across the services:
+
+- **Creation** has one route, `createWithNewOther`: a name typed into the relationship form that
+  matches nobody creates the entity, unpublished, and its one edge in the same transaction. The
+  name is taken verbatim for a pet and split on the first space for a person.
+- **Duplicate detection** leaves it out of the pool: two "Ruth"s on two coworkers are two people.
+  It runs at promotion instead, when they first become someone the user can pick.
+
+- **Kinship** leaves it out of inference entirely: never a subject, a route or a destination. The
+  composition table maps `(parent, sibling)` to pibling, so an unpublished sibling of a parent
+  would otherwise surface as a derived aunt on a second page. It also keeps a future
+  `(parent, spouse) → parent` rule from leaking one.
+- **Search** finds it only as a facet of its anchor, whose page is the only place it is read.
+- **Promotion**: the moment it gains a fact of its own (a birthday, a gender, a contact method, a
+  tag, a second relationship), `publishIfUnpublished` publishes it, inside the same transaction
+  as the write. The one-edge invariant is kept by promoting, never by refusing. A name edit does not promote, since a name is the one thing it may have; a patch
+  that sets `standing` explicitly is never overridden.
+- **Deletion** cascades to it with its anchor, one level deep, because the one-edge rule means
+  there is never a second rung. `attachedUnpublished` must read before the relationships go: the
+  edge is the only thing that ties it to its anchor.
+
 ## The sync substrate (V3)
 
 The engine, transports, and scheduler live in [`@leapsake/sync`](../sync/README.md). What
 stays here is the substrate they run on: **`defineSyncable`** — the primitive that makes an
 entity syncable in one call, reconciled with `resolveMerge` (whole-row LWW) — and
 **`SyncStateRepo`**, the durable watermarks in a device-local `sync_state` table. The
-canonical "how to add a synced entity" recipe is the `defineSyncable` module doc comment.
+canonical "how to add a synced entity" recipe is below.
+
+### How to make an entity sync-eligible
+
+Sync is **opt-in**: a table replicates only once its repo is registered. The device-local tables
+listed under *Migrations* must never leave the device, so sync-by-default is exactly the wrong
+default. The `repos` array passed to `createSyncEngine` is the allowlist, and a guard test pins it.
+
+1. **Migration.** The table carries the sync substrate: a UUID `id`, and epoch-ms `created_at`,
+   `updated_at` and nullable `deleted_at`.
+2. **Schema.** A `z.object({...})` row schema in `packages/schema` whose camelCase fields are the
+   snake_case columns. It validates a peer's payload and supplies the column list, so it is the
+   only place the fields are spelled out.
+3. **Repo.** Spread `defineSyncable<Place>({ driver, table: "places", schema: placeSchema })`
+   beside the repo's own CRUD. That supplies `table`, `decode`, `listChangedSince`, `listActive`
+   and `upsertFromRemote` with no per-entity SQL. The options cover what the default cannot
+   infer: `booleans` (stored as 0/1; forgetting one fails loudly on the first synced read),
+   `json` (stored as TEXT; NULL decodes to `undefined`, so a new column needs no backfill),
+   `codec` (only when the on-wire and on-disk shapes differ; nothing needs one today), and
+   `hasHistory` (below).
+4. **Register.** Add the repo to the `repos` array and to the allowlist guard test: the
+   conscious "this table may leave the device" step.
+
+Steps 1 and 2 are work any entity needs; 3 and 4 are the whole sync cost. The shared harness in
+`test/sync.test.ts` covers the round-trip.
+
+**`hasHistory` should stay rare.** It narrows the merge so an untouched row never beats one a
+user acted on, whatever `updated_at` says. It can only matter where two devices mint the *same*
+id independently, a deterministic-id family, and today only `reminders` has a per-row decision
+worth protecting (`packages/reminders/README.md` → *Merge safety*). The holiday catalog depends
+on plain LWW over authored timestamps. It is also the seam a field-level merge would grow from.
 
 **A row every device must agree on gets a fixed primary key, not a unique column.**
 `self_person` is a singleton under a constant id, and `notification_settings` uses the device
