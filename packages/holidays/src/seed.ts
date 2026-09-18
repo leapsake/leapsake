@@ -1,9 +1,5 @@
-import {
-  CATALOG,
-  CATALOG_VERSION,
-  type HolidayEntry,
-  canonicalRecurrenceJson,
-} from "@leapsake/holidays";
+import { CATALOG, CATALOG_VERSION, type HolidayEntry } from "./catalog.js";
+import { canonicalRecurrenceJson } from "./recurrence.js";
 import {
   type SqliteDriver,
   createHolidaysRepo,

@@ -156,7 +156,7 @@ import {
   type ObserverDecision,
   createHolidaysApi,
   holidayReminderCandidates,
-} from "./holidays.js";
+} from "@leapsake/holidays";
 import { createViews } from "./views.js";
 
 // Re-exported so apps can wire everything from one entry point: construct a
@@ -269,8 +269,7 @@ export {
 // The bundled holiday catalog's seed, applied at store open once per bundle
 // version. Re-exported so a client never depends on `@leapsake/holidays`
 // directly, the same way the reminders engine is kept behind this surface.
-export { seedHolidayCatalog } from "./holiday-seed.js";
-export { createHolidaysApi } from "./holidays.js";
+export { seedHolidayCatalog, createHolidaysApi } from "@leapsake/holidays";
 export type {
   BearerHolidayCandidate,
   HolidayDetail,
@@ -278,7 +277,7 @@ export type {
   HolidayObserverCandidate,
   HolidaysApiDeps,
   ObserverDecision,
-} from "./holidays.js";
+} from "@leapsake/holidays";
 
 /**
  * A gift link joined for the recipient's "Gifts" section: the row plus its idea's

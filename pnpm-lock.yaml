@@ -367,6 +367,12 @@ importers:
 
   packages/holidays:
     dependencies:
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/reminders':
+        specifier: workspace:*
+        version: link:../reminders
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema

@@ -1,9 +1,5 @@
-import {
-  type HolidayResolver,
-  createHolidayResolver,
-  isoFromCivil,
-  parseRecurrence,
-} from "@leapsake/holidays";
+import { isoFromCivil, parseRecurrence } from "./recurrence.js";
+import { type HolidayResolver, createHolidayResolver } from "./resolver.js";
 import { observanceIdFor } from "@leapsake/data";
 import type {
   HiddenHolidaysRepo,

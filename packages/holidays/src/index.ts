@@ -1,13 +1,13 @@
 /**
- * `@leapsake/holidays` — the holiday **catalog** and the **recurrence engine**
- * that turns a catalog entry into the concrete days it falls on, kept as its own
- * narrowly-scoped, independently-testable unit outside `@leapsake/core`.
+ * `@leapsake/holidays` — everything Holidays is: the bundled **catalog**, the
+ * **recurrence engine** that turns a catalog entry into the concrete days it
+ * falls on, and the repo-backed **API** the composition root hands to clients.
  *
- * It depends only on `@leapsake/schema` (the civil-date primitives) — never on
- * `@leapsake/core` or `@leapsake/data`, and it touches no database. The
- * composition root (`@leapsake/core`) seeds the catalog into the synced
- * `holidays` table and builds a resolver over the rows it reads back, so the
- * same engine answers for bundled and user-defined holidays alike.
+ * The catalog and the engine touch no database. {@link seedHolidayCatalog} and
+ * {@link createHolidaysApi} do, through repo ports injected from
+ * `@leapsake/data` — the resolver is built over the *rows*, so the same engine
+ * answers for bundled, user-defined and synced-from-another-device holidays
+ * alike. Never depends on `@leapsake/core`.
  *
  * Deliberately *not* here: the holiday/observance **row schemas**, which live in
  * `@leapsake/schema` because `defineSyncable` derives its columns from a Zod
@@ -53,3 +53,13 @@ export type {
   HolidayResolverOptions,
   ResolvableHoliday,
 } from "./resolver.js";
+export { createHolidaysApi, holidayReminderCandidates } from "./api.js";
+export type {
+  BearerHolidayCandidate,
+  HolidayDetail,
+  HolidayListItem,
+  HolidayObserverCandidate,
+  HolidaysApiDeps,
+  ObserverDecision,
+} from "./api.js";
+export { seedHolidayCatalog } from "./seed.js";

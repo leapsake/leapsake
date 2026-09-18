@@ -1,9 +1,23 @@
-# `@leapsake/holidays` — the catalog and the recurrence engine
+# `@leapsake/holidays` — the catalog, the recurrence engine, and the Holidays API
 
 What this package owns, and — more usefully — **the decisions that constrain anyone changing
 it.** The API surface is documented on the exports themselves (`src/index.ts`); this file is the
 design behind them. Shipped on both clients 2026-07-20; what remains is sequenced in
 [`plans/status.md`](../../plans/status.md).
+
+## Code map
+
+| File            | What it owns                                                                   |
+| --------------- | ------------------------------------------------------------------------------ |
+| `catalog.ts`    | the bundled reference data and its classification axes                         |
+| `recurrence.ts` | a recurrence rule → the concrete days it falls on; no I/O                      |
+| `resolver.ts`   | a resolver built over holiday *rows*, so user-defined entries resolve the same |
+| `seed.ts`       | the bundled catalog into the synced `holidays` table, once per bundle version  |
+| `api.ts`        | `createHolidaysApi(deps)` — browse, observe, hide, schedule — over repo ports  |
+
+`catalog.ts`, `recurrence.ts` and `resolver.ts` touch no database. `seed.ts` and `api.ts` reach
+storage only through repo ports injected from `@leapsake/data`; neither opens a driver of its
+own, and nothing here depends on `@leapsake/core`.
 
 ## Holidays are three things, and conflating them is where the design goes wrong
 

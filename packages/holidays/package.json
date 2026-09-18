@@ -10,6 +10,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@leapsake/data": "workspace:*",
+    "@leapsake/reminders": "workspace:*",
     "@leapsake/schema": "workspace:*"
   }
 }
