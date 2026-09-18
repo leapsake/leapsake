@@ -14,7 +14,6 @@ Three docs, for the parts of the privacy design that are **not built yet**. Ever
 |---|---|---|
 | [`model.md`](./model.md) | The conceptual model and the locked decisions — the three layers, the envelope/key hierarchy, **all of custody** (§7: states, exits, store layout, key lifecycle), the trust boundary, the honest limits. | Always start here. Mandatory before touching onboarding, the boot path, or key handling. |
 | [`sync.md`](./sync.md) | The two sync decisions with no code yet: **P2P as a deferred adapter**, and **OPAQUE at the hosted-relay gate**. | When evaluating P2P, or before any hosted relay. |
-| [`prune.md`](./prune.md) | ⚠️ **Exploratory, nothing decided.** Relay retention: why the append log never shrinks, why minimum-cursor pruning corrupts joining devices, and the LWW-licensed compaction that needs no device tracking. | When thinking about relay storage cost, retention, or backup — and only ever as a proposal. |
 
 > **Custody is [`model.md`](./model.md) §7, and only there** — §7.2 the states, §7.2.1 the
 > act that turns encryption on, §7.3 Locked / Sign out / Forget account, §7.4 one store per

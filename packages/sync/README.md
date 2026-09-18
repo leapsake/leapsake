@@ -113,3 +113,29 @@ free to add, and code in this package is where three of them are won or lost:
    adapter, not a rewrite.
 4. **Identity is by keypair** — `device.public_key` can double as a P2P node identity,
    so no schema change is owed.
+
+## What the relay may forget, and what it must not
+
+Nothing prunes the relay's append log today: `append` only inserts, so the log holds every
+version of every row ever pushed. Two invariants bind any retention design, and both follow
+from the merge model above. The full exploration, including a spool/archive split, is in git
+(`git log --all -- plans/encryption/prune.md`).
+
+1. **Minimum-cursor pruning silently corrupts joining devices.** A device joining through
+   bootstrap starts at cursor 0 and rebuilds its whole database from the log; existing devices
+   cannot repair a gap, because their push mark is already past the old rows. Delete the last
+   copy of a live row and that row no longer exists for **any future device** until someone
+   happens to edit it again, with no error anywhere. A prune is safe only if, for every live
+   row, one copy of the winning version survives somewhere a cursor-0 device can pull it.
+2. **Compaction must compare `updatedAt`, never `seq`, and the comparison must be strict.**
+   `seq` orders delivery; `updatedAt` orders content. Keeping the highest-`seq` copy discards
+   the LWW winner whenever an offline device pushes an older edit later, and every device that
+   joins from then on converges on the loser: the fleet is split permanently, by the relay. On
+   an `updatedAt` tie keep **both** copies, because clients break ties by canonical
+   serialization of the decrypted row, which the relay cannot compute.
+
+Supersede-on-push compaction under those two rules (delete same-row records with a strictly
+lower `updatedAt`, in the same transaction as the insert) is invisible to convergence and needs
+no device tracking. Its price is metadata: the relay must see a row key and `updatedAt` in
+cleartext. A blinded key, `HMAC(MK, table ‖ id)`, keeps the table and row identity hidden;
+`updatedAt` stays visible, and that residue is the cost of any server-side retention at all.
