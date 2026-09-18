@@ -7,7 +7,7 @@ export interface PartialDate {
   day?: number;
 }
 
-/** English month full names + 3-letter abbreviations → 1–12, for query parsing. */
+/** English month names and 3-letter abbreviations, to 1–12. */
 const MONTH_LOOKUP: Map<string, number> = (() => {
   const names = [
     "january",
@@ -36,30 +36,14 @@ const isDay = (n: number): boolean => n >= 1 && n <= 31;
 const isYear = (n: number): boolean => n >= 1000 && n <= 9999;
 
 /**
- * Parse a query into the partial date(s) it could mean, for the birthday facet.
- * Returns `[]` when the term isn't a recognizable date, so the facet block can
- * skip rather than match everyone. Accepted forms (English, false-positive
- * friendly):
- *   "march" / "mar"          → {month}
- *   "mar 4" / "march 4"      → {month, day}
- *   "march 4 1990"           → {month, day, year}   (also "mar 4, 1990")
- *   "march 1990"             → {month, year}
- *   "3/4" / "3-4"            → BOTH {month:3,day:4} AND {month:4,day:3}
- *   "3/4/1990"               → both orderings, each with {year:1990}
- *   "1990"                   → {year}
- * A bare 1–2 digit number ("4") is too ambiguous and parses to nothing.
- *
- * Numeric `M/D` is returned as *both* orderings as equal candidates — the seam
- * where a future locale-preferred ordering becomes a ranking choice (which one
- * sorts first), without changing *what* matches.
+ * The partial dates a search term could mean, or `[]`. "3/4" yields both
+ * March 4 and April 3; a bare "4" yields nothing.
  */
 export function parseBirthdayQuery(term: string): PartialDate[] {
   const t = fold(term).trim();
   if (t === "") return [];
 
-  // Month name (optionally followed by a day and/or a year), e.g. "march",
-  // "mar 4", "march 4 1990", "march 1990". Day/year order after the name is
-  // flexible; we read whichever numbers follow.
+  // A month name, then an optional day and year: "mar 4", "march 4 1990".
   const named = /^([a-z]+)\b[\s,]*(\d{1,2})?[\s,]*(\d{4})?$/.exec(t);
   if (named) {
     const month = MONTH_LOOKUP.get(named[1]);

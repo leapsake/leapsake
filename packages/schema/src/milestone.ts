@@ -40,7 +40,7 @@ export const milestoneKindSchema = z.enum([
 
 export type MilestoneKind = z.infer<typeof milestoneKindSchema>;
 
-/** Whether a value, such as a `?kind=` parameter, is a {@link MilestoneKind}. */
+/** Whether a value, such as a `?kind=` parameter, is a milestone kind. */
 export function isMilestoneKind(value: unknown): value is MilestoneKind {
   return milestoneKindSchema.safeParse(value).success;
 }
@@ -69,8 +69,8 @@ export interface MilestoneKindDef {
   /** Whether this kind recurs every year. */
   recursAnnually: boolean;
   /**
-   * What a milestone with no stored rules offers, and what the engine reminds of
-   * by default: every entry with `enabledByDefault` set.
+   * What a milestone with no stored rules offers. The engine reminds of every
+   * entry with `enabledByDefault` set.
    */
   defaultReminderSchedule: DefaultReminderRule[];
   /** The phrase a `wish` interpolates, with its article: "a happy birthday". */

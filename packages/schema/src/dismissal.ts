@@ -2,15 +2,8 @@ import { z } from "zod";
 import { entityTypeSchema, relationshipRoleSchema } from "./relationship.js";
 
 /**
- * A relationship dismissal — a rejected *derived* edge — in its stored shape.
- * The behavioural type and repository live in `@leapsake/data`; this schema
- * exists so sync can validate a dismissal pulled from a peer before applying it
- * (the data package has no Zod surface of its own). `role` is the dismissed base
- * role, or `null` to suppress any derived edge between the pair.
- *
- * Same sync-safe substrate as every domain row (see AGENTS.md): client
- * UUID id, epoch-ms UTC timestamps, nullable `deletedAt` — so it merges via
- * whole-row LWW ({@link resolveMerge}) like the rest.
+ * A rejected derived relationship; a null `role` suppresses every derived edge
+ * between the pair. Here so sync can validate a peer's row.
  */
 export const dismissalSchema = z.object({
   id: z.uuid(),

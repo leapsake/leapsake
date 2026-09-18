@@ -1,11 +1,8 @@
 import { z } from "zod";
 
 /**
- * Gender as a plain, closed enum — no free text. Optional everywhere it appears
- * (a nullable column on People and Pets), so "unset" is the absence of a value
- * rather than a fourth enum member. Kept deliberately small: it exists to drive
- * gendered relationship labels (father/mother, son/daughter, …), not to model
- * identity exhaustively.
+ * The genders that pick a gendered role label; unset is null, not a member.
+ * It drives labels only and does not model identity.
  */
 export const genderSchema = z.enum(["male", "female", "nonbinary"]);
 

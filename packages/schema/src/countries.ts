@@ -1,14 +1,6 @@
 /**
- * The country reference list backing the contact-method country pickers. ISO
- * 3166-1 alpha-2 `code` + English `name`, sorted by name. This is a static
- * dataset rather than something derived at runtime from `Intl.DisplayNames`, so
- * it stays identical and available across the desktop (node) and mobile (Hermes,
- * where `Intl.DisplayNames` is not guaranteed) runtimes. Regenerated, not
- * hand-edited: the names come from `Intl.DisplayNames(["en"], { type: "region" })`.
- *
- * Uninhabited territories (Antarctica, Bouvet Island, etc.) are intentionally
- * omitted — they are never a contact address. Every `code` here is a valid
- * alpha-2 region, so {@link countryFlag} renders a flag for each.
+ * Inhabited countries by English name, static because Hermes lacks
+ * `Intl.DisplayNames`. Regenerate from it rather than editing by hand.
  */
 export interface CountryOption {
   code: string;
@@ -262,11 +254,7 @@ export const contactCountryOptions: readonly CountryOption[] = [
   { code: "ZW", name: "Zimbabwe" },
 ];
 
-/**
- * The emoji flag for an ISO 3166-1 alpha-2 code, built from the two Unicode
- * regional-indicator letters (e.g. "US" → 🇺🇸). Any two-letter code maps, so new
- * {@link contactCountryOptions} get a flag for free.
- */
+/** The emoji flag for a two-letter code, from regional-indicator letters. */
 export function countryFlag(code: string): string {
   return String.fromCodePoint(
     ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),

@@ -1,7 +1,7 @@
 // Client-side merge for synced rows: whole-row last-writer-wins with
 // tombstones, in an order-independent way (packages/sync/README.md).
 
-/** The minimum every synced domain row carries; the merge needs nothing more. */
+/** What every synced row carries, and all the merge needs. */
 export interface SyncRow {
   id: string;
   /** Epoch ms, UTC. The LWW clock — bumped on every write, including delete. */

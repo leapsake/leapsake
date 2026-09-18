@@ -2,21 +2,12 @@ import { z } from "zod";
 import { genderSchema } from "./gender.js";
 import { standingColumnSchema, standingSchema } from "./standing.js";
 
-/**
- * A Pet — an entity that joins the relationship graph alongside Person. The
- * full database row shape.
- *
- * Same sync-safe conventions as Person (see AGENTS.md): client-
- * generated UUID primary key, epoch-ms UTC timestamps, and a nullable
- * `deletedAt` for soft deletes (rows are never hard-deleted, so deletions can
- * propagate during V3 sync).
- */
+/** A pet, as stored. */
 export const petSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
   gender: genderSchema.nullable(), // explicit gender; null when unset
-  // As on Person: a pet may also exist only as a fact about one of your people
-  // — the coworker's dog — and defaults to `published` when the column is absent.
+  // Defaulted, so a row from a peer that predates the column decodes.
   standing: standingColumnSchema,
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(), // epoch ms, UTC

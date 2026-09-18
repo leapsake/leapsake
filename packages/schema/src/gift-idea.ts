@@ -1,26 +1,8 @@
 import { z } from "zod";
 
 /**
- * A GiftIdea — "a thing in the world" (The Adventures of Tom Sawyer), reusable and
- * **person-agnostic**: it says nothing about who might want it. That's the
- * deliberate split at the heart of gifts: an idea is about the *thing* (it can
- * have a URL; a person can't), and a {@link GiftRecipient} pairs it with a person
- * or pet. An idea can be attached to zero-to-many parties.
- *
- * {@link title} is the only required field; {@link url} (where to buy / read
- * more) and {@link notes} are optional free text. Near-duplicates ("Tom Sawyer" vs
- * "The Adventures of Tom Sawyer") are **tolerated, not auto-merged** — titles are prose, and
- * the eventual answer is the existing reconciliation substrate, not silent
- * normalization here.
- *
- * An idea used to be able to carry **its own** occasions ("a good Christmas gift
- * for someone") in a table of their own. Occasions are out of v0.1 scope
- * entirely; see `git log` at `476660b` for that model.
- *
- * Sync-safe conventions (see AGENTS.md): client-generated UUID primary key,
- * epoch-ms UTC timestamps, nullable `deletedAt` for soft deletes. Deliberately
- * plaintext (no per-item content key), like reminders — a gift idea isn't a share
- * target, and whole-DB-at-rest + master-key-sealed sync already protect it.
+ * A thing that could be given, saying nothing about who wants it; a
+ * {@link GiftRecipient} pairs it with someone. Similar titles are not merged.
  */
 export const giftIdeaSchema = z.object({
   id: z.uuid(),
@@ -40,12 +22,7 @@ const optionalFields = {
   notes: z.string().min(1).nullable().optional(),
 };
 
-/**
- * The fields accepted when creating a gift idea. Only {@link title} is required;
- * the repository fills id/timestamps. (The single-payload create surface grows a
- * `recipients` arm, but that lives on the core method, not this row-input
- * schema.)
- */
+/** The fields accepted when creating a gift idea; only a title is needed. */
 export const createGiftIdeaInputSchema = z.object({
   title: z.string().min(1),
   ...optionalFields,
@@ -53,7 +30,7 @@ export const createGiftIdeaInputSchema = z.object({
 
 export type CreateGiftIdeaInput = z.infer<typeof createGiftIdeaInputSchema>;
 
-/** Input accepted when updating a gift idea; any subset of the editable fields. */
+/** Input accepted when updating a gift idea; any subset of its fields. */
 export const updateGiftIdeaInputSchema = z.object({
   title: z.string().min(1).optional(),
   ...optionalFields,

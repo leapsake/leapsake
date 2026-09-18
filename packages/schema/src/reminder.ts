@@ -49,7 +49,7 @@ function hasTitleOrBody(r: { title?: string | null; body?: string | null }) {
   return (r.title ?? null) !== null || (r.body ?? null) !== null;
 }
 
-/** The fields accepted when creating a reminder; `source` defaults to `user`. */
+/** The fields accepted when creating a reminder; `source` defaults to user. */
 export const createReminderInputSchema = z
   .object({
     ...textShape,

@@ -44,7 +44,7 @@ export const keyWrapSchema = z.object({
 
 export type KeyWrap = z.infer<typeof keyWrapSchema>;
 
-/** Input accepted when adding a wrapping; the repository fills id/timestamps. */
+/** Input accepted when adding a wrapping; the repo fills id and timestamps. */
 export const addKeyWrapInputSchema = z.object({
   wrappedKind: wrappedKindSchema,
   contentKeyId: z.uuid().nullable().optional(),
