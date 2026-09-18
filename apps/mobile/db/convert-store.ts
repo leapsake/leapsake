@@ -12,10 +12,8 @@ import { accountDoors } from "./doors";
  * `PRAGMA rekey` but no `sqlcipher_export`; SQLCipher has the reverse), so both
  * run the same ordinary-SQL `ATTACH` + copy-from-`sqlite_master`.
  *
- * This is the **plaintext-source** door, and it refuses anything else. The
- * encrypted-source door is {@link rekeyStore}, which shares every mechanic below
- * via {@link copyStoreUnderNewKey}; keeping them apart is what stops an
- * already-encrypted store being fed to the conversion by accident.
+ * It is a **plaintext-source** door, and it refuses anything else — an
+ * already-encrypted store must never be fed to the conversion by accident.
  *
  * Verified on device before being written — the custody self-test
  * (`leapsake://dev-selftest`) exercises this exact sequence, including that
@@ -25,68 +23,8 @@ import { accountDoors } from "./doors";
  * only after the roster names the replacement, so a crash mid-flow always leaves a
  * launchable device.
  */
-export async function convertStoreToEncrypted(opts: {
-  fromName: string;
-  toName: string;
-  key: Uint8Array;
-}): Promise<void> {
-  await copyStoreUnderNewKey({
-    fromName: opts.fromName,
-    toName: opts.toName,
-    toKey: opts.key,
-  });
-}
-
 /**
- * Re-key a store: copy the **encrypted** store named `fromName`, opened under
- * `fromKey`, into a new encrypted store at `toName` under `toKey`. The
- * encrypted-source door onto {@link convertStoreToEncrypted}'s machinery, and the
- * file-level half of merging a local-only account into a synced one
- * (`encryption/model.md` §7.2.2). Desktop's namesake lives in
- * `main/db/convert-store.ts` and this mirrors it step for step.
- *
- * **This writes a *new* store and leaves the original openable.** That is the
- * point: until the roster names the replacement the source is the only copy, and
- * on this path it is an account's whole store rather than the empty schema the
- * plaintext conversion starts from. The crash ordering the callers rely on —
- * **copy → roster → destroy** — therefore reads harder here: its first step is a
- * data-loss guarantee, not a tidiness one.
- *
- * **Never through a plaintext intermediate.** Decrypt-to-a-scratch-store then
- * re-encrypt would be simpler and would write the user's entire database in the
- * clear; `encryption/model.md` §7.2.1 exists to keep that window small, and this
- * path does not open one. `ATTACH` reaches the destination's cipher directly, so
- * the plaintext only ever exists in memory.
- *
- * **Both keys are real parameters, but today's only caller passes the same key
- * twice.** The at-rest db-key is minted **per device**, not per account
- * (`model.md` §7.1), so merging two of *this* device's accounts re-homes the
- * store without changing its lock. The two-key form is for the case that is
- * coming rather than the one that is here: a device that lost its keychain and
- * came back through a password door holds a *fresh* key (§6), and its store has
- * to move under it.
- */
-export async function rekeyStore(opts: {
-  fromName: string;
-  fromKey: Uint8Array;
-  toName: string;
-  toKey: Uint8Array;
-}): Promise<void> {
-  await copyStoreUnderNewKey(opts);
-}
-
-/**
- * Copy the store named `fromName` into a new encrypted store at `toName` under
- * `toKey` — the shared body of {@link convertStoreToEncrypted} (no `fromKey`,
- * plaintext source) and {@link rekeyStore} (a `fromKey`, encrypted source).
- *
- * The two doors differ only in what they will accept as a source; the guards, the
- * copy, the crash ordering and the proof-open are one implementation on purpose.
- * Splitting them would let the two sets of guards drift apart, which is the
- * failure this file exists to prevent. Desktop's file says the same of its own
- * pair, and the two platforms are meant to be read side by side.
- *
- * Three details are load-bearing and easy to miss:
+ * Three details in the copy are load-bearing and easy to miss:
  *
  * 1. **`PRAGMA cipher='sqlcipher'` before the ATTACH.** A no-op on this engine
  *    (SQLCipher has exactly one cipher) but kept so both platforms run the
@@ -103,28 +41,18 @@ export async function rekeyStore(opts: {
  * without it a retry after a crash mid-flow copies every row into a store that
  * already holds them, and the user's data arrives twice.
  */
-async function copyStoreUnderNewKey(opts: {
+export async function convertStoreToEncrypted(opts: {
   fromName: string;
-  fromKey?: Uint8Array;
   toName: string;
-  toKey: Uint8Array;
+  key: Uint8Array;
 }): Promise<void> {
-  const { fromName, fromKey, toName, toKey } = opts;
+  const { fromName, toName, key: toKey } = opts;
 
-  // Both doors refuse a source of the wrong custody, and each refusal names its
-  // own door: feeding an encrypted store to the plaintext converter (or the
-  // reverse) is a caller bug, and a wrong-custody source reported as a key
-  // failure would send the reader hunting for the wrong thing.
-  const sourceState = await storeState(fromName);
-  if (fromKey === undefined) {
-    if (sourceState === "encrypted") {
-      throw new Error(
-        "Refusing to convert: the source store is not a plaintext database.",
-      );
-    }
-  } else if (sourceState !== "encrypted") {
+  // An encrypted source is a caller bug, and reporting it as a key failure would
+  // send the reader hunting for the wrong thing.
+  if ((await storeState(fromName)) === "encrypted") {
     throw new Error(
-      "Refusing to re-key: the source store is not an encrypted database.",
+      "Refusing to convert: the source store is not a plaintext database.",
     );
   }
   // Note this also performs the mobile `mkdir -p`: `ATTACH` will not create the
@@ -143,23 +71,6 @@ async function copyStoreUnderNewKey(opts: {
   try {
     const source = await SQLite.openDatabaseAsync(fromName);
     try {
-      if (fromKey !== undefined) {
-        // `storeState` can only report *not readable keyless*, so it cannot tell
-        // a store under another key from a corrupt file. The second half of the
-        // re-key guard is therefore this open — and, because applying a key never
-        // fails on its own, the read after it. A wrong `fromKey` dies here, before
-        // the ATTACH has created anything.
-        await source.execAsync(`PRAGMA key = "${rawKeyLiteral(fromKey)}"`);
-        try {
-          await source.getFirstAsync("PRAGMA user_version");
-        } catch (cause) {
-          throw new Error(
-            "Refusing to re-key: the source store does not open under that key.",
-            { cause },
-          );
-        }
-      }
-
       const versionRow = await source.getFirstAsync<{ user_version: number }>(
         "PRAGMA user_version",
       );

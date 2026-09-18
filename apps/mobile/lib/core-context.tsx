@@ -23,45 +23,25 @@ import {
 } from "react-native-safe-area-context";
 import * as SQLite from "expo-sqlite";
 import {
-  type AccountBootstrap,
   type AdoptionDoor,
   type CoreApi,
   type KeySession,
-  type PasswordDoorWriter,
   type RecoveryDoorWriter,
-  type SyncScheduler,
   type SyncStatus,
-  bindRelayToAccount,
-  clearLocalAccount,
-  convergeRecoveryKey,
   createCore,
-  createSyncScheduler,
   createLocalAccount,
   ensureLocalDeviceId,
   establishKeySession,
   fetchRelayCapabilities,
-  getAutoSync,
   getSyncStatus,
-  isRelayAuthError,
-  isUsernameTakenError,
-  joinAccountViaRelay,
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
-  lookupAccount,
-  lookupAccountId,
   MIN_PASSWORD_LENGTH,
-  reauthenticateViaRelay,
-  recoverAccountViaRelay,
-  reconcileOnJoin,
-  registerAccountWithRelay,
   rotateRecoveryPhraseForAccount,
-  runAccountSync,
   runMigrations,
   seedHolidayCatalog,
-  setAutoSync,
   withSyncKick,
 } from "@leapsake/core";
-import { flag } from "@leapsake/flags";
 import {
   DATABASE_KEY,
   RECOVERY_KEY,
@@ -95,7 +75,6 @@ import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
-import { mergeAccountOnThisDevice, openStoreUnderKey } from "./merge-account";
 import {
   expoNotificationScheduler,
   PLATFORM_NOTIFICATION_BUDGET,
@@ -103,50 +82,18 @@ import {
 } from "./notification-scheduler";
 
 /**
- * Translate a relay/transport failure into copy a user can act on — the mobile
- * mirror of desktop's `relayErrorMessage` (`apps/desktop/src/main/index.ts`).
- */
-function relayErrorMessage(cause: unknown, relayUrl: string): string {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  if (message.includes("fetch failed") || message.includes("Network request")) {
-    return `Couldn't reach the relay at ${relayUrl}. Make sure the sync server is running, then try again.`;
-  }
-  if (message.includes("409")) {
-    return "That username is already taken on this relay. Pick another.";
-  }
-  if (message.includes("401")) {
-    return "Incorrect username or password for this account.";
-  }
-  if (message.includes("404")) {
-    return "No account found for that username on this relay.";
-  }
-  return `Relay request failed: ${message}`;
-}
-
-/**
- * The account / enable-sync surface (custody Phase 1). Kept deliberately separate
- * from {@link CoreApi}: enabling sync isn't a transactional core op, so — exactly
- * like desktop's separate `window.sync` bridge (not folded into `window.api`) — it
- * lives in its own context rather than on the core.
+ * The account surface (custody Phase 1). Kept deliberately separate from
+ * {@link CoreApi}: creating an account isn't a transactional core op, so —
+ * exactly like desktop's separate `window.sync` bridge (not folded into
+ * `window.api`) — it lives in its own context rather than on the core.
  */
 export interface SyncApi {
   status(): Promise<SyncStatus>;
   /**
-   * Pre-login existence probe: ask the relay whether `username` already names an
-   * account, so the UI can route to create-vs-login. Unauthenticated — the same
-   * prelogin a join already does, exposing nothing new.
-   */
-  lookup(username: string, relayUrl: string): Promise<boolean>;
-  /**
    * **Create an account on this device** (`model.md` §7.2.1) — the act that
-   * turns encryption on, with **no relay involved**: nothing leaves the phone.
-   * The mobile counterpart of desktop's `window.sync.createAccount`.
-   *
-   * Under *encryption follows custody* an account is the only thing that
-   * encrypts the store, so without this a mobile-only user who doesn't want
-   * sync could never have one — the store would stay plaintext forever. That is
-   * the whole reason this exists separately from {@link SyncApi.enable}, which
-   * is the same act **plus** binding a relay.
+   * turns encryption on: nothing leaves the phone. Under *encryption follows
+   * custody* an account is the only thing that encrypts the store, so without
+   * this the store would stay plaintext forever.
    *
    * Returns the one-time recovery phrase for its single reveal.
    */
@@ -154,100 +101,6 @@ export interface SyncApi {
     username: string;
     password: string;
   }): Promise<{ accountId: string; recoveryKey: string }>;
-  /**
-   * Establish a new account + portable password door **and register its
-   * bootstrap ciphertext with the relay**, returning the one-time recovery key
-   * **base64-encoded** so raw key bytes never leave this layer (mirrors
-   * desktop's IPC encoding). Rolls the local account back if relay registration
-   * fails.
-   */
-  enable(args: {
-    username: string;
-    password: string;
-    relayUrl: string;
-  }): Promise<{ accountId: string; recoveryKey: string }>;
-  /**
-   * Log in to an existing account on a second device: fetch + unwrap the master
-   * key, adopt it under this device's enclave, and **convert this device's store
-   * to encrypted** — the conversion lands before the first sync pull, so no account
-   * data ever reaches a plaintext file (`model.md` §7.1). The conversion re-runs the
-   * bootstrap in place, so screens end up on the new store the same way account
-   * creation moves them.
-   */
-  join(args: {
-    username: string;
-    password: string;
-    relayUrl: string;
-    // `duplicateCount` is how many possible duplicates the join surfaced between
-    // this device's pre-existing people and the account's — a prompt to review.
-  }): Promise<{ duplicateCount: number }>;
-  /**
-   * **Merge this device's local-only account into an existing synced one**
-   * (`encryption/model.md` §7.2.2): the store is re-homed under the synced
-   * account's id, keeps every row, and from the next launch opens under *that*
-   * account's password. The local account is retired.
-   *
-   * A separate method from {@link SyncApi.join} rather than a mode of it. Join is
-   * an accountless device's act and refuses a store that already holds an
-   * account; this one *retires* an account, and the two have different guards, a
-   * different ordering (the relay half runs against a copy) and different copy.
-   * Folding them together would rebuild the polymorphic entry point the flow docs
-   * say was deliberately cut.
-   *
-   * Returns the same `duplicateCount` a join does, because it ends in the same
-   * place: this device's people are all pre-existing-local, so overlaps land in
-   * duplicate review rather than being fused.
-   */
-  merge(args: {
-    username: string;
-    password: string;
-    relayUrl: string;
-  }): Promise<{ duplicateCount: number }>;
-  /**
-   * **Start syncing an account that already exists on this device** — bind a
-   * relay to a local-only account (`model.md` §7.2). It publishes what the store
-   * already holds: no password is asked for, no key is minted, no store is
-   * converted, and the recovery phrase the user wrote down still opens the
-   * account.
-   *
-   * The sibling of {@link SyncApi.merge}, and the other half of the local-only
-   * branch: merge moves this data **into** an account that exists elsewhere,
-   * this publishes the account that is **already here**.
-   *
-   * ⚠️ **`username-taken` resolves, it does not reject.** A taken handle is a
-   * fork rather than a failure — it may be the user's own account on another
-   * device (→ {@link SyncApi.merge}) or a stranger's (→ call this again with a
-   * different name) — and only the user can say which. Every other failure still
-   * rejects.
-   */
-  bindRelay(args: {
-    username: string;
-    relayUrl: string;
-  }): Promise<
-    | { status: "bound"; accountId: string; username: string }
-    | { status: "username-taken"; username: string }
-  >;
-  /**
-   * Recover an existing account on this device from the recovery phrase (forgot
-   * password, `model.md` §6): unwrap MK from the relay's recovery escrow, set a
-   * new password, adopt MK under this device's enclave, and convert this device's
-   * store exactly as {@link SyncApi.join} does.
-   */
-  recover(args: {
-    username: string;
-    recoveryPhrase: string;
-    newPassword: string;
-    relayUrl: string;
-  }): Promise<{ duplicateCount: number }>;
-  /** Run one push→pull cycle against the configured relay. */
-  syncNow(): Promise<{ at: number }>;
-  /**
-   * Re-authenticate this device after the account password was reset on another
-   * device (a sync 401): re-derive this device's relay credential from the
-   * re-entered password. The master key is untouched. Resolves once a sync has
-   * been kicked; rejects with a friendly message on a wrong password.
-   */
-  reauthenticate(password: string): Promise<void>;
   /**
    * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
    * it, so the password is needed to get back in. The data stays on this device,
@@ -257,61 +110,32 @@ export interface SyncApi {
   signOut(): Promise<void>;
   /**
    * What the Forget-account confirmation needs to word itself (`model.md`
-   * §7.3.1). `durableBackup` is whether the relay claims to keep a copy — `false`
+   * §7.3.1). `durableBackup` is whether anything claims to keep a copy — `false`
    * whenever nobody said otherwise, which is what makes forgetting the last
    * device read as the deletion it is.
    */
   forgetInfo(): Promise<{
     username?: string;
-    relayUrl?: string;
     durableBackup: boolean;
   }>;
   /**
    * **Forget account** (`model.md` §7.3): remove this account, its store, and its
    * unlock doors from this device, leaving it in the accountless state a fresh
-   * install is in. Local only — an account on a relay or another device is
-   * untouched there.
+   * install is in.
    */
   forgetAccount(): Promise<void>;
   /**
    * Factory reset: erase all local data, the encryption keys, and the recovery
    * sidecar, then rebuild the app in place as a fresh install (there is no
-   * relaunch primitive on mobile, so this re-runs the bootstrap). Unrecoverable
-   * unless the account was synced.
+   * relaunch primitive on mobile, so this re-runs the bootstrap). Unrecoverable.
    */
   factoryReset(): Promise<void>;
   /**
    * Replace this device's recovery phrase, gated on the account password
    * (`model.md` §6). Returns the new phrase to show **once** — there is no way to
-   * see it again — and `escrowPending`, `true` when the relay could not be
-   * reached: until the next sync the *old* phrase is still what recovers the
-   * account, and the caller must say so.
+   * see it again.
    */
-  rotateRecoveryPhrase(
-    password: string,
-  ): Promise<{ recoveryPhrase: string; escrowPending: boolean }>;
-  /** Read this install's "Sync automatically" preference (default true). */
-  getAutoSync(): Promise<boolean>;
-  /**
-   * Persist + apply the "Sync automatically" preference for this install: store
-   * it durably and flip the live scheduler so it takes effect immediately.
-   */
-  setAutoSync(enabled: boolean): Promise<void>;
-  /**
-   * Subscribe to background-sync activity (interval / foreground / write-kicked
-   * runs, not just the manual button), so a screen can keep its "last synced"
-   * line fresh. Returns an unsubscribe function. Mirrors desktop's
-   * `window.sync.onActivity`. The payload's `changed` (a pull applied records)
-   * also drives reactive invalidation via {@link useDataVersion}.
-   */
-  onActivity(
-    listener: (payload: {
-      at?: number;
-      error?: string;
-      changed?: boolean;
-      needsReauth?: boolean;
-    }) => void,
-  ): () => void;
+  rotateRecoveryPhrase(password: string): Promise<{ recoveryPhrase: string }>;
 }
 
 // Build the core exactly once for the whole app and share it through context.
@@ -327,22 +151,17 @@ interface UnlockAnswer {
   secret: string;
 }
 const SyncContext = createContext<SyncApi | null>(null);
-// A monotonically-increasing counter bumped whenever a background-sync pull
-// applies remote changes. `useFocusedData` depends on it, so a bump re-runs the
+// A monotonically-increasing counter bumped whenever the provider changes rows
+// behind a screen's back. `useFocusedData` depends on it, so a bump re-runs the
 // focused screen's load — the in-process analogue of desktop's
 // `router.revalidate()` (reactive invalidation). Defaults to 0 (no provider →
 // never invalidates, so a screen used outside CoreProvider still renders).
 const DataVersionContext = createContext(0);
-/** The *Degraded* state (custody slice 10) as a screen needs it: why, and whether
- *  this account has a relay — which decides what may honestly be said to have
- *  stopped (see {@link CustodyBanner}). */
+/** The *Degraded* state as a screen needs it: why this device cannot prove which
+ *  master key is the account's (see {@link CustodyBanner}). */
 interface DegradedCustody {
   detail: string;
-  relayBound: boolean;
 }
-// Null when this device can prove the account's master key. Defaults to null so a
-// screen rendered outside CoreProvider reads as healthy rather than throwing.
-const CustodyDegradedContext = createContext<DegradedCustody | null>(null);
 // This device's stable id (Inc 1, `ensureLocalDeviceId`) — the state mirror
 // of `CoreProvider`'s `deviceId` ref, so a screen (the notification settings
 // section, §7) can address `notificationSettings.setPolicy`/`get` for *this*
@@ -358,7 +177,7 @@ export function useCore(): CoreApi {
   return core;
 }
 
-/** Access the enable-sync surface. Throws if used outside a CoreProvider. */
+/** Access the account surface. Throws if used outside a CoreProvider. */
 export function useSync(): SyncApi {
   const sync = useContext(SyncContext);
   if (sync === null) {
@@ -368,22 +187,12 @@ export function useSync(): SyncApi {
 }
 
 /**
- * The reactive-invalidation signal: a counter that bumps when a background-sync
- * pull applied remote changes. Add it to a `useFocusedData` load's deps so the
- * focused screen re-reads when sync lands a peer's edits.
+ * The reactive-invalidation signal: a counter that bumps when the provider
+ * changed rows itself — new phone contacts, regenerated birthday reminders. Add
+ * it to a `useFocusedData` load's deps so the focused screen re-reads.
  */
 export function useDataVersion(): number {
   return useContext(DataVersionContext);
-}
-
-/**
- * Why this device syncs nothing, or null when it syncs fine: the *Degraded* state
- * (custody slice 10, `model.md` §7.5). {@link CustodyBanner} already carries the
- * cause and the fix app-wide, so a screen reads this only to stop offering controls
- * that cannot work — which is what Settings does with its sync section.
- */
-export function useCustodyDegraded(): DegradedCustody | null {
-  return useContext(CustodyDegradedContext);
 }
 
 /**
@@ -418,10 +227,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // the case: the *Degraded* state (custody slice 10, `model.md` §7.5). Set by every
   // bootstrap run, so a repaired device clears it by re-opening. Unlike
   // {@link recoveryPrompt} it does not block the app — that is the whole point — it
-  // raises a standing banner and keeps sync off.
+  // raises a standing banner.
   const [degraded, setDegraded] = useState<DegradedCustody | null>(null);
-  // Reactive invalidation: bumped whenever a sync pull applied changes, so the
-  // focused screen (via `useFocusedData` → `useDataVersion`) re-reads in place.
+  // Reactive invalidation: bumped whenever something outside the focused screen
+  // changed rows, so it (via `useFocusedData` → `useDataVersion`) re-reads.
   const [dataVersion, setDataVersion] = useState(0);
   // The state mirror of the `deviceId` ref below (Inc 1) — set at the same
   // point, so a screen (the notification settings section, §7) can read this
@@ -438,17 +247,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   // up once, before the core is built — can reach the *current* core (which a
   // later join/recover swaps) to regenerate system reminders on foreground.
   const coreRef = useRef<CoreApi | null>(null);
-  // The background-sync scheduler (seamless sync): writes kick it, foregrounding
-  // and the interval trigger it, the manual button routes through it. Held in a
-  // ref so the AppState listener and SyncApi methods reach the live instance.
-  const scheduler = useRef<SyncScheduler | null>(null);
-  // Activity listeners (e.g. the Settings "last synced" line), notified on every
-  // background-sync result/error — the in-process analogue of desktop's IPC event.
-  const activityListeners = useRef(
-    new Set<
-      (payload: { at?: number; error?: string; changed?: boolean }) => void
-    >(),
-  );
   // This device's stable id (Inc 1's `ensureLocalDeviceId`,
   // `plans/v0-1_08_local-notifications.md`) — minted once at boot,
   // independent of any account, and read back unchanged after. Keys the
@@ -491,18 +289,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
      * driver nulls or replaces `coreRef.current` in the same breath, before
      * awaiting anything. Checked *before* starting (nothing to do) and again in
      * the `catch` (the teardown happened mid-flight), and it guards the writes
-     * too: a stale reconcile must not bump `dataVersion` or kick the scheduler
-     * for a store that is gone.
+     * too: a stale reconcile must not bump `dataVersion` for a store that is
+     * gone.
      */
     const isLiveCore = (coreApi: CoreApi) => coreRef.current === coreApi;
 
     /**
      * Reconcile automated (`system`) reminders — upcoming birthdays — against the
      * given core, then, only if anything changed, bump the data version so the
-     * focused screen re-reads and kick a sync so the rows propagate. Runs at boot
-     * and on foreground (a new local day can bring a birthday into range).
-     * Best-effort: a failure must never break the app. `regenerateSystem` isn't a
-     * sync-kicking mutation (it runs off a user write), hence the explicit kick.
+     * focused screen re-reads. Runs at boot and on foreground (a new local day
+     * can bring a birthday into range). Best-effort: a failure must never break
+     * the app.
      */
     const regenerateSystemReminders = async (coreApi: CoreApi) => {
       if (!isLiveCore(coreApi)) return;
@@ -512,7 +309,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         if (!isLiveCore(coreApi)) return;
         if (created > 0 || updated > 0 || removed > 0) {
           setDataVersion((v) => v + 1);
-          scheduler.current?.kick();
         }
       } catch (cause) {
         if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure
@@ -529,7 +325,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
      * (`reconcileNotificationSchedule`). Same triggers as
      * `regenerateSystemReminders` above — boot, foreground — plus every
      * mutating `CoreApi` call, via `buildCore`'s second `withSyncKick` layer
-     * below (the same "kick after every write" mechanism sync already uses),
+     * below (the "kick after every write" mechanism from `@leapsake/sync`),
      * so completion, snooze, milestone edits, and this device's own policy
      * changes all reconcile without a bespoke call at each site.
      *
@@ -584,12 +380,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Pull the peer's edits when the app returns to the foreground — the
-    // event-driven companion to write-kicked pushes. (RN JS timers are suspended
-    // in the background, so the interval is a foreground-only backstop anyway.)
+    // Catch up on what changed while the app was away.
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      void scheduler.current?.autoTrigger();
       if (coreRef.current !== null) {
         const core = coreRef.current;
         // Sequenced, not parallel `void`s: `reconcileNotifications` reads
@@ -621,7 +414,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       );
 
     (async () => {
-      // The same keystore instance that backs the enable-sync door below.
+      // The same keystore instance that backs the account surface below.
       const keyStore = secureStoreKeyStore();
 
       // Mint-or-read this device's stable id (Inc 1) — touches only the OS
@@ -786,9 +579,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       //
       // It reports rather than throws. A device that cannot prove which master key
       // is the account's is *Degraded*: the store opens and every screen works, but
-      // `keySession` stays null — already this provider's "do not sync" signal — so
-      // nothing divergent is pushed and the launch-time escrow catch-up cannot
-      // publish a key this device cannot vouch for.
+      // `keySession` stays null, so nothing that needs the account's master key
+      // runs on this device until the repair lands.
       const established = await establishKeySession({
         keyStore,
         driver,
@@ -802,19 +594,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           established.cause,
         );
       }
-      // A local as well as state: the sync surface built later in this same
-      // bootstrap closes over it, and the effect re-runs (via `resetVersion`) on
-      // every sign-out and reset, so it can never go stale.
-      const degradedMessage =
-        established.state === "degraded" ? established.message : null;
       setDegraded(
-        degradedMessage === null
-          ? null
-          : {
-              detail: degradedMessage,
-              relayBound:
-                (await getSyncStatus({ driver })).relayUrl !== undefined,
-            },
+        established.state === "degraded"
+          ? { detail: established.message }
+          : null,
       );
       // Custody Phase 0.5, not Phase 0: the master key is minted by account
       // creation, so an Unauthenticated store runs the core with no key session at all.
@@ -843,85 +626,23 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const notifyActivity = (payload: {
-        at?: number;
-        error?: string;
-        changed?: boolean;
-        needsReauth?: boolean;
-      }) => {
-        // A changed pull bumps the data version so focused screens re-read.
-        if (payload.changed) setDataVersion((v) => v + 1);
-        for (const listener of activityListeners.current) listener(payload);
-      };
-      // The run thunk doubles as the "is sync enabled" guard (a quiet no-op until
-      // an account is set up and relay-bound), reading the current keySession so a
-      // later join is picked up. A local write kicks it via withSyncKick below.
-      scheduler.current = createSyncScheduler({
-        autoEnabled: await getAutoSync({ driver }),
-        run: async () => {
-          // The outermost guard, and the one that makes "sync is held back"
-          // true of the background too: with `multiDevice` off nothing on this
-          // device may talk to a relay, however the store got bound.
-          if (!flag("multiDevice")) return undefined;
-          const session = keySession.current;
-          if (session === null) return undefined;
-          const status = await getSyncStatus({ driver });
-          if (!status.hasAccount || status.relayUrl === undefined)
-            return undefined;
-          return runAccountSync({
-            keyStore,
-            driver,
-            masterKey: session.masterKey,
-          });
-        },
-        onResult: ({ at, applied }) =>
-          notifyActivity({ at, changed: applied !== undefined && applied > 0 }),
-        onError: (cause) => {
-          // A 401 means the relay rejected this device's credential — almost
-          // always because the password was reset on another device. Flag it so
-          // Settings can prompt for the new password instead of a raw error.
-          if (isRelayAuthError(cause)) {
-            notifyActivity({
-              error:
-                "Your password was changed on another device. Re-enter it to reconnect.",
-              needsReauth: true,
-            });
-            return;
-          }
-          // Any other background failure: log it (autoTrigger swallows the
-          // rejection so it no longer surfaces on its own) and surface it in UI.
-          console.error("auto-sync failed:", cause);
-          notifyActivity({
-            error: cause instanceof Error ? cause.message : String(cause),
-          });
-        },
-      });
-
-      // Wrap a freshly created core so every mutating call both kicks the
-      // background sync (the first layer, as before) and reconciles this
-      // device's local notifications (the second — Inc 3 §6). One extra
-      // `withSyncKick` layer, reusing the exact "kick after every mutation"
-      // mechanism sync already relies on, rather than threading a new port
-      // through `@leapsake/core`. `reconcileNotifications` reads
-      // `coreRef.current` rather than closing over the core being built here,
-      // since that ref is set synchronously right after, before anything can
-      // call into the wrapped object.
+      // Wrap a freshly created core so every mutating call reconciles this
+      // device's local notifications (Inc 3 §6). `withSyncKick` is the
+      // "kick after every mutation" wrapper from `@leapsake/sync`, reused here
+      // rather than threading a new port through `@leapsake/core`.
+      // `reconcileNotifications` reads `coreRef.current` rather than closing
+      // over the core being built here, since that ref is set synchronously
+      // right after, before anything can call into the wrapped object.
       const buildCore = (session: KeySession | undefined): CoreApi =>
-        withSyncKick(
-          withSyncKick(createCore(driver, session), () =>
-            scheduler.current?.kick(),
-          ),
-          () => {
-            if (coreRef.current !== null) {
-              void reconcileNotifications(coreRef.current);
-            }
-          },
-        );
+        withSyncKick(createCore(driver, session), () => {
+          if (coreRef.current !== null) {
+            void reconcileNotifications(coreRef.current);
+          }
+        });
 
       const bootedCore = buildCore(keySession.current ?? undefined);
       coreRef.current = bootedCore;
       setCore(bootedCore);
-      scheduler.current.start(); // backstop interval
       // Sequenced: `reconcileNotifications` reads `reminders.list()` fresh, so
       // it must run after the regenerate write lands, not racing it — a boot
       // right after a milestone edit or a day rollover would otherwise plan
@@ -929,23 +650,20 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       void bringInNewContacts(bootedCore)
         .then(() => regenerateSystemReminders(bootedCore))
         .then(() => reconcileNotifications(bootedCore)); // new contacts, birthdays atop Home, then the second reconcile, one layer out
-      void scheduler.current.autoTrigger(); // initial sync (skipped if auto off)
       /**
        * **Turn this device's Unauthenticated store into an account's encrypted one** — the
-       * irreversible half of every path that establishes an account here: creating
-       * one (§7.2.1), and joining or recovering one that already exists (§7.1).
-       * All three run the identical sequence, which is why they share this:
+       * irreversible half of creating an account here (§7.2.1):
        *
        * > **convert (original kept) → password door → roster entry → destroy the
        * > original.**
        *
        * The order is chosen for what a crash *between* two steps leaves behind (the
        * table in `db/convert-store.ts`), and it matches desktop's
-       * `create-account-flow.ts` / `adopt-account-flow.ts` step for step. Two
-       * things about it are load-bearing:
+       * `create-account-flow.ts` step for step. Two things about it are
+       * load-bearing:
        *
        * - **The password door is written here, not by core.** Core seals it from
-       *   inside `createLocalAccount` / `joinAccountViaRelay`, at a moment when the
+       *   inside `createLocalAccount`, at a moment when the
        *   account id is not in scope and the store still lives at the Unauthenticated path
        *   that this function is about to delete — so a writer resolving its own
        *   destination would put the door in the directory the flow then removes.
@@ -963,7 +681,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const adoptStoreForAccount = async (opts: {
         accountId: string;
         username: string;
-        /** This device's at-rest key — minted by creation, or before the relay call. */
+        /** This device's at-rest key, minted by account creation. */
         dbKey: Uint8Array;
         /** `seal(db-key, KEK)`, captured from core rather than written by it. */
         passwordDoor: Uint8Array;
@@ -972,7 +690,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         const roster = createAccountRoster(sqliteRosterStorage());
         const target = storePath(accountId);
         const targetDoors = accountDoors(accountId);
-        scheduler.current?.stop();
         await driver.close?.();
         try {
           // A destination left by an earlier attempt that crashed before its
@@ -1016,31 +733,14 @@ export function CoreProvider({ children }: { children: ReactNode }) {
        * **Account creation, end to end** (`model.md` §7.2.1) — the single act
        * that turns encryption on, and the mobile counterpart of desktop's
        * `createAccountOnThisDevice`. Mints every key into the still-plaintext
-       * store, optionally publishes the account to a relay, then hands the
-       * irreversible half to {@link adoptStoreForAccount}.
-       *
-       * **The relay is optional, and that is the point.** Creating an account
-       * locally and creating one that also binds a relay differ by exactly one
-       * step — so they share this rather than existing as two sequences that
-       * have to be kept in step. Desktop has had both since custody slice 4;
-       * mobile only ever had the relay-bound one, which left a phone-only user
-       * with no way to encrypt at all.
+       * store, then hands the irreversible half to
+       * {@link adoptStoreForAccount}.
        */
       const createAccountHere = async (opts: {
         username: string;
         password: string;
-        /** Recorded on the account when this act also binds a relay (§7.5 Phase 1). */
-        relayUrl?: string;
-        /**
-         * Publish the account to its relay. Called **before** the store is
-         * converted, so a rejected registration (a taken username, an
-         * unreachable relay) rolls the account back and leaves the device
-         * exactly as it was — still Unauthenticated, still plaintext, nothing on disk to
-         * undo.
-         */
-        registerWithRelay?: (bootstrap: AccountBootstrap) => Promise<void>;
       }): Promise<{ accountId: string; recoveryKey: string }> => {
-        const { username, password, relayUrl, registerWithRelay } = opts;
+        const { username, password } = opts;
         if (password.length < MIN_PASSWORD_LENGTH) {
           throw new Error(
             `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
@@ -1048,8 +748,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         }
         // Creating an account is an **Unauthenticated** device's act, as it is on desktop
         // (`create-account-flow.ts`). The converter would refuse the encrypted
-        // source anyway, but only after an account had been registered on a
-        // relay — so say so before anything leaves the device.
+        // source anyway; saying so here names what is actually wrong.
         if (activeStore.custody !== "plaintext") {
           throw new Error(
             "This device already holds an account. Forget it before creating another.",
@@ -1060,30 +759,17 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           recoveryPhrase,
           dbKey: newDbKey,
           passwordSidecar: newPasswordSidecar,
-          bootstrap,
         } = await createLocalAccount({
           keyStore,
           driver,
           password,
           username,
-          relayUrl,
           platform: Platform.OS,
         });
-        if (registerWithRelay !== undefined) {
-          try {
-            await registerWithRelay(bootstrap);
-          } catch (cause) {
-            // Don't leave a half-enabled account behind if the relay rejects
-            // it. Nothing on disk has moved yet, so this restores the exact
-            // prior state.
-            await clearLocalAccount({ driver });
-            throw cause;
-          }
-        }
-        // The irreversible half — the same shared sequence join and recover run.
-        // It re-runs the bootstrap on its way out (the store this one opened no
-        // longer exists), which is also how a failure mid-conversion lands back
-        // on the plaintext original rather than on a closed driver.
+        // The irreversible half. It re-runs the bootstrap on its way out (the
+        // store this one opened no longer exists), which is also how a failure
+        // mid-conversion lands back on the plaintext original rather than on a
+        // closed driver.
         await adoptStoreForAccount({
           accountId,
           username,
@@ -1094,32 +780,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       };
 
       /**
-       * The {@link PasswordDoorWriter} for the **steady state** — a device whose
-       * store already sits at its account's path, re-sealing its door after a
-       * password change (`reauthenticate`). Mirrors desktop's
-       * `writeThisDevicePasswordDoor`.
-       *
-       * Deliberately *not* for the three flows that establish an account: while
-       * those run, the door's destination does not exist yet. They capture the
-       * bytes and hand them to {@link adoptStoreForAccount}.
-       */
-      const writeThisDevicePasswordDoor: PasswordDoorWriter = async (bytes) => {
-        if (doors === undefined) {
-          throw new Error(
-            "This device has no account to seal a password door for.",
-          );
-        }
-        await doors.writePassword(bytes);
-      };
-
-      /**
-       * The {@link RecoveryDoorWriter} counterpart, for the two paths that change
-       * this device's recovery key: rotating the phrase here, and adopting a
-       * rotation performed on another device.
-       *
-       * Neither runs during a store conversion, so unlike the password writer this
-       * one has no "not for the establishing flows" caveat — `doors` already names
-       * the account's own directory whenever either can be reached.
+       * The {@link RecoveryDoorWriter} for rotating this device's recovery
+       * phrase. It never runs during a store conversion, so `doors` already
+       * names the account's own directory whenever it can be reached.
        */
       const writeThisDeviceRecoveryDoor: RecoveryDoorWriter = async (bytes) => {
         if (doors === undefined) {
@@ -1130,383 +793,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         await doors.writeRecovery(bytes);
       };
 
-      // The enable-sync surface closes over the *booted* driver + keystore, so it
+      // The account surface closes over the *booted* driver + keystore, so it
       // never re-opens the DB or re-creates the keystore (custody Phase 1).
       setSync({
         status: () => getSyncStatus({ driver }),
-        async lookup(username, relayUrl) {
-          try {
-            return await lookupAccount({ relayUrl, username });
-          } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-          }
-        },
         createAccount: ({ username, password }) =>
           createAccountHere({ username, password }),
-        enable({ username, password, relayUrl }) {
-          // Enabling sync **is** creating an account that also binds a relay, so
-          // it is the local act plus one step (@leapsake/key-custody). The relay half
-          // is a callback rather than a branch so the failure it owns — a taken
-          // username, an unreachable host — is worded here, where the URL is.
-          return createAccountHere({
-            username,
-            password,
-            relayUrl,
-            registerWithRelay: async (bootstrap) => {
-              try {
-                await registerAccountWithRelay({ relayUrl, bootstrap });
-              } catch (cause) {
-                throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-              }
-            },
-          });
-        },
-        async join({ username, password, relayUrl }) {
-          const wasOpen = activeStore.custody === "plaintext";
-          // This device's own at-rest key, minted *before* the relay call: core
-          // seals the password door from inside `joinAccountViaRelay`, and its
-          // `sealPasswordDoorIfProtected` skips while there is no db-key to seal.
-          // Minting first is what turns that skip into a real door, with no change
-          // at the call site. Safe while Unauthenticated — custody is decided purely by the
-          // roster, and the Unauthenticated boot branch ignores a db-key entirely.
-          if (wasOpen) await ensureDatabaseKey(keyStore);
-          // Capture the door core seals rather than letting it write: while this
-          // runs the store is still the Unauthenticated one, which the conversion below
-          // deletes. See {@link adoptStoreForAccount}.
-          let passwordDoor: Uint8Array | undefined;
-          let session: KeySession;
-          try {
-            session = await joinAccountViaRelay({
-              keyStore,
-              driver,
-              writePasswordSidecar: async (bytes) => {
-                passwordDoor = bytes;
-              },
-              relayUrl,
-              username,
-              password,
-              platform: Platform.OS,
-            });
-          } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-          }
-          // With a db-key in hand `sealPasswordDoorIfProtected` cannot legitimately
-          // skip, so an unsealed door means that contract broke. Fail here, before
-          // anything on disk moves, rather than hand the user a device only its
-          // 24-word phrase can open.
-          if (passwordDoor === undefined) {
-            throw new Error(
-              "Joining did not seal this device's password door; refusing to convert the store.",
-            );
-          }
-          // Adopt the account's master key everywhere: rebuild the core (wrapped
-          // so writes keep kicking) on the adopted session and swap it in place
-          // (desktop does this via its IPC Proxy; here `setCore` re-renders
-          // consumers with the new core).
-          keySession.current = session;
-          const joinedCore = buildCore(session);
-          coreRef.current = joinedCore;
-          setCore(joinedCore);
-          // Reconcile this device's pre-existing local people against the
-          // account: pull first, then count the possible duplicates the join
-          // surfaced so the screen can prompt the user to review them (no
-          // auto-merge). Best-effort — a failure here must not fail the join.
-          let duplicateCount = 0;
-          try {
-            ({ duplicateCount } = await reconcileOnJoin({
-              driver,
-              masterKey: session.masterKey,
-              core: joinedCore,
-            }));
-          } catch {
-            duplicateCount = 0;
-          }
-          if (wasOpen) {
-            // Convert before anything syncs in. The bootstrap this re-runs kicks
-            // its own sync, so nothing is triggered here.
-            const { accountId } = await getSyncStatus({ driver });
-            if (accountId === undefined) {
-              throw new Error(
-                "Joining did not record an account on this store.",
-              );
-            }
-            const dbKey = await keyStore.getSecret(DATABASE_KEY);
-            if (dbKey === undefined) {
-              throw new Error(
-                "This device has no database key to convert with.",
-              );
-            }
-            await adoptStoreForAccount({
-              accountId,
-              username,
-              dbKey,
-              passwordDoor,
-            });
-            return { duplicateCount };
-          }
-          // Already Authenticated: the store is where it belongs, so the freshly sealed
-          // door belongs in its account's own directory.
-          await writeThisDevicePasswordDoor(passwordDoor);
-          void scheduler.current?.autoTrigger(); // push this device's data + pull remainder
-          return { duplicateCount };
-        },
-        /**
-         * **Merge a local-only account into a synced one** — the ordering,
-         * the guards and the crash table all live on
-         * {@link mergeAccountOnThisDevice}; this is the wiring around it.
-         *
-         * Three things are this layer's own, and none of them are tidying:
-         *
-         * 1. **`closed` is mobile's `storeSwapping`.** Desktop's `withStoreSwap`
-         *    re-opens the store after a failed swap only when the handle actually
-         *    died; the same distinction matters here, because a guard that
-         *    refuses before anything moves (already signed in, same account
-         *    twice) leaves a live driver and a running scheduler, and re-running
-         *    the bootstrap over that would throw the user's screen away to report
-         *    a validation error.
-         * 2. **The reconcile runs here, not in the flow**, and on a connection of
-         *    its own. Mobile's "re-open" is a bootstrap effect, which React
-         *    schedules and this cannot await — so the only way to return an
-         *    honest `duplicateCount` is to open the merged store once, reconcile,
-         *    and close it before handing the bootstrap its turn. The pull cursor
-         *    it persists is what stops the following boot re-pulling.
-         * 3. **The session comes back through `adopt`.** The flow hands the copy
-         *    to the join and keeps the session it returns; the reconcile needs
-         *    that master key, and re-deriving it here would mean a second relay
-         *    round trip for something already in hand.
-         */
-        async merge({ username, password, relayUrl }) {
-          let session: KeySession | undefined;
-          let closed = false;
-          let accountId: string;
-          try {
-            ({ accountId } = await mergeAccountOnThisDevice({
-              keyStore,
-              driver,
-              roster: createAccountRoster(sqliteRosterStorage()),
-              username,
-              prelogin: async () => {
-                try {
-                  return await lookupAccountId({ relayUrl, username });
-                } catch (cause) {
-                  throw new Error(relayErrorMessage(cause, relayUrl), {
-                    cause,
-                  });
-                }
-              },
-              // Note the driver: the merge hands over a copy of this device's
-              // store, not the live one, so a refused login damages nothing.
-              adopt: async (copy, writePasswordSidecar) => {
-                try {
-                  session = await joinAccountViaRelay({
-                    keyStore,
-                    driver: copy,
-                    relayUrl,
-                    username,
-                    password,
-                    platform: Platform.OS,
-                    writePasswordSidecar,
-                  });
-                  return session;
-                } catch (cause) {
-                  throw new Error(relayErrorMessage(cause, relayUrl), {
-                    cause,
-                  });
-                }
-              },
-              closeStore: async () => {
-                closed = true;
-                scheduler.current?.stop();
-                await driver.close?.();
-              },
-            }));
-          } catch (cause) {
-            // Only a failure past `closeStore` left the app on a dead handle.
-            // Re-resolving custody from the roster picks the right store either
-            // way: the original if the merge never reached its roster write, the
-            // merged one if it did.
-            if (closed) setResetVersion((v) => v + 1);
-            throw cause;
-          }
-
-          // Past the roster swap. Everything below is best-effort — the merge has
-          // already happened, and a device that lands on the merged store with an
-          // un-run duplicate scan is merely un-prompted, not broken.
-          let duplicateCount = 0;
-          const dbKey = await keyStore.getSecret(DATABASE_KEY);
-          if (session !== undefined && dbKey !== undefined) {
-            try {
-              const merged = await openStoreUnderKey(
-                storePath(accountId),
-                dbKey,
-              );
-              try {
-                ({ duplicateCount } = await reconcileOnJoin({
-                  driver: merged,
-                  masterKey: session.masterKey,
-                  // Transient and unwrapped: nothing here writes, so there is no
-                  // sync to kick, and this core is closed a few lines below.
-                  core: createCore(merged, session),
-                }));
-              } finally {
-                await merged.close?.();
-              }
-            } catch (cause) {
-              console.error("post-merge reconcile failed:", cause);
-              duplicateCount = 0;
-            }
-          }
-          // The store under this provider is gone; the bootstrap re-run lands the
-          // app on the merged one and starts its sync.
-          setResetVersion((v) => v + 1);
-          return { duplicateCount };
-        },
-        /**
-         * **Bind a relay to this device's local-only account.** Unlike every
-         * other flow on this surface it touches no file: the store keeps its
-         * name, its key and its doors, so there is no conversion, no roster
-         * write and no bootstrap re-run. Two columns change.
-         *
-         * The 409 is passed through raw rather than friendlied, because
-         * `relayErrorMessage` would flatten the status into prose and the fork
-         * below could never see it.
-         */
-        async bindRelay({ username, relayUrl }) {
-          try {
-            const bound = await bindRelayToAccount({
-              keyStore,
-              driver,
-              username,
-              relayUrl,
-              registerWithRelay: async (bootstrap) => {
-                try {
-                  await registerAccountWithRelay({ relayUrl, bootstrap });
-                } catch (cause) {
-                  if (isUsernameTakenError(cause)) throw cause;
-                  throw new Error(relayErrorMessage(cause, relayUrl), {
-                    cause,
-                  });
-                }
-              },
-            });
-            // Bound, so this account now syncs — start it without waiting. The
-            // scheduler re-reads `getSyncStatus` on every run, so the binding is
-            // picked up with no restart.
-            void scheduler.current?.autoTrigger();
-            return { status: "bound" as const, ...bound };
-          } catch (cause) {
-            if (isUsernameTakenError(cause)) {
-              return { status: "username-taken" as const, username };
-            }
-            throw cause;
-          }
-        },
-        async recover({ username, recoveryPhrase, newPassword, relayUrl }) {
-          if (newPassword.length < MIN_PASSWORD_LENGTH) {
-            throw new Error(
-              `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-            );
-          }
-          const wasOpen = activeStore.custody === "plaintext";
-          // Same reason as join: mint before the relay call so core's password door
-          // is sealed rather than skipped.
-          if (wasOpen) await ensureDatabaseKey(keyStore);
-          // Captured, not written — same reason as join.
-          let passwordDoor: Uint8Array | undefined;
-          let session: KeySession;
-          try {
-            session = await recoverAccountViaRelay({
-              keyStore,
-              driver,
-              writePasswordSidecar: async (bytes) => {
-                passwordDoor = bytes;
-              },
-              relayUrl,
-              username,
-              recoveryPhrase,
-              newPassword,
-              platform: Platform.OS,
-            });
-          } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl), { cause });
-          }
-          if (passwordDoor === undefined) {
-            throw new Error(
-              "Recovering did not seal this device's password door; refusing to convert the store.",
-            );
-          }
-          // Adopt the recovered master key everywhere, like join.
-          keySession.current = session;
-          const recoveredCore = buildCore(session);
-          coreRef.current = recoveredCore;
-          setCore(recoveredCore);
-          let duplicateCount = 0;
-          try {
-            ({ duplicateCount } = await reconcileOnJoin({
-              driver,
-              masterKey: session.masterKey,
-              core: recoveredCore,
-            }));
-          } catch {
-            duplicateCount = 0;
-          }
-          if (wasOpen) {
-            const { accountId } = await getSyncStatus({ driver });
-            if (accountId === undefined) {
-              throw new Error(
-                "Recovering did not record an account on this store.",
-              );
-            }
-            const dbKey = await keyStore.getSecret(DATABASE_KEY);
-            if (dbKey === undefined) {
-              throw new Error(
-                "This device has no database key to convert with.",
-              );
-            }
-            await adoptStoreForAccount({
-              accountId,
-              username,
-              dbKey,
-              passwordDoor,
-            });
-            return { duplicateCount };
-          }
-          await writeThisDevicePasswordDoor(passwordDoor);
-          void scheduler.current?.autoTrigger();
-          return { duplicateCount };
-        },
-        // Route through the scheduler so the button and background syncs share
-        // single-flight; a guarded skip (not enabled) surfaces as the same error.
-        async syncNow() {
-          // A Degraded device skips for a completely different reason than a store
-          // with no account, and "sync is not enabled" would send the user off to
-          // create an account they already have (custody slice 10).
-          if (degradedMessage !== null) throw new Error(degradedMessage);
-          const result = await scheduler.current?.trigger();
-          if (result === undefined) {
-            throw new Error("Sync is not enabled for this store.");
-          }
-          return result;
-        },
-        // Re-derive this device's relay credential from the re-entered password
-        // (the MK stays in the enclave), then kick a sync so a success reconnects
-        // immediately.
-        async reauthenticate(password) {
-          const { relayUrl } = await getSyncStatus({ driver });
-          try {
-            await reauthenticateViaRelay({
-              keyStore,
-              driver,
-              password,
-              writePasswordSidecar: writeThisDevicePasswordDoor,
-            });
-          } catch (cause) {
-            throw new Error(relayErrorMessage(cause, relayUrl ?? ""), {
-              cause,
-            });
-          }
-          await scheduler.current?.trigger();
-        },
         // **Sign out** (@leapsake/key-custody). Mobile has no relaunch primitive, so the
         // whole act is: forget the two keys that open this store, then re-run the
         // bootstrap. That re-run finds the roster still naming the account
@@ -1532,7 +824,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           setCore(null);
           setSync(null);
-          scheduler.current?.stop();
           await driver.close?.();
           await lockThisDevice({ keyStore });
           keySession.current = null;
@@ -1540,14 +831,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           setResetVersion((v) => v + 1);
         },
         async forgetInfo() {
-          const { hasAccount, username, relayUrl } = await getSyncStatus({
-            driver,
-          });
+          const { hasAccount, username } = await getSyncStatus({ driver });
           if (hasAccount !== true) {
             throw new Error("There is no account on this device.");
           }
-          const { durableBackup } = await fetchRelayCapabilities({ relayUrl });
-          return { username, relayUrl, durableBackup };
+          const { durableBackup } = await fetchRelayCapabilities({});
+          return { username, durableBackup };
         },
         // **Forget account** (@leapsake/key-custody). The roster is the authority for
         // *which* store — it names it, and it is what the next bootstrap reads —
@@ -1563,7 +852,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           setCore(null);
           setSync(null);
-          scheduler.current?.stop();
           await driver.close?.();
           await forgetAccountOnThisDevice({
             keyStore,
@@ -1581,11 +869,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
         async factoryReset() {
           // Show the loading state first so the wiped core is never rendered,
-          // then tear everything down: stop background sync, close the DB handle,
-          // delete this store, its doors and the account roster, and clear every
-          // keystore secret. Bumping resetVersion re-runs the bootstrap effect,
-          // which now finds no roster, no key and no store, and so takes the
-          // *Unauthenticated* path — a plaintext store and no keys at all (@leapsake/key-custody).
+          // then tear everything down: close the DB handle, delete this store,
+          // its doors and the account roster, and clear every keystore secret.
+          // Bumping resetVersion re-runs the bootstrap effect, which now finds no
+          // roster, no key and no store, and so takes the *Unauthenticated* path
+          // — a plaintext store and no keys at all (@leapsake/key-custody).
           //
           // Clearing the roster is what makes that true. Left behind, it would
           // send the next boot looking for the store of an account the user had
@@ -1593,7 +881,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // landing them back in an Authenticated state.
           setCore(null);
           setSync(null);
-          scheduler.current?.stop();
           await driver.close?.();
           await SQLite.deleteDatabaseAsync(activeStore.path);
           await doors?.destroy();
@@ -1605,11 +892,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           coreRef.current = null;
           setResetVersion((v) => v + 1);
         },
-        // Replaces this device's phrase rather than revealing it (custody slice
-        // 8, mirroring desktop): a phrase is shown once at account creation, and
-        // rotation is the only later route to one. Gated on the password, checked
-        // locally by core — so it works on a local-only account and offline, with
-        // `escrowPending` telling the caller the relay has not been told yet.
+        // Replaces this device's phrase rather than revealing it (mirroring
+        // desktop): a phrase is shown once at account creation, and rotation is
+        // the only later route to one. Gated on the password, checked locally by
+        // core, so it works offline.
         rotateRecoveryPhrase: (password) =>
           rotateRecoveryPhraseForAccount({
             keyStore,
@@ -1617,42 +903,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             password,
             writeRecoveryDoor: writeThisDeviceRecoveryDoor,
           }),
-        getAutoSync: () => getAutoSync({ driver }),
-        async setAutoSync(enabled) {
-          await setAutoSync({ driver, enabled });
-          scheduler.current?.setAutoEnabled(enabled);
-        },
-        onActivity(listener) {
-          activityListeners.current.add(listener);
-          return () => activityListeners.current.delete(listener);
-        },
       });
-
-      // Once per launch, take on a phrase rotated on another device — and, on a
-      // device that lost its recovery key at sign-out, get one back (custody slice
-      // 8, `model.md` §6). Fire-and-forget and silent on failure: it is
-      // convergence, not something the user asked for, so an unreachable relay or
-      // a local-only account simply means there is nothing to converge on yet.
-      //
-      // Last in the bootstrap because it needs `writeThisDeviceRecoveryDoor`,
-      // which is declared with the rest of the sync surface above.
-      const session = keySession.current;
-      if (session !== null && doors !== undefined) {
-        void convergeRecoveryKey({
-          keyStore,
-          driver,
-          masterKey: session.masterKey,
-          writeRecoveryDoor: writeThisDeviceRecoveryDoor,
-        }).catch((cause: unknown) => {
-          console.error("recovery-key catch-up failed:", cause);
-        });
-      }
     })().catch((e) => setError(String(e)));
 
     return () => {
       appStateSub.remove();
       contactsSub.remove();
-      scheduler.current?.stop();
     };
   }, [resetVersion]);
 
@@ -1687,18 +943,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       <SyncContext.Provider value={sync}>
         <DataVersionContext.Provider value={dataVersion}>
           <DeviceIdContext.Provider value={deviceIdState}>
-            <CustodyDegradedContext.Provider value={degraded}>
-              {degraded === null ? (
-                children
-              ) : (
-                <DegradedFrame
-                  degraded={degraded}
-                  onSignOut={() => sync.signOut()}
-                >
-                  {children}
-                </DegradedFrame>
-              )}
-            </CustodyDegradedContext.Provider>
+            {degraded === null ? (
+              children
+            ) : (
+              <DegradedFrame
+                degraded={degraded}
+                onSignOut={() => sync.signOut()}
+              >
+                {children}
+              </DegradedFrame>
+            )}
           </DeviceIdContext.Provider>
         </DataVersionContext.Provider>
       </SyncContext.Provider>
@@ -1744,7 +998,6 @@ function DegradedFrame({
     <View style={styles.frame}>
       <CustodyBanner
         detail={degraded.detail}
-        relayBound={degraded.relayBound}
         onSignOut={onSignOut}
         insets={insets}
       />
@@ -1756,17 +1009,15 @@ function DegradedFrame({
 }
 
 /**
- * The **Degraded** state's standing notice (custody slice 10, encryption
- * `model.md` §7.5), the mobile counterpart of desktop's `CustodyBanner`: this
- * device's store opened and every screen works, but the device cannot prove which
- * master key belongs to the account, so it syncs nothing until that is repaired.
+ * The **Degraded** state's standing notice (encryption `model.md` §7.5), the
+ * mobile counterpart of desktop's `CustodyBanner`: this device's store opened and
+ * every screen works, but the device cannot prove which master key belongs to the
+ * account until that is repaired.
  *
  * A banner rather than a gate, deliberately. The cause is invisible to the person it
  * happens to — a restored phone, a reinstall, a changed signing identity — and their
- * data is on the device and readable, so refusing to open the app (which is what
- * slice 9 did) punishes them for something they cannot see or act on. What they do
- * need to know is that sync has stopped, because a silent one-device island is what
- * actually costs them work.
+ * data is on the device and readable, so refusing to open the app punishes them for
+ * something they cannot see or act on.
  *
  * **The way out is the unlock gate.** Signing out re-runs the bootstrap into that
  * gate, where the *other* door is one tap away — a phrase door is untouched by a
@@ -1774,20 +1025,10 @@ function DegradedFrame({
  */
 function CustodyBanner({
   detail,
-  relayBound,
   onSignOut,
   insets,
 }: {
   detail: string;
-  /**
-   * Whether this account has a relay. It decides what this banner may honestly say
-   * has stopped: an account with a relay *had* sync and no longer has it, while an
-   * account with none never did — telling that person "sync is paused" invents both
-   * a feature they do not use and a loss they have not suffered. The repair matters
-   * to them either way, because the moment they add a relay or a second device this
-   * device would be the odd one out.
-   */
-  relayBound: boolean;
   onSignOut: () => Promise<void>;
   /** The safe area this banner is responsible for — see {@link DegradedFrame}. */
   insets: { top: number; left: number; right: number };
@@ -1817,15 +1058,11 @@ function CustodyBanner({
       ]}
     >
       <Text style={styles.bannerTitle}>
-        {relayBound
-          ? "⚠ Sync is paused on this device."
-          : "⚠ This device needs to be re-linked to your account."}
+        ⚠ This device needs to be re-linked to your account.
       </Text>
       <Text style={styles.bannerBody}>
-        Your data is safe and still here.{" "}
-        {relayBound
-          ? "This device needs to be re-linked to your account before it can sync again."
-          : "Nothing is lost — but until you re-link it, this device can't sync or be joined by another device."}
+        Your data is safe and still here. Nothing is lost — but until you
+        re-link it, this device can't confirm that it holds your account's key.
       </Text>
       <Pressable onPress={() => setExpanded(!expanded)}>
         <Text style={styles.bannerLink}>
