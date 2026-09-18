@@ -1,9 +1,8 @@
 # Desktop packaging, signing, and auto-update
 
-> **Deferred past v0.1** *(owner, 2026-08-26)* — the desktop app ships in a later release, so
-> this is no longer a numbered gating doc and no longer holds a place in the v0.1 order. It
-> keeps its detail rather than being folded into [`v0-2.md`](./v0-2.md) because the sequencing
-> below (A before B before C) is the whole value, and it is still correct.
+> **Deferred past v0.1**: the desktop app ships after the iOS record has moved to the company
+> ([`shipping.md`](./shipping.md) → Part 2). This keeps its detail rather than being folded into
+> [`v0-2.md`](./v0-2.md) because the sequencing below (A before B before C) is the whole value.
 >
 > **Delete this doc when the work lands.** The packaging configuration documents itself; the
 > native-module constraint below is already recorded beside the code it constrains
@@ -23,8 +22,8 @@ on its own, not inside a signing change.
 **Prerequisite:** [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases* for the
 version and the versioning scheme; the desktop bundle ID (`com.leapsake.desktop`) is set here.
 
-**Two settled choices this whole doc rests on** *(owner, 2026-07-21)*, recorded here because
-they are what A/B/C are shaped around:
+**Two settled choices this whole doc rests on**, recorded here because they are what A/B/C are
+shaped around:
 
 - **Direct download, notarized — not the Mac App Store.** No review latency on a desktop
   release, auto-update stays ours (C), and the MAS sandbox's costs are avoided. It is the reason
@@ -34,9 +33,8 @@ they are what A/B/C are shaped around:
   Mac App Store — contradicting the choice above — and would cost `electron-updater`. Permanent
   after first publish, like mobile's.
 
-⚠️ **Sequencing: B waits for the company, and that is deliberate** *(owner, 2026-09-06)*. The
-Developer ID cert could be issued today — Apple enrollment cleared 2026-08-19 — but it would be
-the **personal** one, and [`@leapsake/key-custody`](../packages/key-custody/README.md) →
+⚠️ **Sequencing: B waits for the company, and that is deliberate.** The Developer ID cert could
+be issued today, but it would be the **personal** one, and [`@leapsake/key-custody`](../packages/key-custody/README.md) →
 *The signing identity owns the enclave key* says what that costs: `safeStorage`'s keychain item
 has an ACL bound to the app's code signature, so re-signing under the company's Developer ID
 later makes every existing enclave key unreadable and drops every authenticated user at the
@@ -89,17 +87,14 @@ the signed artifact; `safeStorage` round-trips under the real signature.
 user permanently.**
 
 - `electron-updater` against GitHub Releases as the feed.
-- **Simpler once the repo is public** ([`shipping.md`](./shipping.md) → Part 1, step 2) — no
-  token distribution. **The open call is this doc's**, having left the v0.1 order with the rest of
-  desktop: sequence C after the repo goes public, or accept a token in the interim.
+- The repo goes public before iOS GA ([`shipping.md`](./shipping.md) → Part 1, step 2), and
+  desktop ships after it, so C never needs token distribution.
 
 **Acceptance:** an installed older build detects, downloads, and applies a newer release.
 
 ## D — The desktop E2E harness
 
-*Moved here from `v0-1_06_e2e-and-release-gate.md` § A when that doc was dissolved
-(2026-09-06). It was written as v0.1 work, left v0.1 with desktop on 2026-08-26, and is
-**gated on A** — the harness needs a packaged `.app` to launch. The gate policy it satisfies is
+*Gated on A: the harness needs a packaged `.app` to launch. The gate policy it satisfies is
 permanent and lives in [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.*
 
 **Value:** macOS earns its row in the gate's platform table the way iOS and Android already
@@ -115,9 +110,10 @@ have — automated proof a real user can complete the crucial journeys on the bu
   deleting `keystore.json`** from the test profile — no `dev-clear-dbkey` route is needed on
   desktop, and therefore no test-only surface in production main. *(This is the one place
   desktop is cheaper than mobile, and it is worth not giving away.)*
-- Add the macOS leg to the `e2e` tier in `scripts/test-all.mjs`. ⚠️ The tier itself is already
-  `ready` and green on iOS + Android — this extends it rather than unblocking it, which is a
-  smaller and different job than this section originally described.
+- Add the macOS leg to the `e2e` tier in `scripts/test-all.mjs`, which is already `ready` and
+  green on iOS + Android; this extends it rather than unblocking it. Once the tag-triggered
+  pipeline exists, the leg is a `mac` cell gated by its per-cell readiness
+  ([`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md)).
 
 **Hazards to design around**, both learned the expensive way on other tiers:
 
