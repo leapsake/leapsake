@@ -806,7 +806,7 @@ Together those two decide the shape of any flow that needs a secret the app show
 has to be the same flow that watched the secret appear. That is why Flow 7c inherits `04`'s
 password (a constant this repo already knows) while Flow 7b creates its own account rather than
 reusing the one `04` made — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ the ⚠️ under the per-flow matrix.
+→ *The phrase-capture rule*.
 
 ### Capturing a secret the app shows once: `repeat` + `copyTextFrom` + `output`
 
