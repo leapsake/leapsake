@@ -41,7 +41,7 @@ This folder holds *design*, never a backlog:
 
 | Work | Where |
 |---|---|
-| Building the SSR / PWA client — what the spike proved, and what an `apps/web` inherits *(the spike itself is done, 2026-08-15)* | [`../web-client.md`](../web-client.md) |
+| Building the SSR / PWA client — what an `apps/web` inherits from the spike | [`../v0-2.md`](../v0-2.md) → *Post-launch* item 1 |
 | Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, the `createCore` cleanup, the relay-backup capability, the open security findings | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
 | Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) — explicitly v0.2 *(owner, 2026-07-27)* |
 | Stages 3–4 (sharing, the web app), the hosted-relay gate, passkeys, device management | [`../v0-2.md`](../v0-2.md) → *Post-launch* |

@@ -44,6 +44,13 @@ Root directory is the **repository root**, not this folder: the site depends on
 `@leapsake/ui` through `workspace:*`, and an install scoped to `apps/website` cannot
 resolve it.
 
+**Two zone features must stay off, and nothing but this sentence records it:** _Email Address
+Obfuscation_ (on by default for a new zone; it rewrites the privacy policy's contact address and
+injects a decoder script, so a reader without JavaScript sees no address) and _Web Analytics /
+RUM_ (injects a `static.cloudflareinsights.com` beacon that browsers report as a tracker). Both
+are edge rewrites the build tests cannot see; the byte-for-byte live check that would catch the
+next one is `plans/v0-2.md` → _The website's edge is untested_.
+
 **Every push to `main` builds — deliberately no path filter.** Scoping the build to
 `apps/website/**` looks obviously right and is wrong here: a `slug` publishes a
 markdown file from *anywhere* in the repository, so a doc added beside the feature it
@@ -181,6 +188,7 @@ annoying later:
 - **The session cookie must be set on `Domain=.leapsake.com`**, not on
   `app.leapsake.com` alone, or an edge function at the apex can never see it. Note
   that a domain-wide cookie slightly weakens the origin isolation
-  `plans/web-client.md` liked about serving the app from a separate origin.
+  the web spike liked about serving the app from a separate origin (`plans/v0-2.md` →
+  _Post-launch_ item 1).
 - **`/` stops being trivially edge-cacheable** — it has to `Vary` on cookie. Check
   cookie _presence_ only at the edge; validity is the app's job after the redirect.
