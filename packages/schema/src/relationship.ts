@@ -2,37 +2,17 @@ import { z } from "zod";
 import type { Gender } from "./gender.js";
 import type { Standing } from "./standing.js";
 
-/**
- * The kinds of entity a relationship can connect. Both values are defined up
- * front so the schema is stable as new entities arrive; only `person` is
- * reachable until Pets ship (reboot follow-up). Every relationship endpoint is a
- * `(type, id)` pair — the same polymorphic shape as `taggings` — so a new entity
- * type joins the graph without a schema change.
- */
+/** The kinds of entity a relationship can connect. */
 export const entityTypeSchema = z.enum(["person", "pet"]);
 
 export type EntityType = z.infer<typeof entityTypeSchema>;
 
 /**
- * The closed set of relationship roles. There are two flavours:
- *
- * - **Neutral base roles** (`parent`, `child`, `sibling`, …): the canonical,
- *   gender-free roles. A subject's *own* end of a relationship is always stored
- *   as one of these, so the data stays uniform and queryable.
- * - **Gendered variants** (`father`, `mother`, `son`, …): a base role specialised
- *   to a gender. Stored only on the end the user explicitly picked; the variant
- *   *implies* its holder's gender (`father` ⇒ male), which is how a gender can be
- *   derived without ever being written explicitly.
- *
- * `pibling` (parent's sibling) and `nibling` (sibling's child) are neutral bases
- * whose only natural English labels are gendered (uncle/aunt, nephew/niece), so
- * their picker labels read "Uncle/Aunt" and "Niece/Nephew".
- *
- * `other` is the escape hatch and carries an optional free-text note so it isn't
- * a black hole. Insertion order below is the UI listing order.
+ * Relationship roles in UI listing order: neutral bases, then gendered variants
+ * that imply their holder's gender. A subject's own end is always neutral.
  */
 export const relationshipRoleSchema = z.enum([
-  // Neutral base roles (existing).
+  // Neutral base roles.
   "parent",
   "child",
   "sibling",
@@ -48,7 +28,6 @@ export const relationshipRoleSchema = z.enum([
   "owner",
   "pet",
   "other",
-  // Neutral base roles (new kinship bases).
   "pibling",
   "nibling",
   "parent-in-law",
@@ -81,39 +60,24 @@ export const relationshipRoleSchema = z.enum([
 
 export type RelationshipRole = z.infer<typeof relationshipRoleSchema>;
 
-/** Static metadata for a role: how it displays, its place in the gender system, and who may hold it. */
+/** How a role displays, its neutral base and gender, and who may hold it. */
 export interface RoleDef {
   /** Display label, e.g. "Parent" or "Father". */
   label: string;
-  /**
-   * The neutral canonical role this is a (possibly gendered) form of. A neutral
-   * role's `base` is itself; `father`/`mother` both base to `parent`.
-   */
+  /** The neutral role this is a form of; a neutral role's base is itself. */
   base: RelationshipRole;
-  /**
-   * The gender this role implies for its holder, for gendered variants only.
-   * Undefined on neutral roles (they imply nothing about gender).
-   */
+  /** The gender a gendered variant implies for its holder. */
   gender?: Gender;
   /**
-   * The role on the *other* end, defined **only on neutral base roles** and
-   * always neutral (`parent` ↔ `child`, never mother/son). Symmetric roles are
-   * their own inverse. Gendered variants resolve their inverse through their
-   * base — see {@link inverseRole}.
+   * The neutral role on the other end, set only on neutral roles; a gendered
+   * variant resolves it through its base ({@link inverseRole}).
    */
   inverse?: RelationshipRole;
-  /**
-   * Which entity types may *hold* this role. `"any"` for everything except the
-   * pet-ownership pair, where `owner` must be a person and `pet` must be a pet.
-   */
+  /** The entity types that may hold this role. */
   holderTypes: EntityType[] | "any";
 }
 
-/**
- * The gendered-variant table: each neutral base that has gendered forms maps to
- * its `{ male, female }` specialisations. The single source of truth behind
- * {@link genderedVariant}; `roleDefs` below is kept consistent with it.
- */
+/** Each neutral base's male and female forms. */
 const genderedVariants: Partial<
   Record<RelationshipRole, { male: RelationshipRole; female: RelationshipRole }>
 > = {
@@ -130,13 +94,7 @@ const genderedVariants: Partial<
   "sibling-in-law": { male: "brother-in-law", female: "sister-in-law" },
 };
 
-/**
- * The role registry. Neutral roles carry an `inverse`; gendered variants carry
- * the `gender` they imply and a `base` pointing at their neutral form. The
- * `holderTypes` constraint pins the owner/pet pair (enforced by the schema
- * refinements below); kinship roles are `"any"`. Insertion order is the UI
- * listing order.
- */
+/** Every role's definition, in UI listing order. */
 export const roleDefs: Record<RelationshipRole, RoleDef> = {
   // Neutral base roles.
   parent: {
@@ -381,15 +339,8 @@ export const roleDefs: Record<RelationshipRole, RoleDef> = {
 };
 
 /**
- * The one-hop composition table, keyed by *neutral* base roles. `composeRoles`
- * reads it as `table[M rel. S][O rel. M] = O rel. S`: given the role the
- * intermediate M holds relative to the subject S, and the role the far node O
- * holds relative to M, it yields O's derived neutral role relative to S.
- *
- * Deliberately small in v1 — only the rows below derive; everything else is
- * `undefined`. Excluded for now (future, by design): `(parent,child)→sibling`,
- * `(parent,spouse)→parent`, `(sibling,parent)→parent`, cousins, in-laws of
- * in-laws.
+ * `table[M rel. S][O rel. M]` is O's neutral role relative to S, where M is an
+ * intermediate. Pairs not listed do not compose.
  */
 const compositionTable: Partial<
   Record<RelationshipRole, Partial<Record<RelationshipRole, RelationshipRole>>>
@@ -418,10 +369,8 @@ export function impliedGender(role: RelationshipRole): Gender | undefined {
 }
 
 /**
- * The gendered form of a neutral base for a holder of `gender`, or the base
- * unchanged when there is no variant — `nonbinary` (no gendered form), or bases
- * with no variants at all (`friend`, `owner`, …). Accepts a `null` gender for
- * convenience (treated as "no variant").
+ * A neutral base's form for a holder of `gender`, or the base itself when there
+ * is none (a `nonbinary` or null gender, or a base like `friend`).
  */
 export function genderedVariant(
   base: RelationshipRole,
@@ -433,40 +382,29 @@ export function genderedVariant(
   return base;
 }
 
-/**
- * The gender-neutral inverse of a role (its own inverse when symmetric). For a
- * gendered variant the inverse is resolved through its base, so it is always
- * neutral: `inverseRole("father")` is `"child"`, not "son".
- */
+/** A role's neutral inverse: `inverseRole("father")` is `"child"`. */
 export function inverseRole(role: RelationshipRole): RelationshipRole {
   const def = roleDefs[role];
-  // Neutral roles carry their inverse directly; gendered variants defer to base.
   return def.inverse ?? roleDefs[def.base].inverse ?? def.base;
 }
 
 /**
- * Display label for a role as held by someone of `holderGender`. An explicit
- * gendered role always shows its own label. A neutral role shows the gendered
- * label when the holder's gender selects a variant (e.g. `child` + male ⇒
- * "Son"), and the plain neutral label otherwise (no gender, or `nonbinary`).
+ * A role's label for a holder of `holderGender`: a neutral role takes their
+ * gendered form ("Son" for a male `child`); a gendered role keeps its own.
  */
 export function labelForRole(
   role: RelationshipRole,
   holderGender?: Gender | null,
 ): string {
   const def = roleDefs[role];
-  // Already a gendered variant (or a neutral with no variants): show as-is.
   if (def.base !== role) return def.label;
   const variant = genderedVariant(role, holderGender);
   return roleDefs[variant].label;
 }
 
 /**
- * Compose one hop: given the role the intermediate M holds relative to the
- * subject S (`mRelSubject`) and the role the far node O holds relative to M
- * (`oRelM`), return O's derived **neutral** role relative to S, or undefined
- * when the pair doesn't compose. Operates on the neutral base of each input, so
- * gendered variants compose just like their bases.
+ * O's neutral role relative to subject S, through intermediate M, or undefined
+ * when the pair does not compose. Gendered roles compose as their bases.
  */
 export function composeRoles(
   mRelSubject: RelationshipRole,
@@ -475,7 +413,7 @@ export function composeRoles(
   return compositionTable[baseRole(mRelSubject)]?.[baseRole(oRelM)];
 }
 
-/** Whether `type` is allowed to hold `role` (owner=person, pet=pet, else any). */
+/** Whether `type` may hold `role` (owner=person, pet=pet, else any). */
 export function holderAllows(
   role: RelationshipRole,
   type: EntityType,
@@ -484,7 +422,7 @@ export function holderAllows(
   return def.holderTypes === "any" || def.holderTypes.includes(type);
 }
 
-/** Roles a given entity type may hold, in registry order — drives the role picker. */
+/** The roles an entity type may hold, in listing order. */
 export function rolesForHolder(
   type: EntityType,
 ): { role: RelationshipRole; label: string }[] {
@@ -494,12 +432,8 @@ export function rolesForHolder(
 }
 
 /**
- * Roles the *other* end may hold given the *subject*'s type, restricted so the
- * auto-derived inverse (the subject's own role) is also valid for the subject.
- * Drives the single-role pickers where the subject's role is implied rather than
- * entered: on a Pet, a person candidate may be "Owner" (inverse "pet" is a valid
- * pet role) but not "Pet"; on a Person, another person can't be an "Owner" since
- * the implied "pet" role can't be held by a person.
+ * Roles the other end may hold whose derived inverse the subject may also hold:
+ * a person can be a pet's "Owner", but not another person's.
  */
 export function rolesForPair(
   otherType: EntityType,
@@ -525,22 +459,8 @@ function subjectAllows(
 }
 
 /**
- * Every role the other end could hold for **this subject**, whoever that other
- * turns out to be — {@link rolesForPair} with the half that depends on the other
- * end left out.
- *
- * This is what a role picker offers when nobody has been picked yet, and asking
- * the question in this order is what lets it: only two roles in the registry
- * constrain the other end at all (`owner` must be a person, `pet` must be a pet),
- * and they are inverses, so exactly one of them survives for a given subject —
- * 41 roles on a person's page, 41 on a pet's, differing in that one. Every
- * kinship role is `holderTypes: "any"`, so a role is almost never a claim about
- * what the other end *is*.
- *
- * Picking one then narrows the other end instead of the other way round; see
- * {@link holderTypesFor}. The old arrangement had to know the other end first
- * and re-derived the role list from it, which meant re-picking a name silently
- * discarded a role that was still perfectly legal.
+ * Every role the other end could hold for this subject, before the other end is
+ * chosen. A chosen role then narrows the other end ({@link holderTypesFor}).
  */
 export function rolesForSubject(
   subjectType: EntityType,
@@ -550,25 +470,15 @@ export function rolesForSubject(
     .map((role) => ({ role, label: roleDefs[role].label }));
 }
 
-/**
- * Which entity types may hold `role` — the constraint a chosen role puts on the
- * other end of the relationship. `"any"` in the registry means both, spelled out
- * here so callers can filter a candidate list without a special case.
- */
+/** The entity types that may hold `role`, with `"any"` spelled out. */
 export function holderTypesFor(role: RelationshipRole): readonly EntityType[] {
   const { holderTypes } = roleDefs[role];
   return holderTypes === "any" ? entityTypeSchema.options : holderTypes;
 }
 
 /**
- * A Relationship — one directed edge stored as a single row holding *both*
- * endpoints and *both* roles, e.g. {a: Violet/parent, b: Harry/child}. One row per
- * relationship keeps it a single fact to create, soft-delete, and (V3) sync,
- * unlike a mirrored two-row model. There is intentionally no unique constraint
- * on the pair: the same two entities may relate in more than one way.
- *
- * Same sync-safe conventions as Person (see AGENTS.md): client UUID id,
- * epoch-ms UTC timestamps, nullable `deletedAt`.
+ * One row holding both ends and both roles. The same two entities may relate
+ * in more than one way.
  */
 export const relationshipSchema = z
   .object({
@@ -638,10 +548,8 @@ export type CreateRelationshipInput = z.infer<
 >;
 
 /**
- * Editable fields when updating a relationship: the roles and notes only — the
- * endpoints are immutable once created (delete and recreate to re-point). The
- * repository merges this onto the stored row and re-validates the whole row, so
- * the note/holder rules are still enforced after a partial update.
+ * A partial update to roles and notes; the ends cannot change. The repo
+ * re-validates the merged row, so the whole-row rules still hold.
  */
 export const updateRelationshipInputSchema = z.object({
   aRole: relationshipRoleSchema.optional(),
@@ -655,14 +563,8 @@ export type UpdateRelationshipInput = z.infer<
 >;
 
 /**
- * One relationship as seen from a subject entity: the *other* end resolved for
- * display, with that end's role. The kinship service builds these so the
- * renderer never deals with the stored a/b orientation.
- *
- * `origin` distinguishes a stored ("explicit") edge from one computed live by
- * the inference engine ("derived"). Derived edges have no stored row, so
- * `relationshipId` is empty for them; `derivedVia` names the intermediate entity
- * the edge was inferred through (e.g. William-as-uncle "via Peter").
+ * A relationship seen from one entity, the other end resolved. A `derived` edge
+ * has no stored row, so its `relationshipId` is empty.
  */
 export interface RelationshipNeighbor {
   relationshipId: string;
@@ -670,11 +572,8 @@ export interface RelationshipNeighbor {
   otherId: string;
   otherLabel: string;
   /**
-   * Where the other end stands in the user's catalog. Only ever `unpublished` on
-   * an **explicit** edge — an unpublished entity takes no part in inference — and
-   * when it is, this edge is the only reason that entity exists. The row that
-   * renders it needs to know, because removing such an edge takes the entity with
-   * it rather than merely unlinking two people who both carry on existing.
+   * `unpublished` when this edge is the only reason the other end exists, so
+   * removing the edge removes that entity too.
    */
   otherStanding: Standing;
   otherRole: RelationshipRole;
@@ -685,11 +584,8 @@ export interface RelationshipNeighbor {
 }
 
 /**
- * Among an entity's oriented neighbors, the **explicit** edges whose role bases
- * to `spouse` — the seed for inferring a wedding's other party from a Person.
- * Derived edges are excluded: only a stored marriage edge can hold a wedding
- * milestone, so inference must bind to one that exists. When exactly one is
- * returned the add-from-Person flow can auto-bind without prompting.
+ * The explicit spouse edges among `neighbors`: the stored relationships a
+ * wedding added from a person could bind to.
  */
 export function spouseNeighbors(
   neighbors: RelationshipNeighbor[],
@@ -699,33 +595,15 @@ export function spouseNeighbors(
   );
 }
 
-/**
- * Whether a role makes its relationship a **romantic partnership** — married or
- * not, so `spouse` and `partner` both, and every gendered variant of them via
- * {@link baseRole} (`husband`, `wife`).
- *
- * It exists for one job: deciding whether a milestone is about a relationship
- * *the user is in*, which is what gates the `first-date` prompt (see
- * `MilestoneKindDef.prompt`). Kept beside {@link spouseNeighbors} because the
- * two are the same shape of question one notch apart — that one asks who could
- * hold a **wedding**, which is marriage specifically, and this one asks who
- * could hold a **first date**, which is not.
- */
+/** Whether a role is a romantic partnership, married or not, in any gender. */
 export function isRomanticRole(role: RelationshipRole): boolean {
   const base = baseRole(role);
   return base === "spouse" || base === "partner";
 }
 
 /**
- * What a relationship is called when it has to name itself — "Harry & Tilly" —
- * for a reminder borne by the relationship rather than by either person.
- *
- * ⚠️ **Not for a relationship the user is in.** "You & Violet" is the wrong
- * subject for "Wish … a happy anniversary": you do not wish yourself one. A
- * relationship with the self-person at one end resolves to the *other* end
- * instead (`@leapsake/core`, the engine's `resolveLabel` port), and the
- * self-directed half of the copy is handled where every other one is, in the
- * reminders engine's `selfOverrideOf`.
+ * A relationship's name for its own reminders: "Harry & Tilly". Not for one the
+ * user is in; that names the other person alone.
  */
 export function relationshipPairLabel(a: string, b: string): string {
   return `${a} & ${b}`;
