@@ -34,6 +34,16 @@ rules) live in **Zod, not the DB** (`schema`), so the same portable SQL runs on 
 "One active row per key" uniqueness is a **partial unique index scoped to `deleted_at IS
 NULL`**, so soft-deleted history coexists with live data.
 
+**Version numbers are never reused, and gaps are harmless.** 26 and 34 are absent: they created
+gift tables that were rewritten in place under the pre-v0.1 latitude when the gift model shrank
+to two tables. Leaving the numbers unused makes a stale profile fail loudly on a missing table
+rather than quietly on a renumbered one; the runner filters and sorts by version. From v0.1 on,
+existing migrations are never edited or reordered.
+
+**Some tables are device-local and never replicate:** `content_key`, `key_wrap`, `sync_state`,
+`account` and `device`. None is a syncable repo, and none is in the sync engine's allowlist. The
+key tables are empty until an account exists, so code reading them treats "no rows" as normal.
+
 The table conventions every migration follows — a `TEXT` `id` primary key, `INTEGER` epoch-ms
 `created_at`/`updated_at`/`deleted_at`, `snake_case`, no `CHECK` constraints — are asserted
 against the schema the migrations actually produce, in

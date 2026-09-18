@@ -6,20 +6,8 @@ export interface Migration {
   up(driver: SqliteDriver): Promise<void>;
 }
 
-/**
- * The ordered migration list. Append new migrations with the next integer
- * version; never edit or reorder existing ones. Portable SQL only, so the same
- * migrations run on node:sqlite (desktop) and expo-sqlite (mobile).
- *
- * **Versions 26 and 34 are absent, deliberately.** They created
- * `gift_suggestions`/`gifts` and `gift_idea_occasions`; the gift model collapsed
- * to two tables when occasions and dates left v0.1 scope, and under the pre-v0.1
- * latitude in AGENTS.md they were rewritten in place rather than migrated away
- * from — the version numbers were not reused, so a stale profile fails loudly on
- * a missing table rather than quietly on a renumbered one. The runner filters and
- * sorts by version, so gaps cost nothing. **Delete the dev profile and relaunch**
- * if yours predates this. The rule above resumes at v0.1.
- */
+/** The ordered, append-only migration list, in portable SQL. Versions 26 and 34
+ *  are absent on purpose: never reuse a number (README, "Migrations"). */
 export const migrations: Migration[] = [
   {
     version: 1,
@@ -45,11 +33,8 @@ export const migrations: Migration[] = [
   {
     version: 3,
     async up(driver) {
-      // Tags and a polymorphic join. `taggings.entity_type`/`entity_id` point at
-      // any entity (just 'person' today), so new entity types tag in without a
-      // schema change. Partial unique indexes scoped to `deleted_at IS NULL`
-      // enforce "one active row per key" while letting soft-deleted history
-      // coexist (see AGENTS.md — soft-delete + sync).
+      // Tags and a polymorphic join, so any entity type can be tagged. Partial
+      // unique indexes keep one active row per key beside soft-deleted history.
       await driver.exec(`
         CREATE TABLE tags (
           id         TEXT    PRIMARY KEY,
@@ -83,12 +68,8 @@ export const migrations: Migration[] = [
   {
     version: 4,
     async up(driver) {
-      // A relationship is one directed edge stored as a single row holding both
-      // endpoints and both roles (schema/relationship.ts). Endpoints are
-      // polymorphic `(type, id)` pairs like taggings, so Pets join later without
-      // touching this table. Two partial indexes (one per side) cover the
-      // "relationships touching entity X" reads. There is deliberately NO unique
-      // index on the pair: the same two entities may relate in more than one way.
+      // One row per directed edge, with polymorphic endpoints. No unique index
+      // on the pair: two entities may relate in more than one way.
       await driver.exec(`
         CREATE TABLE relationships (
           id          TEXT    PRIMARY KEY,
@@ -114,9 +95,8 @@ export const migrations: Migration[] = [
   {
     version: 5,
     async up(driver) {
-      // Pet entity. A minimal row (just a name today) that plugs into the
-      // existing polymorphic taggings and relationships tables — no schema
-      // change needed there. Same sync-safe conventions as people.
+      // Pets, joining the polymorphic taggings and relationships tables as they
+      // are.
       await driver.exec(`
         CREATE TABLE pets (
           id         TEXT    PRIMARY KEY,
@@ -131,10 +111,8 @@ export const migrations: Migration[] = [
   {
     version: 6,
     async up(driver) {
-      // Optional explicit gender on both relationship-graph entities. Nullable
-      // (null = unset); values are constrained to male|female|nonbinary by the
-      // Zod schema, not the DB, to stay portable. An unset gender may still be
-      // *derived* at read time from explicitly-gendered roles (kinship-service).
+      // Optional explicit gender (null = unset); unset may still be derived
+      // from gendered roles at read time.
       await driver.exec(`ALTER TABLE people ADD COLUMN gender TEXT;`);
       await driver.exec(`ALTER TABLE pets ADD COLUMN gender TEXT;`);
     },
@@ -142,11 +120,8 @@ export const migrations: Migration[] = [
   {
     version: 7,
     async up(driver) {
-      // Suppression table for *derived* relationships the user has rejected. A
-      // dismissal keeps a computed-on-read edge gone without writing a competing
-      // explicit fact. `role` is the dismissed base role; NULL dismisses any
-      // derived edge to that pair. Soft-delete + partial index follow the same
-      // conventions as the other tables (see AGENTS.md).
+      // Rejected derived relationships, kept gone without a competing explicit
+      // fact. A NULL `role` dismisses any derived edge to that pair.
       await driver.exec(`
         CREATE TABLE relationship_dismissals (
           id           TEXT    PRIMARY KEY,
@@ -167,18 +142,8 @@ export const migrations: Migration[] = [
   {
     version: 8,
     async up(driver) {
-      // Milestones: the dated facts of a subject's life (birthdays today; the
-      // big dates generally). One generic table rather than a `people.birthday`
-      // column so "all the dates in someone's life" and the future reminders
-      // inbox never special-case it. The subject is a polymorphic, mutable
-      // `(type, id)` pair like taggings/relationships, so relationship-subject
-      // anniversaries (and later places/orgs) join without a schema change.
-      //
-      // The date is partial: year/month/day are individually nullable, with the
-      // only rule — day ⇒ month — enforced in Zod (schema/milestone.ts), not the
-      // DB, to stay portable. Precision is derived from which parts are present,
-      // never stored. The nullable parts stay individually queryable so the
-      // ix_milestones_recurring index can serve the future month/day inbox scan.
+      // Milestones: partial dates on a polymorphic bearer. Precision comes from
+      // which parts are present; Zod checks that a day implies a month.
       await driver.exec(`
         CREATE TABLE milestones (
           id           TEXT    PRIMARY KEY,
@@ -204,19 +169,8 @@ export const migrations: Migration[] = [
   {
     version: 9,
     async up(driver) {
-      // Contact methods: three typed tables (email/phone/postal) rather than one
-      // generic table, since each fits its own shape.
-      // Every row shares a spine — a polymorphic `(owner_type, owner_id)` pair, a
-      // per-table label + free-text `label_note` for the `other` escape hatch,
-      // and the usual sync-safe id/timestamps/soft-delete (see AGENTS.md).
-      // `owner_type` is 'person' today; the Zod enum reserves 'household' so a
-      // future household entity owns a shared method with no migration.
-      //
-      // Each table gets a per-owner partial index for the by-owner read, plus a
-      // **non-unique** `normalized` index (email/phone) for lookup and the
-      // optional duplicate warning — dedupe is permissive, no hard uniqueness.
-      // All value-field constraints live in Zod, not the DB, to stay portable
-      // across node:sqlite and expo-sqlite.
+      // Contact methods: three typed tables on a polymorphic owner. The
+      // `normalized` indexes are non-unique: duplicates warn, never block.
       await driver.exec(`
         CREATE TABLE email_addresses (
           id         TEXT    PRIMARY KEY,
@@ -278,13 +232,8 @@ export const migrations: Migration[] = [
   {
     version: 10,
     async up(driver) {
-      // Two contact-method tweaks. (1) The label became free text — the user
-      // types anything, with per-kind suggestions that constrain nothing — so the
-      // `other`-escape-hatch `label_note` column is dead weight and is dropped.
-      // (2) Phones gained `sms_capable`: whether the number can receive texts,
-      // the one thing the UI asks. It defaults to 1 (textable) — the common case,
-      // so existing rows are assumed textable — and is set to 0 only for a
-      // landline/fax. Still portable SQL across node:sqlite and expo-sqlite.
+      // Labels became free text, so `label_note` goes; phones gain
+      // `sms_capable`, defaulting to textable.
       await driver.exec(`
         ALTER TABLE phone_numbers ADD COLUMN sms_capable INTEGER NOT NULL DEFAULT 1;
         ALTER TABLE email_addresses DROP COLUMN label_note;
@@ -296,34 +245,8 @@ export const migrations: Migration[] = [
   {
     version: 11,
     async up(driver) {
-      // Encryption Stage 1, the two key-custody tables. Plaintext keys are
-      // NEVER stored: a key exists in the DB only as the set of its wrappings.
-      // `content_key` registers that an entity has a content key (not its
-      // bytes); `key_wrap` is the universal envelope — "wrap this key for that
-      // principal" as immutable, append/revoke-only rows, used identically for
-      // the master key, the account private key, and every per-item content
-      // key. The envelope model is plans/encryption/model.md §3.
-      //
-      // Value constraints (the wrapped_kind/principal_kind enums) live in Zod
-      // (packages/schema/src/key-wrap.ts), not the DB, to stay portable across
-      // node:sqlite and expo-sqlite. The wrapping algorithm is recorded per-row
-      // in `alg` so the crypto primitive can change later without reshaping
-      // data. Partial unique indexes scoped to `deleted_at IS NULL` enforce
-      // "one active row per key" while letting soft-deleted history coexist
-      // (see AGENTS.md).
-      //
-      // Two absences are deliberate. The **whole-DB at-rest key** is not here
-      // and cannot be: it is supplied at open time by the device enclave and
-      // protects the file these tables live in (model.md §8). And a
-      // **capability link stores no `key_wrap` row at all** — it carries the
-      // content key in a URL `#fragment` that never reaches the server (§11),
-      // which is exactly what makes it zero-knowledge; revocation there acts on
-      // the share, not on a key.
-      //
-      // Both tables are created in every store but are **empty until an account
-      // exists** — under "encryption follows custody" (@leapsake/key-custody) a fresh
-      // install mints no keys. Code reading them must treat "no rows" as a
-      // normal state, not a corrupt one.
+      // The key-custody tables: a key exists here only as its wrappings. Empty
+      // until an account exists, so "no rows" is a normal state.
       await driver.exec(`
         CREATE TABLE content_key (
           id          TEXT    PRIMARY KEY,
@@ -358,13 +281,8 @@ export const migrations: Migration[] = [
   {
     version: 12,
     async up(driver) {
-      // Encryption Stage 1, first real-entity field: `milestone.note` is the
-      // first domain field encrypted at rest under a per-item content key. The
-      // sealed bytes live in `note_ciphertext` (BLOB) and the plaintext `note`
-      // column is nulled when encrypted; the milestones repo decrypts on read
-      // (the public Milestone type is unchanged). Migrations run before the key
-      // exists, so legacy plaintext rows are left as-is and upgrade to ciphertext
-      // on their next write.
+      // `milestone.note` encrypted at rest under a content key; legacy
+      // plaintext rows upgrade to ciphertext on their next write.
       await driver.exec(
         `ALTER TABLE milestones ADD COLUMN note_ciphertext BLOB;`,
       );
@@ -373,15 +291,8 @@ export const migrations: Migration[] = [
   {
     version: 13,
     async up(driver) {
-      // Sync watermark persistence (plans/encryption/sync.md). A device-local
-      // key/value store for the sync engine's marks: 'push_hwm' (the epoch-ms
-      // high-water of rows already pushed) and 'pull_cursor' (the transport's
-      // opaque delivery cursor already consumed). It deliberately carries NONE of
-      // the sync substrate (no id/created_at/updated_at/deleted_at): like
-      // content_key/key_wrap, this table is device-local and must NEVER replicate
-      // (model.md §3) — so it is not a SyncableRepo and never enters the engine's
-      // opt-in allowlist. Key/value rather than fixed columns so a future
-      // per-transport cursor is one more row, not a schema change.
+      // Device-local sync watermarks, key/value. No sync substrate: this table
+      // never replicates.
       await driver.exec(`
         CREATE TABLE sync_state (
           key   TEXT    PRIMARY KEY,
@@ -393,22 +304,8 @@ export const migrations: Migration[] = [
   {
     version: 14,
     async up(driver) {
-      // Encryption Stage 1, the password unlock door (custody Phases 1–2,
-      // @leapsake/key-custody). `account` is the identity established
-      // when the user creates one: it stores only public/blind material — the
-      // Argon2id `kdf_salt` (public) and the `auth_verifier` the server uses to
-      // authenticate login (§9.3, which reveals nothing about the KEK). The
-      // account private key and every wrapped master key are NOT columns here —
-      // they are `key_wrap` rows, keeping the envelope uniform. `public_key`
-      // stays NULL until Stage 3 (the account keypair serves sharing to other
-      // people, not sync). `device` registers each device on the account; its
-      // enclave wrapping of MK is a `key_wrap` row keyed by `device.id`.
-      //
-      // Both tables carry the §4.2 sync-safe substrate, but — like
-      // content_key/key_wrap/sync_state — they are device/account-identity, not
-      // domain rows, and are NOT in the sync engine's opt-in allowlist (their
-      // replication is designed with the relay later). Value constraints live in
-      // Zod, not the DB, to stay portable across node:sqlite and expo-sqlite.
+      // The account (public or blind material only) and its devices. Both carry
+      // the sync substrate but never replicate; MK wraps are `key_wrap` rows.
       await driver.exec(`
         CREATE TABLE account (
           id            TEXT    PRIMARY KEY,
@@ -437,15 +334,8 @@ export const migrations: Migration[] = [
   {
     version: 15,
     async up(driver) {
-      // Multi-device login coordinates (custody Phases 1–2,
-      // @leapsake/key-custody). `username` is the unique handle
-      // a second device looks the account up by (prelogin → salt → fetch the
-      // relay-stored wrap(MK, KEK)); `relay_url` is the relay this account syncs
-      // through. Both are NULL for a local-only store and populated at
-      // enable-sync (device 1) or after login (a joining device). They stay
-      // device/account-identity — like the rest of `account`, NOT in the sync
-      // allowlist. The partial unique index pins username uniqueness only when
-      // present, so the many local-only NULLs never collide.
+      // Login coordinates, NULL on a local-only store. Username uniqueness is a
+      // partial index, so the NULLs never collide.
       await driver.exec(`
         ALTER TABLE account ADD COLUMN username TEXT;
         ALTER TABLE account ADD COLUMN relay_url TEXT;
@@ -457,14 +347,8 @@ export const migrations: Migration[] = [
   {
     version: 16,
     async up(driver) {
-      // Reconciliation "not a duplicate" memory (packages/core/README.md).
-      // When the user reviews a proposed merge and says "these are not the same",
-      // we remember the rejected pair so no device re-nags. The pair is stored
-      // **canonicalized** — `lower_id` < `higher_id` — so (A,B) and (B,A) are one
-      // row; people-only for v1 (no entity_type column yet). It carries the full
-      // §4.2 sync-safe substrate and IS in the sync allowlist (a per-device memory
-      // would re-nag on every other device — decided in status.md). The partial
-      // unique index keeps a pair to a single active row.
+      // "Not a duplicate" memory, synced so no device re-asks. Pairs are stored
+      // canonicalized, `lower_id` < `higher_id`.
       await driver.exec(`
         CREATE TABLE not_a_duplicate (
           id         TEXT    PRIMARY KEY,
@@ -482,11 +366,7 @@ export const migrations: Migration[] = [
   {
     version: 17,
     async up(driver) {
-      // Naming-consistency pass (pre-launch): the polymorphic "what this attaches
-      // to" columns adopt the **bearer** vocabulary — an entity *bears* a
-      // milestone/tag. Pure column rename, no data change; SQLite propagates the
-      // rename to dependent indexes. Kept distinct from relationship "subject"
-      // (orientation) and contact-method "owner". See packages/key-custody/README.md.
+      // Rename the polymorphic attachment columns to the **bearer** vocabulary.
       await driver.exec(`
         ALTER TABLE milestones RENAME COLUMN subject_type TO bearer_type;
         ALTER TABLE milestones RENAME COLUMN subject_id TO bearer_id;
@@ -498,11 +378,8 @@ export const migrations: Migration[] = [
   {
     version: 18,
     async up(driver) {
-      // Reminders — user-generated freeform notes/tasks, the
-      // seed of the future home screen. Plaintext row (no per-item content key);
-      // `#tags` ride the shared `taggings` table under bearer type "reminder".
-      // `completed_at` is null until marked done (a reversible toggle); `source`
-      // is "user" today, reserving "system" for the future automated increment.
+      // Reminders: freeform notes and tasks. `completed_at` is a reversible
+      // toggle; `source` is "user" or "system".
       await driver.exec(`
         CREATE TABLE reminders (
           id           TEXT    PRIMARY KEY,
@@ -520,11 +397,7 @@ export const migrations: Migration[] = [
   {
     version: 19,
     async up(driver) {
-      // Reminders gain an optional due date (automated
-      // reminders). Stored as epoch-ms **UTC midnight of the civil due day** so it
-      // sorts and merges like any other timestamp column, while the app treats it
-      // as a whole calendar day (schema/reminder-schedule.ts). Nullable — an
-      // undated reminder has no countdown and sinks below dated ones.
+      // An optional due date, stored as epoch-ms UTC midnight of the civil day.
       await driver.exec(`ALTER TABLE reminders ADD COLUMN due_date INTEGER;`);
     },
   },
