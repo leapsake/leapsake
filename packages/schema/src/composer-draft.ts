@@ -8,16 +8,8 @@ import {
 } from "./mention.js";
 
 /**
- * A **chip**: a run of a composer's text that behaves as one thing rather than as
- * the characters it is made of. `text.slice(start, end)` is the run a reader sees,
- * sigil included — the caret never lands inside it ({@link snapCaret}), and an
- * edit that reaches into it takes the whole run ({@link applyDraftEdit}).
- *
- * The two kinds differ in exactly one respect, and it follows from what backs
- * them. A **mention** stands for an id, so its content is fixed: it can be
- * deleted but never grown. A **tag** *is* its text — the stored tag is whatever
- * the run spells — so it re-fits to the run at its position after every edit,
- * which is what lets typing at its trailing edge extend it.
+ * A run of composer text that acts as one unit, sigil included. A mention's
+ * text is fixed; a tag re-fits to its run, so typing at its end extends it.
  */
 export type ChipSpan =
   | {
@@ -33,14 +25,8 @@ export type ChipSpan =
   | { kind: "tag"; start: number; end: number; name: string };
 
 /**
- * How a field spells its tags — the one thing that differs between the two
- * surfaces where tags are typed, and the reason a draft carries it around:
- *
- * - `"prose"` — a reminder's title/body. Only `#`-prefixed runs are tags (see
- *   {@link ./tag.js parseHashtags}), because ordinary words must stay ordinary.
- * - `"tagField"` — a Person/Pet/GiftIdea Tags field. **Every** word run is a tag
- *   and the `#` is optional decoration (see {@link ./tag.js parseTagNames}), so
- *   `neighbor` is stored exactly as `#Friend` is.
+ * How a field spells tags: in `"prose"` only `#` runs are tags; in a
+ * `"tagField"` every word is one and the `#` is optional.
  */
 export type TagGrammar = "prose" | "tagField";
 
@@ -55,21 +41,8 @@ function tagNameOf(run: string): string {
 }
 
 /**
- * What a compose surface shows while the user types: the text as they see it —
- * `Call @David Taylor about #family` — plus the chips marking which runs are more
- * than the characters they contain.
- *
- * For a mention the *stored* form differs from the shown one
- * (`@[David Taylor](person:<uuid>)`; see {@link ./mention.js mentionToken}) and
- * the chip is what carries the id across an edit. For a tag the stored form is
- * the text itself, and the chip carries something the text cannot say: whether
- * that tag is **set**. A `#family` still being typed and a `#family` already
- * committed look identical, but only the second is a chip — so this is state a
- * field keeps, not something re-derivable from its value.
- *
- * Everything here works in displayed-text coordinates, which is exactly what a
- * DOM `selectionStart` or a React Native selection event reports. Spans are
- * ordered by `start` and never overlap ({@link normalizeSpans}).
+ * A composer's displayed text and its chips, in displayed-text offsets. Only a
+ * committed tag is a chip, so the spans are state, not derivable from the text.
  */
 export interface ComposerDraft {
   text: string;
@@ -77,13 +50,7 @@ export interface ComposerDraft {
   grammar: TagGrammar;
 }
 
-/**
- * One run of a draft's displayed text: ordinary typed text, or a chip. The runs
- * concatenate back to `draft.text`, so a renderer can style the chips — a tinted
- * background in both composers — without knowing anything about the grammars.
- * The shared seam for the desktop backdrop layer and the mobile `TextInput`'s
- * styled children.
- */
+/** One run of a draft's text, plain or chip; the runs join to the text. */
 export interface DraftRun {
   text: string;
   kind: "text" | "mention" | "tag";
@@ -115,10 +82,8 @@ function overlaps(a: ChipSpan, start: number, end: number): boolean {
 }
 
 /**
- * Sort spans and drop any that overlaps one already kept. Overlap is not a shape
- * the renderer or the caret rules can express, and re-fitting can produce it
- * honestly — delete the space in `#work #life` and both chips land on the single
- * run `#work#life`, where only the first survives as that run's chip.
+ * Sort spans and drop any that overlaps one already kept, as when deleting the
+ * space in `#work #life` re-fits both chips onto one run.
  */
 function normalizeSpans(spans: readonly ChipSpan[]): ChipSpan[] {
   const kept: ChipSpan[] = [];
@@ -131,11 +96,8 @@ function normalizeSpans(spans: readonly ChipSpan[]): ChipSpan[] {
 }
 
 /**
- * Mint a set tag chip for every tag run in `text`, except runs already inside a
- * chip — a `#` in a mention's display name (`@Team #1`) belongs to that mention —
- * and, when `onlyTerminated`, except a run still at the very end of the text.
- * That exception is what "a new tag chips as soon as you type the space" means:
- * a trailing run is still being typed.
+ * Chip every tag run not already inside a chip. With `onlyTerminated`, a run at
+ * the very end is skipped: it is still being typed.
  */
 function withTagSpans(
   text: string,
@@ -155,11 +117,8 @@ function withTagSpans(
 }
 
 /**
- * Project a reminder's stored text into what its composer displays: each
- * `@[Name](type:id)` token becomes `@Name` with a chip carrying the id, and every
- * `#tag` already in the text becomes a **set** chip — text that has been saved
- * has had its tags committed, so they open as chips. Built on {@link
- * splitAnnotatedText} so the token grammar has exactly one definition.
+ * A reminder's stored text as its composer shows it: each mention token becomes
+ * `@Name` with a chip, and every saved `#tag` opens as a chip.
  */
 export function draftFromMarkup(markup: string): ComposerDraft {
   let text = "";
@@ -188,18 +147,15 @@ export function draftFromMarkup(markup: string): ComposerDraft {
 }
 
 /**
- * The inverse of {@link draftFromMarkup}: put the mention ids back, turning each
- * mention chip into its stored {@link mentionToken} and copying everything else —
- * prose and `#tags`, which are stored exactly as they read — through. A mention
- * chip whose slice no longer reads `"@" + displayName` has been edited out from
- * under us and is dropped; its characters stay, as plain prose.
+ * The inverse of {@link draftFromMarkup}. A mention chip whose text no longer
+ * reads `@displayName` is dropped, and its characters stay as prose.
  */
 export function markupFromDraft(draft: ComposerDraft): string {
   let markup = "";
   let last = 0;
   for (const span of draft.spans) {
     if (span.kind !== "mention") continue;
-    if (span.start < last) continue; // overlapping — not a shape we can emit
+    if (span.start < last) continue; // overlapping; cannot be emitted
     if (draft.text.slice(span.start, span.end) !== `@${span.displayName}`) {
       continue;
     }
@@ -211,10 +167,8 @@ export function markupFromDraft(draft: ComposerDraft): string {
 }
 
 /**
- * The draft for a dedicated Tags field, where the text *is* the stored value and
- * every word run is a tag ({@link TagGrammar}). Everything present when the field
- * opens is a set chip, for the same reason as in {@link draftFromMarkup}: it has
- * been saved. There is no inverse — `draft.text` is the value.
+ * The draft for a Tags field, every saved tag a chip. There is no inverse:
+ * `draft.text` is the stored value.
  */
 export function draftFromTagField(raw: string): ComposerDraft {
   return {
@@ -225,11 +179,8 @@ export function draftFromTagField(raw: string): ComposerDraft {
 }
 
 /**
- * Re-fit each tag chip to the run at its position, and drop the ones with no run
- * left. A tag chip *is* its text, so an edit at its trailing edge grows it rather
- * than landing outside it — the only way to fix a typo in a set tag without
- * deleting the whole thing. Mention chips are left alone: theirs is a fixed run
- * standing for an id.
+ * Re-fit each tag chip to the run at its position, dropping any with no run
+ * left. Mention chips are left alone.
  */
 function refitTagSpans(
   text: string,
@@ -255,31 +206,8 @@ function refitTagSpans(
 }
 
 /**
- * Reconcile a draft with the text the user just typed, and return the new draft
- * plus where the caret belongs. A field edit — typing, pasting, backspacing,
- * replacing a selection — is always **one contiguous replacement**, so the range
- * it touched can be recovered from the two strings alone by matching their common
- * prefix and suffix; no keystroke plumbing, and it behaves identically on both
- * platforms.
- *
- * A chip is atomic, so the replaced range is widened to the **union** of the edit
- * with every chip it reaches into, and the whole union goes:
- *
- * ```
- * text  = prev[0, union.start) + inserted + prev[union.end, …)
- * caret = union.start + inserted.length
- * ```
- *
- * That one rule is what makes backspace at a chip's end delete the whole chip,
- * and a paste over part of one take all of it. When it fires, `tookChip` says so
- * and `caret` is where the caret belongs — more was removed than the keystroke
- * asked for, so the field's own caret is now wrong and the caller must move it.
- * On an ordinary edit `tookChip` is false and the caller should leave the caret
- * alone: forcing it on every keystroke is what breaks IME composition.
- *
- * Surviving chips then shift, tag chips re-fit to their runs ({@link
- * refitTagSpans}), and any tag run that is now terminated and not yet covered
- * becomes a set chip ({@link withTagSpans}).
+ * Apply a field edit, diffed as one contiguous replacement; a chip it reaches
+ * goes whole. Move the caret only when `tookChip`: forcing it breaks IME input.
  */
 export function applyDraftEdit(
   draft: ComposerDraft,
@@ -337,12 +265,8 @@ export function applyDraftEdit(
 }
 
 /**
- * The tag fragment being typed at the caret, or `null` when there isn't one —
- * what the existing-tag picker searches on, and the span {@link insertTagInDraft}
- * replaces. In `"prose"` this is {@link activeHashtagQuery}'s `#`-opened
- * fragment; in a `"tagField"`, where every word is a tag, it is the word run
- * ending at the caret, with its optional `#`. A caret inside a chip yields
- * `null` — a set tag is not a query — though the caret rules already keep it out.
+ * The tag fragment being typed at the caret, which the tag picker searches on,
+ * or `null`. A caret inside a chip has none.
  */
 export function activeTagQuery(
   draft: ComposerDraft,
@@ -360,15 +284,8 @@ export function activeTagQuery(
 }
 
 /**
- * Splice a resolved mention into a draft, replacing the active `@`-fragment at
- * the caret with `@DisplayName` plus a chip carrying the id, and return the new
- * draft with the caret at the chip's end. The picker calls this when the user
- * takes a hit.
- *
- * The counterpart to {@link activeMentionQuery}, whose fragment span it
- * re-derives so it always replaces exactly what the picker was querying on; if
- * the caret isn't in a fragment the name is inserted at the caret without
- * replacing anything.
+ * Replace the `@` fragment at the caret (or insert at it) with a mention chip,
+ * returning the caret at the chip's end.
  */
 export function insertMentionInDraft(
   draft: ComposerDraft,
@@ -393,11 +310,8 @@ export function insertMentionInDraft(
 }
 
 /**
- * Splice a chosen tag into a draft, replacing the active fragment at the caret
- * with `#name` and a **set** chip — a tag taken from the picker is committed at
- * once, unlike one being typed, which waits for a terminator ({@link
- * applyDraftEdit}). The twin of {@link insertMentionInDraft}; it re-derives the
- * fragment from {@link activeTagQuery} for the same reason.
+ * Replace the tag fragment at the caret (or insert at it) with a `#name` chip,
+ * committed at once rather than waiting for a space.
  */
 export function insertTagInDraft(
   draft: ComposerDraft,
@@ -415,12 +329,8 @@ export function insertTagInDraft(
 }
 
 /**
- * Replace `[start, caret)` with `label`, mint the chip it becomes, and shift what
- * follows — the shared body of the two insert helpers, which differ only in the
- * chip they make. A single trailing space is appended unless the next character
- * is already whitespace, so the chip stays a discrete word and the next `@`/`#`
- * typed after it can open the picker again; the returned caret sits at the chip's
- * end, before that space.
+ * Replace `[start, caret)` with `label` as a chip, adding a space after it
+ * unless one follows. The caret lands at the chip's end, before the space.
  */
 function spliceChip(
   draft: ComposerDraft,
@@ -455,16 +365,8 @@ function spliceChip(
 }
 
 /**
- * Where the caret belongs, given where the field put it. A chip is one thing, so
- * the caret rests at its edges but never inside it. An **arrow-key step** — a
- * move of exactly one character — is carried on the way it was going, left to the
- * chip's start and right to its end, so `←` from a chip's end steps over the
- * whole chip in one press rather than into it. Any other arrival (a click, a tap,
- * a programmatic jump) has no direction to honour and goes to the nearer edge.
- *
- * `previous` is where the caret was before this move, or `null` when there is
- * none to compare against. Platform-agnostic: both apps feed it their own
- * selection events.
+ * Move a caret inside a chip to an edge: onward for a one-character arrow step
+ * from `previous`, else the nearer edge.
  */
 export function snapCaret(
   spans: readonly ChipSpan[],
@@ -479,9 +381,8 @@ export function snapCaret(
 }
 
 /**
- * {@link snapCaret} for a selection. A collapsed selection is a caret and snaps
- * as one; a range that covers part of a chip is widened over the whole of it, so
- * that deleting, replacing or dragging a selection can never take half a chip.
+ * {@link snapCaret} for a selection: a range covering part of a chip widens to
+ * the whole chip.
  */
 export function snapSelection(
   spans: readonly ChipSpan[],
