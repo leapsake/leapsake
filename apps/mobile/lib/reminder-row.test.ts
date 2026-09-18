@@ -103,25 +103,6 @@ describe("offerFor", () => {
     }
   });
 
-  it("names the two custody routes rather than sharing one generic label", () => {
-    // Both push the same screen, so the label is all that separates them — and a
-    // shared "Get started ›" under a row offering to get a returning user back
-    // into the account they already have reads as *begin something new*.
-    const offer = (route: "connect-sync" | "create-account") =>
-      offerFor({ kind: "cta", cta: { kind: "onboarding", route } });
-
-    expect(offer("connect-sync")).toEqual({
-      kind: "navigate",
-      path: "/settings",
-      label: "Sign in ›",
-    });
-    expect(offer("create-account")).toEqual({
-      kind: "navigate",
-      path: "/settings",
-      label: "Create your account ›",
-    });
-  });
-
   it("names the import route, whose title no longer carries the verb", () => {
     // The title says "Import your contacts"; "Get started ›" under it would ask
     // the reader to join the two up.
@@ -246,7 +227,7 @@ describe("isAnsweredInline", () => {
 describe("showsDelete", () => {
   it("withholds Delete from an open nudge, which offers its own dismiss", () => {
     // Otherwise the screen shows two buttons for the one tombstone.
-    const actions = actionsFor(idFor("connect-sync"));
+    const actions = actionsFor(idFor("create-account"));
 
     expect(actions.map((a) => a.kind)).toContain("dismiss");
     expect(showsDelete(actions, false)).toBe(false);
@@ -255,7 +236,7 @@ describe("showsDelete", () => {
   it("keeps Delete on a completed nudge, whose offers collapse to the CTA", () => {
     // Without this, marking a nudge done would strand it at the foot of the list
     // with no way to be rid of it.
-    const actions = actionsFor(idFor("connect-sync"), NOW);
+    const actions = actionsFor(idFor("create-account"), NOW);
 
     expect(actions.map((a) => a.kind)).toEqual(["cta"]);
     expect(showsDelete(actions, true)).toBe(true);
@@ -280,7 +261,7 @@ describe("showsDelete", () => {
 
 describe("removalCopyFor", () => {
   it("asks whether to stop asking, on a nudge", () => {
-    const copy = removalCopyFor(actionsFor(idFor("connect-sync")));
+    const copy = removalCopyFor(actionsFor(idFor("create-account")));
 
     expect(copy.title).toBe("Stop asking about this?");
     expect(copy.confirm).toBe("Don’t ask again");
@@ -292,7 +273,7 @@ describe("removalCopyFor", () => {
   it("still says the honest thing on a completed nudge, reached via Delete", () => {
     // The copy branches on the reminder, not on which affordance was tapped, so
     // the one remaining route to the tombstone can't bypass it.
-    const copy = removalCopyFor(actionsFor(idFor("connect-sync"), NOW));
+    const copy = removalCopyFor(actionsFor(idFor("create-account"), NOW));
 
     expect(copy.title).toBe("Stop asking about this?");
   });

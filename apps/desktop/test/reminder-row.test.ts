@@ -96,7 +96,7 @@ describe("rowAffordanceFor", () => {
   });
 
   it("sends dismiss to the same route as Remove — one tombstone, one screen", () => {
-    const id = idFor("connect-sync");
+    const id = idFor("create-account");
     const actions = reminderActionsOf(reminder(id), {}, NOW);
     const dismiss = affordancesFor(actions, id).at(-1)!;
 
@@ -183,22 +183,6 @@ describe("ctaLinkFor", () => {
     });
   });
 
-  it("words the two custody routes as a fork, though they share a screen", () => {
-    // Both land on Settings, which renders create-account above sign-in while the
-    // store has no account — so the *labels* are what tell a returning user which
-    // row is theirs. "Connect to sync" is our vocabulary; they are looking for
-    // the words "sign in", and taking the wrong one used to be a dead end.
-    const signIn = ctaLinkFor({ kind: "onboarding", route: "connect-sync" });
-    const create = ctaLinkFor({ kind: "onboarding", route: "create-account" });
-
-    expect(signIn).toEqual({ path: "/settings", label: "Sign in →" });
-    expect(create).toEqual({
-      path: "/settings",
-      label: "Create your account →",
-    });
-    expect(signIn.label).not.toBe(create.label);
-  });
-
   it("sends a pet's gifts to the pets tree, not people", () => {
     expect(
       ctaLinkFor({
@@ -228,7 +212,7 @@ describe("showsRemove", () => {
 
   it("withholds Remove from an open nudge, which offers its own dismiss", () => {
     // Otherwise the row shows two buttons for the one tombstone.
-    const actions = actionsFor(idFor("connect-sync"));
+    const actions = actionsFor(idFor("create-account"));
 
     expect(actions.map((a) => a.kind)).toContain("dismiss");
     expect(showsRemove(actions, false)).toBe(false);
@@ -237,7 +221,7 @@ describe("showsRemove", () => {
   it("keeps Remove on a completed nudge, whose offers collapse to the CTA", () => {
     // Without this, marking a nudge done would strand it in the completed
     // disclosure with no way to clear it.
-    const actions = actionsFor(idFor("connect-sync"), NOW);
+    const actions = actionsFor(idFor("create-account"), NOW);
 
     expect(actions.map((a) => a.kind)).toEqual(["cta"]);
     expect(showsRemove(actions, true)).toBe(true);

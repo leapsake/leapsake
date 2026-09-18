@@ -1269,15 +1269,8 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
     transaction: (body) => driver.transaction(body),
     // The first-run signals for the onboarding nudges. `hasAnyEntity` gates the
     // "import your contacts" step and (with `hasAccount`) the account
-    // invitation; a relay-connected account (a `relayUrl` on the singleton) gates
-    // the sign-in step; `hasSelf` gates the "pick yourself" step. All retire
-    // (prune) automatically once satisfied — see `@leapsake/reminders`
-    // ONBOARDING_STEPS.
-    //
-    // `isSyncConnected` and `hasAccount` are two reads of the same singleton and
-    // stay separate on purpose: the account exists as soon as one is created, but
-    // `relayUrl` is set only when it is also bound to a relay, and a local-only
-    // account is the case that tells them apart.
+    // invitation; `hasSelf` gates the "pick yourself" step. All retire (prune)
+    // automatically once satisfied — see `@leapsake/reminders` ONBOARDING_STEPS.
     onboarding: {
       // **Besides the self-person**, which is what makes the getting-started and
       // custody steps read an *empty* store rather than merely a small one. A
@@ -1291,8 +1284,6 @@ export function createCore(driver: SqliteDriver, _keySession?: KeySession) {
         const selfId = (await self.getSelf())?.personId;
         return (await people.list()).some((person) => person.id !== selfId);
       },
-      isSyncConnected: async () =>
-        (await getSyncStatus({ driver })).relayUrl !== undefined,
       hasSelf: async () => (await self.getSelf()) !== undefined,
       hasAccount: async () => (await getSyncStatus({ driver })).hasAccount,
       // No row is pre-created for a device: `notificationSettings` writes one

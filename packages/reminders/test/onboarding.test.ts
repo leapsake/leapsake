@@ -5,26 +5,13 @@ import {
   compareReminderDue,
   resolveReminderSchedule,
 } from "@leapsake/schema";
-import {
-  resetFlagOverrides,
-  setLocalFlagOverrides,
-  withFlags,
-} from "@leapsake/flags";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   ONBOARDING_REMINDERS,
   type ReminderEngineDeps,
   onboardingRouteOf,
   regenerateSystemReminders,
 } from "../src/index.js";
-
-/**
- * These tests describe the world where multi-device sync exists, so they turn it
- * on: the sign-in nudge is gated behind `multiDevice`, which is off in what v0.1
- * ships. What the shipping default does instead is the last describe below.
- */
-beforeEach(() => setLocalFlagOverrides({ multiDevice: true }));
-afterEach(resetFlagOverrides);
 
 /** A fixed local "today" (no milestones under test, so the value is immaterial). */
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
@@ -37,15 +24,11 @@ const DAY_MS = 86_400_000;
  * `onboarding` port driven by mutable signals. No milestones here — the
  * onboarding nudges are the whole subject — so the milestone ports are inert.
  *
- * `syncConnected` and `hasAccount` are separate switches on purpose: a local-only
- * account is the state where they disagree, and it is the state both custody
- * nudges turn on.
  */
 function makeHarness() {
   const rows = new Map<string, Reminder>();
   const signals = {
     hasEntitiesBesidesSelf: false,
-    syncConnected: false,
     hasSelf: false,
     hasAccount: false,
     hasNotificationPolicy: false,
@@ -83,7 +66,6 @@ function makeHarness() {
     transaction: (body) => body(),
     onboarding: {
       hasAnyEntityBesidesSelf: async () => signals.hasEntitiesBesidesSelf,
-      isSyncConnected: async () => signals.syncConnected,
       hasSelf: async () => signals.hasSelf,
       hasAccount: async () => signals.hasAccount,
       hasNotificationPolicy: async () => signals.hasNotificationPolicy,
@@ -122,14 +104,14 @@ describe("onboarding reminders", () => {
   it("seeds the day-one nudges for a fresh store — dateless, system-sourced, exact copy", async () => {
     const result = await regenerateSystemReminders(h.deps);
     // A fresh store has nobody in it, so only the notifications step (which waits
-    // for something to be notified about) stays away. The four answerable on day
-    // one do not: sign in, protect this device, import, and say who you are. The
-    // account invitation is among them deliberately — asking after the import
-    // would mean the import had already landed in a plaintext store.
-    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
+    // for something to be notified about) stays away. The three answerable on day
+    // one do not: protect this device, import, and say who you are. The account
+    // invitation is among them deliberately — asking after the import would mean
+    // the import had already landed in a plaintext store.
+    expect(result).toEqual({ created: 3, updated: 0, removed: 0 });
 
     const rows = h.activeSystem();
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
     for (const r of rows) {
       expect(r.source).toBe("system");
       expect(r.dueDate).toBeNull(); // onboarding nudges carry no due date
@@ -139,30 +121,21 @@ describe("onboarding reminders", () => {
 
     // Ids are exactly the exported convention, so client CTA lookup lines up.
     expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([
-        idFor("connect-sync"),
-        idFor("create-account"),
-        idFor("import"),
-        idFor("about-you"),
-      ]),
+      new Set([idFor("create-account"), idFor("import"), idFor("about-you")]),
     );
     expect(h.byId(idFor("import"))?.title).toBe("📇 Import your contacts");
-    expect(h.byId(idFor("connect-sync"))?.title).toBe(
-      "🔄 Already have Leapsake on another device? Sign in.",
-    );
     expect(h.byId(idFor("about-you"))?.title).toBe("🙋 Tell us about yourself");
   });
 
-  it("orders the day-one nudges: sign in, protect, import, then who you are", async () => {
+  it("orders the day-one nudges: protect, import, then who you are", async () => {
     await regenerateSystemReminders(h.deps);
 
-    // Home sorts open reminders with compareReminderDue; all four are dateless, so
-    // the createdAt back-off is what holds them in array order. Protecting the
+    // Home sorts open reminders with compareReminderDue; all three are dateless,
+    // so the createdAt back-off is what holds them in array order. Protecting the
     // device sits above importing into it on purpose: taken in that order the
     // import lands in an encrypted store rather than a plaintext one.
     const ordered = h.activeSystem().sort(compareReminderDue);
     expect(ordered.map((r) => r.id)).toEqual([
-      idFor("connect-sync"),
       idFor("create-account"),
       idFor("import"),
       idFor("about-you"),
@@ -173,10 +146,10 @@ describe("onboarding reminders", () => {
     await regenerateSystemReminders(h.deps);
     const second = await regenerateSystemReminders(h.deps);
     expect(second).toEqual({ created: 0, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(4);
+    expect(h.activeSystem()).toHaveLength(3);
   });
 
-  it("retires 'import your contacts' once an entity exists, keeping the sign-in nudge", async () => {
+  it("retires 'import your contacts' once an entity exists", async () => {
     await regenerateSystemReminders(h.deps);
 
     h.signals.hasEntitiesBesidesSelf = true; // user added their first person/pet
@@ -189,35 +162,19 @@ describe("onboarding reminders", () => {
 
     const live = h.activeSystem();
     expect(new Set(live.map((r) => r.id))).toEqual(
-      new Set([idFor("connect-sync"), idFor("create-account")]),
-    );
-  });
-
-  it("retires the sign-in nudge once sync is connected", async () => {
-    await regenerateSystemReminders(h.deps);
-
-    h.signals.syncConnected = true; // relay bound
-    const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, updated: 0, removed: 1 });
-
-    const live = h.activeSystem();
-    // The account invitation stands: a bound relay is not an account, and this
-    // store still holds none.
-    expect(new Set(live.map((r) => r.id))).toEqual(
-      new Set([idFor("create-account"), idFor("import"), idFor("about-you")]),
+      new Set([idFor("create-account")]),
     );
   });
 
   it("retires both once each condition is met", async () => {
     await regenerateSystemReminders(h.deps);
     h.signals.hasEntitiesBesidesSelf = true;
-    h.signals.syncConnected = true;
     h.signals.hasSelf = true;
     h.signals.hasAccount = true;
     h.signals.hasNotificationPolicy = true; // every condition met
 
     const result = await regenerateSystemReminders(h.deps);
-    expect(result).toEqual({ created: 0, updated: 0, removed: 4 });
+    expect(result).toEqual({ created: 0, updated: 0, removed: 3 });
     expect(h.activeSystem()).toHaveLength(0);
   });
 
@@ -232,16 +189,12 @@ describe("onboarding reminders", () => {
     expect(result).toEqual({ created: 0, updated: 0, removed: 0 });
     expect(h.byId(id)?.deletedAt).not.toBeNull();
     expect(new Set(h.activeSystem().map((r) => r.id))).toEqual(
-      new Set([
-        idFor("connect-sync"),
-        idFor("create-account"),
-        idFor("about-you"),
-      ]),
+      new Set([idFor("create-account"), idFor("about-you")]),
     );
   });
 
   it("does not re-nag a retired nudge if its condition later reverts", async () => {
-    // An account already exists, so neither custody nudge is in play and
+    // An account already exists, so the account invitation is not in play and
     // 'import' is the only step this walks through its whole life.
     h.signals.hasAccount = true;
     await regenerateSystemReminders(h.deps);
@@ -365,15 +318,12 @@ describe("onboarding reminders", () => {
       expect(h.byId(idFor("create-account"))?.deletedAt).toBeNull();
     });
 
-    it("sits directly below the sign-in nudge, above everything else", async () => {
-      // The fork is only a fork if the two rows are read together: sign in to the
-      // account you have, or create the one you don't.
+    it("leads the nudges, above everything else", async () => {
       h.signals.hasEntitiesBesidesSelf = true;
       await regenerateSystemReminders(h.deps);
 
       const ordered = h.activeSystem().sort(compareReminderDue);
       expect(ordered.map((r) => r.id)).toEqual([
-        idFor("connect-sync"),
         idFor("create-account"),
         idFor("about-you"),
         // Last, and the only step whose delay costs nothing: a reminder that
@@ -382,37 +332,17 @@ describe("onboarding reminders", () => {
       ]);
     });
 
-    it("retires the moment an account exists, relay or no relay", async () => {
+    it("retires the moment an account exists", async () => {
       h.signals.hasEntitiesBesidesSelf = true;
       await regenerateSystemReminders(h.deps);
       expect(h.activeSystem().map((r) => r.id)).toContain(
         idFor("create-account"),
       );
 
-      // A **local-only** account: created here, never published to a relay. It is
-      // still an account, so the invitation has been taken.
       h.signals.hasAccount = true;
       await regenerateSystemReminders(h.deps);
 
-      expect(h.signals.syncConnected).toBe(false);
       expect(h.byId(idFor("create-account"))?.deletedAt).not.toBeNull();
-    });
-
-    it("retires the sign-in nudge too, for a local-only account", async () => {
-      // The collision this increment had to resolve. Both nudges deep-link to the
-      // same screen, and the sign-in step used to retire on `relayUrl` alone — so
-      // a user who created a local-only account was left being nudged toward a
-      // flow that could no longer satisfy it.
-      await regenerateSystemReminders(h.deps);
-      expect(h.activeSystem().map((r) => r.id)).toContain(
-        idFor("connect-sync"),
-      );
-
-      h.signals.hasAccount = true;
-      await regenerateSystemReminders(h.deps);
-
-      expect(h.signals.syncConnected).toBe(false); // no relay was ever bound
-      expect(h.byId(idFor("connect-sync"))?.deletedAt).not.toBeNull();
     });
 
     it("stays gone once dismissed, though the data is still unprotected", async () => {
@@ -443,7 +373,6 @@ describe("onboarding reminders", () => {
       // Isolate about-you: an account exists, a person exists, notifications
       // have been answered.
       h.signals.hasEntitiesBesidesSelf = true;
-      h.signals.syncConnected = true;
       h.signals.hasAccount = true;
       h.signals.hasNotificationPolicy = true;
       await regenerateSystemReminders(h.deps);
@@ -482,7 +411,6 @@ describe("onboarding reminders", () => {
 
     it("never clears or resets a snooze on reconcile", async () => {
       h.signals.hasEntitiesBesidesSelf = true;
-      h.signals.syncConnected = true;
       h.signals.hasAccount = true;
       await regenerateSystemReminders(h.deps);
       const id = idFor("about-you");
@@ -530,48 +458,6 @@ function birthday(
   };
 }
 
-/**
- * The shipping default — every other test in this file has turned `multiDevice`
- * on, so this is the only place that sees what a v0.1 user gets.
- */
-describe("with multi-device held back", () => {
-  beforeEach(resetFlagOverrides);
-
-  it("seeds no sign-in nudge, leaving the rest of onboarding intact", async () => {
-    const h = makeHarness();
-    await regenerateSystemReminders(h.deps);
-
-    const routes = h.activeSystem().map((r) => onboardingRouteOf(r.id));
-    expect(routes).not.toContain("connect-sync");
-    expect(routes).toContain("import");
-  });
-
-  it("still invites an account, which is the encryption story rather than sync", async () => {
-    const h = makeHarness();
-    h.signals.hasEntitiesBesidesSelf = true;
-    await regenerateSystemReminders(h.deps);
-
-    const routes = h.activeSystem().map((r) => onboardingRouteOf(r.id));
-    expect(routes).toContain("create-account");
-  });
-
-  it("retires a sign-in nudge left behind by a build that had it", async () => {
-    const h = makeHarness();
-    // Seeded while the flag was on — the state a developer toggling the switch
-    // lands in, and the one a v0.1 user must never see a stale row from.
-    await withFlags({ multiDevice: true }, () =>
-      regenerateSystemReminders(h.deps),
-    );
-    const signIn = ONBOARDING_REMINDERS.find(
-      (r) => r.route === "connect-sync",
-    )!.id;
-    expect(h.byId(signIn)?.deletedAt).toBeNull();
-
-    await regenerateSystemReminders(h.deps);
-    expect(h.byId(signIn)?.deletedAt).not.toBeNull();
-  });
-});
-
 describe("onboarding + milestone families coexist", () => {
   it("keeps a birthday reminder and the onboarding nudges in one reconcile", async () => {
     const h = makeHarness();
@@ -585,10 +471,10 @@ describe("onboarding + milestone families coexist", () => {
     h.deps.resolveLabel = async () => "Violet";
 
     const result = await regenerateSystemReminders(h.deps);
-    // Four onboarding nudges + the birthday's day-of wish, none pruning the
+    // Three onboarding nudges + the birthday's day-of wish, none pruning the
     // others. No `plan` prompt: on the day itself the wish is all that is left
     // to choose, and a question with one answer is not asked.
-    expect(result).toEqual({ created: 5, updated: 0, removed: 0 });
-    expect(h.activeSystem()).toHaveLength(5);
+    expect(result).toEqual({ created: 4, updated: 0, removed: 0 });
+    expect(h.activeSystem()).toHaveLength(4);
   });
 });

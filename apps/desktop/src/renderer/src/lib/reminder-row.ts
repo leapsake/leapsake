@@ -18,26 +18,17 @@ const ONBOARDING_CTA: Record<OnboardingRoute, { path: string; label: string }> =
     // is a file picker behind this link rather than longer copy *(owner,
     // 2026-09-13)*. Revisit when desktop ships (`plans/shipping.md` → Part 2).
     import: { path: "/people", label: "Import →" },
-    // The two custody routes land on the same screen today — an accountless
-    // Settings renders `CreateAccount` above `SyncSetup`, so each nudge's target
-    // is already on it — but they stay two routes, not one. The labels are the
-    // fork the user reads (*sign in* vs *create*), and splitting the destination
-    // is then a table edit rather than a plumbing change, which is what the
-    // Settings decomposition in v0-2 will want.
-    "connect-sync": { path: "/settings", label: "Sign in →" },
     "create-account": { path: "/settings", label: "Create your account →" },
     // ⚠️ **This destination does not exist yet.** Desktop has no notification
     // surface at all — no policy screen, no scheduler — so the step's condition
     // (`notification_settings` holding no rows) can never be satisfied from
     // here, and the nudge would stand for good pointing at a Settings screen
-    // with nothing on it to answer. That is the same "front door onto a shut
-    // room" the `sync-devices` step's `multiDevice` gate exists to avoid.
+    // with nothing on it to answer — a front door onto a shut room.
     //
     // It is left pointing at Settings deliberately rather than solved: v0.1 is
     // iOS alone and desktop ships after the transfer (`plans/shipping.md` →
-    // Part 2), so this is a dev-build wart with a known fix — gate the step the
-    // way `sync-devices` is gated, or give desktop notifications — and no user
-    // between here and there.
+    // Part 2), so this is a dev-build wart with a known fix — gate the step, or
+    // give desktop notifications — and no user between here and there.
     "enable-notifications": { path: "/settings", label: "Turn them on →" },
     // Desktop keeps its list-based pick mode; mobile replaced its own with a
     // screen that also takes the answer as a form. Same step, same question,

@@ -10,12 +10,7 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   // path costs one tap rather than a second nudge.
   import: "/import",
   // Account is a root-stack screen (reached from the Settings tab), not a tab
-  // of its own, so the nudge pushes it like any other detail route. Both custody
-  // routes land there today — an accountless Account screen renders
-  // `CreateAccount` above `SyncSetup`, so each nudge's target is already on
-  // screen — and they stay two routes so splitting the destination later is a
-  // table edit.
-  "connect-sync": "/settings",
+  // of its own, so the nudge pushes it like any other detail route.
   "create-account": "/settings",
   // The notifications screen is where the policy is chosen, and choosing one is
   // what fires the OS permission request (`lib/notification-permission.ts`) — so
@@ -43,7 +38,6 @@ const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
  */
 const OFFER_LABELS = {
   onboarding: "Get started ›",
-  signIn: "Sign in ›",
   createAccount: "Create your account ›",
   // Named because the row's own title stopped carrying the verb: it says
   // *Import your contacts*, and "Get started ›" under that asks the reader to
@@ -138,7 +132,6 @@ export type RowOffer =
  */
 const ONBOARDING_LABEL: Record<OnboardingRoute, string> = {
   import: OFFER_LABELS.importContacts,
-  "connect-sync": OFFER_LABELS.signIn,
   "create-account": OFFER_LABELS.createAccount,
   "enable-notifications": OFFER_LABELS.turnOn,
   "about-you": OFFER_LABELS.onboarding,

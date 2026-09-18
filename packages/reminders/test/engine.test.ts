@@ -645,7 +645,6 @@ describe("listSystemReminderTargets", () => {
       ...h.deps,
       onboarding: {
         hasAnyEntityBesidesSelf: async () => false,
-        isSyncConnected: async () => false,
         hasSelf: async () => false,
         hasAccount: async () => false,
         hasNotificationPolicy: async () => false,

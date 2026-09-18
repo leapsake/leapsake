@@ -1,5 +1,4 @@
 import { deterministicUuid } from "@leapsake/bytes";
-import { flag } from "@leapsake/flags";
 import {
   type CivilDate,
   type MilestoneBearerType,
@@ -210,17 +209,9 @@ export interface ReminderEngineDeps {
      *  {@link OnboardingSignals.hasEntitiesBesidesSelf} for why the self-person
      *  is excluded rather than counted. */
     hasAnyEntityBesidesSelf(): Promise<boolean>;
-    /** Whether this device has connected to a sync relay. */
-    isSyncConnected(): Promise<boolean>;
     /** Whether the self-person has been picked yet. */
     hasSelf(): Promise<boolean>;
-    /**
-     * Whether this store holds an account — the custody signal, **not** the sync
-     * one. A local-only account answers `true` here and `false` to
-     * {@link ReminderEngineDeps.onboarding.isSyncConnected}, and keeping the two
-     * apart is what lets the sign-in nudge retire for a user who created an
-     * account that never touched a relay.
-     */
+    /** Whether this store holds an account. */
     hasAccount(): Promise<boolean>;
     /**
      * Whether notifications have been configured — by **any** device, not by the
@@ -600,7 +591,6 @@ function occurrenceName(
  */
 export type OnboardingRoute =
   | "about-you"
-  | "connect-sync"
   | "create-account"
   | "enable-notifications"
   | "import";
@@ -617,10 +607,8 @@ interface OnboardingSignals {
    * import, permanently, for having answered a different question.
    */
   hasEntitiesBesidesSelf: boolean;
-  syncConnected: boolean;
   hasSelf: boolean;
-  /** Whether this store holds an account at all — relay-bound or local-only.
-   *  Distinct from `syncConnected`, which is the narrower "and it has a relay". */
+  /** Whether this store holds an account at all. */
   hasAccount: boolean;
   /** Whether **any** device has been asked about notifications. Store-scoped on
    *  purpose, and the one signal here that would rather not be — see the step it
@@ -655,43 +643,15 @@ interface OnboardingStep {
  * semantic — see {@link computeAndReconcile}. A step retires when its condition is
  * met or when the user says *don't ask again*; putting it off never retires it.
  *
- * **Array order is display priority** (first = shown highest on Home). Sign-in
- * leads: a returning user already on another device should get back into their
- * account before re-adding anyone, so their existing data flows in rather than
- * being re-entered by hand. `create-account` sits directly beneath it because the
- * two are **one fork, read together** — see below. The order is made deterministic
- * by a per-step `createdAt` back-off at insert time (see
+ * **Array order is display priority** (first = shown highest on Home). The order
+ * is made deterministic by a per-step `createdAt` back-off at insert time (see
  * {@link computeAndReconcile}), so it doesn't hinge on insertion-tie ordering in
  * the store.
  */
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
-    key: "sync-devices",
-    // **Sign-in vocabulary, deliberately.** "Connect to sync" is our word for
-    // this, not the user's: someone who already has Leapsake elsewhere is looking
-    // for *sign in*, and reading past this row to "create your account" is the
-    // one wrong turn on Home that used to be a dead end. The words carry the
-    // load because ordering alone cannot — both rows are on screen at once.
-    title: "🔄 Already have Leapsake on another device? Sign in.",
-    route: "connect-sync",
-    // **Any account retires this, not just a relay-bound one.** Retiring on
-    // `syncConnected` alone left a user who created a local-only account being
-    // nudged toward a flow that could not satisfy the condition — the deep-link
-    // lands on Settings, which has no sign-in to offer once an account exists.
-    //
-    // The `multiDevice` gate is the same argument one step earlier: with the
-    // flag off there is no sign-in on Settings for *anyone*, so the nudge would
-    // deep-link into a screen that cannot satisfy it. The invitation is the
-    // feature's front door, and leaving it up while the destination is shut is
-    // worse than either state. Note that flipping the flag off retires the row
-    // by tombstone like any unmet step, and retirement is permanent — flipping
-    // back on will not resurrect it in a profile that already saw it.
-    applies: (s) => flag("multiDevice") && !s.syncConnected && !s.hasAccount,
-  },
-  {
-    // **The account invitation** — the other half of the fork above, and the step
-    // that gets a user from Unauthenticated to Authenticated (`encryption/model.md`
-    // §7.2.1).
+    // **The account invitation** — the step that gets a user from Unauthenticated
+    // to Authenticated (`encryption/model.md` §7.2.1).
     //
     // **It no longer waits for data** *(owner, 2026-09-13)*. It used to read
     // `hasEntitiesBesidesSelf && !hasAccount`, reasoning that an account protects
@@ -1787,7 +1747,6 @@ async function computeDesired(
   if (deps.onboarding !== undefined) {
     const signals: OnboardingSignals = {
       hasEntitiesBesidesSelf: await deps.onboarding.hasAnyEntityBesidesSelf(),
-      syncConnected: await deps.onboarding.isSyncConnected(),
       hasSelf: await deps.onboarding.hasSelf(),
       hasAccount: await deps.onboarding.hasAccount(),
       hasNotificationPolicy: await deps.onboarding.hasNotificationPolicy(),
