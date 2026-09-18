@@ -420,47 +420,8 @@ export type AdoptionDoor =
   | { kind: "recovery"; recoveryKey: Uint8Array };
 
 /**
- * Custody slice 9: after a boot has come through a password or recovery door,
- * make sure this device's enclave holds **the account's** master key.
- *
- * ### The problem it fixes
- *
- * A door unlock is, by construction, what happens when the OS keychain no longer
- * opens the store — an OS reinstall, a new machine, or a signing-identity change
- * (this package's README → *The signing identity owns the enclave key*). The door recovers the *db-key*, so the store opens and
- * the user is back in. But the same wipe took `device-id` and `enclave`, so
- * {@link ensureDeviceMasterKey} would find no wrap row for the fresh id and mint a
- * brand-new master key. The device would then hold a key the account has never
- * seen: it seals records no peer can open, and the sync engine skips peers' records
- * it cannot decrypt *while advancing the cursor past them*, so both directions lose
- * data permanently and silently.
- *
- * This reads the account's real master key back out of the door that was just
- * opened and binds it to the new enclave, so `ensureDeviceMasterKey` — called
- * immediately after — finds it and mints nothing.
- *
- * ### Why it is safe
- *
- * Nothing at rest is sealed under MK. Migration 27 retired the last content-key
- * consumer, so MK appears only in `key_wrap` rows and in the sync envelope. The
- * repair therefore cannot corrupt anything on disk: worst case it rewrites one row
- * to the value it already had.
- *
- * ### Where it must run
- *
- * Between `runMigrations` and {@link ensureDeviceMasterKey}, synchronously. Not
- * earlier: there is no driver until the store is open. Not later, and not in the
- * background: the launch-time recovery-escrow catch-up publishes
- * `wrap(recoveryKey, MK)` **to the relay**, so a stray key reaching it makes one
- * device's local problem account-wide.
- *
- * Returns `"unchanged"` on the ordinary case — a plain sign-out keeps the device
- * identity, so most door unlocks have nothing to repair. `"adopted"` means the
- * device really had drifted, and the caller should also reset its sync watermarks
- * (`resyncAfterMasterKeyRepair`) to re-push and re-pull what drifted apart.
- *
- * Throws rather than degrading: a device that cannot prove which master key is the
- * account's has no business opening the store and syncing from it.
+ * After a door unlock, bind the account's master key to this enclave so a wiped
+ * keychain never mints a new one. Run between migrations and the key session.
  */
 export async function adoptAccountMasterKey(opts: {
   keyStore: KeyStore;
@@ -477,12 +438,8 @@ export async function adoptAccountMasterKey(opts: {
 
   let masterKey: Uint8Array;
   if (door.kind === "password") {
-    // The sidecar carries the salt it was sealed under, so a verifier that does
-    // not match the account row means the two have drifted — a sidecar left by a
-    // crash mid password-change. Its KEK cannot open the password wrap either, so
-    // refuse here with something a reader can act on rather than one line later
-    // with an opaque AEAD failure. The phrase door is the way in: it derives from
-    // the recovery key, not the password salt, so it is unaffected.
+    // A mismatched verifier is a sidecar left by a crash mid password-change; its
+    // KEK cannot open the wrap, so point the user at the phrase door instead.
     if (!equalBytes(door.authVerifier, Uint8Array.from(account.authVerifier))) {
       throw new Error(
         "This store's password door is out of step with its account. Unlock " +
@@ -504,14 +461,8 @@ export async function adoptAccountMasterKey(opts: {
     masterKey,
   });
   if (status === "adopted") {
-    // A repaired device is a new device id on the account, so register it.
-    //
-    // Two rows from before the wipe are left behind on purpose: the old `device`
-    // registration, which nothing can tell apart from a real second device, and
-    // the old enclave `key_wrap`, which is keyed to a device id that will never be
-    // presented again and whose enclave secret died with the keychain. Both are
-    // unopenable and unmatchable rather than merely unused, and sweeping them is
-    // per-device revocation — post-launch work with a real design behind it.
+    // A repaired device is a new device id, so register it. The old device and
+    // enclave rows stay: unmatchable, and sweeping them is revocation work.
     await createDeviceRepo(driver).register({
       id: deviceId,
       accountId: account.id,
@@ -522,26 +473,8 @@ export async function adoptAccountMasterKey(opts: {
 }
 
 /**
- * Custody Phase 2 / multi-device login (README.md): join
- * an **existing** account on a fresh device, so it converges over the relay. This
- * is the one capability that completes Stage-1 sync — `account`/`key_wrap` are
- * device-local and never replicate, so a second device needs this separate
- * account-bootstrap channel to obtain the master key.
- *
- * Given the relay's bootstrap channel (an {@link HttpSyncTransport} built with no
- * credentials — the joining device has none yet), it: looks the account up by
- * username (prelogin → account id + public salt); derives the KEK + verifier from
- * the password; authenticates with the verifier and fetches `wrap(MK, KEK)`;
- * unwraps MK locally; persists the local `account` row **under the looked-up id**
- * (the relay namespace, shared across devices); and **adopts MK under this
- * device's enclave** (replacing the throwaway first-launch wrap) so MK survives a
- * restart without a re-login. A wrong password fails at the relay's verifier
- * check (401), before any unwrap.
- *
- * Returns the unlocked {@link KeySession} for the caller to rebuild `core` with.
- * Refuses if this device is already part of an account — joining is for a fresh
- * device; reconciling pre-existing local data is a documented future phase
- * (overwrite is the accepted first-cut stance).
+ * Join an existing account on a fresh device: authenticate by password, unwrap
+ * MK, and adopt it under this enclave. Refuses a device already in an account.
  */
 export async function joinAccount(opts: {
   keyStore: KeyStore;
@@ -562,25 +495,24 @@ export async function joinAccount(opts: {
     throw new Error("This device is already part of an account.");
   }
 
-  // 1. Prelogin → account id + public salt (unauthed). Copy the salt into a
-  //    fresh array so it is ArrayBuffer-backed for the account-row write.
+  // 1. Prelogin: account id and public salt. Copied so the salt is
+  //    ArrayBuffer-backed for the row write.
   const lookup = await transport.lookup(username);
   const { accountId } = lookup;
   const kdfSalt = Uint8Array.from(lookup.kdfSalt);
 
-  // 2. Derive the KEK + verifier from the password and the public salt.
+  // 2. Derive the KEK and verifier from the password and salt.
   const { kek, authVerifier } = deriveKeyMaterial(password, kdfSalt);
 
-  // 3. Authenticate with the verifier and fetch wrap(MK, KEK), then unwrap MK
-  //    locally. A wrong password → wrong verifier → 401 here, before any unwrap.
+  // 3. Authenticate and fetch wrap(MK, KEK); a wrong password is a 401 here,
+  //    before any unwrap.
   const bootstrap = await transport.fetchBootstrap({
     accountId,
     authVerifier,
   });
   const masterKey = unwrapKey(bootstrap.wrappedMasterKey, kek);
 
-  // 4. Persist the local account row under the looked-up id, so this device
-  //    pushes/pulls into the same relay namespace as device 1.
+  // 4. The account row under the looked-up id: the relay namespace.
   await accountRepo.create({
     id: accountId,
     kdfSalt,
@@ -590,38 +522,24 @@ export async function joinAccount(opts: {
     relayUrl,
   });
 
-  // 5. Adopt MK under this device's enclave (custody Phase 2): replace the
-  //    throwaway first-launch wrap with the *account* MK, so later launches
-  //    recover it from the enclave alone (no re-login).
+  // 5. Adopt MK under this enclave, so later launches need no re-login.
   const { deviceId } = await adoptMasterKeyIntoEnclave({
     keyStore,
     driver,
     masterKey,
   });
 
-  // 5a. Lay down the local **password** door on MK. The relay just handed us
-  //     exactly these bytes — `wrap(MK, KEK)` under the account's own salt — and
-  //     until slice 9 nothing persisted them, so a joined device could open its
-  //     store file with its password but had no local route from that password
-  //     back to the master key. That is the one thing the boot-path repair needs
-  //     after a keychain loss, and creation and recovery both write it already;
-  //     join was the odd one out. Found by driving a joined device through a
-  //     wiped keychain, not by reading the code.
+  // 5a. The local password door, which the keychain-loss repair needs.
   await createKeyWrapRepo(driver).add({
     wrappedKind: "master",
     principalKind: "password",
-    // Copied onto a fresh array so it is ArrayBuffer-backed for the row write,
-    // as `reauthenticate` does with the same field.
+    // ArrayBuffer-backed for the row write.
     ciphertext: Uint8Array.from(bootstrap.wrappedMasterKey),
     alg: ALG,
   });
 
-  // 5b. Adopt the account recovery key so this device reveals the same phrase as
-  //     the rest of the account, mirroring recoverAccount. wrap(recoveryKey, MK)
-  //     lets us recover it from MK alone (this device never had the phrase).
-  //     Optional so a pre-change relay still lets us join (we then keep our
-  //     device-local key). Setting RECOVERY_KEY re-keys the at-rest sidecar on the
-  //     next launch (`apps/desktop/src/main/db/open.ts`).
+  // 5b. Adopt the account's recovery key, so this device shows the same phrase;
+  //     the at-rest sidecar re-keys to it on next launch. Absent on old relays.
   if (bootstrap.wrappedRecoveryKey !== undefined) {
     const recoveryKey = unwrapKey(bootstrap.wrappedRecoveryKey, masterKey);
     await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
@@ -646,19 +564,8 @@ export async function joinAccount(opts: {
 }
 
 /**
- * Recover an account on a fresh device from the **recovery phrase** alone — the
- * "I forgot my password, on a new device" path (`model.md` §6). The relay holds
- * the recovery escrow (`wrap(MK, recoveryKey)`) and only `sha256` of the recovery
- * verifier, so this: looks the account up; proves possession of the recovery key
- * (its verifier) to fetch the escrow and unwrap MK; **sets a new password** and
- * resets the account's password door on the relay (the old password is gone, and
- * the relay credential is password-derived, so a recovered device must establish
- * a fresh one to sync); persists the local account; adopts MK under this device's
- * enclave; and adopts the account recovery key as this device's recovery key so
- * one phrase keeps covering both the account and the local file.
- *
- * Refuses if this device is already part of an account (like {@link joinAccount}).
- * A recovery key for a *different* account fails at the relay's verifier check.
+ * Recover an account on a fresh device from the recovery phrase: fetch the
+ * escrow, set a new password on the relay, and adopt MK and the phrase locally.
  */
 export async function recoverAccount(opts: {
   keyStore: KeyStore;
@@ -688,21 +595,18 @@ export async function recoverAccount(opts: {
     throw new Error("This device is already part of an account.");
   }
 
-  // 1. Prelogin → account id. 2. Prove possession of the recovery key (its
-  //    verifier) to fetch wrap(MK, recoveryKey); a wrong phrase → wrong verifier
-  //    → the relay answers 401 here, before any unwrap.
+  // 1. Prelogin. 2. Prove the recovery key to fetch wrap(MK, recoveryKey); a
+  //    wrong phrase is a 401 here, before any unwrap.
   const { accountId } = await transport.lookup(username);
   const recoveryVerifier = deriveRecoveryVerifier(recoveryKey);
-  // Copy onto a plain ArrayBuffer-backed array so it flows into the BLOB-typed
-  // key_wrap field and the crypto primitives (the same posture as the KDF).
+  // ArrayBuffer-backed for the BLOB column and the crypto primitives.
   const wrappedMasterKeyRecovery = Uint8Array.from(
     await transport.fetchRecovery({ accountId, recoveryVerifier }),
   );
   const masterKey = unwrapKey(wrappedMasterKeyRecovery, recoveryKey);
 
-  // 3. Establish a new password and reset the account's password door on the
-  //    relay (proven by the recovery verifier), so this device can authenticate
-  //    sync going forward.
+  // 3. A new password, and the relay's password door reset to it, so this
+  //    device can authenticate sync.
   const salt = generateSalt();
   const { kek, authVerifier } = deriveKeyMaterial(newPassword, salt);
   const wrappedMasterKey = wrapKey(masterKey, kek);
@@ -745,9 +649,8 @@ export async function recoverAccount(opts: {
     alg: ALG,
   });
 
-  // Adopt the account recovery key as this device's recovery key, so the one
-  // phrase the user holds keeps opening both the account and this device's local
-  // file (the at-rest sidecar re-keys to it on the next launch).
+  // One phrase opens both the account and this device's file; the at-rest
+  // sidecar re-keys to it on next launch.
   await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
 
   // 6. Register this device on the account.
@@ -762,21 +665,8 @@ export async function recoverAccount(opts: {
 }
 
 /**
- * Re-authenticate this device after another device **reset the account password**
- * (the sibling of the recovery 401 follow-up, `status.md`). A reset rotates the
- * account's `kdfSalt` + `authVerifier` on the relay, so this device's stored
- * credential goes stale and its sync starts failing with 401. This refreshes the
- * credential from the *new* password — it is essentially "re-join an account you
- * are already on": look the account up to get the rotated salt, derive the new
- * KEK + verifier, authenticate against the relay (a wrong password → wrong
- * verifier → 401 there, before any unwrap), and on success update the local
- * `account` credentials + re-wrap the local `password` door.
- *
- * The master key is **never** touched: it stays in this device's enclave, so we
- * only refresh the password-derived door. As defense in depth the master key the
- * relay hands back (`unwrap(wrap(MK, newKEK))`) must equal this device's enclave
- * MK — if it differs (a different account), it refuses rather than corrupt the
- * local doors. Throws if sync is not enabled or the account has no username.
+ * Refresh this device's credential after another device reset the password.
+ * MK is untouched; refuses if the relay's MK is not this enclave's.
  */
 export async function reauthenticate(opts: {
   keyStore: KeyStore;

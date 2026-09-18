@@ -506,6 +506,16 @@ deterministically.
 - **Re-binding the enclave revokes before it adds, in one transaction.** `key_wrap_active` is a
   partial unique index over live rows, so adding first collides; a crash between the two would
   leave the device with no enclave door, openable only by password or phrase.
+- **`adoptAccountMasterKey` runs between `runMigrations` and `ensureDeviceMasterKey`,
+  synchronously.** Not earlier, because there is no driver until the store opens. Not later or in
+  the background, because the launch-time recovery-escrow catch-up publishes
+  `wrap(recoveryKey, MK)` to the relay, and a stray key reaching it turns one device's problem
+  into the account's. `"adopted"` means the device had drifted, and the caller must also rewind
+  its sync watermarks.
+- **Every path that puts an account on a device lays the local `password` door.** Creation,
+  join and recovery all write `wrap(MK, KEK)` locally. The keychain-loss repair unlocks through
+  it, so a path that skips it leaves a device whose password opens the file but not the master
+  key. Join once did, and it was found only by driving a joined device through a wiped keychain.
 
 ## Tests
 
