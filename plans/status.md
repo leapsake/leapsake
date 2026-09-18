@@ -37,6 +37,10 @@ on the `rc` rung, not a check that fails the release.
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
 
+**The relay half of both clients is deleted** _(2026-09-17)_ — v0.1 is single-device by
+construction now, not by a flag. It is rebuilt for v0.2 from the tag `relay-clients-final`
+([`v0-2.md`](./v0-2.md) → _Encryption, sync, and the relay_).
+
 **Not gating.** [`export.md`](./export.md) holds increment 6 and three device verifications;
 contact-import fidelity rests at a natural stopping point ([`v0-2.md`](./v0-2.md)); contact
 methods' URL templates are convention — confirm on real hardware while testing a build.

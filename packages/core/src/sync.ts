@@ -51,6 +51,11 @@ import {
   sealPasswordDoor,
 } from "@leapsake/key-custody";
 
+// The relay half of this file — registering, joining, merging, binding, relay
+// recovery, re-authenticating, running a sync, and the escrow round-trip — has no
+// caller: the clients' relay flows were deleted on 2026-09-17 and return in v0.2.
+// It is kept, and kept tested, so the rebuild starts from working code.
+
 /**
  * Persist this device's at-rest **password door** sidecar (`model.md` §7.5 Phase
  * 0.5). Injected rather than done here because *where* it lives is platform
