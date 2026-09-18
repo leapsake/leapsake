@@ -17,15 +17,10 @@ import {
 import { findPlatform } from "@leapsake/contact-links";
 import type { SqliteDriver } from "./driver.js";
 
-// `parseBirthdayQuery` now lives in `@leapsake/schema` (shared with the highlight
-// package); re-export it so its callers and tests keep their existing import.
+// Re-exported from `@leapsake/schema` for this module's callers.
 export { parseBirthdayQuery };
 
-/**
- * Shortest query we act on. Below this we return nothing, keeping the
- * truly-empty case quiet without per-facet length rules. A named constant so
- * tuning it is a one-line change.
- */
+/** Shortest query we act on; anything shorter returns nothing. */
 const MIN_QUERY_LENGTH = 2;
 
 /** Upper bound on results returned per query. */
@@ -49,14 +44,8 @@ function quality(field: string, term: string): number {
 const key = (type: SearchResultType, id: string) => `${type}:${id}`;
 
 export interface SearchService {
-  /**
-   * Find people and pets matching `term`, by name or by an owned phone/email —
-   * plus the facets that surface as themselves (tags, holidays, gift ideas).
-   * Loads the active rows and matches them in memory (no SQL `LIKE`, no index),
-   * resolves every hit to its owning entity, groups by `(entityType, entityId)`,
-   * and returns one `SearchHit` per entity with its match reasons merged.
-   * Returns `[]` for queries shorter than {@link MIN_QUERY_LENGTH}.
-   */
+  /** People and pets matching `term` by name or owned contact, plus the facets
+   *  with their own screens; one hit per entity, reasons merged. */
   query(term: string): Promise<SearchHit[]>;
 }
 
@@ -70,11 +59,8 @@ interface PetRow {
   id: string;
   name: string;
 }
-/**
- * An entity that exists only as a fact about another, joined to that other one.
- * Person and pet arrive down the same pipe, so the name columns of whichever it
- * isn't come back null.
- */
+/** An entity that exists only as a fact about another, joined to it; the name
+ *  columns of whichever type it isn't come back null. */
 interface AttachedRow {
   id: string;
   type: string;
@@ -139,21 +125,13 @@ interface BirthdayMatchRow {
   month: number | null;
   day: number | null;
 }
-/**
- * A holiday, surfaced as its own navigable result. No `normalized` column — the
- * name is folded at read time, as postal addresses are.
- */
+/** A holiday as its own result; its name is folded at read time. */
 interface HolidayRow {
   id: string;
   name: string;
 }
-/**
- * A gift idea, surfaced as its own navigable result and as the resolution target
- * of a tag match (gift ideas are taggable). Matched
- * on the folded `title`, like a holiday's name, and on its `url` — the half-
- * remembered link ("that thing from thelocalbookshop") is a real way people reach
- * for an idea, and it's the one field here a *name* can't stand in for.
- */
+/** A gift idea, as its own result and as a tag's owner. Matched on its folded
+ *  title and its `url`, the half-remembered link. */
 interface GiftIdeaRow {
   id: string;
   title: string;
@@ -169,28 +147,18 @@ interface Accumulator {
   bestQuality: number;
 }
 
-/**
- * Global search over people, pets, and the facets with their own screens (tags,
- * holidays, gift ideas). Read-only cross-table aggregator in the
- * same shape as the other read-time fan-outs (`kinship-service`,
- * `milestone-timeline`): pull the small set of active rows and derive on read.
- */
+/** Global search: load the small set of active rows and match in memory. */
 export function createSearchService(driver: SqliteDriver): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
     if (term.trim().length < MIN_QUERY_LENGTH) return [];
-    // Trimmed: leading/trailing space is typing, not intent. Without this the
-    // half-typed "harry " matches nothing at all, so a result that was on screen
-    // for "harry" vanishes the moment the space before the surname is typed.
-    // (The other facets' query normalizers already trim.)
+    // Trimmed, so "harry " still matches what "harry" did.
     const folded = fold(term).trim();
     const emailQuery = normalizeEmail(term); // trimmed + lowercased
     const phoneQuery = normalizePhone(term); // leading "+" + digits only
     const addressQuery = foldAddress(term); // comma/whitespace-insensitive
     const urlQuery = foldUrl(term); // scheme- and "www."-insensitive
     const tagQuery = folded.replace(/^#+/, ""); // the "#" sigil is optional here
-    // A handle is written with an "@" but never stored with one, so the sigil is
-    // stripped here for the same reason "#" is above: typing it should narrow
-    // the search, not guarantee zero results.
+    // Handles are stored without the "@", so a typed one is stripped.
     const handleQuery = normalizeHandle(term).replace(/^@+/, "");
 
     const [
@@ -207,9 +175,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       giftIdeas,
       attached,
     ] = await Promise.all([
-      // Published only: an unpublished entity is not a result of its own. It is
-      // still findable, but as a fact about the person it belongs to — see
-      // `attached` below.
+      // Published only; an unpublished entity is found through `attached`
+      // below.
       driver.all<PersonRow>(
         `SELECT id, first_name, middle_name, last_name FROM people
           WHERE deleted_at IS NULL AND ${PUBLISHED_SQL}`,
@@ -244,20 +211,15 @@ export function createSearchService(driver: SqliteDriver): SearchService {
              FROM milestones
             WHERE kind = 'birthday' AND deleted_at IS NULL`,
       ),
-      // Hidden holidays are included deliberately: hiding suppresses a holiday's
-      // reminders, not its existence, and search is the fastest route back to
-      // the screen where it can be unhidden. Excluding them would make a hidden
-      // holiday reachable only by scrolling the full catalog.
+      // Hidden holidays included: search is the fastest way back to unhide one.
       driver.all<HolidayRow>(
         "SELECT id, name FROM holidays WHERE deleted_at IS NULL",
       ),
       driver.all<GiftIdeaRow>(
         "SELECT id, title, url FROM gift_ideas WHERE deleted_at IS NULL",
       ),
-      // Entities that exist only as a fact about somebody else, joined to the
-      // somebody. Searching "Ruth" has to find your coworker — she is on his page
-      // and nowhere else, so his row is the only place a result could lead. The
-      // `CASE`s orient each edge: the anchor is whichever end isn't the entity.
+      // Entities that exist only as facts about another, joined to it. The
+      // `CASE`s orient each edge: the anchor is the end that isn't the entity.
       driver.all<AttachedRow>(
         `SELECT e.id, e.type, e.first_name, e.middle_name, e.last_name,
                 e.pet_name, r.anchor_type, r.anchor_id
@@ -283,21 +245,15 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     ]);
 
     const acc = new Map<string, Accumulator>();
-    /**
-     * `(type, id) → display title` for every active entity. A contact hit
-     * resolves its owner's title here (the §4 "free title lookup"); an owner not
-     * in this map is soft-deleted/unresolvable, so its contact rows drop (§2.4).
-     */
+    /** `(type, id) → title` for every active entity; a contact whose owner is not
+     *  here is dropped. */
     const titleByEntity = new Map<
       string,
       { type: SearchResultType; title: string }
     >();
 
-    /**
-     * Record (or merge) a match against an entity's grouped row, keeping the
-     * grouping/merge logic in one place (§2.2). `isName` only ever flips on, and
-     * `bestQuality` only ever improves.
-     */
+    /** Record or merge a match on an entity's row. `isName` only flips on, and
+     *  `bestQuality` only improves. */
     const record = (
       type: SearchResultType,
       id: string,
@@ -327,15 +283,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       });
     };
 
-    /**
-     * Record a name match if any of `candidates` matches the folded term. An
-     * absent part of a name is simply not a candidate to match against.
-     *
-     * Callers pass the individual parts *and* the assembled whole-name forms:
-     * a query is one string, so "harry bailey" can never be a substring of
-     * any single part, and matching parts alone would drop a person the moment
-     * the user typed past their first name.
-     */
+    /** Record a name match if any candidate matches. Callers pass whole-name forms
+     *  too, since "harry bailey" is a substring of no single part. */
     const addNameHit = (
       type: SearchResultType,
       id: string,
@@ -352,12 +301,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     };
 
     for (const p of people) {
-      // The middle name is normally hidden, but surfaced in the title when the
-      // term matched *it* specifically — so a hit explained only by the middle
-      // name ("tch" → "Mary Hatch Bailey") shows why it's there, while an
-      // ordinary first/last hit stays "Mary Bailey".
-      // Joined, not interpolated: any part of a name may be absent, and a title
-      // of " Dakin" would be both wrong on screen and wrong to fold against.
+      // The middle name shows only when the term matched it. Parts are joined,
+      // not interpolated, since any may be absent.
       const middle = p.middle_name ?? "";
       const plain = joinNameParts(p.first_name, p.last_name);
       // The owner-resolution title (for contact-only hits) is always the plain
@@ -376,10 +321,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
           // with-middle whole name can match — the same reason to show it.
           (fold(withMiddle).includes(folded) && !fold(plain).includes(folded)));
       const title = showMiddle ? withMiddle : plain;
-      // Parts first, then both whole-name forms — with and without the middle
-      // name — so "harry bailey" and "harry q bailey" both land, and a
-      // whole-name match still reports the quality of its best *part* (typing
-      // a surname in full stays an exact match, not a substring one).
+      // Parts, then whole names with and without the middle name, so a
+      // full-name match keeps the quality of its best part.
       addNameHit("person", p.id, title, [
         p.first_name,
         middle,
@@ -392,20 +335,15 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       titleByEntity.set(key("pet", pet.id), { type: "pet", title: pet.name });
       addNameHit("pet", pet.id, pet.name, [pet.name]);
     }
-    // Gift-idea-as-result: an idea has its own screen, so a title match surfaces
-    // as its own navigable row ("what was that Tom Sawyer link?"). Registered in
-    // titleByEntity *here*, before the tag pass below, so a gift idea also
-    // resolves as the owner of a matching tag — the one facet gift ideas share
-    // with people and pets.
+    // A gift idea is its own result, registered before the tag pass so it can
+    // also own a matching tag.
     for (const idea of giftIdeas) {
       titleByEntity.set(key("gift_idea", idea.id), {
         type: "gift_idea",
         title: idea.title,
       });
       addNameHit("gift_idea", idea.id, idea.title, [idea.title]);
-      // The link is a *reason* match, never a name one, so a URL hit sorts below
-      // every title hit and shows its "matched on …" line — the same shape as an
-      // email or address hit. An idea matching both merges into one row.
+      // A link match is a reason, not a name, so it sorts below title hits.
       if (idea.url !== null && urlQuery !== "") {
         const haystack = foldUrl(idea.url);
         const q = quality(haystack, urlQuery);
@@ -415,12 +353,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       }
     }
 
-    /**
-     * Resolve a matched contact method to its owning entity (drop unresolvable
-     * owners, §2.4) and merge the human-readable `matchedText` as the reason
-     * (§2.1, §2.3). The caller has already decided this row matched and with what
-     * quality — keeping per-facet match logic in its own block (§4).
-     */
+    /** Resolve a matched contact to its owner (dropping unresolvable ones) and
+     *  merge `matchedText` in as the reason. */
     const addOwnerHit = (
       ownerType: string,
       ownerId: string,
@@ -445,11 +379,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       );
     };
 
-    // Someone who exists only as a fact about somebody else matches as a facet of
-    // that somebody, exactly the way a phone number or a tag does: searching
-    // "Ruth" turns up your coworker's row, explained by the relationship, because
-    // his page is the only place she can be read. Runs after the entity passes
-    // above, which is what has filled `titleByEntity` with the anchors.
+    // An attached entity matches as a facet of its anchor, whose page is the
+    // only place it is read. Runs after the passes that fill `titleByEntity`.
     for (const row of attached) {
       const name =
         row.type === "person"
@@ -461,9 +392,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       addOwnerHit(row.anchor_type, row.anchor_id, "relationship", name, q);
     }
 
-    // Email: forward substring of the normalized address. Any query of sufficient
-    // length can match (typing "jane" lighting up jane@… and merging with the
-    // name hit is the intended §2.2 behavior).
+    // Email: forward substring of the normalized address.
     for (const e of emails) {
       if (e.normalized.includes(emailQuery)) {
         addOwnerHit(
@@ -475,13 +404,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         );
       }
     }
-    // Phone: compare on digits only — this both ignores formatting and, crucially,
-    // matches *either direction*, so a stored number and a typed number whose only
-    // difference is a country code / leading "+" still match (e.g. stored
-    // "5551234567" vs typed "+1 555 123 4567"). Run only when the query carries
-    // digits, so a pure-letter query doesn't match every number. Robust
-    // cross-format matching (trunk-prefix locales) is still libphonenumber
-    // territory (§8).
+    // Phone: digits only, matched either direction so a country code or "+"
+    // does not matter. Only when the query has digits.
     const phoneDigits = digits(phoneQuery);
     if (phoneDigits.length > 0) {
       for (const ph of phones) {
@@ -502,12 +426,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         );
       }
     }
-    // Postal: no normalized column, so fold the formatted one-line address and
-    // substring it (concatenate-all field scope, §10.4). The address fold ignores
-    // commas/spacing, so "123 any street pittsburgh" matches "123 Any Street,
-    // Pittsburgh". The guard keeps a comma/space-only query from matching every
-    // address (it folds to ""). Type a street number or a city and the owning
-    // entity surfaces; the reason shows the full address.
+    // Postal: substring of the folded one-line address; the guard stops a
+    // punctuation-only query matching every address.
     if (addressQuery !== "") {
       for (const pa of postals) {
         const display = formatPostalAddress({
@@ -530,12 +450,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         }
       }
     }
-    // Social handles: forward substring of the normalized handle, the same rule
-    // email follows and for the same reason — typing "jane" should light up
-    // "@janewainwright" and merge with her name hit. Answers "who is @foo?", which is
-    // otherwise a question the app cannot be asked. The reason line carries the
-    // platform so two people who share a handle on different networks are
-    // told apart.
+    // Social handles: forward substring, like email. The reason carries the
+    // platform, so shared handles on different networks are told apart.
     if (handleQuery !== "") {
       for (const so of socials) {
         if (so.normalized === "" || !so.normalized.includes(handleQuery)) {
@@ -550,14 +466,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         );
       }
     }
-    // Tag-as-result: a tag has its own screen, so a matching tag surfaces as its
-    // own navigable row. It's recorded as a name hit on the tag itself (facet
-    // "name", so no "matched on …" line), and the sort floats it above the
-    // entities that merely carry the tag (see the tag tiebreak below). This is
-    // the one facet that surfaces as itself rather than only resolving to owners.
-    // tagList holds only active tags (orphans are GC-soft-deleted), so a match
-    // here always has at least one bearer below it. Matched on tagQuery (a "#"
-    // sigil is optional), since a stored tag name never contains the "#".
+    // Tag as its own result: a name hit on the tag, floated above its bearers
+    // by the sort. Active tags always have a bearer.
     if (tagQuery !== "") {
       for (const t of tagList) {
         if (t.normalized.includes(tagQuery)) {
@@ -573,10 +483,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
         }
       }
     }
-    // Tag-as-reason: substring of the tag's normalized (lowercased) name, matched
-    // against the folded query (leading "#" stripped). One entity carrying several
-    // matching tags — or matching a tag *and* its own name — merges into one row
-    // via record(). The guard keeps an empty query from matching every tag.
+    // Tag as a reason: an entity carrying a matching tag, merged via `record`.
     if (tagQuery !== "") {
       for (const tg of taggings) {
         if (tg.normalized.includes(tagQuery)) {
@@ -591,15 +498,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       }
     }
 
-    // Birthday: parse the term into the partial date(s) it could mean, then
-    // surface every birthday consistent with a candidate (resolving to its
-    // person/pet bearer). A candidate matches only when every part it
-    // *specifies* equals the milestone's part, so a "march" query never lights
-    // up a year-only birthday, and a milestone missing a specified part drops.
-    // parseBirthdayQuery returns [] for a non-date term, so the block is skipped
-    // rather than matching everyone (the same empty-query guard the other facets
-    // use). Birthdays only ever sit on person/pet bearers (the kind's
-    // allowedBearerTypes), so addOwnerHit resolves them all.
+    // Birthdays: every part a candidate date specifies must equal the
+    // milestone's. A non-date term parses to no candidates, so nothing matches.
     const birthdayCandidates = parseBirthdayQuery(term);
     if (birthdayCandidates.length > 0) {
       for (const m of birthdays) {
@@ -620,15 +520,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       }
     }
 
-    // Holiday-as-result: like a tag, a holiday has its own screen, so a matching
-    // one surfaces as its own navigable row rather than only through the people
-    // who observe it. Recorded as a name hit (facet "name", so no "matched on …"
-    // line) and floated above equally-matching entities by the sort below.
-    //
-    // Unlike a tag there is no matching holiday-as-*reason* pass. A tag usually
-    // labels a handful of entities, but Christmas can easily have forty
-    // observers — surfacing them all would bury every other result and duplicate
-    // what the holiday's own screen already lists.
+    // Holiday as its own result. No holiday-as-reason pass: forty observers of
+    // Christmas would bury everything else.
     for (const h of holidays) {
       const foldedName = fold(h.name);
       const q = quality(foldedName, folded);
@@ -642,12 +535,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       if (a.isName !== b.isName) return a.isName ? -1 : 1;
       // 2. match-quality bucket: exact > starts-with > substring.
       if (a.bestQuality !== b.bestQuality) return a.bestQuality - b.bestQuality;
-      // 3. a facet that *aggregates* entities — a tag or a holiday — floats above
-      //    an equally-matching entity, so when the query best matches a tag the
-      //    tag leads, followed by its bearers; likewise for a holiday. A gift
-      //    idea is deliberately **not** here: it has its own screen but leads
-      //    nothing (the people below it aren't its members), so it takes its
-      //    place alphabetically among equal matches instead of jumping the line.
+      // 3. A tag or holiday floats above an equal entity, leading its members.
+      // A    gift idea leads nothing, so it stays alphabetical.
       const ownScreen = (t: SearchResultType) => t === "tag" || t === "holiday";
       const aOwn = ownScreen(a.hit.entityType);
       const bOwn = ownScreen(b.hit.entityType);
