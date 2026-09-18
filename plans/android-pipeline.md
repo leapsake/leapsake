@@ -44,6 +44,16 @@ upload — and it is the only thing standing between here and production access.
 two-account instruction with the link** — see *Traps*. Play does not reliably email testers on
 your behalf; assume distributing the link is yours to do.
 
+⚠️ **Being on the email list is not being opted in.** The list is only permission to *use* the
+link; the count that matters is people who followed it and joined. The bar is 12 opted in
+**continuously**, so the clock starts at the twelfth and resets if the number dips — which is
+why the target is ~15, not 12. A tester who quietly uninstalls on day three costs the fortnight,
+and nothing announces it.
+
+⚠️ **No tooling can watch this.** `edits/{id}/testers/<track>` reads `{}` for an email-list
+track, because that resource only ever exposed Google Groups (see *Facts*). The Console's
+**Testers** tab is the only place the real number lives.
+
 ### 2. `beta.9`, scripted, and what it proves
 
 ```sh
