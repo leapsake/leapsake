@@ -1,10 +1,29 @@
 # @leapsake/core
 
-The **client-agnostic application surface**. `createCore(driver)` wires every repository and
-service over one `SqliteDriver` and returns a **`CoreApi`**: transactional multi-repo writes,
-cascade soft-deletes, relationship orientation (resolving raw `a`/`b` endpoints to "the other
-end" with a label and role), and read-and-compose view-model builders (`views.ts`). Depends
-on `data` + `schema`; free of any transport/UI concern.
+The **client-agnostic application surface**. `createCore(driver)` constructs every repository
+over one `SqliteDriver`, hands them to each feature package's `createXApi(deps)`, and returns
+the assembled **`CoreApi`**. Free of any transport or UI concern.
+
+## What is actually here
+
+Composition, and three things that are genuinely core's:
+
+| In `src/`    | What                                                                                |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `index.ts`   | the wiring, plus the thin sections that are one repo call each (tags, search, kinship) |
+| `views.ts`   | read-and-compose view-model builders — the one place that reads everything for display |
+| `sync.ts`    | `syncableRepos`, the allowlist of what may leave the device                           |
+
+Everything with domain logic of its own lives in its own package and arrives through
+`deps`: [`holidays`](../holidays/README.md), [`reminders`](../reminders/README.md),
+[`gifts`](../gifts/README.md), [`contact-import`](../contact-import/README.md),
+[`export`](../export/README.md), and the cross-repo services in [`data`](../data/README.md)
+(entity cascades and merge, relationship writes, kinship, duplicates, search).
+
+`views.ts` stays because it is the exception that proves the rule: every builder is `async`
+and reads through repo ports, so it is composition-for-display rather than derivation.
+[`@leapsake/view-models`](../view-models/README.md) is the pure, synchronous counterpart both
+clients share; nothing in `views.ts` belongs there without being made repo-free first.
 
 ## Why `core` exists — it was extracted to make V2 a port
 

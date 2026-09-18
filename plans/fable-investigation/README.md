@@ -35,15 +35,21 @@ accretion rather than missing abstractions. The line counts below predate the re
 
 | #   | Doc                                                            | What it removes or simplifies                                                                                                                                 | Owner's call                                                                                                                          |
 | --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 2   | [`core-decomposition.md`](./core-decomposition.md)             | `packages/core/src/index.ts` (2,894 lines) implements import, reminders, gifts, holidays and entity cascades instead of composing them.                       | **Do it.** Mechanical, covered by typecheck plus the integration suite.                                                               |
 | 3   | [`comment-pass.md`](./comment-pass.md)                         | Decision history living in source comments. The reminders engine is 739 lines of code under 1,091 lines of comment.                                           | **Do it, and adopt the rule.** Behaviour comments only, under two lines, decisions go to `git log` and package READMEs.               |
 | 4   | [`shared-form-logic.md`](./shared-form-logic.md)               | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                    | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                                 |
 | 5   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)               | E2E flows standing in for a missing mobile hook tier; an E2E arc that never relaunches the app. _The Vitest KDF cost landed 2026-09-16._                      | **Do it.** Extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.                              |
 | 6   | [`release-targets-per-rung.md`](./release-targets-per-rung.md) | The test gate runs every platform's device tiers whether or not that platform is in the release.                                                              | **Do it, last.** Its readiness half was cancelled — `plans/android-pipeline.md` shipped the same guarantee as a preflight check.      |
 
-**1 landed on 2026-09-17** (tag `relay-clients-final`; the rebuild note moved to
-`plans/v0-2.md`), which unblocks the rest: 2 shrinks the file 3 would spend the most time in,
-and 4 and 5 can run in parallel with 3.
+**1 and 2 landed on 2026-09-17.** 1 was the relay removal (tag `relay-clients-final`; the
+rebuild note moved to `plans/v0-2.md`). 2 took `packages/core/src/index.ts` from 2,885 lines to
+1,154 and `sync.ts` from 737 to 83, which unblocks 3 — the file it would have spent the most
+time in is now mostly gone. 4 and 5 can run in parallel with 3.
+
+Two of 2's ten steps were not done. The re-export audit was **skipped** (owner): several of
+those re-exports carry comments saying core is deliberately the apps' single entry point, and
+the audit would have reversed that on ~56 client files. `views.ts` was **confirmed to stay** —
+every builder reads through repo ports, so none of it is the pure derivation
+`@leapsake/view-models` holds.
 
 6 was first in the original ordering, on the strength of the next Android release wanting it.
 It is now last: `plans/android-pipeline.md` settled the readiness question by another route, and

@@ -12,14 +12,23 @@ schema  →  data  →  core  →  clients
 - **[`data`](./data/README.md)** — the `SqliteDriver` port, the migration runner, per-entity
   repositories, cross-repo services, and the sync substrate. Imports no DB driver.
 - **[`core`](./core/README.md)** — the client-agnostic `CoreApi` every client wires up. It is
-  the composition root: it owns the syncable-repo allowlist and the relay wiring, and it is
-  the only package that depends on the others.
+  the composition root: it constructs the repositories, calls each feature package's
+  `createXApi(deps)`, owns the syncable-repo allowlist and the read-and-compose view builders,
+  and is the only package that depends on the others.
 - **Everything else is a narrow package `core` composes** — `ls` this directory for the list,
   and read each one's own `README.md` for why it is shaped the way it is. Those READMEs are
   the authority; nothing here keeps a second copy of them.
 
 **New domain logic gets its own package**, with injected ports, rather than a new folder
 inside `core`. `core` is where things are composed, not where they are implemented.
+
+A feature package takes the repositories it needs as a `deps` object typed against the
+interfaces in `data`, exactly as `createHolidaysApi` and `createRemindersApi` do. Depending on
+`data` for those types is normal. **Depending on `core` is not, ever** — nothing enforces that
+mechanically, but a real cycle would break `tsc`, and the arrows above are the design.
+
+Where a port would close a loop, it stays a port: `reminders` takes `listHolidayCandidates`
+rather than importing `holidays`, which already depends on it.
 
 Client-specific logic belongs in that client's `apps/` project. Anything two clients could
 share belongs here.
