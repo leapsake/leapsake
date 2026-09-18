@@ -22,39 +22,15 @@ import {
   createKeyWrapRepo,
 } from "@leapsake/data";
 
-/**
- * The unlocked key material for the running device: a stable device identifier
- * and the in-memory master key (MK). Held by a client after bootstrap so later
- * work (per-item content keys, sync) can wrap/unwrap under MK. The MK bytes live
- * only here in memory — on disk it exists solely as its enclave wrapping.
- *
- * **Accepted limit: MK is a plaintext `Uint8Array` for the process lifetime and
- * is never zeroized.** In a GC'd runtime it cannot reliably be — V8 and Hermes
- * both copy and intern buffers — so `.fill(0)` would buy the appearance of
- * hygiene rather than the fact. What follows: this is exposed to a memory dump,
- * swap, or a crash report on an *already compromised* device, and at-rest
- * encryption rather than wiping is the real device-theft mitigation. Two
- * consequences for anyone editing this file: never let a key-bearing object
- * reach a log or a crash reporter, and do wipe the short-lived **KEK** and
- * transient wrap keys after use, since those are derived-then-used-once and
- * cost nothing to clear.
- */
+/** A running device's id and in-memory master key. ⚠️ Never zeroized, so it
+ *  must never reach a log or crash report (README, "Invariants"). */
 export interface KeySession {
   deviceId: string;
   masterKey: Uint8Array;
 }
 
-/**
- * The minimum length of an account password, and the one place it is defined.
- *
- * Deliberately higher than a typical login floor: this password derives the KEK
- * that protects the master key **and**, through {@link sealPasswordDoor}, the
- * at-rest db-key — in a zero-knowledge design with no server-side reset, so an
- * offline guess against a weak one is the whole attack. It lives here because
- * this file holds every path that consumes a password (create, recover,
- * re-authenticate, unlock), and it is re-exported through `@leapsake/core` so
- * both clients check the same number instead of keeping four copies in step.
- */
+/** The minimum account-password length, re-exported through core so both
+ *  clients check one number. */
 export const MIN_PASSWORD_LENGTH = 12;
 
 /** KeyStore id holding this device's stable UUID (UTF-8 bytes). */
@@ -62,14 +38,8 @@ const DEVICE_ID_KEY = "device-id";
 /** KeyStore id holding this device's 32-byte enclave secret. */
 const ENCLAVE_KEY = "enclave";
 
-/**
- * Every KeyStore id this app writes — the complete set of on-device secrets. It
- * exists as one exported list so a **factory reset** can clear them all without
- * knowing where each id is defined (the mobile {@link KeyStore} has no bulk clear,
- * only per-id `deleteSecret`). Keep this in step with every `keyStore.setSecret`
- * call across the packages: `db-key`/`recovery-key` (the at-rest + recovery keys
- * from `@leapsake/crypto`) and this file's `device-id`/`enclave`.
- */
+/** Every KeyStore id this app writes, so a factory reset can clear them all.
+ *  Keep it in step with every `keyStore.setSecret` call. */
 export const KEYSTORE_SECRET_IDS = [
   DATABASE_KEY,
   RECOVERY_KEY,
@@ -78,20 +48,8 @@ export const KEYSTORE_SECRET_IDS = [
 ] as const;
 
 /**
- * Mint-or-read this device's stable id — the keychain-only half of
- * {@link ensureDeviceIdentity}, split out and exported so a caller can obtain a
- * device id **before any account exists**. Under "encryption follows custody"
- * (`plans/encryption/model.md` §7.2), {@link ensureDeviceMasterKey} runs only
- * once a store is Authenticated, so an account-less install otherwise has no
- * device id at all — a gap the local-notification policy needs closed, since
- * its per-device settings row is keyed on this id pre-account too.
- *
- * Touches only the OS keychain — no DB write, no enclave secret, no master
- * key — so it is safe to call regardless of custody state. Minted once, read
- * back unchanged after. Because {@link ensureDeviceIdentity} reads this exact
- * `DEVICE_ID_KEY` entry too, a device that already minted an id this way is
- * automatically "adopted" as `device.id` the first time an account is
- * created — no reconciliation step.
+ * Mint-or-read this device's stable id, touching only the keychain, so it works
+ * before any account exists. An account created later adopts the same id.
  */
 export async function ensureLocalDeviceId(keyStore: KeyStore): Promise<string> {
   const stored = await keyStore.getSecret(DEVICE_ID_KEY);
@@ -102,28 +60,13 @@ export async function ensureLocalDeviceId(keyStore: KeyStore): Promise<string> {
 }
 
 /**
- * This device's identity in the keychain: a stable id and the enclave secret that
- * wraps the master key under it. Minted on first read, returned unchanged after.
- *
- * Split out from {@link ensureDeviceMasterKey} because the two halves have very
- * different reach. This half touches only the keychain and is therefore safe to
- * call from a path that is *repairing* the `key_wrap` rows; the master-key half
- * writes one, and on a device that lost its keychain that write is the bug slice 9
- * exists to prevent (see {@link adoptAccountMasterKey}).
- *
- * Mint-if-missing is load-bearing for the repair, not just convenience: a wiped
- * keychain has no enclave secret at all, so a `getSecret`-and-throw would refuse to
- * repair exactly the device that needs it.
- *
- * Private on purpose — it hands back the raw enclave secret, which nothing outside
- * this file has a reason to hold.
+ * The device id and enclave secret, minted if missing so a wiped keychain can be
+ * repaired. Keychain-only, and private: it returns the raw enclave secret.
  */
 async function ensureDeviceIdentity(
   keyStore: KeyStore,
 ): Promise<{ deviceId: string; enclaveKey: Uint8Array }> {
-  // Stable device id — minted once, then read back each launch. Shared with
-  // ensureLocalDeviceId (same keychain entry) so a pre-account mint is found
-  // and reused here rather than replaced.
+  // The same keychain entry, so a pre-account id is reused, not replaced.
   const deviceId = await ensureLocalDeviceId(keyStore);
 
   // Device enclave secret — the local unlock path for MK, held off-DB.
@@ -137,20 +80,8 @@ async function ensureDeviceIdentity(
 }
 
 /**
- * Bind `masterKey` to this device's enclave, replacing whatever was bound before:
- * the one place a `(master, enclave, <device>)` wrap is established.
- *
- * Used by every path that brings an *account's* master key onto a device — joining,
- * recovering, and repairing a device that came back through a door
- * ({@link adoptAccountMasterKey}). Returns `"unchanged"` when the enclave already
- * holds this key, which is the ordinary case rather than the exception: a plain
- * sign-out keeps the device id and enclave secret, so the unlock gate is re-entered
- * on every re-login and a blind re-wrap would churn a fresh row each time.
- *
- * Revoke strictly precedes add — `key_wrap_active` is a partial unique index over
- * the live rows, so adding first collides. The pair is transactional because a
- * crash between them would leave the device with no enclave door at all, openable
- * only by password or phrase.
+ * Bind `masterKey` to this device's enclave, or answer `"unchanged"` when it is
+ * already bound (every re-login). Revoke precedes add, in one transaction.
  */
 async function adoptMasterKeyIntoEnclave(opts: {
   keyStore: KeyStore;
@@ -191,39 +122,8 @@ async function adoptMasterKeyIntoEnclave(opts: {
 }
 
 /**
- * Custody Phase 0 (README.md): make the device's master
- * key real on first launch and recover it on every launch after — the first
- * consumer of the OS {@link KeyStore}.
- *
- * On first run it mints a device id + enclave secret (stored in the OS keychain,
- * outside the synced DB) and a random MK, persisting MK only as a `key_wrap`
- * row — `wrap(MK, enclave)` keyed by the device id (`wrapped_kind = 'master'`,
- * `principal_kind = 'enclave'`). On later runs it reads the enclave secret back
- * and unwraps the existing row. Idempotent: calling it every launch adds no
- * extra rows.
- *
- * This is AEAD-only (no passphrase/KDF, no asymmetric keys) — the symmetric
- * Stage-1 floor. The passphrase/recovery unlock doors are added later as
- * additional wrappings of the same MK, re-encrypting nothing.
- *
- * Takes a {@link SqliteDriver} (like `createCore`) so a client wires it with one
- * call between `runMigrations` and `createCore`; run migrations first.
- *
- * ### It refuses to mint once an account exists
- *
- * Minting is only ever correct on a store that has no account yet. A store that
- * *does* have one already has a master key — the account's — reachable from the
- * password and recovery `key_wrap` rows; minting a second one there means this
- * device silently stops speaking the account's language, sealing records no peer
- * can open and discarding theirs. That is not hypothetical: it is what an OS
- * keychain loss used to do here, because a wiped keychain takes `device-id` with
- * it and a fresh id matches no row (custody slice 9).
- *
- * So this throws instead, and the boot path repairs the device first — see
- * {@link adoptAccountMasterKey}, which every door unlock now runs before reaching
- * this function. The paths that legitimately establish an account
- * ({@link enableSync}, {@link joinAccount}, {@link recoverAccount}) go through
- * {@link adoptMasterKeyIntoEnclave} rather than here, so none of them trips it.
+ * Recover the device's master key from its enclave wrap, minting one only on a
+ * store with no account. With an account it throws: the door must re-adopt.
  */
 export async function ensureDeviceMasterKey(opts: {
   keyStore: KeyStore;
@@ -262,17 +162,7 @@ export async function ensureDeviceMasterKey(opts: {
   return { deviceId, masterKey };
 }
 
-/**
- * Whether this store holds an account (custody Phase 1), for a client to branch
- * its onboarding UI: invite the user to create one, or show the account they
- * have. Carries only non-secret identity (the account id + when it was created)
- * — never key material.
- *
- * **`hasAccount`, not `enabled`.** The field was named for sync and meant custody,
- * which read as "does this store sync" — false for the local-only account that
- * `relayUrl` actually answers for. Renamed 2026-07-31; see this package's README →
- * *Custody vocabulary*.
- */
+/** Whether this store holds an account, with its non-secret identity only. */
 export interface SyncStatus {
   hasAccount: boolean;
   accountId?: string;
@@ -281,11 +171,7 @@ export interface SyncStatus {
   relayUrl?: string;
 }
 
-/**
- * Read whether sync has been enabled on this store. A thin read over the account
- * singleton ({@link enableSync} creates exactly one), so a client need not reach
- * into `@leapsake/data` for the account repo.
- */
+/** Read the account singleton as a {@link SyncStatus}. */
 export async function getSyncStatus(opts: {
   driver: SqliteDriver;
 }): Promise<SyncStatus> {
@@ -301,41 +187,8 @@ export async function getSyncStatus(opts: {
 }
 
 /**
- * **The account-creation rollback**: undo the account rows this device just
- * wrote, when the step *after* them fails. Remove the account identity (account +
- * device rows) and revoke the **password** and **recovery** wrappings of the
- * master key, leaving the enclave wrapping — and all data — untouched, so the
- * device is exactly as it was a moment earlier.
- *
- * Its first caller in each client is the relay-registration failure path of
- * account creation (a taken username, an unreachable relay). That call happens
- * *before* anything on disk moves: the store is still the plaintext Unauthenticated one and
- * no roster entry exists yet, so undoing the rows genuinely restores the prior
- * state. A no-op (does not throw) if no account is set up.
- *
- * Its second is the **merge flow** (`apps/desktop/src/main/db/merge-account-flow.ts`),
- * which needs the account row gone because {@link joinAccount} refuses to run
- * while one exists. That is a different use — clearing to make room rather than
- * to undo — and it does *not* reopen the hole the warning below describes: the
- * merge calls this against a **copy** that no roster entry names, and the copy
- * gains the synced account's row moments later, before any entry points at it.
- * The "rows cleared, roster not" state is therefore never on disk, in either
- * store, for any length of time, and the live store is not mutated at all.
- *
- * > **Not a user-facing action, and no longer reachable as one.** This used to
- * > back a "Disconnect account from this device" button, which the custody
- * > rebuild made incoherent: it cleared these rows but never the **roster**, and
- * > the roster is what decides whether a store is encrypted (§7.4). A device
- * > that pressed it stayed Authenticated on disk while reporting no account —
- * > hiding Sign out and Forget account, offering "create an account" instead,
- * > and failing that too, since creation requires a plaintext Unauthenticated store. The
- * > button was removed rather than repaired: "stop syncing but keep the data"
- * > is a narrow want, and rebuilding it properly means deciding what the relay
- * > does with the account, not just what this row does *(owner, 2026-07-28)*.
- *
- * Local only: it never contacts a relay, so an account already registered
- * elsewhere keeps existing there. Re-keying/forgetting on the relay is a future
- * concern.
+ * Roll back account creation: remove the account and device rows and revoke the
+ * password and recovery wraps, leaving data and the enclave wrap. Local only.
  */
 export async function clearLocalAccount(opts: {
   driver: SqliteDriver;

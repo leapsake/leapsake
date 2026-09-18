@@ -487,6 +487,26 @@ The hazard is **not unique to an org transfer**: OS reinstall, machine migration
 `safeStorage` failure triggers the same gate. A transfer only makes it fire for everyone at once,
 deterministically.
 
+## Invariants a change here must preserve
+
+- **Key-bearing objects never reach a log or a crash reporter.** The master key is a plaintext
+  `Uint8Array` for the life of the process and is never zeroized. In a GC'd runtime it cannot
+  reliably be, because V8 and Hermes copy and intern buffers, so `.fill(0)` would only look like
+  hygiene. At-rest encryption, not wiping, is the device-theft mitigation. The short-lived KEK
+  and transient wrap keys *are* wiped after use, since they are derived, used once, and cost
+  nothing to clear.
+- **The password floor is `MIN_PASSWORD_LENGTH` (12), defined once in `session.ts`.** It is higher
+  than a typical login floor because the password derives the KEK that protects both the master
+  key and the at-rest db-key, in a zero-knowledge design with no server-side reset: an offline
+  guess against a weak password is the whole attack. `session.ts` holds every path that consumes
+  a password, and core re-exports the constant so neither client keeps a copy.
+- **`KEYSTORE_SECRET_IDS` lists every keychain id the app writes.** A factory reset clears by
+  that list, because the mobile `KeyStore` has no bulk clear. A new `setSecret` id that is not
+  added there survives the reset.
+- **Re-binding the enclave revokes before it adds, in one transaction.** `key_wrap_active` is a
+  partial unique index over live rows, so adding first collides; a crash between the two would
+  leave the device with no enclave door, openable only by password or phrase.
+
 ## Tests
 
 Coverage lives in `apps/desktop/test/integration/` (`key-session`,
