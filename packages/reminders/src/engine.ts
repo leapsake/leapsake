@@ -26,59 +26,27 @@ import {
   verbOf,
 } from "@leapsake/schema";
 
-/** Milliseconds in a civil day — a stored due date is UTC midnight, so shifting
- *  it back by whole days is exact integer subtraction (no DST drift). */
+/** A stored due date is UTC midnight, so whole-day shifts are exact. */
 const DAY_MS = 86_400_000;
 
 /**
- * How long a **missed** reminder lingers after its occasion has gone by.
- *
- * The engine used to drop a reminder the moment its day passed, which meant a
- * birthday you missed disappeared overnight — the app noticed and said nothing.
- * That is the one outcome worth avoiding: a list you cannot trust to tell you
- * when you dropped something is a list you stop reading. Two days is enough to
- * catch a missed day over a weekend without letting the past accumulate.
- *
- * **It bounds only the belated tail** — the state where the occasion itself has
- * passed and only acknowledgment is left. The other way to miss something,
- * *past due* (a card's post date blew, but the birthday is still Tuesday), needs
- * no dial of its own: the occurrence bounds it. See {@link isWithinWindow},
- * which computes both from the same two clauses.
- *
- * One dial for now. Per-action belated windows — a missed call is stale sooner
- * than a missed gift — are a plausible later refinement, deliberately not built
- * before there is evidence about which actions want what.
+ * How long a missed reminder lingers after its occasion has gone by. Past due
+ * needs no dial: the occurrence bounds it (see {@link isWithinWindow}).
  */
 export const BELATED_DAYS = 2;
 
-/**
- * The fixed namespace all automated-reminder ids are derived under (see
- * {@link deterministicUuid}). Kept constant forever — changing it would re-mint
- * every system reminder under a new id and duplicate the lot on next sync.
- */
+/** Namespace for every automated-reminder id. Changing it re-mints every id
+ *  and duplicates every system reminder on the next sync. */
 export const SYSTEM_REMINDER_NAMESPACE = "leapsake:system-reminder";
 
-/**
- * The store surface the engine drives — the narrow slice of the reminders repo
- * it needs, injected so the engine unit-tests against an in-memory fake with no
- * native sqlite driver. All four already exist on the entity-repo base the
- * reminders repo spreads.
- */
+/** The slice of the reminders repo the engine drives. */
 export interface SystemReminderStore {
-  /** Fetch by id **including tombstones** — the resurrection guard reads this so
-   *  a user-dismissed (soft-deleted) system reminder is never re-created. */
+  /** Includes tombstones, so a dismissed system reminder is never re-minted. */
   getIncludingDeleted(id: string): Promise<Reminder | undefined>;
   /** Persist an already-assembled reminder row (the engine mints id + stamps). */
   insert(row: Reminder): Promise<Reminder>;
-  /**
-   * Refresh a still-live system reminder's derived fields in place — used when its
-   * milestone was edited (the date moved, or the subject was renamed) so the id is
-   * unchanged but the title/due date drifted. Keeps the row's identity and any
-   * manual completion; the store bumps `updated_at` so the edit wins LWW on sync.
-   * `dueDate` is nullable so a dateless onboarding row's copy can also be refreshed
-   * (see {@link ONBOARDING_STEPS}) — in practice onboarding copy is static, so this
-   * path is unlikely to fire for it.
-   */
+  /** Refresh a live row's derived copy and date, keeping its id and any manual
+   *  completion; bumps `updated_at` so the edit wins LWW on sync. */
   update(
     id: string,
     fields: { title: string; dueDate: number | null },
@@ -92,103 +60,42 @@ export interface SystemReminderStore {
   softDelete(id: string): Promise<void>;
 }
 
-/**
- * Everything the engine needs, injected by the composition root. Deliberately no
- * `@leapsake/core` / `@leapsake/data` dependency: the engine speaks only to these
- * small ports, so it stays independently testable and narrowly scoped.
- */
+/** Everything the engine needs, injected by the composition root. */
 export interface ReminderEngineDeps {
   /** The remind-relevant, plaintext, cross-bearer milestone projection reader. */
   milestones: { listRemindEligible(): Promise<RemindEligibleMilestone[]> };
   /** The system-reminder store (see {@link SystemReminderStore}). */
   reminders: SystemReminderStore;
   /**
-   * The milestone's effective staggered-reminder schedule — its stored rule rows
-   * when it has been customised, else its kind's defaults, already projected to
-   * editable rows (schema's `resolveReminderSchedule`). The engine mints one
-   * reminder per **enabled** entry; disabled entries are ignored (but still
-   * returned so the caller need not filter). Injected so the engine stays free of
-   * `@leapsake/data` — the composition root reads the rules repo + resolver.
-   *
-   * It answers with its **source** as well as its rules, and that half is not a
-   * diagnostic: `kind-default` means "this occasion has no rules of its own",
-   * which is precisely the condition {@link computeDesired} mints a `plan`
-   * prompt on.
+   * The milestone's effective schedule; one reminder per enabled entry. A
+   * `kind-default` source means no rules of its own: it mints a `plan` prompt.
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
   ): Promise<ResolvedReminderSchedule>;
   /**
-   * Resolve a milestone bearer to its display label, or `null` when the bearer is
-   * gone (a dangling milestone) — a null label skips the reminder.
-   *
-   * ⚠️ **`null` means gone, never "this bearer type has no name".** A
-   * `relationship` bearer answered `null` for exactly that second reason until
-   * 2026-09-05, and because the two meanings share one value the engine read it
-   * as a dangling milestone and skipped the row: every wedding anniversary
-   * linked to its relationship — the flow both clients invite — generated no
-   * reminders at all, silently, including its prompt. The composition root now
-   * names a relationship by its endpoints, and a relationship the **self-person**
-   * is one end of resolves to the *other* end, since "Wish You & Violet a happy
-   * anniversary" is not a thing anyone wants to be told.
+   * The bearer's display label. `null` means the bearer is gone and the row is
+   * skipped, never "has no name"; a relationship names the non-self end.
    */
   resolveLabel(
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string | null>;
   /**
-   * Whether a milestone is **about you** — the self-person, or a relationship the
-   * self-person is one end of. Flips the birthday *wish* copy from "Wish @You a
-   * happy birthday" to a self-directed "It's your birthday!", and the prompt's
-   * to "How do you want to mark your own wedding anniversary?". A single branch
-   * in the copy layer, keyed on `getSelf()`, **not** a filter: your own birthday
-   * is still reminded, just addressed to you. **Optional**, like
-   * `onboarding`/`holidays`, so engine unit tests may omit it (the copy then
-   * always uses the third-party form); the composition root supplies it.
+   * Whether a milestone is about you (the self-person or your relationship),
+   * which flips its copy to the self-directed form. Omitted: third-party form.
    */
   isSelf?(bearerType: MilestoneBearerType, bearerId: string): Promise<boolean>;
   /**
-   * The user's own romantic partnerships that have **no date recorded yet** — the
-   * fifth desired-row family, and the only one whose purpose is to *collect*
-   * rather than to remind.
-   *
-   * You told the app you have a spouse; it does not know your anniversary, and it
-   * will never learn one by waiting. So it asks, once, in the place you already
-   * look. The question retires itself the moment the date exists, by the ordinary
-   * prune — no separate "answered" state.
-   *
-   * ⚠️ **Scoped to the user's own partnerships, and that scoping is load-bearing.**
-   * The same idea applied to everything the app does not know ("this person has no
-   * birthday") is forty rows and a home screen that has become a form. A
-   * collection nudge earns its place only where the missing datum blocks something
-   * the user has *already said they want*, and recording a spouse is exactly that
-   * declaration. See the README, *Collecting what is missing*.
-   *
-   * **Optional**, like the other non-milestone families: omit it and no
-   * partnership rows join the set (and the ones a previous reconcile minted are
-   * pruned, which is the same contract `holidays` and `duplicates` carry).
+   * The user's own partnerships with no date yet, each asked about once.
+   * Omitted: no partnership rows, and previously minted ones are pruned.
    */
   partnerships?: {
     undated(): Promise<UndatedPartnership[]>;
   };
   /**
-   * Whether a milestone is about a **romantic partnership the user is in**, in
-   * any of the three shapes one can be stored as: on the relationship, on the
-   * partner as a person, or on **the user alone** — a wedding recorded before
-   * its spouse exists at all, which the create form's "unknown" escape allows.
-   * Your own occasion is yours whether or not the app knows who else was there.
-   *
-   * It gates one thing: the prompt of a kind declaring
-   * `prompt.onlyOwnPartnership` (`first-date`, and only it). Separate from
-   * {@link ReminderEngineDeps.isSelf} because the two answer different
-   * questions and must not be conflated — your wife is not *you*, and a milestone
-   * borne by her must never take the self-directed copy that would give her
-   * birthday "It's your birthday!".
-   *
-   * **Optional, and its absence fails closed**: with no port, a gated prompt is
-   * not minted. The composition root supplies it, and the alternative default
-   * would ask about other people's first dates whenever wiring was forgotten —
-   * the exact question the gate exists to prevent.
+   * Whether a milestone is about the user's own romantic partnership, however
+   * borne. Gates `prompt.onlyOwnPartnership`; omitted, it is never minted.
    */
   isOwnPartnership?(
     bearerType: MilestoneBearerType,
@@ -198,60 +105,26 @@ export interface ReminderEngineDeps {
   today: CivilDate;
   /** Run the reconcile body atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
-  /**
-   * The first-run signals the onboarding nudges (see {@link ONBOARDING_STEPS})
-   * are decided from. **Optional**: engine unit tests and any non-onboarding
-   * caller may omit it, and the desired set then carries no onboarding rows. The
-   * composition root reads these off its people/pets repos and sync-status.
-   */
+  /** The first-run signals behind {@link ONBOARDING_STEPS}. Omitted: no
+   *  onboarding rows. */
   onboarding?: {
-    /** Whether the store holds a person or pet other than the self-person. See
-     *  {@link OnboardingSignals.hasEntitiesBesidesSelf} for why the self-person
-     *  is excluded rather than counted. */
+    /** Whether the store holds a person or pet other than the self-person. */
     hasAnyEntityBesidesSelf(): Promise<boolean>;
     /** Whether the self-person has been picked yet. */
     hasSelf(): Promise<boolean>;
     /** Whether this store holds an account. */
     hasAccount(): Promise<boolean>;
-    /**
-     * Whether notifications have been configured — by **any** device, not by the
-     * device asking. The composition root reads it off `notification_settings`,
-     * where a row exists only once a device has been given a policy or has
-     * answered the OS permission prompt, so "no rows" is "nobody has ever been
-     * asked".
-     *
-     * ⚠️ **Deliberately store-scoped, and it should not be.** See the
-     * `enable-notifications` step for why a per-device condition is not
-     * expressible on rows that sync, and what has to exist before it can be.
-     */
+    /** Whether any device, not necessarily this one, has a notification policy
+     *  or has answered the OS prompt. */
     hasNotificationPolicy(): Promise<boolean>;
   };
   /**
-   * The holiday-observance source — the second family of recurring dated facts
-   * the engine generates from.
-   *
-   * A **parallel port rather than a widening** of `milestones`/`resolveSchedule`
-   * /`resolveLabel`. Those are typed against `RemindEligibleMilestone`, and
-   * generalising them would have touched every existing call site and fake for
-   * no behavioural gain — with a real risk of perturbing milestone id derivation
-   * in the process, which would duplicate every existing system reminder on the
-   * next sync. The `onboarding` port above already proved this shape: a second
-   * desired-row family feeding the same map, inheriting insert / refresh /
-   * tombstone-guard / prune unchanged.
-   *
-   * **Optional**, like `onboarding`, so engine unit tests can omit it — but the
-   * composition root always supplies it. Omitting it in production would prune
-   * (and permanently tombstone) every holiday reminder.
+   * The holiday-observance source. Omitted: no holiday rows, and every existing
+   * one is pruned, so production must always supply it.
    */
   holidays?: {
-    /**
-     * Every (observance × upcoming occurrence) worth considering today, already
-     * narrowed to the horizon by the caller and carrying **no** bearer label —
-     * the label lookup is potentially encrypted, so it stays behind the schedule
-     * and window filters below. Holidays multiply the candidate set by
-     * (people × holidays), so that ordering matters more here than it does for
-     * milestones.
-     */
+    /** Candidates within the horizon, unlabelled: the possibly-encrypted
+     *  label lookup waits until schedule and window filters narrow them. */
     listCandidates(): Promise<HolidayOccurrenceCandidate[]>;
     resolveSchedule(
       candidate: HolidayOccurrenceCandidate,
@@ -262,14 +135,8 @@ export interface ReminderEngineDeps {
     ): Promise<string | null>;
   };
   /**
-   * The unresolved duplicate-candidate pairs — the fourth family, and the only
-   * one that is neither dated nor first-run-only.
-   *
-   * Reports just the pair **keys** (`"lower:higher"` person ids, the same
-   * canonical form the `not_a_duplicate` memory uses), never names: the nudge
-   * says how many pairs need review and links to the review screen, so it needs
-   * no potentially-encrypted label lookup. **Optional**, like `onboarding` — omit
-   * it and no duplicates row joins the set.
+   * Unresolved duplicate pairs as `"lower:higher"` person-id keys. The nudge
+   * only counts them, so no label lookup. Omitted: no duplicates row.
    */
   duplicates?: {
     pairKeys(): Promise<readonly string[]>;
@@ -279,17 +146,8 @@ export interface ReminderEngineDeps {
 /** The entities a holiday observance can hang off. */
 export type HolidayBearerType = "person" | "pet";
 
-/** One person's observance of one holiday, with the dates it falls on. */
-/**
- * One romantic partnership of the user's with no date on it yet, and therefore
- * one question worth asking.
- *
- * `kind` is both *which date is missing* and *how the question is worded*, and it
- * comes from the relationship's own role: a `spouse` is missing a **wedding**
- * anniversary, a `partner` is missing a **first date**. Asking the wrong one of
- * those is worse than not asking — "when is your wedding anniversary?" of someone
- * who is not married reads as the app having invented a marriage.
- */
+/** One of the user's partnerships with no date yet. `kind` is the missing date
+ *  and the wording: a spouse lacks a wedding, a partner a first date. */
 export interface UndatedPartnership {
   /** The relationship row's id — half of the nudge's identity. */
   relationshipId: string;
@@ -302,6 +160,7 @@ export interface UndatedPartnership {
   partnerId: string;
 }
 
+/** One person's observance of one holiday, with the dates it falls on. */
 export interface HolidayOccurrenceCandidate {
   /** The observance row's id — the reminder's bearer, and part of its identity. */
   observanceId: string;

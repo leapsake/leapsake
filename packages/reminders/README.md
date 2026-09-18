@@ -26,6 +26,13 @@ answer lives in `@leapsake/key-custody` and reminders has no business depending 
 ask one question, and **`listHolidayCandidates`**, because `@leapsake/holidays` already depends
 on this package and importing it back would be a cycle.
 
+**`ReminderEngineDeps.holidays` is a parallel port, not a widened `milestones`.** The milestone
+ports are typed against `RemindEligibleMilestone`; generalising them would touch every call site
+and fake for no behavioural gain, and risk perturbing milestone id derivation, which would
+duplicate every system reminder on the next sync. `onboarding`, `partnerships` and `duplicates`
+follow the same shape: another family feeding the same desired map, inheriting insert, refresh,
+tombstone guard and prune unchanged.
+
 ## Where to look
 
 | You want                                                              | Read                                                                                    |
@@ -46,7 +53,7 @@ on this package and importing it back would be a cycle.
 | What a question can still offer, and when a late one is due           | `planOffers` and `planTiming` in `@leapsake/schema`, and _You can't be late…_ below     |
 | Why `first-date` and `wedding` ask only about your own                | `prompt.onlyOwnPartnership` in `kindDefs`, and _Who gets asked_ below                   |
 | Why a reminder asks for a date instead of giving one                  | the `partnerships` port in `ReminderEngineDeps`, and _Collecting what is missing_ below |
-| Why a second desired-row family is a parallel port, not a widened one | the `holidays` port doc-comment in `ReminderEngineDeps`                                 |
+| Why a second desired-row family is a parallel port, not a widened one | the `holidays` port in `ReminderEngineDeps`, and _Two entry points_ above               |
 | Why a schedule has two levels and not four                            | `resolveReminderSchedule` in `@leapsake/schema`, and _Schedules_ below                  |
 
 ## Identity — what makes two reminders different reminders
