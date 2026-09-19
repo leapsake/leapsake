@@ -29,8 +29,12 @@ appId: com.leapsake.app
 - launchApp
 - waitForAnimationToEnd:
     timeout: 5000
+# `optional`: on iOS the launcher can reconnect on its own between the check and the tap,
+# and then there is nothing left to tap. Seen on a hosted runner, 2026-09-19.
 - runFlow:
     when:
       visible: ".*localhost:8081.*"
     commands:
-      - tapOn: ".*localhost:8081.*"
+      - tapOn:
+          text: ".*localhost:8081.*"
+          optional: true
