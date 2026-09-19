@@ -309,9 +309,13 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
    is first measured in run 35466401578.
 2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
    1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
-   Flow 1 instead (183s, red). The cause is unknown. The failure now lists what was on screen
-   (62fc8c9, first in run 35466401578), which is the next thing to read. A gate that fails 1 in 3
-   is not one to release on, so this outranks speed.
+   Flow 1 instead (183s, red). Run 35466401578's `on screen:` line named the cause: a
+   **"System UI isn't responding"** dialog over the app, on the job's second emulator boot
+   (49s boot, 16s reinstall), so most likely System UI still starting on 4 cores while Metro
+   bundles. The home wait now taps **Wait** on that dialog and logs
+   `! dismissed "…" with Wait` (committed, not yet pushed). Next run: whether that line
+   appears and home then comes up. If the dialog also hits mid-flow (Maestro), handle it
+   there too. A gate that fails 1 in 3 is not one to release on, so this outranks speed.
 3. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
 4. After those: three clean runs per platform, then the owner decides (below).

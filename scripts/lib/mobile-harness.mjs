@@ -802,6 +802,12 @@ const androidDriver = {
         );
         return { ok: true };
       }
+      // An "isn't responding" dialog covers the app until answered; Wait lets the process recover.
+      const wait = anrWaitTap(dump);
+      if (wait) {
+        console.log(`  ! dismissed "${wait.title}" with Wait`);
+        run(adb, ["-s", device, "shell", "input", "tap", wait.x, wait.y]);
+      }
       await sleep(2000);
     }
     return {
@@ -815,6 +821,25 @@ const androidDriver = {
     };
   },
 };
+
+/** Where to tap Wait on an Android "isn't responding" dialog in a `uiautomator dump`, or null. */
+export function anrWaitTap(dump) {
+  const node = dump.match(
+    /<node\b[^>]*resource-id="android:id\/aerr_wait"[^>]*>/,
+  )?.[0];
+  const bounds = node?.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+  if (!bounds) return null;
+  const [x1, y1, x2, y2] = bounds.slice(1).map(Number);
+  const title =
+    dump.match(
+      /text="([^"]*)"[^>]*resource-id="android:id\/alertTitle"/,
+    )?.[1] ?? "isn't responding";
+  return {
+    x: String(Math.round((x1 + x2) / 2)),
+    y: String(Math.round((y1 + y2) / 2)),
+    title,
+  };
+}
 
 /** The text, descriptions and ids in a `uiautomator dump`, for a failure that must say what it saw. */
 export function uiautomatorLabels(dump, limit = 40) {
