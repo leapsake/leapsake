@@ -11,10 +11,11 @@ status=${PIPESTATUS[0]}
 
 host="$(uname -s), $(getconf _NPROCESSORS_ONLN) cores"
 lines=$(sed -E 's/\x1b\[[0-9;]*m//g' "$log" | awk '
-  /^(✅|❌|⏳) / { print; detail = /^❌/; next }
+  /^(✅|❌|⏳) / { print; detail = /^(❌|⏳)/; next }
   detail && /^      / { print; next }
   { detail = 0 }
   /took [0-9]+s|up \([0-9]+s\)|simulator up|! this emulator|✖|^  [✓✗] .*[0-9]s$/ { print }
+  /^[^ ].* \([0-9]+ms\)$|^Format issues/ { print }
 ' | head -80)
 message=$(printf '%s\n%s' "$host" "$lines" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
 echo "::notice title=${platform} gate, exit ${status}::${message}"
