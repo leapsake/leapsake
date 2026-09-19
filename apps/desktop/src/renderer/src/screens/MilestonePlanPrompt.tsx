@@ -11,17 +11,8 @@ import {
 import { ReminderPromptFields } from "@leapsake/ui/web";
 
 /**
- * The prompt's answer form: the offered actions as checkboxes, and Save.
- *
- * Reached from a `🗓 plan` row's "Choose →". Most people never come here — the
- * common answer is the row's own one-tap *Just the day* — so this screen is for
- * the user who wants a card as well, and it should stay as short as that
- * implies. The lead times are the ones each action already declares; moving one
- * is the milestone's full schedule editor, a link away.
- *
- * It posts the **whole** offer set with `enabled` flipped, never just the ticks.
- * Rows existing is what makes "asked, and chose nothing" distinguishable from
- * "never asked", so a partial write would have the question return next year.
+ * The offered actions as checkboxes. Posts the whole offer set, never just the
+ * ticks, so "chose nothing" stays distinct from "never asked".
  */
 export function MilestonePlanPrompt() {
   const { target } = useLoaderData() as { target: PlanReminderTarget };
@@ -33,15 +24,10 @@ export function MilestonePlanPrompt() {
 
   return (
     <main>
-      {/* The same helper the reminder row's own title goes through, so the
-          question cannot be worded one way on Home and another here — and so
-          "your first date with Violet" does not become "Violet's first date",
-          which says something else entirely. */}
+      {/* The row's own title helper, so the question reads the same. */}
       <h1>{planQuestion({ ...target, occasion })}</h1>
-      {/* ⚠️ The row this came from shows the distance to the prompt&rsquo;s own
-          deadline — the same convention every reminder row uses, and six weeks
-          earlier than the occasion. So the occasion&rsquo;s real date is said
-          here, where there is room, rather than left to be inferred. */}
+      {/* The row counted down to the prompt's deadline, weeks early, so the
+          occasion's real date is said here. */}
       {target.occurrenceDate !== null && (
         <p>
           {target.subjectIsSelf || target.shared ? "Your" : "Their"} {occasion}{" "}

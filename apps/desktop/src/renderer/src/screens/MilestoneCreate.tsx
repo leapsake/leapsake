@@ -22,18 +22,15 @@ interface Bearer {
 }
 
 export function MilestoneCreate() {
-  // `candidates`/`neighbors` are present only for a Person bearer — they drive
-  // the "with whom?" step for the relationship kinds (Met / First Date / Wedding).
+  // Present only for a Person, for the relationship kinds' "with whom?" step.
   const { bearer, candidates, neighbors } = useLoaderData() as {
     bearer: Bearer;
     candidates?: RelationshipCandidate[];
     neighbors?: RelationshipNeighbor[];
   };
   const bearerPath = `${entityBasePath(bearer.type)}/${bearer.id}`;
-  // `?kind=` opens the form on a chosen kind. Set by the partnership question's
-  // CTA ("when is your wedding anniversary?"), which would otherwise hand the
-  // question back as a blank picker. Validated rather than cast: it arrives from
-  // a URL the user can edit.
+  // `?kind=`, from the partnership question's CTA. Validated, not cast: the
+  // user can edit a URL.
   const requested = useSearchParams()[0].get("kind");
   const initialKind: MilestoneKind | undefined = isMilestoneKind(requested)
     ? requested

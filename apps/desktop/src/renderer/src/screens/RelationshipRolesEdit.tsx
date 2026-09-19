@@ -18,7 +18,7 @@ interface Partner {
   roleNote: string | null;
 }
 
-/** Map each pickable role's display label back to its slug for the chosen pair. */
+/** Each pickable role's display label, mapped back to its slug. */
 function roleMap(
   holderType: EntityType,
   otherType: EntityType,
@@ -29,12 +29,8 @@ function roleMap(
 }
 
 /**
- * Edit *both* ends' roles of an explicit relationship at once, addressed by the
- * relationship itself rather than one partner. Each side gets its own picker and
- * the two are independent — neither role is derived from the other — so the user
- * can record both explicitly (e.g. Husband / Wife instead of Spouse / Husband).
- * The visible inputs hold display labels; resolved slugs ride hidden inputs the
- * action consumes.
+ * Edit both roles independently (e.g. Husband / Wife, not Spouse / Husband).
+ * Labels are visible; the resolved slugs ride hidden inputs.
  */
 export function RelationshipRolesEdit() {
   const { relationshipId, title, partners } = useLoaderData() as {

@@ -6,13 +6,8 @@ import { useSubmitting } from "../lib/useSubmitting";
 import { homeCrumb } from "../lib/crumbs";
 
 /**
- * The two things this screen can be confirming, worded for the row it was handed.
- *
- * Removing an onboarding nudge has *always* been permanent — the engine
- * soft-deletes it and reconcile never resurrects a tombstoned id — so the second
- * set isn't a new outcome, it is the existing one finally saying what it does.
- * Calling that "Remove reminder?" is what let a user who meant *hide it* get
- * *never show it again* without being told.
+ * Worded for the row: removing an onboarding nudge is permanent, since a
+ * tombstone is never resurrected, so its copy says so.
  */
 const REMOVE_COPY = {
   crumb: "Remove reminder",
@@ -30,9 +25,7 @@ const DISMISS_COPY = {
 
 export function ReminderDelete() {
   const reminder = useLoaderData() as Reminder;
-  // The CTA seam is already the authority on which rows are onboarding nudges,
-  // and it's a pure derivation the renderer can call — unlike the engine itself,
-  // which the renderer must never pull into its bundle.
+  // A pure derivation; the engine itself must stay out of the renderer bundle.
   const isNudge = reminderCtaOf(reminder)?.kind === "onboarding";
   const copy = isNudge ? DISMISS_COPY : REMOVE_COPY;
 

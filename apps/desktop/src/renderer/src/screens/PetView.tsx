@@ -11,7 +11,7 @@ import { PetScreen, type GenderResult } from "@leapsake/ui/web";
 import { useLoaderData, useRevalidator } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
 
-/** The route container for a pet's page — see {@link PersonView} for the shape. */
+/** As {@link PersonView}, for a pet. */
 export function PetView() {
   const {
     pet,

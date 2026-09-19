@@ -5,14 +5,8 @@ import { homeCrumb } from "../lib/crumbs";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
 
 /**
- * Merge a duplicate person into the one being viewed. The viewed person is the
- * **survivor** — its name and other scalar fields are kept — and the chosen
- * person is the **duplicate**, whose relationships, tags, milestones, contact
- * methods, and dismissals all move onto the survivor before it is removed.
- *
- * This mirrors the dangerous-action confirm pattern (a dedicated screen with an
- * explicit submit), and is honest that it can't be undone: the duplicate is
- * tombstoned, not archived.
+ * The viewed person survives with its fields; the duplicate's facts move onto
+ * it, and it is tombstoned, so this cannot be undone.
  */
 export function PersonMerge() {
   const { person, others, defaultLoserId } = useLoaderData() as {

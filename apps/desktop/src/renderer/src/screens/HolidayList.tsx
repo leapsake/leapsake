@@ -3,13 +3,8 @@ import { formatOccurrence } from "@leapsake/schema";
 import { Link, useLoaderData } from "react-router-dom";
 
 /**
- * The holiday catalog: what Leapsake knows about, when each one next falls, and
- * how many people the user has attached to it. The entry point to the observer
- * picker, which is where the feature actually gets its data.
- *
- * Hidden holidays stay listed (sorted last, and marked) rather than being
- * filtered out — this screen is the only place to unhide one, so removing them
- * would strand them.
+ * The catalog, each holiday's next date and observer count. Hidden holidays
+ * stay listed, last and marked, since only here can one be unhidden.
  */
 export function HolidayList() {
   const holidays = useLoaderData() as HolidayListItem[];

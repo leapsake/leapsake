@@ -17,7 +17,7 @@ interface Subject {
   label: string;
 }
 
-/** Map each pickable role's display label back to its slug for the chosen pair. */
+/** Each pickable role's display label, mapped back to its slug. */
 function roleMap(
   otherType: EntityType,
   subjectType: EntityType,
@@ -28,11 +28,8 @@ function roleMap(
 }
 
 /**
- * Edit the role of an existing (explicit) relationship. The other end is fixed —
- * only its role changes; the subject's own role is re-derived as the neutral
- * inverse, mirroring {@link RelationshipForm}'s add flow. The visible input holds
- * a display label; the resolved machine value rides a hidden input the action
- * consumes, and the action supplies the subject endpoint from the route.
+ * Edit the other end's role; core re-derives the subject's. The label is
+ * visible, and the resolved slug rides a hidden input.
  */
 export function RelationshipEdit() {
   const { subject, neighbor } = useLoaderData() as {

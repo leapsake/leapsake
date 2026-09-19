@@ -6,13 +6,8 @@ import { useRef, useState } from "react";
 import { Form, Link, useLoaderData, useRevalidator } from "react-router-dom";
 
 /**
- * One holiday: when it next falls, the dates after that, and who observes it.
- *
- * There is no edit affordance, and that is the design rather than an omission —
- * a catalog holiday is read-only, and a user who wants a different Mother's Day
- * hides this one and creates their own (`@leapsake/holidays` README, read-only catalog rows). That keeps a
- * user's edit from ever losing to, or blocking, a catalog update, with no fork
- * mechanism or lineage tracking to maintain.
+ * One holiday's dates and observers. No edit: a catalog holiday is read-only,
+ * and a user hides it and makes their own instead.
  */
 export function HolidayView() {
   const { holiday, candidates } = useLoaderData() as {
@@ -24,19 +19,12 @@ export function HolidayView() {
   // combobox announcements, which the package no longer hardcodes.
   const messages = useMessages();
 
-  // One read serves both halves: who observes it, and who could be added.
-  // Excluding current observers from the suggestions is what stops the same
-  // person being added twice and shrinks the list as you go.
+  // Suggestions exclude current observers, so nobody is added twice.
   const observers = candidates.filter((c) => c.observes);
   const addable = candidates.filter((c) => !c.observes);
 
-  // Writes go straight through `window.api` rather than a route action, and the
-  // reason matters: a `useFetcher` submission started while another is still in
-  // flight *supersedes* it, so a fast type→Enter→type→Enter would silently drop
-  // a pick. Awaiting each call behind this flag cannot. (Direct `window.api`
-  // calls are well-precedented in the renderer — SearchBar, MentionTextField and
-  // Settings all do it.) Hide/unhide stays on the route action, where a single
-  // submit has nothing to race.
+  // Queued `window.api` calls, not a fetcher: a new fetcher submission cancels
+  // one in flight, so fast picks would be dropped.
   const inFlight = useRef<Promise<void>>(Promise.resolve());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +32,7 @@ export function HolidayView() {
   function setObserves(candidate: HolidayObserverCandidate, observes: boolean) {
     setBusy(true);
     setError(null);
-    // The `catch` is what keeps the queue alive: without it a single rejected
-    // write would leave `inFlight` rejected, and every later pick would chain
-    // off it and never run — the field would wedge with no visible cause.
+    // Without the `catch`, one rejected write would wedge every later pick.
     inFlight.current = inFlight.current
       .then(() =>
         window.api.holidays.setObservers(holiday.id, [
@@ -95,9 +81,7 @@ export function HolidayView() {
 
       <h2>Upcoming</h2>
       {holiday.upcoming.length === 0 ? (
-        // An honest empty state: a precomputed holiday past its date table, or a
-        // rule this build doesn't understand, reports nothing rather than
-        // guessing a date.
+        // A table run out, or a rule this build can't read: never guess.
         <p>No upcoming dates are known for this holiday.</p>
       ) : (
         <ul>
@@ -138,9 +122,7 @@ export function HolidayView() {
       {observers.length === 0 ? (
         <p>No one yet.</p>
       ) : (
-        // Each observer links to their own schedule, because the reminder rule
-        // bears on the observance, not the holiday — which is what lets one
-        // person get a gift reminder and another only a day-of call.
+        // Rules belong to each observance, so each observer has a schedule.
         <ul>
           {observers.map((observer) => (
             <li key={`${observer.bearerType}:${observer.bearerId}`}>

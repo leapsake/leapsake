@@ -17,11 +17,8 @@ interface Subject {
 }
 
 /**
- * Confirm removing an inferred relationship. Presented identically to the
- * stored-edge Remove flow ({@link RelationshipDelete}) for a uniform end-user
- * experience; the backend handles it differently (recording a suppression rather
- * than soft-deleting a row), since the edge has no stored id — its identity
- * (other endpoint + base role) travels through the hidden fields.
+ * Looks like removing a stored relationship, but records a suppression; the
+ * edge's identity rides the hidden fields.
  */
 export function RelationshipDismiss() {
   const { subject, neighbor, role } = useLoaderData() as {

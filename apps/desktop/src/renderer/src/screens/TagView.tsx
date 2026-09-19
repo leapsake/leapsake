@@ -30,11 +30,8 @@ function EntityRows({
 }
 
 /**
- * Everything carrying a given tag, grouped by type. People, Pets, Reminders, and
- * Gift ideas are all taggable; each group renders only when it has members, and
- * an empty tag shows a placeholder. Neither reminders nor gift ideas have a
- * standalone view on desktop, so their rows open their edit screens (the
- * actionable page for each here).
+ * Everything with a tag, grouped by type. Reminders and gift ideas have no
+ * view page on desktop, so they open their edit screens.
  */
 export function TagView() {
   const { tag, people, pets, reminders, giftIdeas } = useLoaderData() as {

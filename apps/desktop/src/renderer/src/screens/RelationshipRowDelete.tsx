@@ -11,12 +11,7 @@ interface Partner {
   label: string;
 }
 
-/**
- * Remove a relationship as a whole, addressed by the relationship itself. A
- * relationship is a single shared row, so this removes it for *both* partners at
- * once — unlike the subject-scoped remove reached from one person's page, which
- * frames it as dropping a single neighbor. Neither partner entity is deleted.
- */
+/** Remove the relationship's one shared row, for both partners at once. */
 export function RelationshipRowDelete() {
   const { relationshipId, title, partners } = useLoaderData() as {
     relationshipId: string;

@@ -4,15 +4,10 @@ import { isGiven, sortIdeasGivenLast } from "@leapsake/view-models";
 import { Fragment } from "react";
 import { Link, useLoaderData } from "react-router-dom";
 
-/**
- * The Gifts screen — the whole gift graph keyed by idea. Each idea shows everyone
- * it is for, ticked or not. Creating is its own screen (the "Add a gift" link),
- * so this stays a plain list — the People & Pets pattern.
- */
+/** The whole gift graph by idea, each recipient ticked or not. */
 export function GiftList() {
   const loaded = useLoaderData() as GiftIdeaOverview[];
-  // An idea everyone on it already has sinks to the bottom, keeping the shopping
-  // list on top.
+  // Ideas everyone on them already has sink below the shopping list.
   const overview = sortIdeasGivenLast(loaded);
 
   return (

@@ -11,7 +11,7 @@ interface Subject {
   label: string;
 }
 
-/** A short description of the method being removed, for the confirmation copy. */
+/** The method being removed, for the confirmation copy. */
 function describe(entry: ContactMethod): string {
   const labelText = entry.method.label;
   if (entry.kind === "email")

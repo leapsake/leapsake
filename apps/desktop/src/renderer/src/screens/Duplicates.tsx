@@ -18,21 +18,8 @@ export interface DuplicatesData {
 }
 
 /**
- * Review duplicates — the detection surface (reconciliation Increment B). Lists
- * candidate pairs the detector proposes, each with the reasons it matched, and
- * two actions: **Merge…** (reuses the Increment A confirm flow, with the
- * duplicate preselected) and **Not the same** (records the pair so no device
- * re-nags). It only proposes; the merge itself still goes through the confirm.
- *
- * Two modes, one screen:
- * - **unscoped** (`/duplicates`) — every outstanding pair, reached from the
- *   People & Pets link, the Home nudge, or after an import;
- * - **scoped** (`/duplicates?for=<personId>`) — only the pairs involving that
- *   person, which is where saving a new person lands when the detector finds a
- *   match. The scoped mode is a *prompt*, so it always offers a way onward:
- *   resolving every pair continues automatically, and "Not now" leaves them
- *   outstanding — the People & Pets link, the Home nudge, and the banner on both
- *   people's pages all keep the way back open until they're resolved.
+ * Duplicate pairs with their reasons, to merge or mark "Not the same". With
+ * `?for=<personId>` it is a prompt about one person, which always moves on.
  */
 export function Duplicates() {
   const { candidates, focus } = useLoaderData() as DuplicatesData;

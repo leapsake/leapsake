@@ -11,10 +11,8 @@ export const previewImport = (
 ): Promise<ImportPreviewEntry[]> => window.api.import.preview([...contacts]);
 
 /**
- * Commit the reviewed decisions, then answer the one question the review can't:
- * whether to offer “which of these is you?”. It is offered only when something
- * was imported *and* no self-person is set yet — there is now a list to pick
- * from. A failed lookup just means no nudge.
+ * Commit, then offer "which of these is you?" only when something was imported
+ * and no self-person is set. A failed lookup just means no offer.
  */
 export async function commitImport(
   decisions: ImportDecision[],

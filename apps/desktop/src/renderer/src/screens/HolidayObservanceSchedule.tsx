@@ -5,18 +5,8 @@ import { useState } from "react";
 import { Form, useLoaderData } from "react-router-dom";
 
 /**
- * One person's reminder schedule for one holiday — "what should Leapsake remind
- * me about for Violet at Christmas?"
- *
- * This is the screen that makes the feature do anything. Observances ship with
- * every action **off** (holidays all land on the same day, so a default-on wish
- * would flood late November), so saying someone celebrates a holiday records the
- * fact but generates nothing until a rule is switched on here.
- *
- * It is per-*observance* rather than per-holiday because the rule's bearer is
- * the observance (`@leapsake/holidays` README, the three layers): that is exactly what lets "gift
- * Violet 30 days before Christmas" and "just call Grandma day-of" coexist under
- * one holiday.
+ * One observer's reminder rules for one holiday. Observances start with every
+ * action off, so nothing is reminded until a rule is switched on here.
  */
 export function HolidayObservanceSchedule() {
   const { holiday, label, bearerType, bearerId, schedule } =

@@ -20,12 +20,7 @@ interface Bearer {
   label: string;
 }
 
-/**
- * Rebind an unbound relationship-kind milestone (a Wedding stored on a Person
- * while its spouse was unknown) to a relationship — reusing the same
- * {@link WithWhomFields} picker the add flow uses. Submitting re-points the
- * milestone's bearer to the chosen/created relationship.
- */
+/** Bind a milestone stored on a Person, e.g. a Wedding, to a relationship. */
 export function MilestoneRebind() {
   const { bearer, milestone, candidates, neighbors } = useLoaderData() as {
     bearer: Bearer;
