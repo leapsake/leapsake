@@ -304,12 +304,13 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
 
 **Open, in the order to take them:**
 
-1. **iOS Flow 1 goes red in `subflows/relaunch.yaml`:** the dev launcher's `localhost:8081`
-   entry vanished between `when: visible` and the tap. The fix (tap made `optional`, 6f1f25e)
-   is still unmeasured: run 35466401578's iOS job 1 went red earlier, in the AutoFill
-   preflight, which landed on General → **Dictionary** instead of AutoFill on all three
-   retries. `ios-autofill.yaml` now waits for each pane to stop animating before tapping.
-   Next run: whether the preflight passes, then whether Flow 1 does.
+1. **iOS Flow 1 goes red.** The AutoFill preflight and `relaunch.yaml` both pass as of run
+   35468482457 (the animation wait in `ios-autofill.yaml` fixed the first). Flow 1 now goes
+   red at its first step, `subflows/factory-reset.yaml`: after tapping "Factory reset…",
+   `factory-reset-confirm` never appeared within 20s. Two readings: the tap landed while
+   the pushed Data screen was still moving (it now waits for the animation to end first),
+   or the field rendered below the fold on the runner's simulator. A red flow now reports
+   `on screen:` and the boot line names the simulator, so the next red will say which.
 2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
    1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
    Flow 1 instead (183s, red). Run 35466401578's `on screen:` line named the cause: a

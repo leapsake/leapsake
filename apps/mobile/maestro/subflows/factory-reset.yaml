@@ -56,6 +56,9 @@
 appId: com.leapsake.app
 ---
 - openLink: "leapsake://data"
+# Tap only once the pushed screen has stopped moving, or the tap lands beside the button.
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Open whichever confirmation this device offers. Every step here is conditional, because
 # `openLink` does not remount a route that is already mounted: a previous run that died

@@ -1018,7 +1018,7 @@ const iosDriver = {
         detail: `the simulator ${udid} never finished booting`,
       };
     }
-    console.log("  simulator up");
+    console.log(`  simulator up (${name.trim()})`);
     return { ok: true };
   },
 
@@ -1365,7 +1365,11 @@ async function runPlatform(driver, provision, suite) {
         `  ${status === 0 ? "✓" : "✗"} ${flow.label} ${seconds(started)}`,
       );
       if (status !== 0) {
-        return wrap(FAIL, `flow RED: ${flow.label} (${flow.file})`);
+        return wrap(
+          FAIL,
+          `flow RED: ${flow.label} (${flow.file})\n` +
+            `on screen: ${onScreen(ctx.device)}`,
+        );
       }
       const custody = runCustody(driver, ctx, flow);
       if (custody) {
