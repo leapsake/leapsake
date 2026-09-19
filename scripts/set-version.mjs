@@ -1,38 +1,16 @@
-// The one place a version number is written, and the gate that keeps it that way.
+// Writes the one version every manifest carries, and checks that they agree.
 //
-// Every manifest in the workspace carries the *same* version, on purpose: the apps
-// because a release is one artifact set, and the packages because a matching version
-// across all of them is what says "these library versions are the ones that shipped
-// together and are proven together by the suite". It also leaves the door open to
-// publishing any package later without first untangling a versioning scheme.
+//   node scripts/set-version.mjs patch|minor|major|X.Y.Z   move every manifest to the next core
+//   node scripts/set-version.mjs --check                   fail if they disagree (`test:versions`)
 //
-// Two jobs, one file:
-//
-//   node scripts/set-version.mjs 0.1.0    write that version into every manifest
-//   node scripts/set-version.mjs --check  fail if they disagree (the `test:versions` tier)
-//
-// The check half is the point. A bump that misses one manifest is invisible until an
-// artifact ships with the wrong number on it — and store version strings are permanent
-// and monotonic, so "we'll fix it next release" is not available (CONTRIBUTING.md ->
-// Versioning and releases).
-//
-// Manifests are *discovered*, never listed, so a new package or app is covered the day
-// it is created rather than the day someone remembers this file exists. The one
-// exception is UNVERSIONED below, which is a deliberate opt-out rather than an
-// oversight, and is itself checked.
-//
-// Mobile is deliberately absent from the write set: `apps/mobile/app.json` no longer
-// carries a version at all. `apps/mobile/app.config.ts` derives it from that app's
-// package.json, so Expo has one source rather than a copy to drift. The check enforces
-// that arrangement instead of the value.
-//
-// A pre-release suffix (`0.1.0-alpha.1`) is valid here and is the normal state between
-// releases. Stores reject non-numeric version strings, so app.config.ts strips the
-// suffix for `expo.version` and derives the per-upload build numbers separately — the
-// repo keeps real semver, the stores see `0.1.0`.
+// Manifests hold only the core (`0.1.0`); the release tag carries the channel and counter.
+// Mobile takes its version from its package.json through `apps/mobile/app.config.ts`.
+
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { BUMP_KINDS, successorCores } from "./release/version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -162,68 +140,108 @@ function unversionedProblems() {
   return problems;
 }
 
-const arg = process.argv[2];
+const CORE = /^\d+\.\d+\.\d+$/;
 
-if (arg === "--check") {
-  const manifests = manifestPaths().map(readManifest);
-  const byVersion = new Map();
-  for (const { path, json } of manifests) {
-    const list = byVersion.get(json.version) ?? [];
-    list.push(relative(ROOT, path));
-    byVersion.set(json.version, list);
+/** The core a request names: a bump kind, or an explicit `X.Y.Z` that is one of the three successors. */
+export function coreToWrite(current, request) {
+  const successors = successorCores(current);
+  if (BUMP_KINDS.includes(request)) return successors[request];
+  if (!CORE.test(request)) {
+    throw new Error(
+      `"${request}" is not ${BUMP_KINDS.join("|")} or a bare X.Y.Z — manifests carry only the core; the tag carries the rest`,
+    );
   }
+  if (!Object.values(successors).includes(request)) {
+    throw new Error(
+      `${request} does not follow ${current} — the choices are ${Object.values(successors).join(", ")} (or name the kind: ${BUMP_KINDS.join("|")})`,
+    );
+  }
+  return request;
+}
 
-  const problems = [...mobileProblems(), ...unversionedProblems()];
+/** Problems with the manifests' versions, given `{ path, version }` for each. */
+export function versionProblems(manifests) {
+  const byVersion = new Map();
+  for (const { path, version } of manifests) {
+    const list = byVersion.get(version) ?? [];
+    list.push(path);
+    byVersion.set(version, list);
+  }
+  const problems = [];
   if (byVersion.size > 1) {
     problems.push("manifests disagree on the version:");
     for (const [version, paths] of [...byVersion].sort()) {
       problems.push(`  ${version} — ${paths.join(", ")}`);
     }
   }
+  for (const version of byVersion.keys()) {
+    if (!CORE.test(version ?? "")) {
+      problems.push(
+        `${version} is not a bare X.Y.Z — manifests carry only the core; the release tag carries the channel`,
+      );
+    }
+  }
+  return problems;
+}
 
+function check() {
+  const manifests = manifestPaths()
+    .map(readManifest)
+    .map(({ path, json }) => ({
+      path: relative(ROOT, path),
+      version: json.version,
+    }));
+  const problems = [
+    ...mobileProblems(),
+    ...unversionedProblems(),
+    ...versionProblems(manifests),
+  ];
   if (problems.length > 0) {
     console.error("✗ version check failed\n");
     for (const problem of problems) console.error(problem);
     console.error(
-      "\nFix with: node scripts/set-version.mjs <version>  (writes every manifest)",
+      "\nFix with: node scripts/set-version.mjs patch|minor|major  (writes every manifest)",
     );
-    process.exit(1);
+    return 1;
   }
   console.log(
-    `✓ ${manifests.length} manifests all at ${[...byVersion.keys()][0]}; ` +
+    `✓ ${manifests.length} manifests all at ${manifests[0].version}; ` +
       "Expo reads its version from apps/mobile/package.json" +
       (UNVERSIONED.size > 0
         ? `; unversioned: ${[...UNVERSIONED].join(", ")}`
         : ""),
   );
-  process.exit(0);
+  return 0;
 }
 
-if (arg === undefined || arg.startsWith("-")) {
-  console.error("usage: set-version.mjs <version> | --check");
-  process.exit(1);
+function write(request) {
+  const current = readManifest(join(ROOT, "package.json")).json.version;
+  let core;
+  try {
+    core = coreToWrite(current, request);
+  } catch (error) {
+    console.error(`✗ ${error.message}`);
+    return 1;
+  }
+  for (const { path, text } of manifestPaths().map(readManifest)) {
+    writeFileSync(path, withVersion(text, core));
+    console.log(`  ${relative(ROOT, path)}`);
+  }
+  console.log(`✓ set ${core} across every manifest`);
+  return 0;
 }
 
-if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(arg)) {
-  console.error(
-    `✗ "${arg}" is not a valid version (expected X.Y.Z or X.Y.Z-suffix)`,
-  );
-  process.exit(1);
-}
-if (arg.includes("-")) {
-  // Not a warning: the suffix is supported on purpose. Both stores reject a
-  // non-numeric version string, so `apps/mobile/app.config.ts` strips the suffix when
-  // it derives `expo.version` — the repo runs on real semver and the stores see the
-  // numeric core. Said out loud here because the number a build carries then differs
-  // from the one in package.json, and that should never be a surprise at upload time.
-  const [numeric] = arg.split("-");
-  console.log(
-    `  (pre-release: stores will see ${numeric}; the suffix stays repo-side)`,
-  );
+function main(arg) {
+  if (arg === "--check") return check();
+  if (arg === undefined || arg.startsWith("-")) {
+    console.error(
+      `usage: set-version.mjs ${BUMP_KINDS.join("|")}|X.Y.Z | --check`,
+    );
+    return 1;
+  }
+  return write(arg);
 }
 
-for (const { path, text } of manifestPaths().map(readManifest)) {
-  writeFileSync(path, withVersion(text, arg));
-  console.log(`  ${relative(ROOT, path)}`);
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  process.exit(main(process.argv[2]));
 }
-console.log(`✓ set ${arg} across every manifest`);
