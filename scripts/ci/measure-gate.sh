@@ -34,7 +34,7 @@ lines=$(printf '%s\n' "$clean" | awk '
   /^(✅|❌|⏳) / { print; detail = /^(❌|⏳)/; next }
   detail && /^      / { print; next }
   { detail = 0 }
-  /took [0-9]+s|up \([0-9]+s\)|simulator up|! this emulator|✖|^  [✓✗] .*[0-9]s$/ { print }
+  /took [0-9]+s|up \([0-9]+s\)|simulator up|! this emulator|! dismissed|✖|^  [✓✗] .*[0-9]s$/ { print }
   /^[^ ].* \([0-9]+ms\)$|^Format issues|^measure-gate:/ { print }
 ' | head -120)
 last=$(printf '%s\n' "$clean" | tail -n 25)

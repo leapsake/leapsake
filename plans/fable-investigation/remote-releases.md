@@ -283,45 +283,42 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 #### Where step 6 stands (2026-09-19, updated each run)
 
-**Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
+**Not done, but both platforms now run the whole gate green.** iOS went green for the first
+time in run 35470466445 (2026-09-19), after the AutoFill and factory-reset animation waits.
+What is left is repetition (three clean runs each) and the cache.
 
-**The run to read next: `35470466445`** (commit 22ee3ae, started 2026-09-19 21:27 UTC), the
-first with the factory-reset animation wait and the `on screen:` report on red flows. Run
-35468482457 (8307729) runs alongside it and still owes Android's `dismissed … with Wait`
-evidence. `node scripts/ci/measure-results.mjs <run>` shows each finished job. What to look
-for: whether iOS Flow 1 passes, or what its `on screen:` line and simulator name say (open
-item 1), and whether Android logs `dismissed … with Wait` and then reaches home (open item 2).
-When a newer run supersedes it, replace this paragraph with that run's id.
+**The runs read so far: `35470466445`** (22ee3ae: iOS 1 and Android 1–2 green) and
+**`35468482457`** (8307729: Android 1–3 and iOS 2 green, iOS 1 red on factory-reset).
+`node scripts/ci/measure-results.mjs <run>` shows each finished job. Replace this paragraph
+with the next run's id and what it showed.
 
-| | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores |
+| | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
 |---|---|---|
-| Device boot | 70–78s | not timed |
+| Device boot | 68–78s cold, 14–49s after | not timed |
 | Cold `expo run` | 256–402s | 643–1015s |
-| `native` tier | 393–541s, usually green | 1476–1970s, green |
-| E2E arc | 1548–1636s when green | not reached past Flow 1 |
-| Flow 4 | 183s, 182s: **not bimodal** | not reached |
-| Whole gate | ≈ 40 min | ≈ 60+ min expected |
+| `native` tier | 393–541s | 1476–1970s |
+| E2E arc | 1548–1636s | 1775s |
+| Flow 4 | 157–186s: **not bimodal** | 162s: **not bimodal** |
+| Slowest flow (7b) | 549–623s | 425s |
+| Whole job | ≈ 40 min | ≈ 60 min |
 
 The under-sized-emulator warning has never fired. Every non-device tier passes on both.
 
 **Open, in the order to take them:**
 
-1. **iOS Flow 1 goes red.** The AutoFill preflight and `relaunch.yaml` both pass as of run
-   35468482457 (the animation wait in `ios-autofill.yaml` fixed the first). Flow 1 now goes
-   red at its first step, `subflows/factory-reset.yaml`: after tapping "Factory reset…",
-   `factory-reset-confirm` never appeared within 20s. Two readings: the tap landed while
-   the pushed Data screen was still moving (it now waits for the animation to end first),
-   or the field rendered below the fold on the runner's simulator. A red flow now reports
-   `on screen:` and the boot line names the simulator, so the next red will say which.
-2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
-   1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
-   Flow 1 instead (183s, red). Run 35466401578's `on screen:` line named the cause: a
-   **"System UI isn't responding"** dialog over the app, on the job's second emulator boot
-   (49s boot, 16s reinstall), so most likely System UI still starting on 4 cores while Metro
-   bundles. The home wait now taps **Wait** on that dialog and logs
-   `! dismissed "…" with Wait`. Next run: whether that line
-   appears and home then comes up. If the dialog also hits mid-flow (Maestro), handle it
-   there too. A gate that fails 1 in 3 is not one to release on, so this outranks speed.
+1. ~~**iOS never finishes a flow.**~~ **Done.** Both stoppers were taps landing on a moving
+   screen, on a 3-core runner: the AutoFill preflight opened General → Dictionary (8307729),
+   then Flow 1's factory reset tapped before the Data screen settled (22ee3ae). Each flow now
+   waits for the animation to end first. iOS ran the whole catalog green in 35470466445, and
+   `relaunch.yaml`'s optional tap (6f1f25e) held. A red flow now prints `on screen:` and the
+   boot line names the simulator, which is what found the second stopper in one run.
+2. **Android's home-screen timeout has not recurred**, in five green gate jobs across
+   35468482457 and 35470466445. The cause was named in 35466401578 — a "System UI isn't
+   responding" dialog over the app, on the job's second emulator boot — and the home wait now
+   taps Wait on it (86cce1f). **Untested: no job has logged `dismissed … with Wait`, and
+   `measure-gate.sh`'s annotation filter would not print it if one had.** Widen the filter
+   (it matches `! this emulator`, not `! dismissed`) before reading the next runs, or the
+   evidence stays invisible.
 3. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
 4. After those: three clean runs per platform, then the owner decides (below).
