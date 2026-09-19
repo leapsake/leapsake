@@ -48,7 +48,12 @@ appId: com.apple.Preferences
                 commands:
                   - tapOn: "^Settings$"
 
+      # Tap only once each pane has stopped moving, or the tap lands on a neighbouring row.
+      - waitForAnimationToEnd:
+          timeout: 5000
       - tapOn: "General"
+      - waitForAnimationToEnd:
+          timeout: 5000
       - tapOn: ".*AutoFill.*"
 
       # `when: visible` below looks once and does not wait, so wait for the switch first:

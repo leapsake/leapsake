@@ -285,11 +285,11 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
 
-**The run to read next: `35466401578`** (commit 4e97b6d, started 2026-09-19 20:07 UTC), the first
-with both fixes below. `node scripts/ci/measure-results.mjs 35466401578` shows each finished job.
-What to look for: whether iOS gets past Flow 1 (open item 1), and the `on screen:` line under any
-Android "home screen never appeared" (open item 2). When a newer run supersedes it, replace this
-paragraph with that run's id.
+**The run to read next:** the one started by the push of the AutoFill and "isn't responding"
+fixes (2026-09-19, after 35466401578 was cancelled). `node scripts/ci/measure-results.mjs`
+lists it. What to look for: whether iOS gets past the AutoFill preflight and Flow 1 (open
+item 1), and whether Android logs `dismissed … with Wait` and then reaches home (open item 2).
+When a newer run supersedes it, replace this paragraph with that run's id.
 
 | | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores |
 |---|---|---|
@@ -306,14 +306,17 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
 
 1. **iOS Flow 1 goes red in `subflows/relaunch.yaml`:** the dev launcher's `localhost:8081`
    entry vanished between `when: visible` and the tap. The fix (tap made `optional`, 6f1f25e)
-   is first measured in run 35466401578.
+   is still unmeasured: run 35466401578's iOS job 1 went red earlier, in the AutoFill
+   preflight, which landed on General → **Dictionary** instead of AutoFill on all three
+   retries. `ios-autofill.yaml` now waits for each pane to stop animating before tapping.
+   Next run: whether the preflight passes, then whether Flow 1 does.
 2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
    1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
    Flow 1 instead (183s, red). Run 35466401578's `on screen:` line named the cause: a
    **"System UI isn't responding"** dialog over the app, on the job's second emulator boot
    (49s boot, 16s reinstall), so most likely System UI still starting on 4 cores while Metro
    bundles. The home wait now taps **Wait** on that dialog and logs
-   `! dismissed "…" with Wait` (committed, not yet pushed). Next run: whether that line
+   `! dismissed "…" with Wait`. Next run: whether that line
    appears and home then comes up. If the dialog also hits mid-flow (Maestro), handle it
    there too. A gate that fails 1 in 3 is not one to release on, so this outranks speed.
 3. **The build cache never saves** ("Cache save failed" on every job), so every build is
