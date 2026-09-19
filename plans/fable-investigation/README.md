@@ -20,9 +20,10 @@ ports).
 | 2   | [`shared-form-logic.md`](./shared-form-logic.md) | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                         | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                   |
 | 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E flows standing in for a missing mobile hook tier; an E2E arc that never relaunches the app.                                                                    | **Do it.** Extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.                 |
 | 4   | [`remote-releases.md`](./remote-releases.md)     | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels. | **Do it.** Nine decisions recorded in the doc; steps 1–4 are script-only and can start now.                             |
+| 5   | [`dependency-balance.md`](./dependency-balance.md) | Bespoke code that a platform API or an already-present package covers (the relay's uncapped body reader, a hand-rolled base64, an ESLint plugin for one rule); the kept bespoke tooling gets a tripwire each. | **Do it.** Step 1 is a live vulnerability and goes first; the rest are independent. Kept items are not reopened until their tripwire fires. |
 
 2 and 3 can run in parallel with 1. 4's steps 6–8 wait on the repo going public
-([`../shipping.md`](../shipping.md) → Part 1, step 2).
+([`../shipping.md`](../shipping.md) → Part 1, step 2). 5 is independent of all of them.
 
 ## Rules that apply to every workstream
 
