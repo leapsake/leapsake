@@ -4,18 +4,21 @@
 // tag carries the channel and counter (`v0.1.0-beta.10`). alpha, beta and rc count up
 // independently per core, and a final closes it. Every command takes the tag it acts on.
 //
+//   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks]
 //   pnpm release plan --tag=<tag> [--json] [--no-checks]
 //   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
 //   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
-//   pnpm release publish --tag=<tag> --from=<dir> [--only=<targets>] [--receipts-out=<dir>]
+//   pnpm release publish --tag=<tag> --from=<dir> --here [--only=<targets>] [--receipts-out=<dir>]
 //   pnpm release record --tag=<tag> --from=<dir> [--push]
 //   pnpm release abandon --tag=<tag>
-//   pnpm release ship --tag=<tag> [--dry-run] [--no-provision]
+//   pnpm release ship --tag=<tag> --here [--dry-run] [--no-provision]
 //   pnpm release --help
 //
 // Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
 // the live commit by hand for a marker rung. Credentials come from `.env` or the environment,
-// which wins. Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
+// which wins. Off a runner (`CI=true`), uploading needs `--here`, a tag origin already has,
+// and the tag typed back; `cut` and `abandon` need the tag typed back too. There is no `--yes`.
+// Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,7 +26,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runChecks } from "./checks.mjs";
-import { currentBranch, isClean, isShallow, listTags, tagSha } from "./git.mjs";
+import {
+  createTag,
+  currentBranch,
+  isClean,
+  isShallow,
+  listTags,
+  remoteHasTag,
+  tagSha,
+} from "./git.mjs";
+import { confirmTag, isCI, laptopUploadRefusal, via } from "./guards.mjs";
 import {
   abandonTag,
   buildInto,
@@ -34,13 +46,26 @@ import {
   receiptsIn,
   recordReceipts,
 } from "./phases.mjs";
-import { BUILD_CHECKS, FROM_TAG_CHECKS, MARKER_CHECKS } from "./preflight.mjs";
+import {
+  BUILD_CHECKS,
+  FROM_TAG_CHECKS,
+  LOCAL_CHECKS,
+  MARKER_CHECKS,
+} from "./preflight.mjs";
 import { NOTES_REF } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
-import { coreOf, parseTag, stageOf, STAGES } from "./version.mjs";
+import {
+  coreOf,
+  formatTag,
+  nextVersion,
+  parseTag,
+  stageOf,
+  STAGES,
+} from "./version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const COMMANDS = [
+  "cut",
   "plan",
   "gate",
   "build",
@@ -184,12 +209,6 @@ function reportFailures(heading, failures, write = console.error) {
 const plannedBuildNumber = () =>
   Number(process.env.LEAPSAKE_BUILD_NUMBER?.trim() || buildNumberNow());
 
-/** A marker rung's tag does not exist yet: it is created later, on the released commit. */
-const repoChecksFor = (cells) =>
-  cells.some((cell) => cell.status === "ready" && cell.marker)
-    ? MARKER_CHECKS
-    : FROM_TAG_CHECKS;
-
 function printCells(ctx, cells, buildNumber, write) {
   write(`\nRelease ${ctx.tag}`);
   write(`  channel      ${ctx.stage}`);
@@ -211,7 +230,7 @@ async function planRelease(opts, { write = console.log } = {}) {
   const ctx = releaseContext(opts);
   const checks = !opts.flags.has("no-checks");
   const cells = await evaluateCells(TARGETS, ctx, { checks });
-  const repoFailures = checks ? await runChecks(repoChecksFor(cells), ctx) : [];
+  const repoFailures = checks ? await runChecks(FROM_TAG_CHECKS, ctx) : [];
   const buildNumber = plannedBuildNumber();
   printCells(ctx, cells, buildNumber, write);
   if (repoFailures.length > 0) {
@@ -225,6 +244,95 @@ async function planRelease(opts, { write = console.log } = {}) {
     repoFailures.length === 0 &&
     !cells.some((cell) => cell.status === "failed");
   return { ctx, cells, buildNumber, ok };
+}
+
+/** Refuses, in one line, unless this machine may upload `ctx.tag`. */
+async function guardUpload(opts, ctx) {
+  const reason = await laptopUploadRefusal({
+    tag: ctx.tag,
+    here: opts.flags.has("here"),
+    ci: isCI(),
+    remoteHasTag: (tag) => remoteHasTag(ROOT, tag),
+    confirm: (tag) => confirmTag(tag),
+  });
+  if (reason) console.error(`✗ ${reason}`);
+  return reason === undefined;
+}
+
+/** The commit every ready marker cell says the store approved; they must agree. */
+async function approvedCommit(ctx, cells) {
+  const markers = cells.filter(
+    (cell) => cell.status === "ready" && cell.marker,
+  );
+  if (markers.length === 0) {
+    throw new Error(`no target is ready to release ${ctx.stage}`);
+  }
+  const found = [];
+  for (const { target } of markers) {
+    found.push({ id: target.id, ...(await target.approved(ctx)) });
+  }
+  const commits = new Set(found.map((each) => each.commit));
+  if (commits.size > 1) {
+    throw new Error(
+      `the approved builds come from different commits: ${found.map((each) => `${each.id} ${each.commit.slice(0, 12)}`).join(", ")}`,
+    );
+  }
+  return found[0].commit;
+}
+
+async function cut(opts) {
+  const [, channel, ...extra] = opts.positional;
+  if (!STAGES.includes(channel)) {
+    fail(`cut which channel? one of ${STAGES.join(", ")}`);
+  }
+  if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
+
+  const manifestVersion = JSON.parse(
+    readFileSync(join(ROOT, "package.json"), "utf8"),
+  ).version;
+  const version = nextVersion({
+    core: manifestVersion,
+    stage: channel,
+    tags: listTags(ROOT),
+  });
+  const ctx = releaseContext({
+    ...opts,
+    values: { ...opts.values, tag: formatTag(version) },
+  });
+  const cells = await evaluateCells(TARGETS, ctx, {
+    checks: !opts.flags.has("no-checks"),
+  });
+  const failures = await runChecks(
+    channel === "final" ? MARKER_CHECKS : LOCAL_CHECKS,
+    ctx,
+  );
+  printCells(ctx, cells, plannedBuildNumber(), console.log);
+  if (failures.length > 0) {
+    reportFailures(`${ctx.tag} cannot be cut from here:`, failures);
+    return 1;
+  }
+  if (cells.some((cell) => cell.status === "failed")) return 1;
+
+  const commit =
+    channel === "final" ? await approvedCommit(ctx, cells) : undefined;
+  console.log(`\nWould tag ${ctx.tag} on ${commit?.slice(0, 12) ?? "HEAD"}.`);
+  if (opts.flags.has("dry-run")) {
+    console.log("(dry run — nothing was changed)");
+    return 0;
+  }
+  if (!isCI() && !(await confirmTag(ctx.tag))) {
+    console.error("✗ the tag was not typed back, so nothing was done");
+    return 1;
+  }
+
+  createTag(ROOT, ctx.tag, `${version} (${channel})`, commit);
+  if (opts.flags.has("push")) {
+    return git(["push", "origin", `refs/tags/${ctx.tag}`]) ? 0 : 1;
+  }
+  console.log(
+    `\n✅ tagged ${ctx.tag}. Pushing it starts the release:\n   git push origin ${ctx.tag}`,
+  );
+  return 0;
 }
 
 async function plan(opts) {
@@ -331,7 +439,12 @@ function printSummary(tag, results) {
 }
 
 async function publishPhase(ctx, cells, { from, receiptsOut, only }) {
-  const results = await publishAll(cells, ctx, { from, receiptsOut, only });
+  const results = await publishAll(cells, ctx, {
+    from,
+    receiptsOut,
+    only,
+    via: via(),
+  });
   if (results.length === 0) {
     console.error(
       `✗ nothing to publish for ${ctx.tag}${from ? ` in ${from}` : ""}`,
@@ -350,6 +463,7 @@ async function publishPhase(ctx, cells, { from, receiptsOut, only }) {
 
 async function publish(opts) {
   const ctx = releaseContext(opts);
+  if (!(await guardUpload(opts, ctx))) return 1;
   const from = opts.values.from && resolve(opts.values.from);
   const receiptsOut = opts.values["receipts-out"] ?? from;
   if (!receiptsOut) fail("--from=<dir> is required");
@@ -401,8 +515,12 @@ function record(opts) {
   });
 }
 
-function abandon(opts) {
+async function abandon(opts) {
   const { tag } = releaseContext(opts);
+  if (!isCI() && !(await confirmTag(tag))) {
+    console.error("✗ the tag was not typed back, so nothing was done");
+    return 1;
+  }
   const { remote } = abandonTag(ROOT, tag);
   console.log(
     `✅ deleted ${tag}${remote ? " here and at origin" : " here; origin never had it"}. ` +
@@ -414,12 +532,19 @@ function abandon(opts) {
 const idsOf = (cells) => cells.map((cell) => cell.target.id).join(", ");
 
 async function ship(opts) {
+  const dryRun = opts.flags.has("dry-run");
+  if (!dryRun && !isCI() && !opts.flags.has("here")) {
+    console.error(
+      "✗ ship runs the whole release on this machine; pass --here to mean it — the everyday path is `pnpm release cut <channel> --push`",
+    );
+    return 1;
+  }
   const { ctx, cells, buildNumber, ok } = await planRelease(opts);
   const provision = !opts.flags.has("no-provision");
   const ready = cells.filter((cell) => cell.status === "ready");
   const toBuild = ready.filter((cell) => !cell.marker);
 
-  if (opts.flags.has("dry-run")) {
+  if (dryRun) {
     console.log("\nWould, in order:");
     let step = 1;
     if (toBuild.length > 0) {
@@ -438,6 +563,7 @@ async function ship(opts) {
     return ok ? 0 : 1;
   }
   if (!ok) return 1;
+  if (!(await guardUpload(opts, ctx))) return 1;
   if (ready.length === 0) {
     console.error("\n✗ nothing to ship: no target is ready at this rung");
     return 1;
@@ -475,7 +601,7 @@ async function ship(opts) {
   return published || recorded;
 }
 
-const HANDLERS = { plan, gate, build, publish, record, abandon, ship };
+const HANDLERS = { cut, plan, gate, build, publish, record, abandon, ship };
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
@@ -491,7 +617,9 @@ async function main() {
   if (!COMMANDS.includes(command)) {
     fail(`unknown command "${command}" (expected ${COMMANDS.join(", ")})`);
   }
-  if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
+  if (extra.length > 0 && command !== "cut") {
+    fail(`unexpected argument "${extra[0]}"`);
+  }
   loadEnvFile();
   return HANDLERS[command](opts);
 }
