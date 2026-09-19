@@ -5,6 +5,7 @@
 // independently per core, and a final closes it. Every command takes the tag it acts on.
 //
 //   pnpm release plan --tag=<tag> [--json] [--no-checks]
+//   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
 //   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
 //   pnpm release publish --tag=<tag> --from=<dir> [--only=<targets>] [--receipts-out=<dir>]
 //   pnpm release record --tag=<tag> --from=<dir> [--push]
@@ -39,7 +40,15 @@ import { TARGETS, targetById } from "./targets/index.mjs";
 import { coreOf, parseTag, stageOf, STAGES } from "./version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const COMMANDS = ["plan", "build", "publish", "record", "abandon", "ship"];
+const COMMANDS = [
+  "plan",
+  "gate",
+  "build",
+  "publish",
+  "record",
+  "abandon",
+  "ship",
+];
 const VALUE_FLAGS = new Set([
   "tag",
   "only",
@@ -48,6 +57,7 @@ const VALUE_FLAGS = new Set([
   "out",
   "from",
   "receipts-out",
+  "platforms",
 ]);
 
 function parseArgs(argv) {
@@ -230,6 +240,45 @@ async function plan(opts) {
   return ok ? 0 : 1;
 }
 
+/** The suite for these platforms' device tiers plus every other tier, always `--strict`. */
+function runGate(platforms, { provision }) {
+  const suite = [
+    "--strict",
+    ...(provision ? ["--provision"] : []),
+    `--platforms=${platforms.join(",")}`,
+  ];
+  console.log(`\n→ pnpm test:all ${suite.join(" ")}`);
+  const run = spawnSync("pnpm", ["run", "test:all", "--", ...suite], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  return run.status === 0 ? 0 : 1;
+}
+
+const platformsOf = (cells) => [
+  ...new Set(cells.map((cell) => cell.target.platform)),
+];
+
+async function gate(opts) {
+  const provision = !opts.flags.has("no-provision");
+  if (opts.values.platforms) {
+    const platforms = opts.values.platforms.split(",").map((p) => p.trim());
+    return runGate(platforms.filter(Boolean), { provision });
+  }
+  if (!opts.values.tag)
+    fail("which platforms? pass --platforms=<list> or --tag=<tag>");
+  const ctx = releaseContext(opts);
+  const cells = await evaluateCells(TARGETS, ctx, { checks: false });
+  const building = cells.filter(
+    (cell) => cell.status === "ready" && !cell.marker,
+  );
+  if (building.length === 0) {
+    console.log(`${ctx.tag} builds nothing, so there is nothing to gate`);
+    return 0;
+  }
+  return runGate(platformsOf(building), { provision });
+}
+
 async function build(opts) {
   const ctx = releaseContext(opts);
   const ids = selectIds(opts.values.only);
@@ -375,7 +424,10 @@ async function ship(opts) {
     let step = 1;
     if (toBuild.length > 0) {
       const suite = `--strict${provision ? " --provision" : ""}`;
-      console.log(`  ${step++}. run pnpm test:all ${suite}`);
+      const platforms = platformsOf(toBuild).join(",");
+      console.log(
+        `  ${step++}. run pnpm test:all ${suite} --platforms=${platforms}`,
+      );
       console.log(
         `  ${step++}. build ${idsOf(toBuild)} as build ${buildNumber}`,
       );
@@ -393,13 +445,7 @@ async function ship(opts) {
 
   const out = mkdtempSync(join(tmpdir(), `leapsake-${ctx.tag}-`));
   if (toBuild.length > 0) {
-    const suite = ["--strict", ...(provision ? ["--provision"] : [])];
-    console.log(`\n→ pnpm test:all ${suite.join(" ")}`);
-    const run = spawnSync("pnpm", ["run", "test:all", "--", ...suite], {
-      cwd: ROOT,
-      stdio: "inherit",
-    });
-    if (run.status !== 0) return 1;
+    if (runGate(platformsOf(toBuild), { provision }) !== 0) return 1;
 
     const failures = await runChecks(BUILD_CHECKS, ctx);
     if (failures.length > 0) {
@@ -429,7 +475,7 @@ async function ship(opts) {
   return published || recorded;
 }
 
-const HANDLERS = { plan, build, publish, record, abandon, ship };
+const HANDLERS = { plan, gate, build, publish, record, abandon, ship };
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
