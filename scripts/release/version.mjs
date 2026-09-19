@@ -1,27 +1,9 @@
-// Version and tag algebra — the only place a release number is decided.
+// Version and tag algebra: pure, so `version.test.mjs` tests it directly.
 //
-// The rule this file exists to enforce: **a human chooses the stage, never the number.**
-// `alpha` → `beta` → `rc` → final is a ladder of tags, and the counter on each rung is
-// derived from the tags that already exist rather than typed. Starting a new release train
-// is the one decision left to a person, and it is made once per train with `--base=`.
-//
-// ⚠️ **Prefer `--base=patch|minor|major` to a typed number.** A base that goes *backwards*
-// is caught by the monotonic guard; a base that goes too far **forwards** is not, and it is
-// the one unrecoverable mistake in the whole path — the stores see the numeric core, so a
-// mistyped `--base=1.1.0` spends `1.1.0` and burns every version beneath it, permanently.
-// Naming the kind of bump instead removes the number from human hands, which is the same
-// principle the rest of this file already applies to the counters.
-//
-// Everything here is pure — no git, no filesystem — so it can be tested directly
-// (`version.test.mjs`). The caller supplies the tag list.
-//
-// Why the comparison below is real semver precedence rather than a string sort: the
-// monotonic guard in `preflight.mjs` is the last thing standing between a typo and a store
-// version that can never be taken back. Both stores refuse a version lower than one
-// already uploaded, and a wrong number is not fixable in the next release — it is fixable
-// only by burning the version.
+// alpha, beta and rc are channels that each count up independently on a core; a person
+// picks the channel and the counter comes from the existing tags.
 
-/** The ladder. Order is significant: it is the order of increasing maturity. */
+/** The channels, plus `final`, which closes a core. */
 export const STAGES = ["alpha", "beta", "rc", "final"];
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
@@ -50,7 +32,7 @@ export function coreOf(version) {
   return `${parsed.major}.${parsed.minor}.${parsed.patch}`;
 }
 
-/** Which rung of the ladder a version sits on. A version with no suffix is `final`. */
+/** The channel a version is on. A version with no suffix is `final`. */
 export function stageOf(version) {
   const parsed = parseVersion(version);
   if (!parsed) throw new Error(`not a version: "${version}"`);
@@ -59,15 +41,7 @@ export function stageOf(version) {
   return STAGES.includes(stage) ? stage : null;
 }
 
-/**
- * Semver precedence (semver.org §11): numeric core first, then a version *with* a
- * pre-release ranks below the same core without one, then identifier by identifier —
- * numeric identifiers compare numerically and rank below alphanumeric ones, and a shorter
- * identifier set ranks below a longer one that shares its prefix.
- *
- * `alpha < beta < rc` falls out of the alphanumeric comparison for free; the ladder needs
- * no special casing.
- */
+/** Semver precedence (semver.org §11). */
 export function compareVersions(a, b) {
   const left = parseVersion(a);
   const right = parseVersion(b);
@@ -125,16 +99,10 @@ export function highestVersion(tags) {
   return versions.length > 0 ? versions[versions.length - 1] : null;
 }
 
-/** The ways to name a new train without typing its number. */
+/** The ways to name the next core without typing it. */
 export const BUMP_KINDS = ["patch", "minor", "major"];
 
-/**
- * The only three cores a release train may legitimately start on, given the one before it.
- *
- * Semver leaves exactly this much choice, which is what makes it a useful guard: everything
- * outside these three is a typo rather than a decision. `0.1.0` may be followed by `0.1.1`,
- * `0.2.0` or `1.0.0` — never by `0.11.0`, and never by `1.1.0`.
- */
+/** The three cores semver allows after `core`. */
 export function successorCores(core) {
   const parsed = parseVersion(core);
   if (!parsed) throw new Error(`not a version: "${core}"`);
@@ -146,44 +114,13 @@ export function successorCores(core) {
 }
 
 /**
- * The core this release sits on: the manifests' own, a computed successor of it, or an
- * explicit one.
- *
- * An explicit base must be a bare `X.Y.Z`. A suffix here would be a second, competing
- * source of the rung — `--base=0.2.0-rc.1` reads as if it set the stage, and it does not.
+ * The next version on a channel: the highest counter already tagged for this core and
+ * stage, plus one, or `.1` when there is none. `final` is the bare core.
  */
-function resolveCore(current, base) {
-  const core = coreOf(current);
-  if (base === undefined) return core;
-  if (BUMP_KINDS.includes(base)) return successorCores(core)[base];
-  if (!/^\d+\.\d+\.\d+$/.test(base)) {
-    throw new Error(
-      `--base must be ${BUMP_KINDS.join("|")} or a bare X.Y.Z, got "${base}"`,
-    );
-  }
-  return base;
-}
-
-/**
- * The next version on a rung: the highest counter already tagged for this core and stage,
- * plus one — or `.1` when this is the first build on the rung.
- *
- * Moving *up* the ladder needs no argument beyond the stage. From `0.1.0-alpha.3`,
- * `nextVersion({ current, stage: "beta" })` is `0.1.0-beta.1`, because the core carries
- * over and the beta counter starts fresh. Moving *down* is not rejected here — it produces
- * a version that loses to an existing tag, which the monotonic guard then refuses with a
- * message that explains it. One rule, enforced in one place.
- *
- * @param current the version the manifests currently hold
- * @param stage one of {@link STAGES}
- * @param base a {@link BUMP_KINDS} kind, or an explicit bare core — how a new train starts
- * @param tags every tag in the repo
- */
-export function nextVersion({ current, stage, base, tags = [] }) {
+export function nextVersion({ core, stage, tags = [] }) {
   if (!STAGES.includes(stage)) {
     throw new Error(`unknown stage "${stage}" (expected ${STAGES.join(", ")})`);
   }
-  const core = resolveCore(current, base);
   if (stage === "final") return core;
 
   let highest = 0;

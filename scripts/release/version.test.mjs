@@ -1,6 +1,3 @@
-// The version algebra is the one part of the release path whose mistakes are permanent:
-// a store version that goes backwards, or a counter that repeats, cannot be corrected in
-// a later release. It is also pure, so it is tested directly rather than through a build.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -102,78 +99,47 @@ describe("tags", () => {
 });
 
 describe("nextVersion", () => {
-  const current = "0.1.0-alpha.1";
+  const core = "0.1.0";
 
-  it("starts a rung at .1", () => {
-    expect(nextVersion({ current, stage: "alpha", tags: [] })).toBe(
+  it("starts a channel at .1", () => {
+    expect(nextVersion({ core, stage: "alpha", tags: [] })).toBe(
       "0.1.0-alpha.1",
     );
   });
 
-  it("increments the rung it is already on", () => {
+  it("increments the channel it is already on", () => {
     expect(
-      nextVersion({ current, stage: "alpha", tags: ["v0.1.0-alpha.1"] }),
+      nextVersion({ core, stage: "alpha", tags: ["v0.1.0-alpha.1"] }),
     ).toBe("0.1.0-alpha.2");
   });
 
   it("counts past nine without string-sorting", () => {
     const tags = ["v0.1.0-alpha.9", "v0.1.0-alpha.10"];
-    expect(nextVersion({ current, stage: "alpha", tags })).toBe(
-      "0.1.0-alpha.11",
+    expect(nextVersion({ core, stage: "alpha", tags })).toBe("0.1.0-alpha.11");
+  });
+
+  it("counts each channel on its own, so alpha can follow beta", () => {
+    const tags = ["v0.1.0-alpha.3", "v0.1.0-beta.9", "v0.1.0-rc.1"];
+    expect(nextVersion({ core, stage: "alpha", tags })).toBe("0.1.0-alpha.4");
+    expect(nextVersion({ core, stage: "beta", tags })).toBe("0.1.0-beta.10");
+    expect(nextVersion({ core, stage: "rc", tags })).toBe("0.1.0-rc.2");
+  });
+
+  it("is the bare core for a final release", () => {
+    expect(nextVersion({ core, stage: "final", tags: ["v0.1.0-rc.1"] })).toBe(
+      "0.1.0",
     );
-  });
-
-  it("carries the core up the ladder and restarts the counter", () => {
-    const tags = ["v0.1.0-alpha.1", "v0.1.0-alpha.2"];
-    expect(nextVersion({ current, stage: "beta", tags })).toBe("0.1.0-beta.1");
-  });
-
-  it("drops the suffix entirely for a final release", () => {
-    expect(
-      nextVersion({ current, stage: "final", tags: ["v0.1.0-rc.1"] }),
-    ).toBe("0.1.0");
   });
 
   it("counts only tags on the same core", () => {
     const tags = ["v0.1.0-beta.7", "v0.2.0-beta.1"];
-    expect(nextVersion({ current: "0.2.0-beta.1", stage: "beta", tags })).toBe(
+    expect(nextVersion({ core: "0.2.0", stage: "beta", tags })).toBe(
       "0.2.0-beta.2",
     );
   });
 
-  it("takes an explicit base, for the train a kind cannot express", () => {
-    expect(
-      nextVersion({ current, stage: "alpha", base: "0.2.0", tags: [] }),
-    ).toBe("0.2.0-alpha.1");
-  });
-
-  it("computes the core from a bump kind, so it cannot be mistyped", () => {
-    const shipped = "0.1.0-rc.2";
-    expect(
-      nextVersion({ current: shipped, stage: "alpha", base: "patch" }),
-    ).toBe("0.1.1-alpha.1");
-    expect(
-      nextVersion({ current: shipped, stage: "alpha", base: "minor" }),
-    ).toBe("0.2.0-alpha.1");
-    expect(
-      nextVersion({ current: shipped, stage: "alpha", base: "major" }),
-    ).toBe("1.0.0-alpha.1");
-  });
-
-  it("carries a bump kind through to a final release too", () => {
-    expect(
-      nextVersion({ current: "0.1.0-rc.2", stage: "final", base: "minor" }),
-    ).toBe("0.2.0");
-  });
-
-  it("refuses a base carrying a suffix, which would read as setting the rung", () => {
-    expect(() =>
-      nextVersion({ current, stage: "alpha", base: "0.2.0-rc.1" }),
-    ).toThrow(/bare X\.Y\.Z/);
-  });
-
-  it("refuses a stage that is not on the ladder", () => {
-    expect(() => nextVersion({ current, stage: "nightly", tags: [] })).toThrow(
+  it("refuses a stage that is not a channel", () => {
+    expect(() => nextVersion({ core, stage: "nightly", tags: [] })).toThrow(
       /unknown stage/,
     );
   });

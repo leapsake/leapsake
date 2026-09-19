@@ -52,7 +52,7 @@
 // take it is printed at the end.
 //
 // Usage:
-//   node scripts/release/index.mjs <alpha|beta|rc|final> [--base=patch|minor|major|X.Y.Z]
+//   node scripts/release/index.mjs <alpha|beta|rc|final>
 //   node scripts/release/index.mjs --from-tag=<tag>
 //   node scripts/release/index.mjs ... --only=ios,android   default: every ready target
 //   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
@@ -91,7 +91,7 @@ import {
 } from "./version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const VALUE_FLAGS = new Set(["from-tag", "base", "only", "commit"]);
+const VALUE_FLAGS = new Set(["from-tag", "only", "commit"]);
 
 function parseArgs(argv) {
   const positional = [];
@@ -128,7 +128,7 @@ const fail = (message) => {
 /** The matrix, built by asking the registry — never a table maintained alongside it. */
 function printHelp() {
   console.log(
-    "Usage: pnpm release <alpha|beta|rc|final> [--base=patch|minor|major|X.Y.Z] [--only=…] [--dry-run]",
+    "Usage: pnpm release <alpha|beta|rc|final> [--only=…] [--dry-run]",
   );
   console.log("       pnpm release --from-tag=<tag> [--only=…] [--dry-run]\n");
   console.log(
@@ -157,11 +157,6 @@ function resolveRelease({ positional, values }, { manifestVersion, tags }) {
     if (positional.length > 0) {
       fail(`--from-tag names the stage already; drop "${positional[0]}"`);
     }
-    // The tag carries the whole version, so a base here has nothing to decide — and would
-    // read as if it did.
-    if (values.base !== undefined) {
-      fail(`--from-tag names the version already; drop --base=${values.base}`);
-    }
     const version = parseTag(fromTag);
     if (!version) {
       fail(
@@ -185,12 +180,7 @@ function resolveRelease({ positional, values }, { manifestVersion, tags }) {
   }
   if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
 
-  const version = nextVersion({
-    current: manifestVersion,
-    stage,
-    base: values.base,
-    tags,
-  });
+  const version = nextVersion({ core: manifestVersion, stage, tags });
   return { mode: "local", version, stage, tag: formatTag(version) };
 }
 
@@ -414,9 +404,6 @@ async function main() {
     tags: allTags.filter((each) => each !== tag),
     branch: currentBranch(ROOT),
     clean: isClean(ROOT),
-    // The raw `--base`, for `baseIsSuccessor` to judge. `version` is what it produced;
-    // this is what was asked for, and only one of the two can be a typo.
-    base: opts.values.base,
     // Both are read by `monotonic`, the one check that reads history rather than the
     // working tree: a tag list that cannot be trusted is refused rather than believed,
     // and the single legitimate empty list is claimed by hand instead of inferred.
@@ -436,14 +423,6 @@ async function main() {
   console.log(
     `  version      ${version}${version === ctx.storeVersion ? "" : `  (stores see ${ctx.storeVersion})`}`,
   );
-  // Say it out loud when the core moves. A new train is the one thing here a person chose
-  // rather than the tags deciding, so it should be visible before the suite runs rather
-  // than inferred from the version afterwards.
-  if (coreOf(manifestVersion) !== ctx.storeVersion) {
-    console.log(
-      `  train        new — ${coreOf(manifestVersion)} → ${ctx.storeVersion}`,
-    );
-  }
   console.log(`  from         ${ctx.branch} @ ${mode}`);
 
   // A marker rung shares almost nothing with a build: no suite, no manifest bump, no
