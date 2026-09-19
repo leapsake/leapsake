@@ -23,51 +23,60 @@
 # `--provision`. Driven by `scripts/lib/mobile-harness.mjs`, never by the catalog.
 appId: com.apple.Preferences
 ---
-# Settings reopens on whatever pane it was last left on, so walk back to the root before
-# navigating. Both labels appear as back buttons depending on depth; each tap is guarded, so
-# an already-rooted Settings simply skips all six passes.
-- launchApp
-- repeat:
-    times: 6
+# **The whole walk is retried.** On a slow host (a hosted 3-core runner) either half can miss:
+# the General list shifts under a tap and opens the wrong pane, or the switch ignores the
+# tap. Each attempt relaunches Settings, checks it reached the AutoFill pane, and only
+# passes once the switch reads off, so a retry repeats nothing that already worked.
+- retry:
+    maxRetries: 2
     commands:
+      # Settings reopens on whatever pane it was last left on, so walk back to the root
+      # before navigating. Both labels appear as back buttons depending on depth; each tap
+      # is guarded, so an already-rooted Settings simply skips all six passes.
+      - launchApp
+      - repeat:
+          times: 6
+          commands:
+            - runFlow:
+                when:
+                  visible: "Back"
+                commands:
+                  - tapOn: "Back"
+            - runFlow:
+                when:
+                  visible: "^Settings$"
+                commands:
+                  - tapOn: "^Settings$"
+
+      - tapOn: "General"
+      - tapOn: ".*AutoFill.*"
+
+      # `when: visible` below looks once and does not wait, so wait for the switch first:
+      # on a slow host the page draws it late, and the fix would be skipped.
+      - extendedWaitUntil:
+          visible:
+            id: "AutoFillToggle"
+          timeout: 30000
+
+      # Under FIX, flip it only when it is on — tapping unconditionally would turn it back on.
+      #
+      # **The point is not decoration.** `AutoFillToggle`'s bounds are the whole row, so a
+      # plain `tapOn` lands on the label and Maestro reports COMPLETED having changed
+      # nothing; the switch sits at the row's right edge. A point *inside the element* hits
+      # it at any screen size, which a screen percentage would not.
       - runFlow:
           when:
-            visible: "Back"
+            true: ${FIX == 'true'}
+            visible:
+              id: "AutoFillToggle"
+              checked: true
           commands:
-            - tapOn: "Back"
-      - runFlow:
-          when:
-            visible: "^Settings$"
-          commands:
-            - tapOn: "^Settings$"
+            - tapOn:
+                id: "AutoFillToggle"
+                point: "90%,50%"
 
-- tapOn: "General"
-- tapOn: ".*AutoFill.*"
-
-# The `when: visible` below looks once and does not wait, so wait for the switch first: on a
-# slow host the page draws it late, and the fix would be skipped rather than applied.
-- extendedWaitUntil:
-    visible:
-      id: "AutoFillToggle"
-    timeout: 30000
-
-# Under FIX, flip it only when it is on — tapping unconditionally would turn it back on.
-#
-# **The point is not decoration.** `AutoFillToggle`'s bounds are the whole row, so a plain
-# `tapOn` lands on the label and Maestro reports COMPLETED having changed nothing; the
-# switch sits at the row's right edge. A point *inside the element* hits it at any screen
-# size, which a screen percentage would not.
-- runFlow:
-    when:
-      true: ${FIX == 'true'}
-      visible:
-        id: "AutoFillToggle"
-        checked: true
-    commands:
-      - tapOn:
-          id: "AutoFillToggle"
-          point: "90%,50%"
-
-- assertVisible:
-    id: "AutoFillToggle"
-    checked: false
+      - extendedWaitUntil:
+          visible:
+            id: "AutoFillToggle"
+            checked: false
+          timeout: 10000
