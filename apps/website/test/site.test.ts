@@ -151,7 +151,8 @@ describe("the site's icons", () => {
  * repo would be found by an ordinary build — and a crashed test could leave one
  * behind and publish it.
  */
-describe("the docs model", () => {
+// Each test runs a real `astro build`, several seconds on a 4-core runner.
+describe("the docs model", { timeout: 30_000 }, () => {
   let root: string;
 
   const build = () =>
@@ -232,8 +233,9 @@ describe("the docs model", () => {
 
     // A slug is a public URL: silently letting one file win would mean the page a
     // link points at depends on directory-walk order.
-    await expect(build()).rejects.toThrow(/packages\/gifts\/a\.md/);
-    await expect(build()).rejects.toThrow(/packages\/ui\/b\.md/);
+    const refused = build();
+    await expect(refused).rejects.toThrow(/packages\/gifts\/a\.md/);
+    await expect(refused).rejects.toThrow(/packages\/ui\/b\.md/);
   });
 
   it("refuses a section outside the closed set", async () => {
