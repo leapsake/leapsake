@@ -123,6 +123,10 @@ could not tell one anniversary written twice from two anniversaries — the same
 `X-LEAPSAKE-REL-ID` solves for the edge itself, solved the same way. The read is memoised by
 relationship id, so an edge visited from both ends costs one query.
 
+**The walk costs about `3 + 4(N + P) + E` queries** for N people, P pets and E relationships, plus
+11 whole-table reads for `data.json` and one per reminder and gift idea for its tags. If that ever
+bites, the fix is bulk reads behind `ExportPorts`, not caching in whichever client called.
+
 **Derived edges are excluded twice over.** The kinship engine computes some neighbors live — your
 parent's sibling is your pibling — and those have no stored row. Exporting one would write an
 inference into the file as if the user had recorded it, and a re-import would then *store* it, at

@@ -448,12 +448,12 @@ export function createCore(driver: SqliteDriver) {
           }
           return updated;
         });
-        // A rename can create or dissolve a duplicate pair. Contact-method edits
-        // can too, but those wait for the boot/focus reconcile.
+        // A rename can create or dissolve a duplicate pair. Contact-method
+        // edits can too, but those wait for the boot/focus reconcile.
         await regenerateSystem();
         return person;
       },
-      // Reconcile so the cascade's orphaned birthday reminder is pruned at once.
+      // Reconcile so the cascade's orphaned birthday reminder goes at once.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(() =>
           entities.softDeleteCascade("person", id),
@@ -499,7 +499,7 @@ export function createCore(driver: SqliteDriver) {
           }
           return pet;
         }),
-      // Reconcile so the cascade's orphaned birthday reminder is pruned at once.
+      // Reconcile so the cascade's orphaned birthday reminder goes at once.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(() => entities.softDeleteCascade("pet", id));
         await regenerateSystem();
@@ -588,8 +588,8 @@ export function createCore(driver: SqliteDriver) {
     relationships: {
       get: (id: string): Promise<Relationship | undefined> =>
         relationships.get(id),
-      // A spouse raises "when is your anniversary?", a role change changes which
-      // date it asks for, and deleting the edge retires it.
+      // A spouse raises "when is your anniversary?", a role change changes
+      // which date it asks for, and deleting the edge retires it.
       create: async (input: CreateRelationshipInput): Promise<Relationship> => {
         const created = await driver.transaction(() =>
           relationships.create(input),
@@ -680,7 +680,7 @@ export function createCore(driver: SqliteDriver) {
           id,
         ),
       // The stored rules if customised, else the kind's defaults. A new
-      // milestone's defaults come straight from the kind, so create needs no read.
+      // milestone takes the kind's defaults directly, so create needs no read.
       reminderSchedule: async (
         milestoneId: string,
         kind: MilestoneKind,
@@ -938,50 +938,7 @@ export function createCore(driver: SqliteDriver) {
       },
     },
 
-    /**
-     * **Export** — the whole store as one archive the user keeps. The mirror of
-     * `import` below, and the answer to the fact that v0.1 is single-device, so
-     * the app container is the only place a user's data exists.
-     *
-     * Read-only, so unlike `import.commit` there is no `driver.transaction`
-     * around it: an export is a snapshot, and a store being written mid-export
-     * yields a slightly newer or older card, never a broken file.
-     *
-     * **Every read here already excludes soft-deleted rows**, structurally
-     * rather than by a predicate spelled at each call site. Three mechanisms,
-     * no per-call-site predicate: `createEntityRepo` bakes `deleted_at IS NULL`
-     * into `listWhere`/`get` (so every `list()` below is filtered),
-     * `listForEntity` filters both the tagging and the tag, and `listActive()`
-     * covers the three `data.json` tables that have no entity repo — `mentions`,
-     * `not_a_duplicate` and `relationship_dismissals`. **Those three are the
-     * ones to be careful with**: their other whole-table read,
-     * `listChangedSince(0)`, deliberately carries tombstones because sync must
-     * propagate them, and reaching for it here would put rows the user deleted
-     * into the one artifact that leaves the device. Filtering everywhere is also
-     * what makes the exclusion transitive for free: no read available here can
-     * produce a relationship, tagging or observance pointing at a row the file
-     * leaves out.
-     *
-     * `people.list()` and `pets.list()` likewise answer only *published*
-     * entities (`PUBLISHED_SQL`). An unpublished person reaches the file only as
-     * a `RELATED` on the card of the one person they hang off, which is what
-     * their standing means — and `orientedNeighbors` is the only door they come
-     * through.
-     *
-     * `neighborsFor` is wired to `orientedNeighbors`, **not** to
-     * `kinship.neighborsFor`. The two return the same shape, but the kinship
-     * service also computes the inference engine's derived edges, which the
-     * export must never write (they have no stored row, and persisting an
-     * inference would stop it being live). `orientedNeighbors` reads the stored
-     * rows and stamps `origin: "explicit"` by construction, so nothing needs
-     * filtering and the walk never runs per entity.
-     *
-     * The fan-out is roughly `3 + 4(N + P) + E` queries for N people, P pets and
-     * E relationships, plus 11 whole-table reads for `data.json` and one more
-     * per reminder and gift idea for its tags. Fine at v0.1 sizes. If it ever
-     * bites, the fix is bulk reads behind `ExportPorts` — not caching in
-     * whichever client called.
-     */
+    /** The whole store as one archive; see `@leapsake/export`'s README. */
     export: {
       archive: (opts: { appVersion: string }): Promise<ExportArchive> => {
         const ports: ExportPorts = {
@@ -995,6 +952,7 @@ export function createCore(driver: SqliteDriver) {
           milestonesFor: (bearerType, bearerId) =>
             milestones.listForBearer(bearerType, bearerId),
           tagsFor: (type, id) => tags.listForEntity(type, id),
+          // Stored edges only: kinship's derived ones must never be exported.
           neighborsFor: (type, id) =>
             relationshipsSvc.orientedNeighbors(type, id),
           selfPersonId: async () => (await self.getSelf())?.personId ?? null,
@@ -1007,9 +965,8 @@ export function createCore(driver: SqliteDriver) {
             listObservances: () => observances.list(),
             listHiddenHolidays: () => hiddenHolidays.list(),
             listNotificationSettings: () => notificationSettings.list(),
-            // The three with no entity repo, and so no `list()`. `listActive()`
-            // is their filtered read — see the port's doc, and never
-            // `listChangedSince(0)`, which carries tombstones on purpose.
+            // No entity repo, so `listActive()`; never `listChangedSince(0)`,
+            // which carries tombstones.
             listMentions: () => mentions.listActive(),
             listNotADuplicate: () => notADuplicate.listActive(),
             listRelationshipDismissals: () => dismissals.listActive(),
@@ -1022,27 +979,20 @@ export function createCore(driver: SqliteDriver) {
       },
     },
 
-    // Contact import (e.g. a dropped vCard). The pure parse + format detection run
-    // client-side (`@leapsake/vcard`); this is the write half — take the
-    // reviewed `ParsedContact`s and commit them through the same repos manual
-    // creation uses. `preview` is the read half: flag likely-existing people so
-    // the review can offer skip/merge before anything is written.
-    // Keeping People in step with the phone's address book (mobile). The import
-    // itself goes through `import.commit` with a `sourceId` on each decision;
-    // this is the bookkeeping around it, all of it device-local.
+    // Device-local bookkeeping for keeping People in step with the phone's
+    // address book; the import itself is `import.commit` with a `sourceId`.
     deviceContacts: {
       /** Every address-book id this device has already seen — including those
        *  whose person was since deleted, which is what keeps them deleted. */
       linkedIds: (): Promise<string[]> => deviceContactLinks.listContactIds(),
-      /** Whether new phone contacts are brought in at boot and on foreground. */
+      /** Whether new phone contacts come in at boot and on foreground. */
       getSyncEnabled: (): Promise<boolean> =>
         deviceContactsState.getDeviceContactsSync(),
       setSyncEnabled: (enabled: boolean): Promise<void> =>
         deviceContactsState.setDeviceContactsSync(enabled),
     },
 
-    // Read-and-compose view-model builders: portable fan-outs, label resolution,
-    // candidate lists, and relationship-orientation reads that return plain data.
+    // Read-and-compose view-model builders that return plain data.
     views,
   };
 }
