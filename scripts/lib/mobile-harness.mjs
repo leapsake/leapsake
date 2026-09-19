@@ -99,6 +99,7 @@ const EMULATOR_HEADLESS =
 const HOME_TIMEOUT_MS = 180_000; // budget for the first Metro bundle build → app home
 const BOOT_TIMEOUT_MS = 300_000; // budget for a cold emulator/simulator boot
 const METRO_TIMEOUT_MS = 120_000; // budget for `expo start` → packager-status:running
+const INSTALL_TIMEOUT_MS = 60 * 60_000; // budget for a cold `expo run:<platform>` build
 
 // Per-platform outcomes. These are aggregated into the process exit code at the end.
 export const PASS = "pass"; // device booted, flows green
@@ -332,10 +333,17 @@ function installDevClient(platform, device) {
       `run:${platform}`,
       "--device",
       device,
+      // Without it, `expo run` starts its own Metro when none is up and never exits.
+      "--no-bundler",
     ],
-    { cwd: ROOT, stdio: "inherit" },
+    { cwd: ROOT, stdio: "inherit", timeout: INSTALL_TIMEOUT_MS },
   );
   console.log(`  expo run:${platform} took ${seconds(started)}`);
+  if (built.error?.code === "ETIMEDOUT") {
+    console.log(
+      `  expo run:${platform} passed ${INSTALL_TIMEOUT_MS / 60_000}m and was stopped`,
+    );
+  }
   return built.status === 0;
 }
 
@@ -1035,6 +1043,17 @@ const iosDriver = {
       IOS_AUTOFILL_FLOW,
     ]);
     if (check.status === 0) return { ok: true };
+    if (provision) {
+      const said = `${check.stdout ?? ""}${check.stderr ?? ""}`
+        .trim()
+        .split("\n");
+      return {
+        ok: false,
+        detail:
+          "could not turn off Settings → AutoFill & Passwords on this simulator. Maestro said:\n" +
+          said.slice(-12).join("\n"),
+      };
+    }
     return {
       ok: false,
       detail:
