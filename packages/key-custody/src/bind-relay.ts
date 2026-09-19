@@ -48,7 +48,8 @@ export async function bindRelayToAccount(opts: {
     throw new Error("This account is already syncing through a relay.");
   }
 
-  // Throws on a Degraded device, which cannot vouch for the key it would publish.
+  // Throws on a Degraded device, which cannot vouch for the key it would
+  // publish.
   const { masterKey } = await ensureDeviceMasterKey({ keyStore, driver });
 
   // The wraps account creation persisted are the relay's copy.

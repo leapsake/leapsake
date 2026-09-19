@@ -45,7 +45,8 @@ function toAccount(row: AccountRow): Account {
 }
 
 export interface AccountRepo {
-  /** Create the account row (custody Phase 1); fails the singleton if one exists. */
+  /** Create the account row (custody Phase 1); fails the singleton if one
+   *  exists. */
   create(input: CreateAccountInput): Promise<Account>;
   /** Replace the salt and auth verifier after a password reset elsewhere; the
    *  master key is untouched. A no-op with no account. */
@@ -56,7 +57,7 @@ export interface AccountRepo {
   /** Record the relay and handle an existing account is bound to. Keys do not
    *  change, so this is a plain `UPDATE`. */
   bindRelay(input: { username: string; relayUrl: string }): Promise<void>;
-  /** The single active account for this local store, or undefined before sync. */
+  /** This store's single active account, or undefined before one exists. */
   getSingleton(): Promise<Account | undefined>;
   /** Hard-delete the account row, so re-creating one starts clean. */
   clear(): Promise<void>;

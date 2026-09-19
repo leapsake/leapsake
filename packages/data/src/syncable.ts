@@ -54,11 +54,11 @@ export function assignmentClause(
 export interface RowCodec<T extends SyncRow> {
   /** Domain row → table row (snake_case columns ready to bind). */
   toRow(row: T): Record<string, SqlValue> | Promise<Record<string, SqlValue>>;
-  /** Table row (snake_case, as `SELECT *` returns it) → validated domain row. */
+  /** Table row (as `SELECT *` returns it) → validated domain row. */
   fromRow(raw: Record<string, unknown>): T | Promise<T>;
 }
 
-/** `firstName` → `first_name`; digits and existing underscores are untouched. */
+/** `firstName` → `first_name`; digits and underscores are left alone. */
 function toSnakeCase(camel: string): string {
   return camel.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
@@ -131,7 +131,8 @@ function parseJsonColumn(value: unknown): unknown {
 /** The slice of a Zod object schema this helper relies on. */
 export interface ParsableSchema<T> {
   parse(value: unknown): T;
-  /** Present on `z.object(...)`; absent on a refined schema (then pass a `codec`). */
+  /** Present on `z.object(...)`; absent on a refined schema (then pass a
+   *  `codec`). */
   shape?: Record<string, unknown>;
 }
 
@@ -156,16 +157,17 @@ export function defineSyncable<T extends SyncRow>(opts: {
   driver: SqliteDriver;
   /** The transport table tag and the SQL table name (they are the same). */
   table: string;
-  /** The `z.object` raw-row schema — validates payloads and names the columns. */
+  /** The `z.object` row schema: validates payloads and names the columns. */
   schema: ParsableSchema<T>;
-  /** Override the column list (default: the schema's field names). Rarely needed. */
+  /** Override the column list (default: the schema's field names). Rarely
+   *  needed. */
   fields?: readonly string[];
   /** Fields stored as 0/1 because SQLite has no boolean type. */
   booleans?: readonly string[];
   /** Fields stored as JSON TEXT; NULL decodes to `undefined`, so the schema's
    *  default decides and a new column needs no backfill. */
   json?: readonly string[];
-  /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
+  /** A bespoke domain↔table mapping, for shapes that differ (encryption). */
   codec?: RowCodec<T>;
   /** Makes an untouched row lose the merge to one a user acted on. Rare: only
    *  for deterministic-id tables (README, "hasHistory"). */
@@ -199,7 +201,8 @@ export function defineSyncable<T extends SyncRow>(opts: {
     },
 
     async upsertFromRemote(remote) {
-      // Fetch the local row *including* tombstones — the merge must see a delete.
+      // Fetch the local row *including* tombstones — the merge must see a
+      // delete.
       const existing = await driver.get<Record<string, unknown>>(
         `SELECT * FROM ${table} WHERE id = ?`,
         [remote.id],

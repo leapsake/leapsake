@@ -71,7 +71,7 @@ export interface TagsRepo extends SyncableRepo<Tag> {
 
   get(id: string): Promise<Tag | undefined>;
 
-  /** Active entity ids of `entityType` bearing this tag — powers the tag page. */
+  /** Active ids of `entityType` bearing this tag, for the tag page. */
   entityIdsForTag(tagId: string, entityType: string): Promise<string[]>;
 }
 

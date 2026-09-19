@@ -69,14 +69,15 @@ interface ContactRow {
   normalized: string;
 }
 
-/** As {@link ContactRow}, carrying the platform a handle only means anything on. */
+/** As {@link ContactRow}, carrying the platform a handle only means anything
+ *  on. */
 interface SocialRow {
   owner_id: string;
   platform: string;
   normalized: string;
 }
 
-/** The canonical `"lower:higher"` key for an unordered pair (matches the repo). */
+/** The canonical `"lower:higher"` key for an unordered pair, as the repo's. */
 function pairKey(idA: string, idB: string): string {
   return idA < idB ? `${idA}:${idB}` : `${idB}:${idA}`;
 }
@@ -152,8 +153,8 @@ export function createDuplicateService(
   ): Promise<DuplicateCandidate[]> {
     const inputs = await loadInputs();
 
-    // Pairwise. O(n²) is fine at personal-CRM scale; if it ever matters, block on
-    // shared-contact / folded-name first — note it, don't pre-optimize.
+    // Pairwise. O(n²) is fine at personal-CRM scale; if it ever matters, block
+    // on shared-contact / folded-name first — note it, don't pre-optimize.
     const candidates: DuplicateCandidate[] = [];
     for (let i = 0; i < inputs.length; i++) {
       for (let j = i + 1; j < inputs.length; j++) {

@@ -26,7 +26,8 @@ const MIN_QUERY_LENGTH = 2;
 /** Upper bound on results returned per query. */
 const MAX_RESULTS = 50;
 
-/** Match-quality of a folded candidate field against a folded term. Lower is better. */
+/** Match-quality of a folded candidate field against a folded term. Lower is
+ *  better. */
 const QUALITY_EXACT = 0;
 const QUALITY_STARTS_WITH = 1;
 const QUALITY_SUBSTRING = 2;
@@ -39,8 +40,8 @@ function quality(field: string, term: string): number {
   return QUALITY_NONE;
 }
 
-/** A `(type, id)` accumulator-map key. The `"tag"` namespace can't collide with
- * a person/pet id, so tag results group separately from the entities they tag. */
+/** A `(type, id)` accumulator key; a `"tag"` key never collides with a person
+ *  or pet id, so tags group apart from what they tag. */
 const key = (type: SearchResultType, id: string) => `${type}:${id}`;
 
 export interface SearchService {
@@ -71,7 +72,8 @@ interface AttachedRow {
   anchor_type: string;
   anchor_id: string;
 }
-/** The contact-method columns search matches (`normalized`) and displays (`address`). */
+/** The contact-method columns search matches (`normalized`) and displays
+ *  (`address`). */
 interface EmailMatchRow {
   owner_type: string;
   owner_id: string;
@@ -85,7 +87,8 @@ interface PhoneMatchRow {
   number: string;
   normalized: string;
 }
-/** Postal columns: matched as one folded blob, displayed via `formatPostalAddress`. */
+/** Postal columns: matched as one folded blob, displayed via
+ *  `formatPostalAddress`. */
 interface PostalMatchRow {
   owner_type: string;
   owner_id: string;
@@ -96,7 +99,7 @@ interface PostalMatchRow {
   postal_code: string | null;
   country: string | null;
 }
-/** Social columns: matched on `normalized`, displayed with the platform's name. */
+/** Social columns: matched on `normalized`, shown with the platform name. */
 interface SocialMatchRow {
   owner_type: string;
   owner_id: string;
@@ -104,20 +107,21 @@ interface SocialMatchRow {
   handle: string;
   normalized: string;
 }
-/** A tagging joined to its tag: matched on `normalized`, displayed as `name`. */
+/** A tagging joined to its tag: matched on `normalized`, shown as `name`. */
 interface TagMatchRow {
   bearer_type: string;
   bearer_id: string;
   name: string;
   normalized: string;
 }
-/** A tag itself, surfaced as its own navigable result (matched on `normalized`). */
+/** A tag itself, surfaced as its own navigable result (matched on
+ *  `normalized`). */
 interface TagRow {
   id: string;
   name: string;
   normalized: string;
 }
-/** A birthday milestone: matched on its partial date, resolved to its bearer. */
+/** A birthday: matched on its partial date, resolved to its bearer. */
 interface BirthdayMatchRow {
   bearer_type: string;
   bearer_id: string;
@@ -141,7 +145,8 @@ interface GiftIdeaRow {
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
   hit: SearchHit;
-  /** True for a name match; contact-only matches (phone/email) sort after these. */
+  /** True for a name match; contact-only matches (phone/email) sort after
+   *  these. */
   isName: boolean;
   /** Best (lowest) match-quality bucket across all matched fields. */
   bestQuality: number;
@@ -245,8 +250,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
     ]);
 
     const acc = new Map<string, Accumulator>();
-    /** `(type, id) → title` for every active entity; a contact whose owner is not
-     *  here is dropped. */
+    /** `(type, id) → title` for every active entity; a contact whose owner is
+     *  not here is dropped. */
     const titleByEntity = new Map<
       string,
       { type: SearchResultType; title: string }
@@ -283,8 +288,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       });
     };
 
-    /** Record a name match if any candidate matches. Callers pass whole-name forms
-     *  too, since "harry bailey" is a substring of no single part. */
+    /** Record a name match if any candidate matches. Callers pass whole-name
+     *  forms too, since "harry bailey" is a substring of no single part. */
     const addNameHit = (
       type: SearchResultType,
       id: string,
@@ -317,8 +322,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       const showMiddle =
         middle !== "" &&
         (fold(middle).includes(folded) ||
-          // Or the term spans the middle name ("joseph abraham"), which only the
-          // with-middle whole name can match — the same reason to show it.
+          // Or the term spans the middle name ("joseph abraham"), which only
+          // the with-middle whole name can match — the same reason to show it.
           (fold(withMiddle).includes(folded) && !fold(plain).includes(folded)));
       const title = showMiddle ? withMiddle : plain;
       // Parts, then whole names with and without the middle name, so a
@@ -365,8 +370,8 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       const owner = titleByEntity.get(
         key(ownerType as SearchResultType, ownerId),
       );
-      // No entry means the owner isn't searchable: soft-deleted, a household, or
-      // a bearer type with no results of its own yet (a tagged reminder).
+      // No entry means the owner isn't searchable: soft-deleted, a household,
+      // or a bearer type with no results of its own yet (a tagged reminder).
       if (!owner) return;
       record(
         owner.type,

@@ -91,7 +91,7 @@ export interface ObservancesRepo extends EntityRepo<Observance> {
     bearerId: string,
     observes: boolean | null,
   ): Promise<void>;
-  /** Soft-delete every observance of a bearer; used when the person is deleted. */
+  /** Soft-delete every observance of a bearer, when the person is deleted. */
   removeAllForBearer(
     bearerType: ObservanceBearerType,
     bearerId: string,

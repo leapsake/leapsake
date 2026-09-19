@@ -36,7 +36,7 @@ function toMentioning(row: MentionRow): Mentioning {
   });
 }
 
-/** A mention target — the referenced entity, without the display-name snapshot. */
+/** A mention target: the referenced entity, without a display-name snapshot. */
 export interface MentionTarget {
   targetType: EntityType;
   targetId: string;
@@ -65,7 +65,8 @@ export interface MentionsRepo extends SyncableRepo<Mentioning> {
     targets: MentionTarget[],
   ): Promise<void>;
 
-  /** Active mentions embedded in one bearer's text (drives read-time resolution). */
+  /** Active mentions embedded in one bearer's text (drives read-time
+   *  resolution). */
   listForBearer(
     bearerType: MentionBearerType,
     bearerId: string,
@@ -113,7 +114,8 @@ export function createMentionsRepo(driver: SqliteDriver): MentionsRepo {
         }
       }
 
-      // Ensure an active row for each desired target (insert / un-delete / leave).
+      // Ensure an active row for each desired target (insert / un-delete /
+      // leave).
       const now = Date.now();
       for (const t of desired.values()) {
         const id = mentionRowId(bearerType, bearerId, t.targetType, t.targetId);
@@ -139,8 +141,8 @@ export function createMentionsRepo(driver: SqliteDriver): MentionsRepo {
             ],
           );
         } else if (existing.deleted_at !== null) {
-          // Re-mentioned after removal — resurrect the deterministic row and bump
-          // its clock so the un-delete wins LWW on every device.
+          // Re-mentioned after removal — resurrect the deterministic row and
+          // bump its clock so the un-delete wins LWW on every device.
           await driver.run(
             "UPDATE mentions SET deleted_at = NULL, updated_at = MAX(?, updated_at + 1) WHERE id = ?",
             [now, id],

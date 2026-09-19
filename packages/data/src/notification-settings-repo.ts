@@ -6,7 +6,7 @@ import type { SqliteDriver } from "./driver.js";
 import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
 import { assignmentClause, resolveCodec } from "./syncable.js";
 
-/** The fields a policy write may touch — everything but the id and the clock. */
+/** The fields a policy write may touch: all but the id and the clock. */
 type PolicyPatch = Partial<
   Pick<
     NotificationSettings,

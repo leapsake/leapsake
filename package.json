@@ -33,6 +33,7 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.10",
     "oxfmt": "^0.52.0",

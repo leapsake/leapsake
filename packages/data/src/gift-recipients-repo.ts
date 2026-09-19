@@ -21,7 +21,7 @@ export interface GiftRecipientsRepo extends Omit<
   "update"
 > {
   create(input: CreateGiftRecipientInput): Promise<GiftRecipient>;
-  /** Tick or untick the box. A no-op when the row already says so — see below. */
+  /** Tick or untick the box; a no-op when the row already says so. */
   update(
     id: string,
     input: UpdateGiftRecipientInput,
@@ -120,8 +120,8 @@ export function createGiftRecipientsRepo(
            WHERE recipient_type = ? AND recipient_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
-      // A merge can leave one idea twice on the survivor: keep the earliest row,
-      // and a ✓ from either, since that stamp is the fact worth keeping.
+      // A merge can leave one idea twice on the survivor: keep the earliest
+      // row, and a ✓ from either, since that stamp is the fact worth keeping.
       await driver.run(
         `UPDATE gift_recipients
             SET given_at   = COALESCE(given_at, (

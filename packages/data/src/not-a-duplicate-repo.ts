@@ -77,8 +77,8 @@ export function createNotADuplicateRepo(
 
     async repointEntity(fromId, toId) {
       const now = Date.now();
-      // Re-point both ends onto the survivor, re-canonicalizing each pair so the
-      // (lower, higher) invariant holds afterwards. Active rows only.
+      // Re-point both ends onto the survivor, re-canonicalizing each pair so
+      // the (lower, higher) invariant holds afterwards. Active rows only.
       const rows = await driver.all<NotADuplicateRow>(
         `SELECT * FROM not_a_duplicate
           WHERE deleted_at IS NULL AND (lower_id = ? OR higher_id = ?)`,

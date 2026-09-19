@@ -50,7 +50,8 @@ export async function createLocalAccount(opts: {
     platform,
   });
 
-  // Minted here, not at boot: this is the moment the store stops being plaintext.
+  // Minted here, not at boot: this is the moment the store stops being
+  // plaintext.
   const dbKey = await ensureDatabaseKey(keyStore);
 
   // Sealed here because this is the last moment the password is in hand; the

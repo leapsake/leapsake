@@ -17,7 +17,8 @@ export interface EntityRepo<T extends SyncRow> extends SyncableRepo<T> {
   insert(row: T): Promise<T>;
   /** Fetch by id, excluding soft-deleted rows. */
   get(id: string): Promise<T | undefined>;
-  /** Like {@link get} but returns soft-deleted rows too (a merge must see them). */
+  /** Like {@link get} but returns soft-deleted rows too (a merge must see
+   *  them). */
   getIncludingDeleted(id: string): Promise<T | undefined>;
   /** Every active row, in `orderBy` order and narrowed by `listOnly`. The
    *  unnarrowed read is {@link SyncableRepo.listActive}. */
@@ -52,7 +53,7 @@ export function softDeleteWhere(
   );
 }
 
-/** Soft-delete a single row by id — the by-id case of {@link softDeleteWhere}. */
+/** Soft-delete one row by id: the by-id case of {@link softDeleteWhere}. */
 export function softDeleteRow(
   driver: SqliteDriver,
   table: string,
@@ -69,20 +70,23 @@ export function createEntityRepo<T extends SyncRow>(opts: {
   table: string;
   /** The `z.object` raw-row schema — validates rows and names the columns. */
   schema: ParsableSchema<T>;
-  /** `list()` ORDER BY clause (raw SQL, snake_case), e.g. "last_name, first_name". */
+  /** `list()` ORDER BY clause (raw SQL, snake_case), e.g. "last_name,
+   *  first_name". */
   orderBy?: string;
   /** A `WHERE` fragment only `list()` applies: how the catalog leaves out
    *  unpublished entities. `get`, `listWhere` and sync still see them. */
   listOnly?: string;
-  /** Override the column list (default: the schema's field names). Rarely needed. */
+  /** Override the column list (default: the schema's field names). Rarely
+   *  needed. */
   fields?: readonly string[];
   /** Fields stored as 0/1 because SQLite has no boolean type. */
   booleans?: readonly string[];
   /** Fields stored as JSON TEXT because SQLite has no array or object type. */
   json?: readonly string[];
-  /** A bespoke domain↔table mapping; only for shapes that differ (encryption). */
+  /** A bespoke domain↔table mapping, for shapes that differ (encryption). */
   codec?: RowCodec<T>;
-  /** Narrow the merge so an untouched row never wins — see {@link defineSyncable}. */
+  /** Narrow the merge so an untouched row never wins — see
+   *  {@link defineSyncable}. */
   hasHistory?: HasHistory<T>;
 }): EntityRepo<T> {
   const { driver, table, schema, orderBy } = opts;

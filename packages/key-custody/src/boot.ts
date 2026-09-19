@@ -46,8 +46,8 @@ export async function establishKeySession(opts: {
 }): Promise<BootKeySession> {
   const { keyStore, driver, custody, door, platform } = opts;
 
-  // An Unauthenticated store has no account, no master key, and no repair to attempt — and
-  // must not acquire one here: minting is account creation's job (README.md).
+  // Unauthenticated: no account, no master key, nothing to repair, and none is
+  // minted here; that is account creation's job.
   if (custody === "plaintext") return { state: "ok", keySession: undefined };
 
   const syncState = createSyncStateRepo(driver);
@@ -64,8 +64,8 @@ export async function establishKeySession(opts: {
         platform,
       });
     } catch (cause) {
-      // Degraded, flag left set: the next successful repair still owes the rewind.
-      // Every cause is already worded for a reader.
+      // Degraded, flag left set: the next successful repair still owes the
+      // rewind. Every cause is already worded for a reader.
       return { state: "degraded", message: messageOf(cause), cause };
     }
     // Only a real repair rewinds; a plain sign-out answers "unchanged".

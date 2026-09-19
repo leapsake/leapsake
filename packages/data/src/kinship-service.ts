@@ -44,7 +44,8 @@ function key(type: EntityType, id: string): string {
   return `${type}:${id}`;
 }
 
-/** Orient a stored relationship to a subject: resolve the *other* end + its role. */
+/** Orient a stored relationship to a subject: resolve the *other* end + its
+ *  role. */
 function orient(rel: Relationship, type: EntityType, id: string) {
   const subjectIsA = rel.aType === type && rel.aId === id;
   return {
@@ -142,8 +143,8 @@ export function createKinshipService(
     // 1. Explicit edges, shown whatever the other end's standing.
     const explicitRels = await relationships.listForEntity(type, id);
     const explicitPairs = new Set<string>();
-    // Which of the subject's own neighbours are unpublished, noted while we have
-    // each row in hand so the derivation walk below needs no further reads.
+    // The subject's unpublished neighbours, noted while each row is in hand so
+    // the walk below needs no further reads.
     const inertNeighbors = new Set<string>();
     for (const rel of explicitRels) {
       const o = orient(rel, type, id);

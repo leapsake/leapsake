@@ -56,7 +56,8 @@ const CONTACT_TABLES = [
   "social_profiles",
 ] as const;
 
-/** Active rows of one contact-method kind for an owner, kind-stable created_at order. */
+/** Active rows of one contact-method kind for an owner, kind-stable created_at
+ *  order. */
 function listForOwner<T extends SyncRow>(
   repo: EntityRepo<T>,
   type: ContactOwnerType,
@@ -118,8 +119,8 @@ export function createContactMethodsRepo(
 
     async update(id, input) {
       const patch = updateEmailInputSchema.parse(input);
-      // Re-derive the lookup key when the address changes (else the existing
-      // normalized value — already in sync with the unchanged address — stands).
+      // Re-derive the lookup key when the address changes; otherwise the
+      // existing normalized value stands.
       return emailBase.update(
         id,
         patch.address === undefined

@@ -138,8 +138,8 @@ export function createRelationshipsRepo(
       const existing = await this.get(id);
       if (!existing) return undefined;
 
-      // Merge the patch, then re-validate the whole row so the note/holder rules
-      // still hold after a partial update of the roles.
+      // Merge the patch, then re-validate the whole row so the note/holder
+      // rules still hold after a partial update of the roles.
       const updated: Relationship = relationshipSchema.parse({
         ...existing,
         ...patch,

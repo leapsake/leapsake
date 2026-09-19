@@ -17,7 +17,7 @@ export const SELF_PERSON_ID = deterministicUuid(
 );
 
 export interface SelfPersonRepo extends EntityRepo<SelfPerson> {
-  /** The self-person row, or undefined when unset (never picked, or cleared). */
+  /** The self-person row, or undefined when never picked or cleared. */
   getSelf(): Promise<SelfPerson | undefined>;
   /** Point "you" at `personId`, inserting or reviving the fixed-id row and
    *  bumping `updated_at` so the pick wins LWW. */

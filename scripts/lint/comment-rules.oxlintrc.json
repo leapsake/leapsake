@@ -1,9 +1,13 @@
 {
   "$schema": "../../node_modules/oxlint/configuration_schema.json",
   "categories": { "correctness": "off", "suspicious": "off" },
-  "jsPlugins": ["./comment-rules.mjs"],
+  "jsPlugins": ["./comment-rules.mjs", "@stylistic/eslint-plugin"],
   "rules": {
     "leapsake/max-comment-lines": "error",
-    "leapsake/no-decision-comments": "error"
+    "leapsake/no-decision-comments": "error",
+    "@stylistic/max-len": [
+      "error",
+      { "code": 1000, "comments": 80, "ignoreUrls": true, "ignorePattern": "oxlint-disable" }
+    ]
   }
 }

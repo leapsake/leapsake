@@ -56,14 +56,16 @@ function toDismissal(row: DismissalRow): Dismissal {
 }
 
 export interface DismissalsRepo extends SyncableRepo<Dismissal> {
-  /** Record a dismissal of a derived edge from `subject` to `other` (optionally role-scoped). */
+  /** Record a dismissal of a derived edge from `subject` to `other` (optionally
+   *  role-scoped). */
   create(
     subject: DismissalEndpoint,
     other: DismissalEndpoint,
     role: RelationshipRole | null,
   ): Promise<Dismissal>;
 
-  /** Active dismissals whose *subject* is this entity — what the engine filters against. */
+  /** Active dismissals whose *subject* is this entity — what the engine filters
+   *  against. */
   listForEntity(type: EntityType, id: string): Promise<Dismissal[]>;
 
   /** Restore a dismissed edge (soft-delete the dismissal row). */
@@ -154,8 +156,8 @@ export function createDismissalsRepo(driver: SqliteDriver): DismissalsRepo {
            WHERE other_type = ? AND other_id = ? AND deleted_at IS NULL`,
         [toId, now, type, fromId],
       );
-      // A dismissal whose two ends are now the survivor suppresses an edge from a
-      // person to themselves — meaningless, so drop it.
+      // A dismissal whose two ends are now the survivor suppresses an edge from
+      // a person to themselves — meaningless, so drop it.
       await softDeleteWhere(
         driver,
         "relationship_dismissals",

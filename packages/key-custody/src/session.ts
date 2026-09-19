@@ -60,8 +60,8 @@ export async function ensureLocalDeviceId(keyStore: KeyStore): Promise<string> {
 }
 
 /**
- * The device id and enclave secret, minted if missing so a wiped keychain can be
- * repaired. Keychain-only, and private: it returns the raw enclave secret.
+ * The device id and enclave secret, minted if missing so a wiped keychain can
+ * be repaired. Keychain-only, and private: it returns the raw secret.
  */
 async function ensureDeviceIdentity(
   keyStore: KeyStore,
@@ -222,13 +222,13 @@ export interface UnlockedMasterKey {
  *  All public or blind: the relay can store it but never read MK. */
 export interface AccountBootstrap {
   accountId: string;
-  /** The chosen login handle, or `null` if the account is not yet relay-bound. */
+  /** The login handle, or `null` while the account is not relay-bound. */
   username: string | null;
   kdfSalt: Uint8Array;
   authVerifier: Uint8Array;
   wrappedMasterKey: Uint8Array;
-  /** `wrap(recoveryKey, MK)`, so a password-joining device recovers the account's
-   *  phrase from MK and every device shows one phrase. */
+  /** `wrap(recoveryKey, MK)`, so a password-joining device recovers the
+   *  account's phrase from MK and every device shows one phrase. */
   wrappedRecoveryKey: Uint8Array;
   /** `wrap(MK, recoveryKey)`, the recovery escrow: a device that lost its
    *  password recovers MK from the phrase alone. */
@@ -278,7 +278,7 @@ export interface RecoveryChannel {
 
 /**
  * Create the account: add password and recovery wraps of the existing master
- * key, re-encrypting nothing. Returns the phrase to show once; refuses a repeat.
+ * key, re-encrypting nothing. Returns the phrase to show once; never repeats.
  */
 export async function enableSync(opts: {
   keyStore: KeyStore;
@@ -438,8 +438,8 @@ export async function adoptAccountMasterKey(opts: {
 
   let masterKey: Uint8Array;
   if (door.kind === "password") {
-    // A mismatched verifier is a sidecar left by a crash mid password-change; its
-    // KEK cannot open the wrap, so point the user at the phrase door instead.
+    // A mismatched verifier is a sidecar left by a crash mid password change;
+    // its KEK cannot open the wrap, so send the user to the phrase door.
     if (!equalBytes(door.authVerifier, Uint8Array.from(account.authVerifier))) {
       throw new Error(
         "This store's password door is out of step with its account. Unlock " +
@@ -618,7 +618,8 @@ export async function recoverAccount(opts: {
     wrappedMasterKey,
   });
 
-  // 4. Persist the local account row under the recovered id + new salt/verifier.
+  // 4. Persist the local account row under the recovered id + new
+  // salt/verifier.
   await accountRepo.create({
     id: accountId,
     kdfSalt: salt,
@@ -684,8 +685,8 @@ export async function reauthenticate(opts: {
     throw new Error("This account has no username to re-authenticate.");
   }
 
-  // 1. Prelogin → the rotated public salt (unauthed). Copy onto a fresh array so
-  //    it is ArrayBuffer-backed for the account-row write.
+  // 1. Prelogin → the rotated public salt (unauthed). Copy onto a fresh array
+  // so it is ArrayBuffer-backed for the account-row write.
   const lookup = await transport.lookup(account.username);
   const kdfSalt = Uint8Array.from(lookup.kdfSalt);
 

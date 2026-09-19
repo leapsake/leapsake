@@ -64,8 +64,8 @@ export async function adoptRecoveryKey(opts: {
 }
 
 /**
- * Mint a new recovery key, gated locally on the password, and return the phrase
- * to show once. MK comes from the password door; the relay escrow follows later.
+ * Mint a new recovery key, gated locally on the password; return the phrase to
+ * show once. MK comes from the password door; the relay escrow follows.
  */
 export async function rotateRecoveryPhrase(opts: {
   keyStore: KeyStore;
@@ -95,8 +95,8 @@ export async function rotateRecoveryPhrase(opts: {
     throw new Error("Incorrect password.");
   }
 
-  // The account's master key, from the door we just proved (see above) — not the
-  // enclave's, which may be a stray key on a device that came back through a door.
+  // MK from the door just proved, not the enclave, which may hold a stray key
+  // on a device that came back through a door.
   const passwordDoor = await createKeyWrapRepo(driver).getActive({
     wrappedKind: "master",
     principalKind: "password",

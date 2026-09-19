@@ -7,7 +7,8 @@ export interface SyncStateRepo {
   setPushHwm(value: number): Promise<void>;
   getPullCursor(): Promise<number>;
   setPullCursor(value: number): Promise<void>;
-  /** Whether automatic background sync is enabled on this install (default true). */
+  /** Whether automatic background sync is enabled on this install (default
+   *  true). */
   getAutoSyncEnabled(): Promise<boolean>;
   setAutoSyncEnabled(enabled: boolean): Promise<void>;
   /** The holiday-catalog version this install has seeded; `0` = never. */
@@ -58,7 +59,8 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
     setPushHwm: (value) => write(PUSH_HWM, value),
     getPullCursor: () => read(PULL_CURSOR),
     setPullCursor: (value) => write(PULL_CURSOR, value),
-    // Stored inverted (see the interface doc): absent/0 ⇒ enabled, 1 ⇒ disabled.
+    // Stored inverted (see the interface doc): absent/0 ⇒ enabled, 1 ⇒
+    // disabled.
     getAutoSyncEnabled: async () => (await read(AUTO_SYNC_DISABLED)) !== 1,
     setAutoSyncEnabled: (enabled) => write(AUTO_SYNC_DISABLED, enabled ? 0 : 1),
     getHolidayCatalogVersion: () => read(HOLIDAY_CATALOG_VERSION),
@@ -70,8 +72,8 @@ export function createSyncStateRepo(driver: SqliteDriver): SyncStateRepo {
       (await read(RECOVERY_ESCROW_PENDING)) === 1,
     setRecoveryEscrowPending: (pending) =>
       write(RECOVERY_ESCROW_PENDING, pending ? 1 : 0),
-    // Also not inverted: absent/0 ⇒ nothing to finish, which is the right default
-    // for every device that never lost its keychain.
+    // Also not inverted: absent/0 ⇒ nothing to finish, which is the right
+    // default for every device that never lost its keychain.
     getMasterKeyRepairPending: async () =>
       (await read(MASTER_KEY_REPAIR_PENDING)) === 1,
     setMasterKeyRepairPending: (pending) =>

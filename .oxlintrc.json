@@ -4,7 +4,7 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "jsPlugins": ["./scripts/lint/comment-rules.mjs"],
+  "jsPlugins": ["./scripts/lint/comment-rules.mjs", "@stylistic/eslint-plugin"],
   "rules": {
     // Off because `packages/*` run on mobile's Hermes engine, where `Array#toSorted`
     // does not exist — the rule's suggested fix is the one thing we cannot ship. The
@@ -34,14 +34,20 @@
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
-        "leapsake/no-decision-comments": "error"
+        "leapsake/no-decision-comments": "error",
+        // Comments only: oxfmt already wraps code at 80.
+        "@stylistic/max-len": [
+          "error",
+          { "code": 1000, "comments": 80, "ignoreUrls": true, "ignorePattern": "oxlint-disable" }
+        ]
       }
     },
     {
       "files": ["**/*.test.*"],
       "rules": {
         "leapsake/max-comment-lines": "off",
-        "leapsake/no-decision-comments": "off"
+        "leapsake/no-decision-comments": "off",
+        "@stylistic/max-len": "off"
       }
     },
     {

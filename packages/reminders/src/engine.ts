@@ -43,7 +43,7 @@ export const SYSTEM_REMINDER_NAMESPACE = "leapsake:system-reminder";
 export interface SystemReminderStore {
   /** Includes tombstones, so a dismissed system reminder is never re-minted. */
   getIncludingDeleted(id: string): Promise<Reminder | undefined>;
-  /** Persist an already-assembled reminder row (the engine mints id + stamps). */
+  /** Persist a reminder row the engine assembled, id and stamps included. */
   insert(row: Reminder): Promise<Reminder>;
   /** Refresh a live row's derived copy and date, keeping its id and any manual
    *  completion; bumps `updated_at` so the edit wins LWW on sync. */
@@ -51,7 +51,8 @@ export interface SystemReminderStore {
     id: string,
     fields: { title: string; dueDate: number | null },
   ): Promise<void>;
-  /** Active rows matching a raw snake_case `WHERE` (used for `source = 'system'`). */
+  /** Active rows matching a raw snake_case `WHERE` (used for
+   *  `source = 'system'`). */
   listWhere(query: {
     where: string;
     params: readonly unknown[];
@@ -62,7 +63,7 @@ export interface SystemReminderStore {
 
 /** Everything the engine needs, injected by the composition root. */
 export interface ReminderEngineDeps {
-  /** The remind-relevant, plaintext, cross-bearer milestone projection reader. */
+  /** Reads the plaintext, cross-bearer milestones that can be reminded. */
   milestones: { listRemindEligible(): Promise<RemindEligibleMilestone[]> };
   /** The system-reminder store (see {@link SystemReminderStore}). */
   reminders: SystemReminderStore;
@@ -101,7 +102,8 @@ export interface ReminderEngineDeps {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<boolean>;
-  /** The **local civil** "today" reconcile runs against (see reminder-schedule). */
+  /** The **local civil** "today" reconcile runs against (see
+   *  reminder-schedule). */
   today: CivilDate;
   /** Run the reconcile body atomically (the real driver's `transaction`). */
   transaction<T>(body: () => Promise<T>): Promise<T>;
@@ -162,11 +164,11 @@ export interface UndatedPartnership {
 
 /** One person's observance of one holiday, with the dates it falls on. */
 export interface HolidayOccurrenceCandidate {
-  /** The observance row's id — the reminder's bearer, and part of its identity. */
+  /** The observance row's id: the reminder's bearer, and part of its id. */
   observanceId: string;
   /** The occasion phrase for reminder copy, e.g. "a Merry Christmas". */
   greeting: string;
-  /** The occasion as a bare noun, e.g. "Christmas" — see `ReminderCopyContext`. */
+  /** The occasion as a bare noun, e.g. "Christmas" (`ReminderCopyContext`). */
   occasion: string;
   bearerType: HolidayBearerType;
   bearerId: string;
@@ -264,9 +266,9 @@ function derivedTitle(want: DesiredReminder): string | null {
  * wrong: their own ("your own …") or shared ("… with @Violet").
  */
 function copyOverrideOf(
-  /** The occasion is the user's own (their person, or a relationship of theirs). */
+  /** The occasion is the user's own: their person, or their relationship. */
   isSelf: boolean,
-  /** ...and the subject the copy names is the user themself, not their partner. */
+  /** ...and the subject the copy names is the user, not their partner. */
   subjectIsSelf: boolean,
   subject: string,
   action: ReminderAction,
@@ -331,7 +333,8 @@ export type OnboardingRoute =
   | "enable-notifications"
   | "import";
 
-/** The raw first-run signals an onboarding step's condition is evaluated against. */
+/** The raw first-run signals an onboarding step's condition is evaluated
+ *  against. */
 interface OnboardingSignals {
   /** A person or pet who isn't the user, so answering "about you" does not
    *  retire the import invitation. */
@@ -557,7 +560,8 @@ export interface ReminderWindowFacts {
   /** When the row goes on display; null means already on display. A dated user
    *  reminder goes on display on its due date. */
   activeFrom: number | null;
-  /** The occasion it counts down to, or null when it has none (user rows, nudges). */
+  /** The occasion it counts down to, or null when it has none (user rows,
+   *  nudges). */
   occurrenceDate: number | null;
   /** What the trailing countdown counts to (see
    *  {@link DesiredReminder.countdownDate}); null when there is nothing. */
@@ -776,8 +780,8 @@ async function computeDesired(
       if (learnedDaysOut < 0) continue;
       const days = daysUntil(deps.today, occ);
 
-      // Each enabled rule, with the deadline and run-up it actually has for this
-      // occurrence — not always the ones it was written with.
+      // Each enabled rule, with the deadline and run-up it actually has for
+      // this occurrence — not always the ones it was written with.
       const timed: TimedRule[] = [];
       // Asked only while it still offers a choice; the day-of wish it leaves
       // behind is already on the schedule.

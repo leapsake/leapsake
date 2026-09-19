@@ -20,7 +20,7 @@ import type { PetsRepo } from "./pets-repo.js";
 import type { RelationshipsRepo } from "./relationships-repo.js";
 import type { SelfPersonRepo } from "./self-person-repo.js";
 
-/** A relationship's two endpoints as `(type, id)` pairs; `[]` when it is gone. */
+/** A relationship's endpoints as `(type, id)` pairs; `[]` when it is gone. */
 export function endpointsOf(
   rel: Relationship | undefined,
 ): { type: EntityType; id: string }[] {

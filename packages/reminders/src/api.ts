@@ -81,7 +81,7 @@ export interface ContactReminderTarget {
   personId: string;
   /** Their label, for copy that names them (the confirmation before a call). */
   subject: string;
-  /** Their reachable methods, postal excluded — see {@link reachableMethods}. */
+  /** Their reachable methods, postal excluded ({@link reachableMethods}). */
   methods: ContactMethod[];
 }
 
@@ -133,7 +133,8 @@ export interface PlanReminderTarget {
   /** Who the occasion belongs to: a person, a pet or a relationship. */
   bearerType: MilestoneBearerType;
   bearerId: string;
-  /** That bearer's display label, so the screen can name who it is asking about. */
+  /** That bearer's display label, so the screen can name who it is asking
+   *  about. */
   subject: string;
   /** Which `planQuestion` shape the question takes, carried so the row and the
    *  answering screen word it the same. */
@@ -175,7 +176,7 @@ export interface RemindersApiDeps {
   driver: SqliteDriver;
   /** A relationship's display label; `null` means gone. */
   relationshipLabel: (id: string) => Promise<string | null>;
-  /** Whether this store has an account yet, for the account-invitation nudge. */
+  /** Whether this store has an account, for the account-invitation nudge. */
   hasAccount: () => Promise<boolean>;
   /** Today's holiday-observance candidates. */
   listHolidayCandidates: () => Promise<HolidayOccurrenceCandidate[]>;
@@ -301,7 +302,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     milestones: {
       listRemindEligible: () => milestones.listRemindEligible(),
     },
-    // Stored rules, else the kind's defaults; the source is what mints a prompt.
+    // Stored rules, else the kind's defaults; the source is what mints a
+    // prompt.
     resolveSchedule: async (m) =>
       resolveReminderSchedule(
         m.kind,
@@ -309,7 +311,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       ),
     reminders: {
       getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
-      // The engine bypasses `create`, so materialize the title's @mentions here.
+      // The engine bypasses `create`, so materialize the title's @mentions
+      // here.
       insert: async (row) => {
         const inserted = await reminders.insert(row);
         await mentions.setEntityMentions(
@@ -379,8 +382,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       },
       hasSelf: async () => (await self.getSelf()) !== undefined,
       hasAccount: () => deps.hasAccount(),
-      // A device's row is written when it is first given a policy or answers the
-      // OS prompt, so no rows means nobody has been asked.
+      // A device's row is written when it is first given a policy or answers
+      // the OS prompt, so no rows means nobody has been asked.
       hasNotificationPolicy: async () =>
         (await notificationSettings.list()).length > 0,
     },
@@ -507,8 +510,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       input: UpdateReminderInput,
     ): Promise<Reminder | undefined> =>
       driver.transaction(async () => {
-        // A `system` reminder's text is re-derived on every reconcile, so only user
-        // reminders are content-editable. Completion and deletion stay open.
+        // A `system` reminder's text is re-derived on every reconcile, so only
+        // user reminders are editable. Completion and deletion stay open.
         const existing = await reminders.get(id);
         if (existing === undefined) return undefined;
         if (!isReminderEditable(existing)) {
@@ -542,8 +545,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       const found = await Promise.all(ids.map((id) => reminders.get(id)));
       return found.filter((r): r is Reminder => r !== undefined);
     },
-    /** Reversible completion toggle. A previewed row is minted first; completing
-     *  one early retires it for the year (see `materializeReminder`). */
+    /** Reversible completion toggle. A previewed row is minted first, and
+     *  completing one early retires it for the year. */
     setCompleted: (
       id: string,
       completed: boolean,
@@ -575,13 +578,13 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       }),
     // Reconcile today's `system` reminders; clients run it at boot and focus.
     regenerateSystem,
-    /** Everything today's automated reminders are about, in one walk; each field
-     *  is a filter over it. */
+    /** Everything today's automated reminders are about, in one walk; each
+     *  field is a filter over it. */
     targets: async (): Promise<SystemReminderTargets> => {
       const targets = await listSystemReminderTargets(systemReminderDeps());
 
-      // ⚠️ `get:gift` exactly: a card is not a present. A relationship is no gift
-      // recipient, so its `get:gift` records nothing.
+      // ⚠️ `get:gift` exactly: a card is not a present. A relationship is no
+      // gift recipient, so its `get:gift` records nothing.
       const gifts: GiftReminderTarget[] = targets
         .filter((t) => t.action === "get:gift")
         .flatMap((t) =>
@@ -596,8 +599,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
               ],
         );
 
-      // Offers are what the question can still offer today (`planOffers`), the same
-      // function the engine asks with, so the row and screen agree.
+      // Offers are what the question can still offer today (`planOffers`), the
+      // same function the engine asks with, so the row and screen agree.
       const plans: PlanReminderTarget[] = await Promise.all(
         targets
           .filter((t) => t.action === "plan" && t.milestone !== undefined)
@@ -622,7 +625,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 kind,
                 await reminderRules.listForBearer("milestone", t.milestone!.id),
               );
-              // Without an occasion there is no distance, so offer the whole set.
+              // Without an occasion there is no distance, so offer the whole
+              // set.
               return t.occurrenceDate == null
                 ? planOffers(kind, rules, Number.POSITIVE_INFINITY)
                 : planOffers(
@@ -634,8 +638,8 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           })),
       );
 
-      // ⚠️ `wish` only, and people only: an errand wants no call buttons, and a pet
-      // cannot own a contact method.
+      // ⚠️ `wish` only, and people only: an errand wants no call buttons, and a
+      // pet cannot own a contact method.
       const wishes = targets.filter(
         (t) => verbOf(t.action) === "wish" && t.bearerType === "person",
       );
