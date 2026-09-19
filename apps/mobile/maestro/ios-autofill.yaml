@@ -44,6 +44,13 @@ appId: com.apple.Preferences
 - tapOn: "General"
 - tapOn: ".*AutoFill.*"
 
+# The `when: visible` below looks once and does not wait, so wait for the switch first: on a
+# slow host the page draws it late, and the fix would be skipped rather than applied.
+- extendedWaitUntil:
+    visible:
+      id: "AutoFillToggle"
+    timeout: 30000
+
 # Under FIX, flip it only when it is on — tapping unconditionally would turn it back on.
 #
 # **The point is not decoration.** `AutoFillToggle`'s bounds are the whole row, so a plain

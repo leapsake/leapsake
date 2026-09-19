@@ -99,6 +99,7 @@ const EMULATOR_HEADLESS =
 const HOME_TIMEOUT_MS = 180_000; // budget for the first Metro bundle build → app home
 const BOOT_TIMEOUT_MS = 300_000; // budget for a cold emulator/simulator boot
 const METRO_TIMEOUT_MS = 120_000; // budget for `expo start` → packager-status:running
+const SHUTDOWN_TIMEOUT_MS = 60_000; // budget for an emulator to leave `adb devices`
 const INSTALL_TIMEOUT_MS = 60 * 60_000; // budget for a cold `expo run:<platform>` build
 
 // Per-platform outcomes. These are aggregated into the process exit code at the end.
@@ -681,7 +682,18 @@ const androidDriver = {
   stop: (ctx) =>
     run(ctx.adb, ["-s", ctx.device, "shell", "am", "force-stop", APP_ID]),
 
-  shutdown: (ctx) => run(ctx.adb, ["-s", ctx.device, "emu", "kill"]),
+  /** `emu kill` returns before the emulator is gone; wait, so the next tier boots its own. */
+  async shutdown(ctx) {
+    run(ctx.adb, ["-s", ctx.device, "emu", "kill"]);
+    const started = Date.now();
+    while (Date.now() - started < SHUTDOWN_TIMEOUT_MS) {
+      if (!run(ctx.adb, ["devices"]).stdout.includes(ctx.device)) return;
+      await sleep(1000);
+    }
+    console.warn(
+      `  ! ${ctx.device} was still attached ${seconds(started)} after emu kill`,
+    );
+  },
 
   // Load the JS bundle and wait for the app home. On Android a deep link does this
   // deterministically (no SpringBoard-style confirm), so we drive it over adb here rather
@@ -1400,7 +1412,7 @@ export async function runSuite(suite) {
     results.push(result);
     if (provision && result.ctx !== undefined) {
       console.log(`\n  shutting the ${driver.label} device down`);
-      driver.shutdown(result.ctx);
+      await driver.shutdown(result.ctx);
     }
   }
   stopMetroIfStarted();
