@@ -30,7 +30,8 @@
         "packages/schema/src/**",
         "packages/reminders/src/**",
         "packages/key-custody/src/**",
-        "packages/data/src/**"
+        "packages/data/src/**",
+        "packages/core/src/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

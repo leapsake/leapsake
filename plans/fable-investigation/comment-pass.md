@@ -16,8 +16,8 @@ commit that made it.
 
 ## Status
 
-**Steps 1 to 3 (`schema`, `reminders`, `key-custody`, `data`) are done and lint-enforced. Step 4
-(`packages/core`) is next.**
+**Steps 1 to 4 (`schema`, `reminders`, `key-custody`, `data`, `core`) are done and lint-enforced.
+Step 5 (`apps/desktop`) is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -29,11 +29,11 @@ The biggest remaining files, measured 2026-09-18:
 | ------------------------------------- | ----: | ------: | ----: |
 | `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
 | `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
-| `packages/core/src/index.ts`          | 1,153 |     271 |   24% |
 
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
 about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383,
-`packages/key-custody/src` from 940 to 213, and `packages/data/src` from 2,202 to 615.
+`packages/key-custody/src` from 940 to 213, `packages/data/src` from 2,202 to 615, and
+`packages/core/src` from 364 to 164.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
@@ -137,7 +137,7 @@ do the pass: most of the cut is judgment on comments that are short and phrase-f
    `.oxlintrc.json`, run the verification in [`README.md`](./README.md) → _Rules that apply to
    every workstream_, update the _Status_ and the table here, and commit.
 
-Lessons from steps 2 and 3:
+Lessons from steps 2 to 4:
 
 - **The verification tiers break the vitest run after them.** The `bundle` tier runs an
   electron-vite build, which switches the native SQLite binary to Electron's ABI. Restore the
@@ -157,6 +157,11 @@ Lessons from steps 2 and 3:
   string is code, not a comment, and editing it reports `CODE CHANGED`. And a file-level doc
   comment followed by a blank line belongs to no declaration; when you cut one, either delete it
   or reattach it, and do not leave a floating `/** */` behind.
+- **A rationale repeated at many call sites moves once.** Core's "reconcile after every write"
+  was said eight ways in `index.ts`. One README section replaced them all, and each site kept only
+  what is particular to it (step 4).
+- **Lint before every commit, not just at the end of the step.** A rewrap that looks short can
+  still run to 81 columns, and `comments-only.mjs` will not catch it.
 - **A comment that describes a real bug stays.** Shorten it, flag it in the commit message, and
   tell the owner (`milestones-repo.ts`'s `removeAllForEntity` TODO is the example from step 3).
 
@@ -181,11 +186,7 @@ Conventions the schema step settled:
 1. ✅ `packages/schema`. Done 2026-09-18, in scope.
 2. ✅ `packages/reminders/src`. Done 2026-09-18, in scope.
 3. ✅ `packages/key-custody/src` and `packages/data/src`. Done 2026-09-18, in scope.
-4. **`packages/core/src`**: `index.ts` (1,153 lines, 271 comment lines, 31 findings), then
-   `views.ts` (6) and `sync.ts` (5). `packages/core/README.md` is only 65 lines, so durable "why"
-   will often belong in the README of the package core composes (`key-custody`, `data`,
-   `reminders`, `sync`) rather than in core's. Scope entry to add when done:
-   `"packages/core/src/**"`.
+4. ✅ `packages/core/src`. Done 2026-09-18, in scope.
 5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
 7. Everything else, by directory. `scripts/` last.
