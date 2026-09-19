@@ -85,15 +85,7 @@ function readNamePart(formData: FormData, key: string): string | null {
   return value === "" ? null : value;
 }
 
-/**
- * Pull the editable Person fields out of a submitted form.
- *
- * All three name parts are read the same way, which they weren't while first and
- * last were `required` inputs and only the middle one could arrive blank. Now
- * that a person may be filed under any one of them, a blank first or last name
- * is an ordinary absence — and it has to become `null` here, because `""` is not
- * a value `personSchema` accepts for a name part that is present.
- */
+/** A blank name part is null: `personSchema` rejects `""`. */
 function readPersonInput(formData: FormData): CreatePersonInput {
   return {
     firstName: readNamePart(formData, "firstName"),
@@ -128,9 +120,8 @@ function readDatePart(formData: FormData, key: string): number | null {
 }
 
 /**
- * Parse the milestone's staggered-reminder schedule out of the form's hidden
- * JSON field. Absent (older form / no field) leaves the stored rules untouched;
- * a present array (possibly empty) replaces them. Core + the repo re-validate.
+ * The hidden JSON reminder-schedule field: absent leaves the stored rules
+ * alone, and an array (even empty) replaces them.
  */
 function readReminderSchedule(
   formData: FormData,
@@ -141,7 +132,7 @@ function readReminderSchedule(
   return Array.isArray(parsed) ? (parsed as ReminderRuleInput[]) : undefined;
 }
 
-/** Pull the editable milestone fields (kind + partial date + note + reminders) out of a form. */
+/** The editable milestone fields: kind, partial date, note and reminders. */
 function readMilestoneFields(formData: FormData) {
   return {
     kind: String(formData.get("kind")) as MilestoneKind,
@@ -168,11 +159,7 @@ function readRelationships(formData: FormData): RelationshipDraft[] {
     .map((value) => JSON.parse(String(value)) as RelationshipDraft);
 }
 
-/**
- * Persist the relationship rows for a just-created subject. Core implies the
- * subject's own role from each picked b-side role, so the action only forwards
- * the parsed draft.
- */
+/** Core implies the subject's own role from each picked b-side role. */
 async function createRelationships(
   subjectType: EntityType,
   subjectId: string,
@@ -190,27 +177,19 @@ async function createRelationships(
   }
 }
 
-/**
- * The combined People & Pets home list, merged and sorted by display name, plus
- * the id of the Person that is "you" (or null) so the list can badge it "You"
- * and the pick-self flow can tick the current choice.
- */
+/** The People & Pets list, plus the self-person's id for the "You" badge. */
 async function entityListLoader() {
   const [entities, self, duplicateCount] = await Promise.all([
     window.api.views.entityList(),
     window.api.self.get(),
-    // Gates the review link: it is offered only when there is something to
-    // review, and states the count when there is.
-    window.api.duplicates.count(),
+    window.api.duplicates.count(), // the review link shows only when nonzero
   ]);
   return { entities, selfPersonId: self?.personId ?? null, duplicateCount };
 }
 
 /**
- * Duplicate candidates, either all of them or — with `?for=<personId>` — only
- * the pairs involving that person, which is how the post-create prompt arrives.
- * An unresolvable `for` id falls back to the unscoped list rather than 404ing:
- * the person may have just been merged away from this very screen.
+ * All duplicate candidates, or with `?for=<personId>` only that person's. An
+ * unknown `for` falls back to all: the person may have just been merged away.
  */
 async function duplicatesLoader({ request }: LoaderFunctionArgs) {
   const wanted = new URL(request.url).searchParams.get("for");
@@ -236,8 +215,7 @@ async function duplicatesLoader({ request }: LoaderFunctionArgs) {
   };
 }
 
-/** Set the self-person from the pick-self flow, then return to the list (now
- *  badged "You"). The form carries the chosen Person's id. */
+/** Set the self-person from the pick-self flow. */
 async function entityListAction({ request }: { request: Request }) {
   const form = await request.formData();
   const personId = String(form.get("personId"));
@@ -245,11 +223,6 @@ async function entityListAction({ request }: { request: Request }) {
   return redirect("/people");
 }
 
-/**
- * A Person plus its tags, derived gender, and neighbors (explicit + derived),
- * alongside the reminders that `@mention` them — the backlink the view lists in
- * its "Mentioned in" section, loaded in parallel with the view itself.
- */
 async function personLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const [
@@ -262,15 +235,11 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   ] = await Promise.all([
     window.api.views.person(id),
     window.api.reminders.mentioning("person", id),
-    // The whole catalog with this person's answers — one read serving both the
-    // Holidays section's list and the pool its add-field suggests from.
+    // The whole catalog with this person's answers: the list and the add pool.
     window.api.holidays.listForBearer("person", id),
-    // What this person is down for, plus the full idea pool the capture form's
-    // datalist suggests from.
     window.api.gifts.recipients.listForRecipient("person", id),
     window.api.gifts.ideas.list(),
-    // Unresolved pairs this person is half of — both people in a pair carry the
-    // banner, so whichever one the user opens leads back to the review.
+    // Both people in a pair carry the banner that leads back to the review.
     window.api.duplicates.findFor(id),
   ]);
   if (!view) throw new Response("Person not found", { status: 404 });
@@ -284,11 +253,6 @@ async function personLoader({ params }: LoaderFunctionArgs) {
   };
 }
 
-/**
- * A Pet plus its tags, derived gender, and neighbors (explicit + derived),
- * alongside the reminders that `@mention` it — the "Mentioned in" backlink,
- * loaded in parallel with the view itself.
- */
 async function petLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const [view, mentionedIn, holidays, giftsGiven, giftIdeaPool] =
@@ -309,12 +273,6 @@ async function petLoader({ params }: LoaderFunctionArgs) {
   };
 }
 
-/**
- * Loader for the "add relationship" screen of either entity type. Resolves the
- * subject and builds the candidate list from *both* people and pets (the subject
- * itself excluded), so any entity can relate to any other; the role pickers then
- * constrain owner/pet by holder type.
- */
 function relationshipNewLoader(subjectType: EntityType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const view = await window.api.views.relationshipNew(
@@ -326,7 +284,6 @@ function relationshipNewLoader(subjectType: EntityType) {
   };
 }
 
-/** Action for the "add relationship" screen: the subject endpoint comes from the route. */
 function relationshipCreateAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
@@ -346,12 +303,7 @@ function relationshipCreateAction(subjectType: EntityType) {
   };
 }
 
-/**
- * Loader for the relationship edit/remove screens, oriented to the subject. The
- * stored (explicit) edge is found among the subject's neighbors by id — there is
- * no get-oriented-by-id IPC, so we reuse the already subject-scoped list, the
- * same shape the milestone edit/delete loader uses.
- */
+/** A stored relationship, oriented to the subject, for its edit and remove. */
 function relationshipForSubjectLoader(subjectType: EntityType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const view = await window.api.views.relationshipForSubject(
@@ -364,18 +316,11 @@ function relationshipForSubjectLoader(subjectType: EntityType) {
   };
 }
 
-/**
- * Action for the "edit relationship" screen. Only the other end's role changes;
- * the subject's own role is re-derived as the neutral inverse (mirroring the add
- * flow). The stored row may hold the subject as either endpoint, so we fetch it
- * to learn the orientation before mapping the new roles onto a/b.
- */
 function relationshipEditAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
-    // Core re-derives the subject's own role (neutral inverse, gendering kept)
-    // from the edited other-end role; the app only forwards the parsed fields.
+    // Only the other end's role is edited; core re-derives the subject's own.
     await window.api.relationships.editFromSubject({
       subjectType,
       subjectId: id,
@@ -387,7 +332,6 @@ function relationshipEditAction(subjectType: EntityType) {
   };
 }
 
-/** Action for the "remove relationship" screen. */
 function relationshipDeleteAction(subjectType: EntityType) {
   return async ({ params }: ActionFunctionArgs) => {
     await window.api.relationships.softDelete(params.relId as string);
@@ -396,11 +340,8 @@ function relationshipDeleteAction(subjectType: EntityType) {
 }
 
 /**
- * Loader for the derived-relationship edit/dismiss screens. A derived edge has no
- * stored row, so its identity travels in the query string (other endpoint + base
- * role); we recompute the subject's neighbors and find the matching derived one
- * to show its details. Shared by Edit and Remove so a derived edge presents the
- * same way an explicit one does.
+ * A derived relationship for its edit and dismiss screens. It has no stored
+ * row, so its identity (other endpoint and role) travels in the query string.
  */
 function relationshipDerivedLoader(subjectType: EntityType) {
   return async ({ params, request }: LoaderFunctionArgs) => {
@@ -425,12 +366,8 @@ function relationshipDerivedLoader(subjectType: EntityType) {
 }
 
 /**
- * Action for the "edit derived relationship" screen. A derived edge has no stored
- * row, so editing it *materialises* it: we create an explicit relationship with
- * the chosen role (the subject's own end is the implied neutral inverse, as in
- * the add flow). The new explicit edge then suppresses the derived one, so to the
- * user the relationship simply now carries the corrected role — indistinguishable
- * from any other stored edge.
+ * Editing a derived relationship materialises it as an explicit one with the
+ * chosen role, which then suppresses the derived edge.
  */
 function relationshipDerivedEditAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
@@ -442,8 +379,6 @@ function relationshipDerivedEditAction(subjectType: EntityType) {
       throw new Response("Bad derived-relationship request", { status: 400 });
 
     const formData = await request.formData();
-    // Materialise the derived edge into an explicit one: core implies the
-    // subject's own role from the chosen other role.
     await window.api.relationships.createFromSubject({
       subjectType,
       subjectId: id,
@@ -456,7 +391,6 @@ function relationshipDerivedEditAction(subjectType: EntityType) {
   };
 }
 
-/** Action for the "dismiss derived relationship" screen. */
 function relationshipDismissAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
@@ -473,11 +407,8 @@ function relationshipDismissAction(subjectType: EntityType) {
 }
 
 /**
- * Loader for the "add milestone" screen. Resolves the subject (person, pet, or
- * relationship). From a **Person**, the relationship kinds (Met / First Date /
- * Wedding) need a "with whom?" step, so we also load the candidate list and the
- * person's existing explicit edges — used to bind to an existing relationship or
- * infer the spouse. Other subject types never offer those kinds.
+ * From a Person, the view also carries the candidates and existing edges the
+ * relationship kinds' "with whom?" step needs.
  */
 function milestoneNewLoader(bearerType: MilestoneBearerType) {
   return async ({ params }: LoaderFunctionArgs) => {
@@ -491,12 +422,8 @@ function milestoneNewLoader(bearerType: MilestoneBearerType) {
 }
 
 /**
- * Resolve the "with whom?" submission of a relationship-kind milestone added
- * from a Person into the subject the milestone hangs off: an existing
- * relationship (`bind`), a freshly created one (`create`), or the person itself
- * when the spouse is left unknown (`unbound`). Returns null when nothing was
- * chosen — the caller treats that as "cancel" for the kinds that require a
- * partner. Mirrors how {@link RelationshipForm} submits resolved machine values.
+ * Resolve a "with whom?" answer to the milestone's bearer: an existing
+ * relationship, a new one, or the person. Null means nothing was chosen.
  */
 async function resolveWithWhom(
   personId: string,
@@ -526,12 +453,10 @@ async function resolveWithWhom(
 }
 
 /**
- * Action for the "add milestone" screen. The subject endpoint comes from the
- * route, except a relationship-kind (Met / First Date / Wedding) added from a
- * **Person**, which binds to / creates / (for Wedding) deliberately leaves
- * unbound a relationship per the form's resolved hidden fields. Met / First Date
- * require a partner: an empty resolution cancels the add (no row written).
+ * The bearer comes from the route, except for a relationship kind added from a
+ * Person; there, no "with whom?" answer cancels the add.
  */
+
 function milestoneCreateAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
@@ -560,11 +485,7 @@ function milestoneCreateAction(bearerType: MilestoneBearerType) {
   };
 }
 
-/**
- * Loader for the milestone edit/delete screens: resolves the subject and finds
- * the milestone among the subject's list (there is no get-by-id IPC; the list
- * is already scoped + soft-delete-aware, mirroring the relationship screens).
- */
+/** A milestone, found in its bearer's list, for its edit and delete. */
 function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
   return async ({ params }: LoaderFunctionArgs) => {
     const id = params.id as string;
@@ -577,8 +498,7 @@ function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
     );
     const milestone = milestones.find((m) => m.id === milestoneId);
     if (!milestone) throw new Response("Milestone not found", { status: 404 });
-    // The milestone's resolved reminder schedule (its stored rules, else its
-    // kind's defaults) prefills the edit form's Reminders section.
+    // Its stored rules, else its kind's defaults.
     const reminderSchedule = await window.api.milestones.reminderSchedule(
       milestoneId,
       milestone.kind,
@@ -587,7 +507,6 @@ function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
   };
 }
 
-/** Action for the milestone edit screen: updates the editable fields. */
 function milestoneEditAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
@@ -600,7 +519,6 @@ function milestoneEditAction(bearerType: MilestoneBearerType) {
   };
 }
 
-/** Action for the "remove milestone" screen. */
 function milestoneDeleteAction(bearerType: MilestoneBearerType) {
   return async ({ params }: ActionFunctionArgs) => {
     await window.api.milestones.softDelete(params.milestoneId as string);
@@ -609,10 +527,8 @@ function milestoneDeleteAction(bearerType: MilestoneBearerType) {
 }
 
 /**
- * Loader for the "set spouse / link to relationship" screen — rebinding an
- * unbound relationship-kind milestone (a Wedding stored on a Person while its
- * spouse was unknown) to a relationship. Resolves the person + milestone and the
- * same with-whom inputs the add flow uses.
+ * Rebinding a relationship-kind milestone stored on a Person (a Wedding whose
+ * spouse was unknown) to a relationship.
  */
 async function milestoneRebindLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
@@ -629,12 +545,7 @@ async function milestoneRebindLoader({ params }: LoaderFunctionArgs) {
   return { bearer, milestone, candidates, neighbors };
 }
 
-/**
- * Action for the rebind screen: re-point an unbound milestone at a relationship
- * (existing or freshly created) via a normal `milestones.update` that changes
- * the subject. Rebind only ever targets a relationship; an empty/unbound
- * resolution is a no-op.
- */
+/** Only a relationship is a rebind target; any other answer is a no-op. */
 async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
   const milestoneId = params.milestoneId as string;
@@ -649,12 +560,11 @@ async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
   return redirect(`/people/${id}`);
 }
 
-/** Read the free-text contact-method label from the form, trimmed. */
 function readContactLabel(formData: FormData): string {
   return String(formData.get("label") ?? "").trim();
 }
 
-/** Read an ISO alpha-2 country from the form: uppercased, blank → null. */
+/** An ISO alpha-2 country: uppercased, blank → null. */
 function readContactCountry(formData: FormData): string | null {
   const value = String(formData.get("country") ?? "")
     .trim()
@@ -663,12 +573,8 @@ function readContactCountry(formData: FormData): string | null {
 }
 
 /**
- * Read the social-profile fields, cleaning the handle to its bare form.
- *
- * The cleaning happens here rather than in the repo because what counts as a
- * handle is a fact about the platform — `@josh`, a pasted `instagram.com/josh`,
- * and `josh` are all the same account — and this is the layer that knows which
- * platform the form was showing.
+ * Reduces the handle to its bare form (`@george`, `instagram.com/george` →
+ * `george`), which depends on the platform the form was showing.
  */
 function readSocialFields(formData: FormData) {
   const platform = String(formData.get("platform") ?? "");
@@ -683,24 +589,18 @@ function readSocialFields(formData: FormData) {
   };
 }
 
-/** Resolve the owning Person for the contact-method screens, or 404. */
 async function contactPersonSubject(id: string) {
   const person = await window.api.people.get(id);
   if (!person) throw new Response("Person not found", { status: 404 });
   return { id, label: fullName(person) };
 }
 
-/** Loader for the "add contact" screen: resolves the owner and the kind to add. */
 async function contactNewLoader({ params }: LoaderFunctionArgs) {
   const subject = await contactPersonSubject(params.id as string);
   return { subject, kind: params.kind as ContactMethodKind };
 }
 
-/**
- * Loader for the contact edit/delete screens: resolves the owner and finds the
- * method among the owner's merged list (there is no get-by-id IPC; the list is
- * already owner-scoped and soft-delete-aware, mirroring the milestone screens).
- */
+/** A contact method, found in its owner's list, for its edit and delete. */
 async function contactMethodLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const kind = params.kind as ContactMethodKind;
@@ -714,12 +614,6 @@ async function contactMethodLoader({ params }: LoaderFunctionArgs) {
   return { subject, kind, method: entry.method, entry };
 }
 
-/**
- * Action for the "add contact" screen. The owner is the route's Person; the kind
- * (email / phone / postal / social) selects the typed sub-repo and which fields
- * are read. Blank optional fields become null; the country is uppercased to ISO
- * shape, and a social handle is reduced to its bare form.
- */
 async function contactCreateAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
   const kind = params.kind as ContactMethodKind;
@@ -764,7 +658,6 @@ async function contactCreateAction({ request, params }: ActionFunctionArgs) {
   return redirect(`/people/${id}`);
 }
 
-/** Action for the "edit contact" screen: updates the editable fields of one method. */
 async function contactEditAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
   const kind = params.kind as ContactMethodKind;
@@ -805,7 +698,6 @@ async function contactEditAction({ request, params }: ActionFunctionArgs) {
   return redirect(`/people/${id}`);
 }
 
-/** Action for the "remove contact" screen: soft-deletes one method by kind + id. */
 async function contactDeleteAction({ params }: ActionFunctionArgs) {
   const kind = params.kind as ContactMethodKind;
   const methodId = params.methodId as string;
@@ -821,11 +713,7 @@ async function contactDeleteAction({ params }: ActionFunctionArgs) {
   return redirect(`/people/${params.id}`);
 }
 
-/**
- * Loader for the relationship detail page — the canonical home for a
- * relationship's milestones. Resolves the stored edge, both endpoint labels, and
- * the relationship-subject milestones.
- */
+/** The relationship page, canonical home of its milestones. */
 async function relationshipViewLoader({ params }: LoaderFunctionArgs) {
   const view = await window.api.views.relationship(params.id as string);
   if (!view) throw new Response("Relationship not found", { status: 404 });
@@ -833,11 +721,8 @@ async function relationshipViewLoader({ params }: LoaderFunctionArgs) {
 }
 
 /**
- * Loader for the relationship-scoped edit/delete screens. Unlike the
- * subject-scoped relationship screens (reached from a Person/Pet, which edit only
- * the *other* end), these operate on the relationship as a whole — both endpoints
- * resolved with their own role — so the user can set each side's role explicitly
- * and a delete plainly removes the single shared row.
+ * Both endpoints with their roles, for editing the relationship as a whole,
+ * unlike the subject-scoped screens that edit only the other end.
  */
 async function relationshipPartnersLoader({ params }: LoaderFunctionArgs) {
   const view = await window.api.views.relationshipPartners(params.id as string);
@@ -845,12 +730,7 @@ async function relationshipPartnersLoader({ params }: LoaderFunctionArgs) {
   return view;
 }
 
-/**
- * Action for the relationship-scoped "edit roles" screen: writes both endpoints'
- * roles exactly as picked. Unlike the subject-scoped edit, the two ends are
- * independent here — neither is auto-derived from the other — so the user can
- * make both explicit (e.g. Husband / Wife rather than Spouse / Husband).
- */
+/** Writes both roles exactly as picked; neither is derived from the other. */
 async function relationshipRolesEditAction({
   request,
   params,
@@ -867,11 +747,7 @@ async function relationshipRolesEditAction({
   return redirect(`/relationships/${id}`);
 }
 
-/**
- * Action for the relationship-scoped delete: soft-deletes the single shared row,
- * removing the relationship for both partners. The relationship page is now gone,
- * so we land on the first partner's entity page.
- */
+/** Removes the relationship for both partners, then lands on the first one. */
 async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
   const id = params.id as string;
   const rel = await window.api.relationships.get(id);
@@ -879,14 +755,7 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
   return redirect(rel ? `${entityBasePath(rel.aType)}/${rel.aId}` : "/people");
 }
 
-/**
- * The renderer's route tree. We use the data-router pattern (loaders for reads,
- * actions + `<Form>` for writes) so navigation, data, and mutations are modeled
- * the same way the eventual server-rendered web app will model them in
- * react-router framework mode — the desktop client just swaps `createHashRouter`
- * (required under Electron's `file://` load) for the server entry.
- */
-/** Pull the editable reminder fields from a form; blank fields become null. */
+/** The editable reminder fields; blank fields become null. */
 function readReminderInput(formData: FormData): {
   title: string | null;
   body: string | null;
@@ -897,24 +766,18 @@ function readReminderInput(formData: FormData): {
   return {
     title: title.length > 0 ? title : null,
     body: body.length > 0 ? body : null,
-    // The date input yields "YYYY-MM-DD" (or "" when cleared) → stored due epoch.
+    // "YYYY-MM-DD", or "" when cleared.
     dueDate: dueMsFromIso(String(formData.get("dueDate") ?? "")),
   };
 }
 
-/** Fetch a reminder by id for the edit/remove screens (404 when missing). */
 async function reminderLoader({ params }: LoaderFunctionArgs) {
   const reminder = await window.api.reminders.get(params.id as string);
   if (!reminder) throw new Response("Reminder not found", { status: 404 });
   return reminder;
 }
 
-/**
- * Loader for the edit screen only: an automatic (`system`) reminder isn't
- * content-editable (the birthday engine owns its text), so bounce back to the list
- * rather than render a form whose save core would reject. The delete screen keeps
- * using {@link reminderLoader} directly — removing an automatic reminder is fine.
- */
+/** An automatic reminder's text is the engine's, so editing one bounces. */
 async function reminderEditLoader(args: LoaderFunctionArgs) {
   const reminder = await reminderLoader(args);
   if (!isReminderEditable(reminder)) return redirect("/reminders");
@@ -939,13 +802,12 @@ async function reminderEditAction({ request, params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
-/** Remove a reminder. */
 async function reminderDeleteAction({ params }: ActionFunctionArgs) {
   await window.api.reminders.softDelete(params.id as string);
   return redirect("/reminders");
 }
 
-/** Pull the editable gift-idea fields from a form; blank url/notes become null. */
+/** The editable gift-idea fields; blank url and notes become null. */
 function readGiftIdeaInput(formData: FormData): {
   title: string;
   url: string | null;
@@ -960,18 +822,13 @@ function readGiftIdeaInput(formData: FormData): {
   };
 }
 
-/** Fetch a gift idea by id for the remove screen (404 when missing). */
 async function giftIdeaLoader({ params }: LoaderFunctionArgs) {
   const idea = await window.api.gifts.ideas.get(params.id as string);
   if (!idea) throw new Response("Gift idea not found", { status: 404 });
   return idea;
 }
 
-/**
- * The edit screen also shows the idea's "Suggested for" recipients, so it loads
- * the idea, its suggestions, and the people/pets pool the add-field draws from,
- * in parallel.
- */
+/** The idea, its "Suggested for" recipients, and the pool to add from. */
 async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
   const id = params.id as string;
   const [idea, tags, recipients, entities] = await Promise.all([
@@ -995,13 +852,8 @@ async function giftIdeaEditLoader({ params }: LoaderFunctionArgs) {
 }
 
 /**
- * The "Add a gift" screen: the idea pool the capture form autocompletes against
- * plus the people/pets pool its recipient picker draws from, loaded in parallel.
- *
- * A `?recipient=<type>:<id>` param (how a completed `🎁 gift` reminder hands
- * off) fixes the form to that one recipient and seeds a
- * blank date row, so "record what you gave" opens ready to log a giving rather
- * than to shortlist one. An unresolvable id falls back to the ordinary picker.
+ * `?recipient=<type>:<id>`, from a done gift reminder, fixes the form to that
+ * recipient to log a giving; an unknown one falls back to the picker.
  */
 async function giftCreateLoader({ request }: LoaderFunctionArgs) {
   const [ideas, entities] = await Promise.all([
@@ -1021,27 +873,13 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
   return { ideas, candidates, fixedRecipient };
 }
 
-/**
- * The Reminders screen: the rows plus which of them are `🎁 gift` reminders and
- * who they're about, so a gift reminder can offer the recipient's gifts (and,
- * once done, logging what was given). Derived from the engine's own walk, so the
- * CTA appears on exactly the reminders it minted.
- *
- * `listInWindow`, not `list`: the screen buckets by *when*, and which overdue rows
- * can still be saved, and what is coming, are not derivable from stored rows
- * alone (see `bucketReminders`).
- */
+/** `listInWindow`, not `list`: the time buckets need more than stored rows. */
 async function remindersLoader() {
   const [reminders, targets, duplicatesNudgeId] = await Promise.all([
     window.api.reminders.listInWindow(),
-    // One read for every affordance the rows carry: the gift loop, what each
-    // `🗓 plan` prompt is asking about (carried on the row so the one-tap answer
-    // needs no second read), and which `🎉 wish` is about someone with no way to
-    // reach them. Three filters over one engine walk.
+    // What the gift, plan and wish rows each act on, from one engine walk.
     window.api.reminders.targets(),
-    // The duplicates nudge is content-addressed on the outstanding pair set, so
-    // unlike the onboarding nudges its id can't be a static table — core
-    // recomputes it from the live pairs and the list matches on it.
+    // Derived from the outstanding pairs, so it cannot be a static id.
     window.api.duplicates.nudgeId(),
   ]);
   return { reminders, targets, duplicatesNudgeId };
@@ -1053,21 +891,17 @@ async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
   const target = (await window.api.reminders.targets()).plans.find(
     (t) => t.milestoneId === milestoneId,
   );
-  // No prompt outstanding for this milestone: it has been answered, or the row
-  // is not in window. Either way there is nothing to ask.
+  // Already answered, or not in window.
   if (target === undefined)
     throw new Response("No prompt for this milestone", { status: 404 });
   return { target };
 }
 
 /**
- * Answer the prompt — from the screen's Save, and from the list row's one-tap
- * *Just the day*, which posts the same field to the same place.
- *
- * `milestones.update` replaces the whole rule set and reconciles in the same
- * call, so the prompt retires and whatever was ticked appears at its own due
- * date together.
+ * Answer the prompt, from the screen or the list row's *Just the day*. The
+ * update replaces the rule set, which retires the prompt in the same call.
  */
+
 async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   await window.api.milestones.update(params.milestoneId as string, {
