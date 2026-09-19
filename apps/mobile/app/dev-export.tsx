@@ -33,7 +33,10 @@ function DevExport() {
     void (async () => {
       try {
         const { bytes, filename, counts } = await core.export.archive({
-          appVersion: Constants.expoConfig?.version ?? "unknown",
+          appVersion:
+            Constants.expoConfig?.extra?.release ??
+            Constants.expoConfig?.version ??
+            "unknown",
         });
         // A fixed name, unlike the real flow's dated one, so the out-of-band
         // check knows where to look without guessing the day.

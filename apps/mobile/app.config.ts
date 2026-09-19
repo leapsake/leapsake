@@ -141,6 +141,11 @@ function commitSha(): string {
   }
 }
 
+/** The full release version (`0.1.0-beta.10`) the release script passes in, or `dev`. */
+function releaseVersion(): string {
+  return process.env.LEAPSAKE_RELEASE?.trim() || "dev";
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const build = buildNumber();
   const commit = commitSha();
@@ -157,6 +162,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: { ...config.ios?.infoPlist, LeapsakeCommit: commit },
     },
     android: { ...config.android, versionCode: build },
-    extra: { ...config.extra, commit },
+    extra: { ...config.extra, commit, release: releaseVersion() },
   };
 };

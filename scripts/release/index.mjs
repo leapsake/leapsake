@@ -387,6 +387,8 @@ async function main() {
     tags: allTags,
   });
 
+  process.env.LEAPSAKE_RELEASE = version;
+
   const ctx = {
     root: ROOT,
     mode,

@@ -359,9 +359,11 @@ function FactoryResetSection() {
   );
 }
 
-/** The app version stamped into the archive, from the one source `app.config.ts`
- *  derives Expo's own from — never a second copy. */
-const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+/** The release version stamped into the archive, or the core when none was set. */
+const APP_VERSION =
+  Constants.expoConfig?.extra?.release ??
+  Constants.expoConfig?.version ??
+  "unknown";
 
 /**
  * **One export, wired to this platform** — build the archive, write it to Caches,
