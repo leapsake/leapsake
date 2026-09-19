@@ -426,10 +426,8 @@ export function createCore(driver: SqliteDriver) {
           await tags.setEntityTags("person", created.id, tagNames);
           return created;
         });
-        // Reconcile after commit so the getting-started onboarding nudge
-        // retires promptly (its `hasAnyEntity` signal just flipped true) rather
-        // than waiting for the next boot/focus. Its own transaction — BEGIN/COMMIT
-        // doesn't nest — and a sync-kicking write, so the pruned row rides the kick.
+        // `hasAnyEntity` just flipped, so the onboarding nudge retires now
+        // rather than at the next boot/focus.
         await regenerateSystem();
         return person;
       },
@@ -450,28 +448,20 @@ export function createCore(driver: SqliteDriver) {
           }
           return updated;
         });
-        // A rename can create (or dissolve) a duplicate pair — the scorer keys on
-        // the folded name — so reconcile for the Home nudge's sake, the same way
-        // create/merge/delete do. Contact-method edits can move the pair set too;
-        // those are left to the boot/focus reconcile rather than threading this
-        // call through every contact write.
+        // A rename can create or dissolve a duplicate pair. Contact-method edits
+        // can too, but those wait for the boot/focus reconcile.
         await regenerateSystem();
         return person;
       },
-      // The cascade removes their milestones, so reconcile afterwards to prune
-      // any now-orphaned birthday reminder at once (same reason a milestone
-      // delete does — see `milestones.softDelete`), rather than leaving it until
-      // boot/focus.
+      // Reconcile so the cascade's orphaned birthday reminder is pruned at once.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(() =>
           entities.softDeleteCascade("person", id),
         );
         await regenerateSystem();
       },
-      // The loser's birthday milestone now bears the survivor, but its reminder
-      // still carries the loser's baked-in name + @mention (now a dead link, the
-      // loser being tombstoned). Reconcile so it re-titles onto the survivor and
-      // re-points its mention backlink — same drift-repair a rename triggers.
+      // Reconcile so the loser's birthday reminder re-titles onto the survivor
+      // and re-points its @mention.
       merge: async (survivorId: string, loserId: string): Promise<void> => {
         await entities.mergePeople(survivorId, loserId);
         await regenerateSystem();
@@ -490,9 +480,7 @@ export function createCore(driver: SqliteDriver) {
           await tags.setEntityTags("pet", created.id, tagNames);
           return created;
         });
-        // Reconcile after commit so the getting-started onboarding nudge
-        // retires promptly (a pet also satisfies `hasAnyEntity`) — see the mirror
-        // in `people.create`.
+        // A pet also satisfies `hasAnyEntity`; see `people.create`.
         await regenerateSystem();
         return pet;
       },
@@ -511,8 +499,7 @@ export function createCore(driver: SqliteDriver) {
           }
           return pet;
         }),
-      // Cascade-delete the pet's facts, then reconcile so its birthday reminder is
-      // pruned at once (see the Person `softDelete` above for the rationale).
+      // Reconcile so the cascade's orphaned birthday reminder is pruned at once.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(() => entities.softDeleteCascade("pet", id));
         await regenerateSystem();
@@ -520,9 +507,8 @@ export function createCore(driver: SqliteDriver) {
     },
 
     tags: {
-      // The tag catalog: every tag alphabetically, with its usage count. Unlike
-      // the `…ForTag` reads below it answers "what tags exist at all", which no
-      // per-entity screen can reconstruct.
+      // Every tag with its usage count: "what tags exist at all", which no
+      // per-entity read can reconstruct.
       list: (): Promise<TagListItem[]> => tags.list(),
       get: (id: string): Promise<Tag | undefined> => tags.get(id),
       softDelete: (id: string): Promise<void> =>
@@ -543,7 +529,7 @@ export function createCore(driver: SqliteDriver) {
         const found = await Promise.all(ids.map((id) => pets.get(id)));
         return found.filter((p): p is Pet => p !== undefined);
       },
-      // Reminders carry tags too (parsed inline from their text under bearer type
+      // Reminders carry tags too (parsed from their text, bearer type
       // "reminder"), so they list on a tag's page alongside people and pets.
       remindersForTag: async (tagId: string): Promise<Reminder[]> => {
         const ids = await tags.entityIdsForTag(tagId, "reminder");
@@ -559,17 +545,8 @@ export function createCore(driver: SqliteDriver) {
       },
     },
 
-    // Holidays. The catalog itself is read-only — a catalog row is immutable by
-    // design (`@leapsake/holidays` README, read-only catalog rows) — so the user's levers are all
-    // *around* it: who observes, what each observance reminds about, and whether
-    // the holiday is suppressed entirely.
-    //
-    // Every one of those is an input to the reminder engine, so each write
-    // reconciles afterwards rather than waiting for the next boot/focus. Without
-    // this, saying "Violet celebrates Christmas" would sit inert until the app
-    // was restarted — the same reason a person/milestone write reconciles above.
-    // Each runs in its own transaction (BEGIN/COMMIT doesn't nest) and rides the
-    // sync kick as a normal write.
+    // The catalog is read-only; the levers are who observes, what each
+    // observance reminds about, and whether a holiday is hidden.
     holidays: {
       ...holidaysApi,
       setObservers: async (
@@ -577,9 +554,8 @@ export function createCore(driver: SqliteDriver) {
         decisions: readonly ObserverDecision[],
       ): Promise<void> => {
         await holidaysApi.setObservers(holidayId, decisions);
-        // Which holidays someone keeps is a fact about them. Only the bearers
-        // being *given* the observance promote — clearing one says nothing new
-        // about anybody.
+        // Only the bearers being *given* the observance promote; clearing one
+        // says nothing new about anybody.
         for (const decision of decisions) {
           if (!decision.observes) continue;
           await entities.publishBearerIfUnpublished(
@@ -612,12 +588,8 @@ export function createCore(driver: SqliteDriver) {
     relationships: {
       get: (id: string): Promise<Relationship | undefined> =>
         relationships.get(id),
-      // Each write reconciles afterwards, because a relationship is now an input
-      // to the reminder engine: recording a spouse is what raises "when is your
-      // anniversary?", editing the role is what changes which date it asks for
-      // (a partnership that becomes a marriage), and deleting the edge is what
-      // retires the question. Without this the row would appear only at the next
-      // boot or focus, which reads as the app not having noticed.
+      // A spouse raises "when is your anniversary?", a role change changes which
+      // date it asks for, and deleting the edge retires it.
       create: async (input: CreateRelationshipInput): Promise<Relationship> => {
         const created = await driver.transaction(() =>
           relationships.create(input),
@@ -635,11 +607,8 @@ export function createCore(driver: SqliteDriver) {
         await regenerateSystem();
         return updated;
       },
-      // Removing the edge removes anyone who was only on the other end of it.
-      // For two published people this unlinks two records that both carry on
-      // existing; when one end is unpublished, that edge was the entire reason
-      // they were in the database, so the row goes with it rather than becoming
-      // unreachable. The UI says which of the two is about to happen.
+      // An unpublished end goes with the edge, its only reason to exist; two
+      // published people are just unlinked.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(async () => {
           const rel = await relationships.get(id);
@@ -664,15 +633,8 @@ export function createCore(driver: SqliteDriver) {
         id: string,
       ): Promise<RelationshipNeighbor[]> =>
         relationshipsSvc.orientedNeighbors(type, id),
-      // Write a relationship from a subject's perspective, implying the subject's
-      // own role from the chosen other role.
-      //
-      // These three reconcile afterwards for the same reason `create`/`update`
-      // above do — and they are the ones that matter in practice, since this is
-      // the path a relationship is actually added by, from a person's own page.
-      // Wrapped here rather than inside each helper because the milestone
-      // "with whom?" flow calls them mid-write and reconciles once, after its
-      // own commit.
+      // Reconciled here, not in the service, because the milestone "with whom?"
+      // flow calls these mid-write and reconciles once after its own commit.
       createFromSubject: async (
         ...args: Parameters<RelationshipService["createFromSubject"]>
       ): Promise<Relationship> => {
@@ -704,8 +666,8 @@ export function createCore(driver: SqliteDriver) {
         type: MilestoneBearerType,
         id: string,
       ): Promise<Milestone[]> => milestones.listForBearer(type, id),
-      // Own milestones merged with those of each explicit relationship the entity
-      // is in, resolved read-only and annotated with the partner's label.
+      // Own milestones merged with those of each relationship the entity is in,
+      // annotated with the partner's label.
       timelineFor: (
         type: EntityType,
         id: string,
@@ -717,18 +679,8 @@ export function createCore(driver: SqliteDriver) {
           type,
           id,
         ),
-      // Each milestone write reconciles the automated birthday reminders right
-      // after it commits, so adding / editing / deleting a birthday updates the
-      // Home list at once (a new reminder appears, an edited date re-dates its
-      // reminder, a deleted birthday prunes it) rather than waiting for the next
-      // boot/focus. The reconcile is its own transaction (the driver's BEGIN/COMMIT
-      // doesn't nest), and this is a sync-kicking `create/update/softDelete`, so
-      // the reconciled reminder rows ride the same post-write sync kick.
-      // The effective staggered-reminder schedule to show/edit for a milestone:
-      // its stored rules if it's been customised, else its kind's defaults
-      // (schema `resolveReminderSchedule`). The editor loads this when opening an
-      // existing milestone; a brand-new milestone's defaults come straight from
-      // the kind, so create needs no read.
+      // The stored rules if customised, else the kind's defaults. A new
+      // milestone's defaults come straight from the kind, so create needs no read.
       reminderSchedule: async (
         milestoneId: string,
         kind: MilestoneKind,
@@ -741,11 +693,8 @@ export function createCore(driver: SqliteDriver) {
         // business, so this keeps its narrower shape.
         return resolveReminderSchedule(kind, stored).rules;
       },
-      // A milestone's write and its reminder schedule commit in one transaction,
-      // so the two never diverge. `reminderSchedule` (when the form sends it)
-      // replaces the milestone's whole rule set; omitting it leaves the stored
-      // rules untouched (an untouched milestone keeps riding its kind defaults).
-      // The automated birthday reminders reconcile right after commit, as before.
+      // Milestone and schedule commit together. A sent `reminderSchedule`
+      // replaces the whole rule set; an omitted one leaves it as it is.
       create: async (input: CreateMilestoneInput): Promise<Milestone> => {
         const { reminderSchedule, ...milestoneInput } = input;
         const milestone = await driver.transaction(async () => {
@@ -806,11 +755,8 @@ export function createCore(driver: SqliteDriver) {
 
     reminders: remindersApi,
 
-    // Who "you" are — a pointer at the Person that is the self.
-    // `get` reads the singleton (undefined when unset); `set` points
-    // it at an existing Person and reconciles the automated reminders, so your
-    // own birthday's wish flips to its self-directed copy at once (rather than
-    // waiting for the next boot/focus reconcile); `clear` un-picks it.
+    // Who "you" are: a pointer at a Person. Reconciling flips your own
+    // birthday's reminder to its self-directed copy at once.
     self: {
       get: (): Promise<SelfPerson | undefined> => self.getSelf(),
       set: async (personId: string): Promise<SelfPerson> => {
@@ -824,11 +770,8 @@ export function createCore(driver: SqliteDriver) {
       },
     },
 
-    // Local-notification policy: the substrate only — no planner, no OS calls.
-    // Every method is scoped by
-    // an explicit deviceId rather than an ambient "this device", so a
-    // cross-device settings UI can read/edit any device's row, exactly like
-    // `reminders.snooze(id, days)` takes an explicit id.
+    // Per-device notification policy. Every method takes an explicit deviceId,
+    // so a settings UI can read or edit any device's row.
     notificationSettings: {
       get: (deviceId: string): Promise<NotificationSettings | undefined> =>
         notificationSettings.get(deviceId),
@@ -850,10 +793,6 @@ export function createCore(driver: SqliteDriver) {
         notificationSettings.setPermissionState(deviceId, state),
     },
 
-    // Gifts. An idea is a thing in the world (person-agnostic); a recipient link
-    // pairs an idea with a person or pet and says whether they have been given
-    // it. Two tables, not the three this had while a giving carried a date — see
-    // `gift-recipient.ts`.
     contactMethods: {
       // Merged read fans out across the four typed tables; writes target one
       // typed sub-repo each.
@@ -862,8 +801,8 @@ export function createCore(driver: SqliteDriver) {
         id: string,
       ): Promise<ContactMethod[]> =>
         listContactMethods(contactMethods, { type, id }),
-      // Each `create` publishes an unpublished owner: an address or a number is a
-      // fact about that person, not about whoever they are attached to.
+      // `create` publishes an unpublished owner: a contact method is a fact
+      // about that person, not about whoever they are attached to.
       emails: {
         create: (input: CreateEmailInput): Promise<EmailAddress> =>
           driver.transaction(async () => {
@@ -967,19 +906,13 @@ export function createCore(driver: SqliteDriver) {
       query: (term: string): Promise<SearchHit[]> => search.query(term),
     },
 
-    // Duplicate detection (reconciliation Increment B): propose merges and
-    // remember rejected pairs. Detection only — an actual merge goes through
-    // `people.merge` (Increment A); `reject` records the "not a duplicate" memory
-    // (which syncs, so no other device re-nags the pair).
+    // Detection and the "not a duplicate" memory, which syncs; the merge itself
+    // is `people.merge`.
     duplicates: {
       findCandidates: duplicates.unresolvedCandidates,
       /**
-       * The candidates involving one person — what the review screen shows when
-       * it is scoped to a just-created person, and what a person's own page asks
-       * before deciding whether to warn. A filter over the full scan rather than
-       * its own query: the scan is the same O(n²) in-memory pass either way at
-       * personal-CRM scale, and reusing it keeps the `not_a_duplicate` memory and
-       * the tier/sort rules in exactly one place.
+       * The candidates involving one person. A filter over the full scan, so
+       * the `not_a_duplicate` memory and tier/sort rules stay in one place.
        */
       findFor: async (personId: string): Promise<DuplicateCandidate[]> =>
         (await duplicates.unresolvedCandidates()).filter(
@@ -990,11 +923,8 @@ export function createCore(driver: SqliteDriver) {
       count: async (): Promise<number> =>
         (await duplicates.unresolvedCandidates()).length,
       /**
-       * The id of the Home nudge for today's outstanding pairs, or `null` when
-       * there are none. Clients match it against the reminder list to hang the
-       * "Review" CTA on that row — the id-convention, but recomputed rather than
-       * static because the nudge is content-addressed on the pair set (see
-       * `duplicatesReminderId`).
+       * The Home nudge's id for today's outstanding pairs, or `null` if none.
+       * Recomputed, because the nudge is content-addressed on the pair set.
        */
       nudgeId: async (): Promise<string | null> => {
         const keys = await duplicates.unresolvedPairKeys();

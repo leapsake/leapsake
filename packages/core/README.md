@@ -25,6 +25,14 @@ and reads through repo ports, so it is composition-for-display rather than deriv
 [`@leapsake/view-models`](../view-models/README.md) is the pure, synchronous counterpart both
 clients share; nothing in `views.ts` belongs there without being made repo-free first.
 
+## Writes that feed the reminder engine reconcile after commit
+
+People, pets, relationships, milestones, holiday choices, `self` and duplicate rejections are all
+inputs to [`@leapsake/reminders`](../reminders/README.md), so each of those writes calls
+`regenerateSystem()` once its transaction commits, and the Home list changes at once rather than at
+the next boot or focus. The reconcile is its own transaction, because the driver's `BEGIN`/`COMMIT`
+does not nest, and its rows ride the same post-write sync kick.
+
 ## Why `core` exists — it was extracted to make V2 a port
 
 `core` is **not** in the original plan. It was extracted to hold the logic that is neither
