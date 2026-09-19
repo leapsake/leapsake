@@ -27,17 +27,9 @@ function repoWith({ builds = [] } = {}) {
   const git = (...args) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
   git("init", "-q", ".");
-  git(
-    "-c",
-    "user.email=t@t",
-    "-c",
-    "user.name=T",
-    "commit",
-    "-q",
-    "--allow-empty",
-    "-m",
-    "one",
-  );
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "T");
+  git("commit", "-q", "--allow-empty", "-m", "one");
   const commit = git("rev-parse", "HEAD");
   for (const build of builds) {
     recordShipment(root, commit, {
