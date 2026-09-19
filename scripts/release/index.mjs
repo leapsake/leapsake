@@ -1,96 +1,54 @@
-// The release orchestrator — the executable half of the release policy.
+// The release command: a dispatcher over the phases in `phases.mjs`.
 //
-// A release is a **tag**, and this decides what a tag means: which version it names, what
-// must hold before it exists, and which platforms it ships to. The rules are here rather
-// than in a document because a rule a script enforces cannot go stale against the script,
-// and a rule a document states can. What is left in CONTRIBUTING.md is the handful of judgments
-// no program can make.
+// A release is a tag. Manifests carry only the core, set by `scripts/set-version.mjs`; the
+// tag carries the channel and counter (`v0.1.0-beta.10`). alpha, beta and rc count up
+// independently per core, and a final closes it. Every command takes the tag it acts on.
 //
-// ## The model
+//   pnpm release plan --tag=<tag> [--json] [--no-checks]
+//   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
+//   pnpm release publish --tag=<tag> --from=<dir> [--only=<targets>] [--receipts-out=<dir>]
+//   pnpm release record --tag=<tag> --from=<dir> [--push]
+//   pnpm release abandon --tag=<tag>
+//   pnpm release ship --tag=<tag> [--dry-run] [--no-provision]
+//   pnpm release --help
 //
-//   vX.Y.Z-alpha.N    vX.Y.Z-beta.N    vX.Y.Z-rc.N    then vX.Y.Z, which closes X.Y.Z
-//
-// **A human chooses the channel; the counter is computed** per channel from the tags
-// (`version.mjs`). Manifests carry only the core, set by `scripts/set-version.mjs`; the tag
-// carries the rest, and cutting one commits nothing. A tag is cut when a build is wanted,
-// not on every merge: each one spends a store upload.
-//
-// **A tag covers the whole repo; the platforms it reaches are per-invocation.** Every
-// manifest in `apps/` and `packages/` carries one version so that iOS `1.2.3` and macOS
-// `1.2.3` are known to work together, but `v0.1.0-rc.1` may perfectly well ship to
-// TestFlight while desktop stays unpackaged. That is why `--only` is a flag and not part
-// of the tag.
-//
-// ## Two entry points, one path
-//
-//   pnpm release beta --only=ios          cut the tag here, then ship it
-//   pnpm release --from-tag=v0.1.0-beta.1 ship a tag that already exists
-//
-// The second is what a runner calls on a tag push, and it is the *same code* — CI is one
-// caller among others, never the owner of the process (CONTRIBUTING.md → Testing, principle 6:
-// no hosted CI is assumed). Anything a workflow file could do that this cannot is a bug
-// in this file.
-//
-// ## The gate
-//
-// The suite is run with `--provision`, so the device tiers boot their own simulator,
-// install their own dev client and start their own Metro. A release has to be one command
-// on a machine that has nothing prepared — that is the whole point of it being runnable by
-// a CI runner. `--no-provision` opts out when the environment is already up and the extra
-// probing is just latency.
-//
-// Every rung runs `pnpm test:all --strict`, where a tier that is blocked — not built yet,
-// or needing a device that is not booted — fails the release.
-//
-// Credentials come from `.env` (see `.env.example`), or from the environment, which wins.
-//
-// ## What it will not do
-//
-// It never pushes. A store version string is permanent and monotonic, a Play production
-// rollout reaches strangers as soon as it goes live, and a notarized artifact is public the
-// moment its feed sees it — so the irreversible step stays a person's, and the command to
-// take it is printed at the end.
-//
-// Usage:
-//   node scripts/release/index.mjs <alpha|beta|rc|final>
-//   node scripts/release/index.mjs --from-tag=<tag>
-//   node scripts/release/index.mjs ... --only=ios,android   default: every ready target
-//   node scripts/release/index.mjs ... --dry-run            preflight and plan, no changes
-//   node scripts/release/index.mjs ... --no-provision       assume the devices are ready
-//   node scripts/release/index.mjs ... --first-release      this repo has no release tags yet
-//   node scripts/release/index.mjs final --commit=<sha>     name the live commit by hand
-//   node scripts/release/index.mjs --help                   the stage/target matrix
-//
-// Exit code: 2 for a usage error, 1 for a refused or failed release, 0 when every selected
-// target shipped.
+// Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
+// the live commit by hand for a marker rung. Credentials come from `.env` or the environment,
+// which wins. Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runChecks } from "./checks.mjs";
+import { currentBranch, isClean, isShallow, listTags, tagSha } from "./git.mjs";
 import {
-  createTag,
-  currentBranch,
-  headSha,
-  isClean,
-  isShallow,
-  listTags,
-} from "./git.mjs";
-import { FROM_TAG_CHECKS, LOCAL_CHECKS, MARKER_CHECKS } from "./preflight.mjs";
-import { NOTES_REF, recordShipment } from "./receipts.mjs";
+  abandonTag,
+  buildInto,
+  buildNumberNow,
+  evaluateCells,
+  planJson,
+  publishAll,
+  receiptsIn,
+  recordReceipts,
+} from "./phases.mjs";
+import { BUILD_CHECKS, FROM_TAG_CHECKS, MARKER_CHECKS } from "./preflight.mjs";
+import { NOTES_REF } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
-import {
-  coreOf,
-  formatTag,
-  nextVersion,
-  parseTag,
-  stageOf,
-  STAGES,
-} from "./version.mjs";
+import { coreOf, parseTag, stageOf, STAGES } from "./version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const VALUE_FLAGS = new Set(["from-tag", "only", "commit"]);
+const COMMANDS = ["plan", "build", "publish", "record", "abandon", "ship"];
+const VALUE_FLAGS = new Set([
+  "tag",
+  "only",
+  "commit",
+  "build-number",
+  "out",
+  "from",
+  "receipts-out",
+]);
 
 function parseArgs(argv) {
   const positional = [];
@@ -124,14 +82,14 @@ const fail = (message) => {
   process.exit(2);
 };
 
-/** The matrix, built by asking the registry — never a table maintained alongside it. */
 function printHelp() {
+  const usage = readFileSync(fileURLToPath(import.meta.url), "utf8")
+    .split("\n")
+    .filter((line) => line.startsWith("//   pnpm release"))
+    .map((line) => line.slice(5));
+  console.log(usage.join("\n"));
   console.log(
-    "Usage: pnpm release <alpha|beta|rc|final> [--only=…] [--dry-run]",
-  );
-  console.log("       pnpm release --from-tag=<tag> [--only=…] [--dry-run]\n");
-  console.log(
-    "The stage is chosen; the number is computed. Nothing is pushed.\n",
+    "\nThe channel is chosen; the counter is computed. Only a final closes a core.\n",
   );
   for (const target of TARGETS) {
     const status =
@@ -140,51 +98,61 @@ function printHelp() {
     for (const stage of STAGES) {
       const tier = target.tiers[stage];
       if (!tier) continue;
-      const requires = tier.requires?.length
-        ? `  (needs ${tier.requires.map((check) => check.name).join(", ")})`
-        : "";
-      console.log(`    ${stage.padEnd(6)} ${tier.name}${requires}`);
+      const detail =
+        tier.status === "blocked"
+          ? `  ⏳ ${tier.note}`
+          : tier.requires?.length
+            ? `  (needs ${tier.requires.map((check) => check.name).join(", ")})`
+            : "";
+      console.log(`    ${stage.padEnd(6)} ${tier.name}${detail}`);
     }
     console.log("");
   }
 }
 
-/** Decide the version, the stage, and the tag — from a rung, or from an existing tag. */
-function resolveRelease({ positional, values }, { manifestVersion, tags }) {
-  const fromTag = values["from-tag"];
-  if (fromTag) {
-    if (positional.length > 0) {
-      fail(`--from-tag names the stage already; drop "${positional[0]}"`);
-    }
-    const version = parseTag(fromTag);
-    if (!version) {
-      fail(
-        `"${fromTag}" is not a release tag (expected vX.Y.Z or vX.Y.Z-stage.N)`,
-      );
-    }
-    const stage = stageOf(version);
-    if (stage === null) {
-      fail(
-        `"${fromTag}" is not on a channel (expected ${STAGES.join(", ")}) — the channel decides where a build is allowed to go`,
-      );
-    }
-    return { mode: "from-tag", version, stage, tag: fromTag };
+/** Load `.env` when there is one; variables already in the environment win. */
+function loadEnvFile() {
+  try {
+    process.loadEnvFile(join(ROOT, ".env"));
+  } catch {
+    // No .env is the normal case on a runner.
   }
-
-  const [stage, ...extra] = positional;
-  if (!stage)
-    fail(`which stage? one of ${STAGES.join(", ")} — or --from-tag=<tag>`);
-  if (!STAGES.includes(stage)) {
-    fail(`unknown stage "${stage}" (expected ${STAGES.join(", ")})`);
-  }
-  if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
-
-  const version = nextVersion({ core: manifestVersion, stage, tags });
-  return { mode: "local", version, stage, tag: formatTag(version) };
 }
 
-function selectTargets(only) {
-  if (!only) return TARGETS;
+/** Everything a phase needs to know about the tag it acts on. */
+function releaseContext({ values, flags }) {
+  const tag = values.tag;
+  if (!tag) fail("which tag? pass --tag=vX.Y.Z-<channel>.N");
+  const version = parseTag(tag);
+  if (!version) {
+    fail(`"${tag}" is not a release tag (expected vX.Y.Z or vX.Y.Z-channel.N)`);
+  }
+  const stage = stageOf(version);
+  if (stage === null) {
+    fail(`"${tag}" is not on a channel (expected ${STAGES.join(", ")})`);
+  }
+
+  process.env.LEAPSAKE_RELEASE = version;
+  return {
+    root: ROOT,
+    tag,
+    version,
+    stage,
+    storeVersion: coreOf(version),
+    manifestVersion: JSON.parse(
+      readFileSync(join(ROOT, "package.json"), "utf8"),
+    ).version,
+    tags: listTags(ROOT).filter((each) => each !== tag),
+    branch: currentBranch(ROOT),
+    clean: isClean(ROOT),
+    shallow: isShallow(ROOT),
+    firstRelease: flags.has("first-release"),
+    commit: values.commit,
+  };
+}
+
+function selectIds(only) {
+  if (!only) return undefined;
   const ids = only
     .split(",")
     .map((id) => id.trim())
@@ -195,430 +163,291 @@ function selectTargets(only) {
       `unknown target(s): ${unknown.join(", ")} — known: ${TARGETS.map((t) => t.id).join(", ")}`,
     );
   }
-  const blocked = ids.map(targetById).filter((t) => t.status !== "ready");
-  if (blocked.length > 0) {
-    // Asking for a blocked target by name is a different mistake from not knowing it is
-    // blocked, and gets a different answer: a hard stop rather than a ⏳ row.
-    for (const target of blocked) {
-      console.error(`✗ ${target.id} cannot ship yet — ${target.note}`);
-    }
-    process.exit(2);
-  }
-  return ids.map(targetById);
+  return ids;
 }
 
-/** Report a list of `{ name, reason }` failures under a heading. */
-function reportFailures(heading, failures) {
-  console.error(`\n✗ ${heading}`);
-  for (const { name, reason } of failures) {
-    console.error(`  ${name}: ${reason}`);
-  }
+function reportFailures(heading, failures, write = console.error) {
+  write(`\n✗ ${heading}`);
+  for (const { name, reason } of failures) write(`  ${name}: ${reason}`);
 }
 
-function run(command, args) {
-  return spawnSync(command, args, {
-    cwd: ROOT,
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
-}
+const plannedBuildNumber = () =>
+  Number(process.env.LEAPSAKE_BUILD_NUMBER?.trim() || buildNumberNow());
 
-/**
- * Load `.env` if there is one, so the credentials a release needs are a file rather than
- * a block of exports retyped each time. `.env.example` is the template; `.gitignore`
- * keeps the real one out of the repo.
- *
- * A variable already present in the environment **wins over the file** (Node's own
- * precedence for `--env-file`), which is the behaviour a runner needs: secrets injected
- * by CI are not quietly overridden by a stray checked-out `.env`.
- */
-function loadEnvFile() {
-  try {
-    process.loadEnvFile(join(ROOT, ".env"));
-  } catch {
-    // No .env is the normal case on a runner, where the environment carries the secrets.
+/** A marker rung's tag does not exist yet: it is created later, on the released commit. */
+const repoChecksFor = (cells) =>
+  cells.some((cell) => cell.status === "ready" && cell.marker)
+    ? MARKER_CHECKS
+    : FROM_TAG_CHECKS;
+
+function printCells(ctx, cells, buildNumber, write) {
+  write(`\nRelease ${ctx.tag}`);
+  write(`  channel      ${ctx.stage}`);
+  write(`  version      ${ctx.version}  (stores see ${ctx.storeVersion})`);
+  write(`  build        ${buildNumber}`);
+  write("\nTargets");
+  for (const { target, tier, status, note, failures } of cells) {
+    const mark = { ready: "✅", blocked: "⏳", failed: "✗" }[status];
+    const detail = status === "blocked" ? ` — ${note}` : ` → ${tier.name}`;
+    write(`  ${mark} ${target.id.padEnd(8)}${detail}`);
+    for (const { name, reason } of failures) write(`       ${name}: ${reason}`);
+    if (status === "blocked") continue;
+    for (const line of tier.manual ?? []) write(`       ⚠ ${line}`);
   }
 }
 
-/**
- * The `final` rung: make the approved version public, and tag the commit that went live.
- *
- * Nothing is built here. The artifact was built and submitted by an `rc` days earlier, and
- * going live is a state Apple confers rather than something compiled — so this asks each
- * target which commit its released build came from, and marks it.
- *
- * **The tag is cut last, and on a commit this did not choose.** Every other rung tags what
- * it is about to build; this one tags what Apple has already approved, which is why the
- * order is inverted and why the commit comes back from the target rather than being HEAD.
- */
-async function markReleased(ctx, selected, dryRun) {
-  const { tag, stage, storeVersion, root } = ctx;
-  const ready = selected.filter((target) => target.status === "ready");
-
-  const failures = await runChecks(MARKER_CHECKS, ctx);
-  if (failures.length > 0) {
-    reportFailures(`${tag} cannot be marked from here:`, failures);
-    if (!dryRun) return 1;
-  }
-
-  // A marker rung still has preconditions, and they are the target's to state — Android's
-  // `final` refuses because Play has granted this account no production access. Checked
-  // before the marker-shape refusal below so the reason a person can *act* on wins, and
-  // checked at all because otherwise a `requires` list is silently ignored at this rung.
-  const blockers = new Map();
-  for (const target of ready) {
-    const tierFailures = await runChecks(
-      target.tiers[stage]?.requires ?? [],
-      ctx,
-    );
-    if (tierFailures.length > 0) blockers.set(target.id, tierFailures);
-  }
-  if (blockers.size > 0) {
+/** Evaluate the tag and every cell, and print them; `plan` and `ship` both start here. */
+async function planRelease(opts, { write = console.log } = {}) {
+  const ctx = releaseContext(opts);
+  const checks = !opts.flags.has("no-checks");
+  const cells = await evaluateCells(TARGETS, ctx, { checks });
+  const repoFailures = checks ? await runChecks(repoChecksFor(cells), ctx) : [];
+  const buildNumber = plannedBuildNumber();
+  printCells(ctx, cells, buildNumber, write);
+  if (repoFailures.length > 0) {
     reportFailures(
-      `${blockers.size} target(s) cannot release ${stage}:`,
-      [...blockers.values()].flat(),
+      `${ctx.tag} is not releasable from here:`,
+      repoFailures,
+      write,
     );
-    if (!dryRun) return 1;
   }
+  const ok =
+    repoFailures.length === 0 &&
+    !cells.some((cell) => cell.status === "failed");
+  return { ctx, cells, buildNumber, ok };
+}
 
-  // ⚠️ A ready target whose rung here is *not* a marker cannot be handled: it has no
-  // `release()`, because its going-live step is a build rather than a state Apple confers.
-  // macOS's update feed is shaped that way. Android's production track is too, and is the
-  // reason the check above runs first: "no production access" is the useful message, and
-  // this one would otherwise pre-empt it with a note about missing code. Refusing beats
-  // skipping: a platform silently not being released is worse than an error that names it.
-  const unmarked = ready.filter(
-    (target) => !target.tiers[stage]?.marker && !blockers.has(target.id),
-  );
-  if (unmarked.length > 0) {
-    console.error(
-      `\n✗ ${unmarked.map((each) => each.id).join(", ")}: the ${stage} rung is not a ` +
-        "marker there, so there is nothing to release — give the target a `release()` and " +
-        "`marker: true`, or ship that platform's rung separately with --only",
+async function plan(opts) {
+  const json = opts.flags.has("json");
+  const { ctx, cells, buildNumber, ok } = await planRelease(opts, {
+    write: json ? console.error : console.log,
+  });
+  if (json) {
+    console.log(
+      JSON.stringify(planJson({ ...ctx, buildNumber }, cells), null, 2),
     );
+  }
+  return ok ? 0 : 1;
+}
+
+async function build(opts) {
+  const ctx = releaseContext(opts);
+  const ids = selectIds(opts.values.only);
+  if (ids?.length !== 1)
+    fail("build takes exactly one target: --only=<target>");
+  const buildNumber = opts.values["build-number"];
+  if (!/^\d+$/.test(buildNumber ?? "")) {
+    fail("--build-number=<n> is required; take it from `plan`");
+  }
+  if (!opts.values.out) fail("--out=<dir> is required");
+  const out = resolve(opts.values.out);
+
+  const target = targetById(ids[0]);
+  const [cell] = await evaluateCells([target], ctx);
+  if (cell.status === "blocked") {
+    console.error(`✗ ${target.id} cannot ship ${ctx.stage} — ${cell.note}`);
+    return 1;
+  }
+  if (cell.marker) {
+    fail(`${target.id}'s ${ctx.stage} rung is a marker — it builds nothing`);
+  }
+  const failures = [...(await runChecks(BUILD_CHECKS, ctx)), ...cell.failures];
+  if (failures.length > 0) {
+    reportFailures(`${target.id} cannot build ${ctx.tag}:`, failures);
     return 1;
   }
 
-  console.log("\nTargets");
-  for (const target of selected) {
-    if (target.status !== "ready") {
-      console.log(`  ⏳ ${target.id.padEnd(8)} — ${target.note}`);
-      continue;
-    }
-    const stopped = blockers.get(target.id);
-    console.log(
-      `  ${stopped ? "✗" : "✅"} ${target.id.padEnd(8)} → ${target.tiers[stage].name}`,
-    );
-    for (const { name, reason } of stopped ?? []) {
-      console.log(`       ${name}: ${reason}`);
-    }
-    for (const note of target.tiers[stage].manual ?? []) {
-      console.log(`       ⚠ ${note}`);
-    }
-  }
-
-  if (dryRun) {
-    console.log("\nWould, in order:");
-    console.log(
-      `  1. confirm ${storeVersion} is approved and waiting, and release it`,
-    );
-    console.log(
-      "  2. resolve the commit its build came from, out of refs/notes/releases",
-    );
-    console.log(`  3. tag ${tag} on that commit — no build, no suite, no bump`);
-    console.log(
-      "\n(dry run — nothing was changed, and nothing is ever pushed)",
-    );
-    return failures.length > 0 || blockers.size > 0 ? 1 : 0;
-  }
-
-  // Each target reports the commit behind its own released build. They must agree: one tag
-  // cannot honestly name two commits, and a disagreement means the platforms shipped
-  // different source — which is a thing to stop and look at, not to average.
-  const released = [];
-  for (const target of ready) {
-    console.log(`\n→ ${target.label}`);
-    try {
-      released.push({ target, ...(await target.release(ctx)) });
-    } catch (error) {
-      console.error(`✗ ${target.id}: ${error.message}`);
-      return 1;
-    }
-  }
-
-  const commits = new Set(released.map((each) => each.commit));
-  if (commits.size > 1) {
-    console.error(
-      `\n✗ the released builds do not come from one commit: ${released
-        .map((each) => `${each.target.id} ${each.commit.slice(0, 12)}`)
-        .join(", ")} — ${tag} cannot name them both`,
-    );
-    return 1;
-  }
-
-  const [commit] = commits;
-  createTag(root, tag, `${ctx.version} (released)`, commit);
-  console.log(
-    `\n✅ ${tag} marks ${commit.slice(0, 12)} — the commit now public.`,
-  );
-  console.log(
-    `   Nothing has been pushed:\n   git push origin ${tag} refs/notes/${NOTES_REF}`,
-  );
+  console.log(`\n→ ${target.label}`);
+  const manifest = await buildInto(target, ctx, {
+    buildNumber: Number(buildNumber),
+    out,
+    commit: tagSha(ROOT, ctx.tag),
+  });
+  console.log(`\n✅ built ${target.id} ${manifest.buildNumber} into ${out}`);
   return 0;
 }
 
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  if (opts.flags.has("help")) {
-    printHelp();
-    return 0;
-  }
-  loadEnvFile();
-
-  const dryRun = opts.flags.has("dry-run");
-  const provision = !opts.flags.has("no-provision");
-  const manifestVersion = JSON.parse(
-    readFileSync(join(ROOT, "package.json"), "utf8"),
-  ).version;
-  const allTags = listTags(ROOT);
-
-  const { mode, version, stage, tag } = resolveRelease(opts, {
-    manifestVersion,
-    tags: allTags,
-  });
-
-  process.env.LEAPSAKE_RELEASE = version;
-
-  const ctx = {
-    root: ROOT,
-    mode,
-    stage,
-    tag,
-    version,
-    storeVersion: coreOf(version),
-    manifestVersion,
-    // The release's own tag is excluded so the monotonic guard compares against history
-    // rather than against itself — in `--from-tag` mode the tag already exists.
-    tags: allTags.filter((each) => each !== tag),
-    branch: currentBranch(ROOT),
-    clean: isClean(ROOT),
-    // Both are read by `monotonic`, the one check that reads history rather than the
-    // working tree: a tag list that cannot be trusted is refused rather than believed,
-    // and the single legitimate empty list is claimed by hand instead of inferred.
-    shallow: isShallow(ROOT),
-    firstRelease: opts.flags.has("first-release"),
-    // The escape hatch for a marker rung whose receipts cannot name the live commit —
-    // never the normal path, which is why nothing prompts for it.
-    commit: opts.values.commit,
-    dryRun,
-  };
-
-  const selected = selectTargets(opts.values.only);
-  const ready = selected.filter((target) => target.status === "ready");
-
-  console.log(`\nRelease ${tag}`);
-  console.log(`  stage        ${stage}`);
-  console.log(
-    `  version      ${version}${version === ctx.storeVersion ? "" : `  (stores see ${ctx.storeVersion})`}`,
-  );
-  console.log(`  from         ${ctx.branch} @ ${mode}`);
-
-  // A marker rung shares almost nothing with a build: no suite, no manifest bump, no
-  // commit, and a tag that lands on a commit from days ago rather than on HEAD. Threading
-  // that through the sequence below as four conditionals would make both paths harder to
-  // read than keeping them apart.
-  if (ready.some((target) => target.tiers[stage]?.marker)) {
-    return await markReleased(ctx, selected, dryRun);
-  }
-
-  // ── Preflight, repo-wide ────────────────────────────────────────────────────────────
-  const repoFailures = await runChecks(
-    mode === "local" ? LOCAL_CHECKS : FROM_TAG_CHECKS,
-    ctx,
-  );
-  if (repoFailures.length > 0) {
-    reportFailures(`${tag} is not releasable from here:`, repoFailures);
-    // A dry run is asking "what is missing?", so it answers all of it rather than
-    // stopping at the first layer. It still ends in a refusal.
-    if (!dryRun) return 1;
-  }
-
-  // ── Preflight, per target ───────────────────────────────────────────────────────────
-  // Blocked targets are checked too, and only under --dry-run, where the answer to "what
-  // is missing before I can cut a beta?" is the whole point of asking.
-  const blockers = new Map();
-  for (const target of selected) {
-    if (target.status !== "ready" && !dryRun) continue;
-    const tier = target.tiers[stage];
-    if (!tier) {
-      blockers.set(target.id, [
-        { name: stage, reason: `${target.id} has no ${stage} rung` },
-      ]);
-      continue;
-    }
-    const failures = await runChecks(
-      [...(target.preflight ?? []), ...(tier.requires ?? [])],
-      ctx,
-    );
-    if (failures.length > 0) blockers.set(target.id, failures);
-  }
-
-  console.log("\nTargets");
-  for (const target of selected) {
-    const tier = target.tiers[stage];
-    const failures = blockers.get(target.id);
-    const mark =
-      target.status !== "ready" ? "⏳" : failures?.length ? "✗" : "✅";
-    const detail =
-      target.status !== "ready" ? ` — ${target.note}` : ` → ${tier?.name}`;
-    console.log(`  ${mark} ${target.id.padEnd(8)}${detail}`);
-    for (const { name, reason } of failures ?? []) {
-      console.log(`       ${name}: ${reason}`);
-    }
-    for (const note of tier?.manual ?? []) {
-      console.log(`       ⚠ ${note}`);
-    }
-  }
-
-  const readyBlockers = ready.filter((target) => blockers.has(target.id));
-  if (readyBlockers.length > 0 && !dryRun) {
-    reportFailures(
-      `${readyBlockers.length} target(s) are not ready to ship ${stage}:`,
-      readyBlockers.flatMap((target) => blockers.get(target.id)),
-    );
-    return 1;
-  }
-
-  if (dryRun) {
-    console.log("\nWould, in order:");
-    console.log(
-      `  1. run pnpm test:all --strict${provision ? " --provision" : ""}`,
-    );
-    if (provision) {
-      console.log(
-        "     device tiers will boot a simulator/emulator, install the dev client and",
-      );
-      console.log(
-        "     start Metro as needed — first run on a cold machine takes a while",
-      );
-    }
-    if (mode === "local") console.log(`  2. tag ${tag} on HEAD`);
-    console.log(
-      `  ${mode === "local" ? "3" : "2"}. build and publish: ${ready.map((t) => t.id).join(", ") || "nothing (no ready targets)"}`,
-    );
-    console.log(
-      "\n(dry run — nothing was changed, and nothing is ever pushed)",
-    );
-    return repoFailures.length > 0 ? 1 : 0;
-  }
-
-  if (ready.length === 0) {
-    console.error(
-      `\n✗ nothing to ship: no selected target is ready. Run with --dry-run to see what each one is waiting on.`,
-    );
-    return 1;
-  }
-
-  // ── The gate ────────────────────────────────────────────────────────────────────────
-  const suiteArgs = ["--strict", ...(provision ? ["--provision"] : [])];
-  console.log(
-    `\n→ pnpm test:all${suiteArgs.length ? ` ${suiteArgs.join(" ")}` : ""}`,
-  );
-  if (run("pnpm", ["run", "test:all", "--", ...suiteArgs]).status !== 0) {
-    return 1;
-  }
-
-  // ── The tag ─────────────────────────────────────────────────────────────────────────
-  if (mode === "local") {
-    console.log(`\n→ tagging ${tag}`);
-    createTag(ROOT, tag, `${version} (${stage})`);
-  }
-
-  // ── Ship ────────────────────────────────────────────────────────────────────────────
-  const results = [];
-  for (const target of ready) {
-    console.log(`\n→ ${target.label}`);
-    const started = Date.now();
-    try {
-      const artifact = await target.build(ctx);
-      await target.publish({ ...ctx, artifact });
-      // Record what shipped, against the commit it shipped from. This is the only moment
-      // the build number and the commit are both in hand — Apple will later name the
-      // build and nothing else, so without this the commit behind a released version is
-      // unknowable. `headSha` *is* the tagged commit here: the tag was cut above and
-      // nothing between has moved it.
-      const recorded = recordShipment(ROOT, headSha(ROOT), {
-        tag,
-        version,
-        stage,
-        target: target.id,
-        buildNumber: artifact?.buildNumber,
-        bundleId: artifact?.bundleId,
-      });
-      // Never fatal. The artifact is already uploaded; turning that into a failed release
-      // over bookkeeping would be the worse outcome — so this says loudly what was lost
-      // and how to put it back by hand.
-      if (!recorded) {
-        console.warn(
-          `   ⚠ could not record the receipt for ${target.id} — going live will not be ` +
-            `able to find the commit behind build ${artifact?.buildNumber}. Add it with:\n` +
-            `     git notes --ref=${NOTES_REF} append -m '{"tag":"${tag}","target":"${target.id}","build":"${artifact?.buildNumber}"}' ${headSha(ROOT)}`,
-        );
-      }
-      results.push({ target, ok: true, ms: Date.now() - started });
-    } catch (error) {
-      console.error(`✗ ${target.id}: ${error.message}`);
-      results.push({ target, ok: false, ms: Date.now() - started });
-    }
-  }
-
-  // ── Summary ─────────────────────────────────────────────────────────────────────────
+function printSummary(tag, results) {
   const width = Math.max(...results.map((r) => r.target.label.length), 8);
   console.log(`\n${"─".repeat(width + 22)}`);
   console.log(`Release ${tag} — summary`);
   console.log("─".repeat(width + 22));
-  for (const { target, ok, ms } of results) {
+  for (const { target, ok, ms, reason } of results) {
     console.log(
       `${ok ? "✅" : "❌"}  ${(ok ? "SHIPPED" : "FAILED").padEnd(8)} ${target.label.padEnd(width)}  ${(ms / 1000).toFixed(1)}s`,
     );
+    if (reason) console.log(`    ${reason}`);
   }
   console.log("─".repeat(width + 22));
+}
 
-  const failed = results.filter((result) => !result.ok);
-  if (failed.length > 0) {
+async function publishPhase(ctx, cells, { from, receiptsOut, only }) {
+  const results = await publishAll(cells, ctx, { from, receiptsOut, only });
+  if (results.length === 0) {
     console.error(
-      `\n❌ ${failed.length} target(s) failed. The tag stands — re-run just those:\n` +
-        `   pnpm release --from-tag=${tag} --only=${failed.map((r) => r.target.id).join(",")}\n` +
-        "   (build numbers come from the clock, so a re-run mints a fresh one under the same version)",
+      `✗ nothing to publish for ${ctx.tag}${from ? ` in ${from}` : ""}`,
     );
     return 1;
   }
+  printSummary(ctx.tag, results);
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length === 0) return 0;
+  console.error(
+    `\n❌ ${failed.length} target(s) failed. Re-run them with the same artifact and build number:\n` +
+      `   pnpm release publish --tag=${ctx.tag}${from ? ` --from=${from}` : ""} --only=${failed.map((r) => r.target.id).join(",")}`,
+  );
+  return 1;
+}
 
-  // `refs/notes/releases` is named in every push hint below because it does not travel with
-  // an ordinary push: leave it behind and the receipts exist only on this machine, so a
-  // fresh clone — or a runner — cannot tell which commit a released build came from.
-  const push = `git push origin ${tag} refs/notes/${NOTES_REF}`;
+async function publish(opts) {
+  const ctx = releaseContext(opts);
+  const from = opts.values.from && resolve(opts.values.from);
+  const receiptsOut = opts.values["receipts-out"] ?? from;
+  if (!receiptsOut) fail("--from=<dir> is required");
+  const cells = await evaluateCells(TARGETS, ctx, { checks: false });
+  return publishPhase(ctx, cells, {
+    from,
+    receiptsOut: resolve(receiptsOut),
+    only: selectIds(opts.values.only),
+  });
+}
 
-  if (mode !== "local") {
-    console.log(`\n✅ ${tag} shipped.`);
-  } else if (stage === "final") {
-    // The one rung whose tag outruns the thing it names. Every other rung is finished when
-    // the upload is: the artifact reached the audience the rung means. This one has only
-    // asked, and Apple answers days later — so the tag is a claim about a commit that is
-    // not true yet. An unpushed tag can still be deleted after a rejection; a pushed one
-    // is a permanent assertion that this commit is what the public got.
+const git = (args) =>
+  spawnSync("git", args, { cwd: ROOT, stdio: "inherit" }).status === 0;
+
+function recordPhase(tag, dir, { push }) {
+  const receipts = receiptsIn(dir);
+  if (receipts.length === 0) {
+    console.error(`✗ no receipts in ${dir}`);
+    return 1;
+  }
+  const notes = `refs/notes/${NOTES_REF}`;
+  if (push && !git(["fetch", "origin", `${notes}:${notes}`])) {
+    console.error(`⚠ could not fetch ${notes}; recording on the local notes`);
+  }
+  const { recorded, lost } = recordReceipts(ROOT, tag, receipts);
+  for (const each of recorded) {
     console.log(
-      `\n✅ ${tag} shipped — the build is uploaded, not released. Do not push the tag yet:\n` +
-        "   Apple has not approved it, and a rejection wants a different commit than this one.\n" +
-        "   Once the version is actually live on the App Store:\n" +
-        `   ${push}`,
-    );
-  } else {
-    console.log(
-      `\n✅ ${tag} shipped. Nothing has been pushed — when you are ready:\n   ${push}`,
+      `  recorded ${each.target} build ${each.buildNumber} on ${each.commit.slice(0, 12)}`,
     );
   }
+  for (const each of lost) {
+    console.error(
+      `  ⚠ could not record ${each.target} — add it by hand:\n` +
+        `     git notes --ref=${NOTES_REF} append -m '${JSON.stringify(each)}' ${each.commit}`,
+    );
+  }
+  if (push) return git(["push", "origin", tag, notes]) && !lost.length ? 0 : 1;
+  console.log(
+    `\nNothing has been pushed — when you are ready:\n   git push origin ${tag} ${notes}`,
+  );
+  return lost.length === 0 ? 0 : 1;
+}
+
+function record(opts) {
+  const { tag } = releaseContext(opts);
+  if (!opts.values.from) fail("--from=<dir> is required");
+  return recordPhase(tag, resolve(opts.values.from), {
+    push: opts.flags.has("push"),
+  });
+}
+
+function abandon(opts) {
+  const { tag } = releaseContext(opts);
+  const { remote } = abandonTag(ROOT, tag);
+  console.log(
+    `✅ deleted ${tag}${remote ? " here and at origin" : " here; origin never had it"}. ` +
+      "No receipt names it, so no store has seen a build of it.",
+  );
   return 0;
+}
+
+const idsOf = (cells) => cells.map((cell) => cell.target.id).join(", ");
+
+async function ship(opts) {
+  const { ctx, cells, buildNumber, ok } = await planRelease(opts);
+  const provision = !opts.flags.has("no-provision");
+  const ready = cells.filter((cell) => cell.status === "ready");
+  const toBuild = ready.filter((cell) => !cell.marker);
+
+  if (opts.flags.has("dry-run")) {
+    console.log("\nWould, in order:");
+    let step = 1;
+    if (toBuild.length > 0) {
+      const suite = `--strict${provision ? " --provision" : ""}`;
+      console.log(`  ${step++}. run pnpm test:all ${suite}`);
+      console.log(
+        `  ${step++}. build ${idsOf(toBuild)} as build ${buildNumber}`,
+      );
+    }
+    console.log(`  ${step++}. publish ${idsOf(ready) || "nothing"}`);
+    console.log(`  ${step}. record the receipts; push nothing`);
+    console.log("\n(dry run — nothing was changed)");
+    return ok ? 0 : 1;
+  }
+  if (!ok) return 1;
+  if (ready.length === 0) {
+    console.error("\n✗ nothing to ship: no target is ready at this rung");
+    return 1;
+  }
+
+  const out = mkdtempSync(join(tmpdir(), `leapsake-${ctx.tag}-`));
+  if (toBuild.length > 0) {
+    const suite = ["--strict", ...(provision ? ["--provision"] : [])];
+    console.log(`\n→ pnpm test:all ${suite.join(" ")}`);
+    const run = spawnSync("pnpm", ["run", "test:all", "--", ...suite], {
+      cwd: ROOT,
+      stdio: "inherit",
+    });
+    if (run.status !== 0) return 1;
+
+    const failures = await runChecks(BUILD_CHECKS, ctx);
+    if (failures.length > 0) {
+      reportFailures(`${ctx.tag} cannot be built from here:`, failures);
+      return 1;
+    }
+    const commit = tagSha(ROOT, ctx.tag);
+    for (const { target } of toBuild) {
+      console.log(`\n→ building ${target.label}`);
+      try {
+        await buildInto(target, ctx, { buildNumber, out, commit });
+      } catch (error) {
+        console.error(
+          `\n✗ ${target.id}: ${error.message}\n  Nothing was uploaded.`,
+        );
+        return 1;
+      }
+    }
+  }
+
+  const published = await publishPhase(ctx, cells, {
+    from: out,
+    receiptsOut: out,
+  });
+  const recorded =
+    receiptsIn(out).length > 0 ? recordPhase(ctx.tag, out, { push: false }) : 0;
+  return published || recorded;
+}
+
+const HANDLERS = { plan, build, publish, record, abandon, ship };
+
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  const [command, ...extra] = opts.positional;
+  if (opts.flags.has("help")) {
+    printHelp();
+    return 0;
+  }
+  if (!command) {
+    printHelp();
+    return 2;
+  }
+  if (!COMMANDS.includes(command)) {
+    fail(`unknown command "${command}" (expected ${COMMANDS.join(", ")})`);
+  }
+  if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
+  loadEnvFile();
+  return HANDLERS[command](opts);
 }
 
 main().then(
