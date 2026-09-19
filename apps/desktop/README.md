@@ -342,6 +342,13 @@ handler can trigger while the recovery phrase is showing.
   included), then the keys. With the order reversed, a crash leaves a roster naming a missing
   store, and the next boot creates an empty encrypted store under the account the user deleted.
   `device-id` and `enclave` survive, as in sign out, because they are the device's identity.
+- **Factory reset removes the roster.** Left behind, it sends the next boot looking for the
+  erased account's store, where it mints a fresh key over an empty encrypted database and lands
+  back in an Authenticated state.
+- **On Linux, `safeStorage` can overstate its guarantee.** `isEncryptionAvailable()` returns
+  true even when Electron has fallen back to the `basic_text` backend for lack of a keyring, so
+  the keystore is only as strong as the keyring actually behind it. An accepted limit; Linux is
+  out of scope for v0.1.
 - **Deleting a store unlinks it; it does not scrub it.** Deleted bytes can linger in SSD free
   space (see `@leapsake/key-custody` → *Creating an account*).
 

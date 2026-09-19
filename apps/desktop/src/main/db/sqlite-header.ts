@@ -7,22 +7,8 @@ export type StoreFileState = "absent" | "empty" | "plaintext" | "encrypted";
 const SQLITE_MAGIC = "SQLite format 3";
 
 /**
- * Classify the file at `path` by its first 16 bytes: an unencrypted SQLite
- * database starts with the literal `"SQLite format 3\0"`, while an encrypted
- * one's leading bytes are ciphertext and will not match.
- *
- * That distinction is what lets both boot branches refuse a store in the wrong
- * custody state (`model.md` §7.2) with a clear message, instead of failing deep
- * inside the first query with SQLite's misleading `file is not a database`.
- *
- * **`empty` is a real state, not a curiosity.** SQLite creates the file on open
- * but does not write the header until the first write, so a store that was opened
- * and never written is zero bytes — which matches *neither* magic. Folding that
- * into `encrypted` (as "not plaintext" would) sends an untouched Unauthenticated store into
- * the recovery gate, so it gets its own answer and callers treat it as absent.
- *
- * Reads only the header rather than the whole file: these run on the boot path,
- * and a store can be large.
+ * Classify a store by its first 16 bytes. `empty` is its own answer: SQLite
+ * writes no header until the first write, and callers treat it as absent.
  */
 export function storeFileState(path: string): StoreFileState {
   let size: number;

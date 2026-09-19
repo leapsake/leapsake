@@ -3,16 +3,8 @@ import { dirname } from "node:path";
 import type { RosterStorage } from "@leapsake/store-layout";
 
 /**
- * The desktop {@link RosterStorage}: the account roster as a plain JSON file under
- * `userData` (`model.md` §7.4). Unencrypted by necessity — it must be readable
- * before any store is opened, and you cannot enumerate accounts from inside files
- * you cannot decrypt.
- *
- * Written atomically (temp file + rename) for the same reason the keystore is: a
- * half-written roster read on the next boot would misreport which accounts exist,
- * and the roster is what decides whether this launch mints keys at all. A rename
- * within one directory is atomic on both APFS and NTFS, so a reader sees either
- * the old file or the new one.
+ * The roster as plain JSON, readable before any store opens. Written atomically
+ * (temp file + rename), since it decides whether this launch mints keys.
  */
 export function jsonFileStorage(filePath: string): RosterStorage {
   return {

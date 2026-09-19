@@ -2,43 +2,18 @@ import Database from "better-sqlite3-multiple-ciphers";
 import { rawKeyLiteral } from "@leapsake/crypto";
 import type { SqliteDriver } from "@leapsake/data";
 
-/**
- * The production at-rest {@link SqliteDriver} (encryption Stage 2, `model.md` §8):
- * the on-disk database file is **ciphertext**, decrypted into memory page-by-page
- * only while this process holds the whole-DB key. It replaces the plaintext
- * `node:sqlite` driver for the real app DB — `node:sqlite` has no encryption, so
- * at-rest is the one place its native-module-free win yields (status.md).
- *
- * Backend: `better-sqlite3-multiple-ciphers` (SQLite3-Multiple-Ciphers), chosen by
- * the Stage-2 spike over a WASM build because it is the only maintained,
- * batteries-included encrypted SQLite for Node/Electron, ships prebuilt binaries
- * for both Node (tests) and Electron (the app) — no node-gyp compile — and is
- * **synchronous**, so this stays a near drop-in for `nodeSqliteDriver` (the manual
- * BEGIN/COMMIT/ROLLBACK is safe for the same reason: inner calls resolve
- * synchronously, and nothing in the codebase nests transactions).
- *
- * The whole-DB key is supplied by the device enclave at open time
- * (see `database-key.ts`), entirely orthogonal to the in-DB master-key hierarchy:
- * at-rest protects the *file*; per-item content keys (wrapped under MK) live
- * *inside* the decrypted DB and are the sync/sharing envelope. They compose and do
- * not interact.
- */
-
-/** The opened, keyed handle — shared with the one-time plaintext→encrypted migration. */
+/** An opened handle from this engine, keyed or not. */
 export type EncryptedDatabase = Database.Database;
 
-/** Apply the cipher + raw key to a freshly opened handle, before any other
- *  statement. Pinned to `sqlcipher` so reopening always uses the same scheme. */
+/** Before any other statement; pinned so every reopen uses the same cipher. */
 export function applyDatabaseKey(db: EncryptedDatabase, key: Uint8Array): void {
   db.pragma("cipher='sqlcipher'");
   db.pragma(`key="${rawKeyLiteral(key)}"`);
 }
 
 /**
- * Open `path` as an encrypted database under `key`. Applies the key, then forces a
- * read of page 1 (`PRAGMA user_version`) so a wrong/absent key fails **here** with
- * a clear error rather than later mid-query — an encrypted file under the wrong key
- * reads as "file is not a database".
+ * Reads page 1 straight away, so a wrong key fails here with a clear error
+ * rather than mid-query as "file is not a database".
  */
 export function openEncryptedDatabase(
   path: string,
@@ -59,14 +34,8 @@ export function openEncryptedDatabase(
 }
 
 /**
- * Wrap an opened {@link EncryptedDatabase} as a {@link SqliteDriver}. The body
- * mirrors `nodeSqliteDriver`: `better-sqlite3` binds the same value shapes
- * (numbers, strings, `Uint8Array` → BLOB, `null`) and returns BLOBs as `Buffer`
- * (a `Uint8Array` subclass), so the repos above the port are unaffected.
- *
- * The name records the backend, not the file: this wraps any handle from this
- * engine, keyed (Authenticated) or not (Unauthenticated). Encryption is applied at *open* time —
- * by which opener was used — never here.
+ * Wraps any handle from this engine, keyed or not: encryption is decided by
+ * which opener ran. Manual BEGIN/COMMIT is safe because every call is sync.
  */
 export function encryptedSqliteDriver(db: EncryptedDatabase): SqliteDriver {
   return {

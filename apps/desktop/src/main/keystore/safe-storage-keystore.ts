@@ -4,29 +4,8 @@ import type { KeyStore } from "@leapsake/crypto";
 import { safeStorage } from "electron";
 
 /**
- * The desktop {@link KeyStore}, backed by Electron's first-party `safeStorage`.
- * The counterpart to the mobile `expo-secure-store` adapter; `packages/crypto`
- * stays adapter-free so the port is implemented per-platform, exactly like the
- * SQLite drivers.
- *
- * `safeStorage` encrypts/decrypts with a key derived from the OS keychain but
- * persists nothing, so this adapter owns persistence: one JSON map of
- * `id → base64(ciphertext)` at `filePath` (under `app.getPath("userData")`).
- * The stored blob is useless if copied off the machine — decryption needs this
- * OS account's keychain. The device's enclave secret must live here, outside
- * the synced SQLite database (it is the one key the database cannot hold).
- *
- * ⚠️ **`safeStorage.isEncryptionAvailable()` overstates the guarantee on
- * Linux.** It returns `true` even where Electron has fallen back to the
- * `basic_text` backend because no real OS keyring is present — the enclave
- * secret is then only lightly protected at rest. The secret is worth exactly as
- * much as the keyring actually behind it, which is why this is an accepted limit
- * rather than a check we can make here. (Linux is out of scope for v0.1
- * regardless; this matters when it stops being.)
- *
- * Writes are whole-file and atomic (temp file + rename). No locking is needed:
- * the Electron main process is single-threaded and every method below resolves
- * synchronously, so calls never interleave mid-write.
+ * A {@link KeyStore} over `safeStorage`, which encrypts but persists nothing,
+ * so this keeps one atomic JSON map of `id → base64(ciphertext)`.
  */
 type SecretMap = Record<string, string>;
 
