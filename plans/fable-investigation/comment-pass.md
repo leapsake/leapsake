@@ -73,9 +73,9 @@ every comment:
    its name should carry it.
 
 Package `README.md`s are in scope for the same reasons, but with a lighter hand: they are the
-right home for durable "why", and `packages/reminders/README.md` (801 lines) and
-`packages/key-custody/README.md` (519) are where much of the deleted source history should
-already be. Check that it is, and do not duplicate it back.
+right home for durable "why", and `packages/reminders/README.md`, `packages/key-custody/README.md`
+(its _Invariants_ section especially) and `packages/data/README.md` are where much of the deleted
+source history already is. Check that it is, and do not duplicate it back.
 
 **Do not touch behaviour.** This pass changes no code except renames and extractions made to
 replace a comment. If a comment turns out to be the only thing that explains a real bug,
@@ -95,6 +95,9 @@ existing `pnpm lint`:
   an ISO date, `§`, a `plans/` path, `(owner,`, `slice N`. It catches the short decision comments a
   length limit never sees. `used to`, `no longer` and `migration N` stay a reviewer's call, because
   they are just as often behaviour.
+- **`@stylistic/max-len`**, comments only, at 80 columns. Not homegrown: oxlint has no line-length
+  rule of its own, so it loads `@stylistic/eslint-plugin` through `jsPlugins`. Code width is
+  oxfmt's job, which is why the rule's `code` limit is set out of reach.
 
 **The rare long comment is an exception you can see:**
 `// oxlint-disable-next-line leapsake/max-comment-lines -- <why>`. Anyone can grep for those, and
@@ -117,7 +120,7 @@ do the pass: most of the cut is judgment on comments that are short and phrase-f
    pnpm exec oxlint -c scripts/lint/comment-rules.oxlintrc.json packages/reminders/src
    ```
    The findings are a floor, not the job: _The procedure_ item 2 also covers short comments no
-   lint rule sees.
+   lint rule sees. The same config carries the width rule, so it also reports lines over 80.
 3. **Edit one file (or a few small ones), then, before committing, prove only comments changed:**
    ```sh
    node scripts/lint/comments-only.mjs          # every changed .ts/.tsx/.mjs against HEAD
@@ -134,10 +137,34 @@ do the pass: most of the cut is judgment on comments that are short and phrase-f
    `.oxlintrc.json`, run the verification in [`README.md`](./README.md) → _Rules that apply to
    every workstream_, update the _Status_ and the table here, and commit.
 
+Lessons from steps 2 and 3:
+
+- **The verification tiers break the vitest run after them.** The `bundle` tier runs an
+  electron-vite build, which switches the native SQLite binary to Electron's ABI. Restore the
+  Node build before `pnpm exec vitest run`, by extracting the cached tarball
+  (`~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-*.tar.gz`) inside
+  `node_modules/better-sqlite3-multiple-ciphers`, and confirm by constructing a `Database`, not by
+  `require()`: the binding loads lazily. Never run `scripts/ensure-sqlite-abi.mjs` in an agent
+  shell; see `AGENTS.md` → _The native SQLite ABI_.
+- **Split a big file by section, not by file.** Aim for about 300 deleted lines per commit;
+  `engine.ts` (1,858 lines) took four commits, `session.ts` three, `migrations.ts` two. Name the
+  section's symbols in the commit subject.
+- **An invariant moves before its comment goes.** A ⚠️ warning that still holds and has no README
+  home goes into the owning package README first, as a bullet under an _Invariants a change here
+  must preserve_ section (key-custody has one; `packages/holidays/README.md` is the model). A
+  two-line pointer may stay at the code site when the hazard is local to it.
+- **Two traps `comments-only.mjs` will catch, so avoid them:** a SQL `--` comment inside a template
+  string is code, not a comment, and editing it reports `CODE CHANGED`. And a file-level doc
+  comment followed by a blank line belongs to no declaration; when you cut one, either delete it
+  or reattach it, and do not leave a floating `/** */` behind.
+- **A comment that describes a real bug stays.** Shorten it, flag it in the commit message, and
+  tell the owner (`milestones-repo.ts`'s `removeAllForEntity` TODO is the example from step 3).
+
 Conventions the schema step settled:
 
-- **Wrap comments at 80 columns** in `packages/`, as the code there is. Nothing checks this, so a
-  two-line limit is two lines of 80, not two lines of 100.
+- **Comments wrap at 80 columns**, the width oxfmt already gives code. `@stylistic/max-len`
+  (from `@stylistic/eslint-plugin`, loaded as an oxlint JS plugin) checks it in the same scoped
+  override, for own-line comments only, so a two-line limit is two lines of 80.
 - **A section banner** (`// ---` / `// Title` / `// ---`) counts as three lines. Make it a single
   `// Title`.
 - **Never run `oxfmt` on Markdown.** The repo excludes `*.md` from formatting, and running it
