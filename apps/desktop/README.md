@@ -325,6 +325,26 @@ getter throws a "try again" error, and background reminder regeneration skips. W
 check, better-sqlite3 raises "The database connection is not open", which a window-focus
 handler can trigger while the recovery phrase is showing.
 
+## Invariants a change here must preserve
+
+- **The boot path reads the recovery key, never mints it.** A password unlock leaves the
+  recovery key lost with the keychain, so minting one would re-seal the `.recovery` sidecar
+  under a fresh key and silently invalidate the 24 words the user wrote down. Account creation
+  establishes the recovery key before a store is ever opened.
+- **The password is the primary unlock door; the phrase is the backstop.** The gate offers only
+  the doors whose sidecars exist.
+- **A store of the wrong custody is refused, never repaired.** A plaintext file where an
+  Authenticated store belongs was not converted at account creation, the only legitimate
+  conversion. An encrypted file at the Unauthenticated path most likely lost its roster entry;
+  opening it keyless fails with SQLite's misleading "file is not a database", and starting a new
+  store beside it would hide the user's data behind an empty app.
+- **Forget account removes the roster entry first**, then the store directory (both doors
+  included), then the keys. With the order reversed, a crash leaves a roster naming a missing
+  store, and the next boot creates an empty encrypted store under the account the user deleted.
+  `device-id` and `enclave` survive, as in sign out, because they are the device's identity.
+- **Deleting a store unlinks it; it does not scrub it.** Deleted bytes can linger in SSD free
+  space (see `@leapsake/key-custody` → *Creating an account*).
+
 ## React lives at this app's version, not the workspace's
 
 **Each app owns its React version.** Mobile's is hard-pinned by its Expo SDK; desktop tracks

@@ -427,8 +427,32 @@ the sections above are the decisions it implements.
 `apps/mobile/db/convert-store.ts`, exercised **on device** by
 `apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
 `pnpm test:native` (**36 cases**, each positive paired with its negative, confirmed RED by
-sabotage before being trusted GREEN). Both files' doc-comments carry the five invariants a
-change to either must preserve — **read them before touching the ATTACH.**
+sabotage before being trusted GREEN). Both run the same ordinary-SQL pattern, `ATTACH` a keyed
+file and copy schema then rows out of `sqlite_master`, because neither engine's native shortcut
+works on the other: desktop's library has `PRAGMA rekey` but no `sqlcipher_export`, and
+SQLCipher has the reverse. **A change to either must preserve:**
+
+- **`PRAGMA cipher='sqlcipher'` before the `ATTACH`.** Without it, desktop's library writes the
+  attached file under its default cipher (chacha20), which then fails to open under the pinned
+  `sqlcipher` with the misleading `file is not a database`. On mobile it is a no-op, kept so
+  both run the identical sequence.
+- **`user_version` is carried across.** It is the migration runner's watermark and `ATTACH` does
+  not copy it; losing it re-runs every migration against tables that exist.
+- **Tables before indexes, views and triggers.** `sqlite_master` order does not guarantee it.
+- **Each door refuses the wrong source.** The plaintext converter refuses an encrypted store,
+  and desktop's re-key refuses a plaintext one, each naming its own door, so a caller bug is not
+  reported as a key failure.
+- **The destination must be absent.** A retry into a half-filled store would copy every row
+  twice. A leftover from a killed attempt is swept first by `clearUnclaimedDestination`, which
+  removes it only when no roster entry names it; a named one is somebody's live account.
+- **The result is proved to open before the caller commits to it**, and a failed copy removes
+  its half-written destination, best-effort, without replacing the original error.
+- **The conversion never deletes the original.** The order is convert, write the password door,
+  add the roster entry, then destroy the original. A crash after the convert boots
+  Unauthenticated on the intact original; after the roster write, Authenticated on the converted
+  store. Deleting inside the conversion opens the one window that loses data.
+- **Never through a plaintext intermediate.** `ATTACH` writes the destination's cipher directly,
+  so the plaintext only ever exists in memory.
 
 > **A dev install predating this work must be recreated.** `resolveActiveStore` is purely
 > "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions

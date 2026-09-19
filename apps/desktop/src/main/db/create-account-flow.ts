@@ -17,19 +17,8 @@ import { passwordSidecarPath, writeSidecar } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
 
 /**
- * **Account creation, end to end** (`model.md` §7.2.1) — the single act that turns
- * encryption on. Mints every key, converts the Unauthenticated store to Authenticated, records
- * the account in the roster, and destroys the plaintext original.
- *
- * The step order is chosen so that a crash at *any* point leaves a launchable
- * device (see {@link convertStoreToEncrypted} for the table). In short: the
- * plaintext original outlives the conversion, and dies only once the roster points
- * at its replacement.
- *
- * The caller closes the store's driver before calling and reopens afterwards — the
- * file cannot be converted while a handle is writing to it, and the new store is
- * opened by the ordinary Authenticated boot path, which also writes the recovery
- * sidecar as it does on every launch.
+ * Create an account and turn encryption on: mint the keys, convert the store,
+ * name it in the roster, then destroy the plaintext original.
  */
 export async function createAccountOnThisDevice(opts: {
   keyStore: KeyStore;
@@ -51,8 +40,7 @@ export async function createAccountOnThisDevice(opts: {
     );
   }
 
-  // 1. Keys + account rows, written into the store while it is still plaintext —
-  //    the conversion copies whatever is there, so these must precede it.
+  // 1. Account rows go in while the store is plaintext, so the copy takes them.
   const { accountId, recoveryPhrase, dbKey, passwordSidecar } =
     await createLocalAccount({
       keyStore,
@@ -74,14 +62,11 @@ export async function createAccountOnThisDevice(opts: {
     key: dbKey,
   });
 
-  // 2b. The password door, beside the store it opens. Written after the
-  //     conversion because that is when its destination exists, and *before* the
-  //     roster entry so a device that is Authenticated from the next boot onward has
-  //     both doors from the same moment. The recovery sidecar needs no step here:
-  //     the Authenticated boot path seals it on every launch.
+  // 2b. Before the roster entry, so an Authenticated device always has the
+  //     password door. The boot path seals the recovery sidecar every launch.
   writeSidecar(passwordSidecarPath(encryptedPath), passwordSidecar);
 
-  // 3. Point the roster at the new store. Past this line the device is Authenticated.
+  // 3. Past this line the device is Authenticated.
   await roster.add({
     id: accountId,
     username,
