@@ -211,6 +211,30 @@ async function metroReachable() {
  * here because with an Android emulator *and* an iOS sim booted an un-targeted
  * `maestro test` is ambiguous.
  */
+/** The text and ids on screen in a Maestro hierarchy, for a failure that must say what it saw. */
+export function screenLabels(tree, limit = 40) {
+  const seen = new Set();
+  const walk = (node) => {
+    const a = node?.attributes ?? {};
+    for (const key of ["text", "accessibilityText", "resource-id"]) {
+      const value = a[key]?.trim();
+      if (value) seen.add(key === "resource-id" ? `#${value}` : value);
+    }
+    for (const child of node?.children ?? []) walk(child);
+  };
+  walk(tree);
+  return [...seen].slice(0, limit);
+}
+
+function onScreen(device) {
+  const out = run(maestro, ["--udid", device, "hierarchy"]).stdout ?? "";
+  try {
+    return screenLabels(JSON.parse(out.slice(out.indexOf("{")))).join(" · ");
+  } catch {
+    return "(the hierarchy could not be read)";
+  }
+}
+
 function runMaestroFlow(device, file) {
   const flow = run(maestro, ["--udid", device, "test", file], {
     stdio: "inherit",
@@ -1063,7 +1087,8 @@ const iosDriver = {
         ok: false,
         detail:
           "could not turn off Settings → AutoFill & Passwords on this simulator. Maestro said:\n" +
-          said.slice(-12).join("\n"),
+          said.slice(-12).join("\n") +
+          `\non screen: ${onScreen(ctx.device)}`,
       };
     }
     return {
