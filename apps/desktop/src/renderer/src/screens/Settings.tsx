@@ -6,15 +6,12 @@ import { Link } from "react-router-dom";
 const FACTORY_RESET_PHRASE = "ERASE";
 
 /**
- * Account settings (custody Phase 1/2). Deliberately a *stateful* screen, not
- * a router loader/action: the recovery key is shown exactly once and must not
- * survive a navigation or a loader re-run, so it lives in local state and is
- * dropped the moment the user confirms they've saved it.
+ * Stateful rather than a loader: the recovery phrase is shown once and must not
+ * survive a navigation or a loader re-run.
  */
 export function Settings() {
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  // The phrase currently on screen for its one-and-only showing — from account
-  // creation, or from the rotation that replaced it.
+  // From account creation, or from a rotation.
   const [revealed, setRevealed] = useState<string | null>(null);
 
   function refreshStatus() {
@@ -23,9 +20,7 @@ export function Settings() {
 
   useEffect(refreshStatus, []);
 
-  // One-time reveal takes over the screen until acknowledged. The main process
-  // has already re-opened the app around the converted store, so "Done" simply
-  // drops the phrase and returns to Settings — now reporting the new account.
+  // The store is already live again, so "Done" just drops the phrase.
   if (revealed !== null) {
     return (
       <RecoveryKeyReveal
@@ -54,15 +49,7 @@ export function Settings() {
         <CreateAccount onCreated={setRevealed} />
       )}
 
-      {/*
-        The two ways to be rid of what is on this device, one per custody state
-        (`model.md` §7.2). They are the *same act* wearing the name that fits:
-        with an account, "Forget account" removes it and its store; without one
-        there is no account to forget, so the accountless wipe is the only shape
-        the action can take. Showing both at once was showing one act twice —
-        they land in the identical place (an accountless device with a fresh
-        empty store), and the differences that remain are invisible to a user.
-      */}
+      {/* One exit per custody state: Forget account, or factory reset. */}
       {status !== null &&
         (status.hasAccount ? (
           <>
@@ -80,11 +67,7 @@ export function Settings() {
           </>
         ))}
 
-      {/*
-        Last, and outside the custody branch above on purpose: it is about the app
-        rather than about this device's account, so it is here in both states and
-        readable before anyone has one.
-      */}
+      {/* About the app, not the account, so shown in both states. */}
       <hr />
       <h2>About</h2>
       <p>
@@ -94,30 +77,14 @@ export function Settings() {
   );
 }
 
-/**
- * **Sign out** (`model.md` §7.3) — the one action that reaches the Locked state
- * in v0.1.
- *
- * Two things it is deliberately not. It is not a *Lock* button: Locked is a
- * state, not an affordance, and the app is meant to enter it on the user's behalf
- * once idle locking ships (v0.2). And it is not two behaviors wearing one name —
- * the promise is *nobody can see my data on this device anymore*. The one
- * difference, that the encrypted bytes remain, is stated plainly because it is the
- * part a local-only user would otherwise worry about.
- *
- * No confirmation step: it is reversible with the password, and gating it behind a
- * dialog would teach users to click through the confirmations that *do* matter.
- */
+/** Close the store and forget its keys; the password reopens it. */
 function SignOut() {
   const [error, setError] = useState<string | null>(null);
 
   function signOut() {
     setError(null);
-    // Deliberately not awaited. The main process raises the unlock gate as part
-    // of this call and resolves only once the user has passed it, so awaiting
-    // would leave a "Signing out…" button on a screen that has already been
-    // replaced by the gate. A rejection still surfaces: it means the sign out was
-    // refused up front, and this screen is still on top.
+    // Not awaited: it resolves only after the user passes the unlock gate. A
+    // rejection means it was refused up front, with this screen still on top.
     window.account.signOut().catch((cause: unknown) => {
       setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
     });
@@ -144,15 +111,8 @@ function SignOut() {
 const FORGET_ACCOUNT_PHRASE = "DELETE";
 
 /**
- * **Forget account** (`model.md` §7.3) — remove this account and its data from
- * this device. Named as removal so it can never be mistaken for signing out.
- *
- * The wording is **driven by a check, not hardcoded** (§7.3.1). Forgetting an
- * account on its last remaining device is functionally a deletion unless a server
- * durably holds a copy, so the main process asks and reports `durableBackup`;
- * absent an answer — today's universal case — it is `false` and this shows the
- * alarming version, hard-confirm and all. When server-side backup ships, the
- * alarming copy stops appearing on its own rather than having to be hunted down.
+ * Remove this account and its data from this device. The wording and the hard
+ * confirm follow `durableBackup`, false unless the relay says otherwise.
  */
 function ForgetAccount() {
   const [info, setInfo] = useState<{
@@ -314,19 +274,8 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
 }
 
 /**
- * **Create an account on this device** (`model.md` §7.2.1) — the act that turns
- * encryption on. Entirely local: no relay, no email, nothing transmitted.
- *
- * The copy here is load-bearing, and the design is explicit about it in two ways:
- *
- * 1. **Promise access, not safety.** An account protects against *this device
- *    losing its security settings*; it does nothing about a lost or broken
- *    device. Borrowing the user's SaaS instincts and then violating them on the
- *    worst day is the failure mode to avoid, so backups are named here rather
- *    than implied.
- * 2. **"Account" is our vocabulary, not the user's.** A username and password
- *    that never leave the laptop are *accountless* in every sense a user cares
- *    about. The heading softens the word; the mechanism is unchanged.
+ * Create an account, entirely locally, which turns encryption on. The copy
+ * promises access, not safety, and names backups rather than implying them.
  */
 function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
   const [username, setUsername] = useState("");
@@ -418,14 +367,8 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
 }
 
 /**
- * The one-time recovery-key reveal. Irreversible: the phrase is shown **once** and
- * has no reveal-it-later surface, so the user must copy it and tick the
- * acknowledgement before continuing.
- *
- * Rendered as a fixed overlay rather than an ordinary screen so the app chrome
- * (nav, search) sits behind it and cannot be clicked. Settings renders inside the
- * router's `<Outlet />`, so without this a stray click on "Reminders" would
- * navigate away and take the only copy of the phrase with it.
+ * A fixed overlay over the nav, so a stray click cannot navigate away with the
+ * only copy of the phrase; continuing needs the acknowledgement ticked.
  */
 function RecoveryKeyReveal({
   recoveryKey,
@@ -471,9 +414,7 @@ function RecoveryKeyReveal({
   );
 }
 
-/** The numbered word grid + a copy button — used by the one-time reveal, which
- *  is the *only* place a phrase is ever displayed (at account creation, and at
- *  the rotation that replaces it). */
+/** The numbered word grid and a copy button, for the one-time reveal. */
 function RecoveryPhraseWords({ phrase }: { phrase: string }) {
   const [copied, setCopied] = useState(false);
   const words = phrase.split(" ");
@@ -512,18 +453,8 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
 }
 
 /**
- * Factory reset: erase everything on this device and reopen as a fresh install.
- *
- * **Shown only while this device is Unauthenticated** (`model.md` §7.2) — with an account,
- * {@link ForgetAccount} is the same act under the name that fits, and offering
- * both was offering one act twice. An Unauthenticated device has no account, so
- * the data here is by definition the only copy, and "erase" means exactly what it
- * says.
- *
- * Gated behind a type-to-confirm step (the button stays disabled until the user
- * types {@link FACTORY_RESET_PHRASE}) because nothing about it is recoverable.
- * The main process reopens the app around a fresh store and reloads this
- * renderer, so there is no completion state to render.
+ * Erase everything on an Unauthenticated device, where the data is the only
+ * copy. The main process reloads the renderer, so there is no done state.
  */
 function FactoryReset() {
   const [confirming, setConfirming] = useState(false);
@@ -613,15 +544,8 @@ function FactoryReset() {
 }
 
 /**
- * Replace the recovery phrase — **only rendered once an account exists**, and only
- * ever a *replacement*. The phrase is shown once at account creation and never
- * again, so this is the one later route to holding one.
- *
- * The copy has to get this right, because it is counter-intuitive: **it is not a
- * way back in.** It requires the password, and the phrase exists for when the
- * password is gone. Its real job is compromise response — "my phrase leaked" —
- * and someone arriving here after forgetting their password needs to be sent to
- * the unlock gate instead.
+ * The only later route to a phrase. Not a way back in: it needs the password,
+ * so the copy sends a user who forgot theirs to the unlock gate.
  */
 function RecoveryPhraseSection({
   onRotated,
@@ -642,8 +566,8 @@ function RecoveryPhraseSection({
         await window.account.rotateRecoveryPhrase(password);
       setPassword("");
       setConfirming(false);
-      // Straight into the same one-time reveal account creation uses: this is the
-      // only time these words are ever displayed.
+      // The same one-time reveal account creation uses.
+
       onRotated(recoveryPhrase);
     } catch (cause) {
       setError(

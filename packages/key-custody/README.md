@@ -220,6 +220,17 @@ You'll need your password to get back in."*
 Purging lives entirely in **Forget account**, which is named as removal so it can never be
 mistaken for signing out.
 
+**Sign out has no confirmation step.** The password reverses it, and a dialog there would teach
+users to click through the confirmations that do matter.
+
+**A device offers one exit per custody state.** With an account it offers Forget account; with
+none it offers the accountless factory reset. Both land in the same place, a device with no
+account and a fresh empty store, so showing both at once would offer one act twice.
+
+**Replacing the recovery phrase is compromise response, not a way back in.** It needs the
+password, and the phrase exists for when the password is gone, so the copy has to send a user
+who forgot their password to the unlock gate instead.
+
 > **Do not invent a "Lock" button.** Locked is a state, not an affordance. The app enters it on
 > your behalf when idle; the user reaches it by signing out.
 
