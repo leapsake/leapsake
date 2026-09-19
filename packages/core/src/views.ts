@@ -15,12 +15,9 @@ import type {
 } from "@leapsake/schema";
 import { baseRole, entityLabel, roleDefs } from "@leapsake/schema";
 
-// ── View-model contracts ─────────────────────────────────────────────────────
-// Plain-data shapes the view builders return. They are the canonical contract
-// every client renders against, so they live here (carried out to clients via
-// `CoreApi`) rather than being re-declared per client.
+// The plain-data shapes the view builders return, one contract for all clients.
 
-/** A person or pet reduced to its display label — one row of a combined list. */
+/** A person or pet reduced to its display label: one row of a combined list. */
 export interface EntityRow {
   type: EntityType;
   id: string;
@@ -34,7 +31,7 @@ export interface RelationshipCandidate {
   label: string;
 }
 
-/** An entity (person/pet) resolved to `{type, id, label}` for headers/breadcrumbs. */
+/** A person or pet resolved to `{type, id, label}` for headers. */
 export interface EntityRef {
   type: EntityType;
   id: string;
@@ -56,7 +53,7 @@ export interface RelationshipViewPartner {
   roleLabel: string;
 }
 
-/** One endpoint of a relationship for the relationship-scoped edit/delete screens. */
+/** One endpoint of a relationship for its edit and delete screens. */
 export interface RelationshipPartner {
   type: EntityType;
   id: string;
@@ -66,7 +63,7 @@ export interface RelationshipPartner {
   roleNote: string | null;
 }
 
-/** A Person plus its tags, derived gender, neighbors, timeline, and contacts. */
+/** A Person plus its tags, derived gender, neighbors, timeline and contacts. */
 export interface PersonView {
   person: Person;
   tags: Tag[];
@@ -91,7 +88,7 @@ export interface RelationshipNewView {
   candidates: RelationshipCandidate[];
 }
 
-/** The relationship detail page: the edge, both partners, a title, and milestones. */
+/** The relationship page: the edge, both partners, a title, and milestones. */
 export interface RelationshipView {
   relationship: Relationship;
   partners: RelationshipViewPartner[];
@@ -99,7 +96,7 @@ export interface RelationshipView {
   milestones: Milestone[];
 }
 
-/** The relationship-scoped edit/delete view: both endpoints with their own roles. */
+/** The relationship edit/delete view: both endpoints with their own roles. */
 export interface RelationshipPartnersView {
   relationshipId: string;
   title: string;
@@ -112,7 +109,7 @@ export interface RelationshipForSubjectView {
   neighbor: RelationshipNeighbor;
 }
 
-/** A subject-scoped derived relationship, found by its other endpoint + base role. */
+/** A subject-scoped derived relationship, found by other end + base role. */
 export interface DerivedRelationshipView {
   subject: EntityRef;
   neighbor: RelationshipNeighbor;
@@ -120,9 +117,8 @@ export interface DerivedRelationshipView {
 }
 
 /**
- * The add-milestone view. From a Person the relationship-kind milestones need a
- * "with whom?" step, so the candidate list and the person's explicit neighbors
- * are included; other bearer types omit them.
+ * The add-milestone view. Only a Person gets the candidates and explicit
+ * neighbors, for the relationship-kind milestones' "with whom?" step.
  */
 export interface MilestoneNewView {
   bearer: MilestoneBearer;
@@ -130,11 +126,7 @@ export interface MilestoneNewView {
   neighbors?: RelationshipNeighbor[];
 }
 
-/**
- * The read-side dependencies the view builders compose over. Each is a method on
- * the already-wired core surface (or a building block from `@leapsake/data`),
- * passed in so the builders stay free of any driver/transport concern.
- */
+/** The reads the builders compose over, injected so they hold no driver. */
 export interface ViewsDeps {
   people: {
     list(): Promise<Person[]>;
@@ -165,22 +157,16 @@ export interface ViewsDeps {
 }
 
 /**
- * Build the `views` namespace: read-and-compose builders that return plain data
- * for every client to render. They own the portable fan-outs, label resolution,
- * candidate lists, and relationship-orientation reads the desktop renderer's
- * router loaders used to carry — so a second client reuses them rather than
- * rewriting them. Each builder returns `null` when its root entity is missing;
- * the caller maps that to its own not-found handling (e.g. an HTTP 404).
+ * Build the `views` namespace. Each builder returns `null` when its root entity
+ * is missing, and the caller maps that to its own not-found handling.
  */
 export function createViews(deps: ViewsDeps) {
-  // A person/pet's display label with a placeholder when it has been deleted —
-  // used for the two-sided relationship label so a missing end reads "(unknown)"
-  // rather than vanishing.
+  // A deleted end reads "(unknown)" in a two-sided label rather than vanishing.
   async function displayLabel(type: EntityType, id: string): Promise<string> {
     return (await deps.resolveLabel(type, id)) ?? "(unknown)";
   }
 
-  // A relationship's two-sided label from its endpoints, e.g. "Jane Wainwright & Sam Wainwright".
+  // A relationship's two-sided label, e.g. "Mary Hatch & George Bailey".
   async function relationshipLabel(rel: Relationship): Promise<string> {
     const [a, b] = await Promise.all([
       displayLabel(rel.aType, rel.aId),
@@ -247,7 +233,7 @@ export function createViews(deps: ViewsDeps) {
   }
 
   return {
-    /** The combined People & Pets home list, merged and sorted by display name. */
+    /** The combined People & Pets home list, sorted by display name. */
     entityList: async (): Promise<EntityRow[]> => {
       const [people, pets] = await Promise.all([
         deps.people.list(),
@@ -274,7 +260,6 @@ export function createViews(deps: ViewsDeps) {
      */
     candidates,
 
-    /** The subject plus its candidate list for the add-relationship screen. */
     relationshipNew: async (
       subjectType: EntityType,
       id: string,
@@ -287,7 +272,6 @@ export function createViews(deps: ViewsDeps) {
       };
     },
 
-    /** A Person plus its tags, derived gender, neighbors, timeline, and contacts. */
     person: async (id: string): Promise<PersonView | null> => {
       const person = await deps.people.get(id);
       if (!person) return null;
@@ -302,7 +286,6 @@ export function createViews(deps: ViewsDeps) {
       return { person, tags, relationships, gender, timeline, contactMethods };
     },
 
-    /** A Pet plus its tags, derived gender, neighbors, and timeline. */
     pet: async (id: string): Promise<PetView | null> => {
       const pet = await deps.pets.get(id);
       if (!pet) return null;
@@ -315,7 +298,6 @@ export function createViews(deps: ViewsDeps) {
       return { pet, tags, relationships, gender, timeline };
     },
 
-    /** The relationship detail page: the edge, both partners, title, milestones. */
     relationship: async (id: string): Promise<RelationshipView | null> => {
       const relationship = await deps.getRelationship(id);
       if (!relationship) return null;
@@ -346,7 +328,6 @@ export function createViews(deps: ViewsDeps) {
       };
     },
 
-    /** Both endpoints with their own roles, for the relationship-scoped screens. */
     relationshipPartners: async (
       id: string,
     ): Promise<RelationshipPartnersView | null> => {
@@ -377,7 +358,7 @@ export function createViews(deps: ViewsDeps) {
       return { relationshipId: id, title: `${aLabel} & ${bLabel}`, partners };
     },
 
-    /** A subject-scoped explicit relationship, found among the subject's neighbors. */
+    /** A subject-scoped explicit relationship, found among its neighbors. */
     relationshipForSubject: async (
       subjectType: EntityType,
       id: string,
@@ -390,11 +371,8 @@ export function createViews(deps: ViewsDeps) {
       return neighbor ? { subject, neighbor } : null;
     },
 
-    /**
-     * A subject-scoped derived relationship. A derived edge has no stored row, so
-     * it is identified by its other endpoint + base role; we recompute the
-     * subject's neighbors and find the matching derived one.
-     */
+    /** A derived edge has no stored row, so it is found by recomputing the
+     *  subject's neighbors and matching other endpoint + base role. */
     derivedRelationship: async (
       subjectType: EntityType,
       id: string,
@@ -415,7 +393,6 @@ export function createViews(deps: ViewsDeps) {
       return neighbor ? { subject, neighbor, role } : null;
     },
 
-    /** A milestone bearer (person, pet, or relationship) resolved for display. */
     milestoneBearer,
 
     /**
