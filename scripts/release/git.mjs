@@ -54,7 +54,3 @@ export function tagSha(root, tag) {
 export function createTag(root, tag, message, commit) {
   git(root, ["tag", "-a", tag, "-m", message, ...(commit ? [commit] : [])]);
 }
-
-export function commitAll(root, message) {
-  git(root, ["commit", "--all", "--message", message]);
-}

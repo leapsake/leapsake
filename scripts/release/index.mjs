@@ -70,7 +70,6 @@ import { fileURLToPath } from "node:url";
 
 import { runChecks } from "./checks.mjs";
 import {
-  commitAll,
   createTag,
   currentBranch,
   headSha,
@@ -224,9 +223,6 @@ function run(command, args) {
   });
 }
 
-const setVersion = (version) =>
-  run(process.execPath, ["scripts/set-version.mjs", version]);
-
 /**
  * Load `.env` if there is one, so the credentials a release needs are a file rather than
  * a block of exports retyped each time. `.env.example` is the template; `.gitignore`
@@ -366,7 +362,7 @@ async function markReleased(ctx, selected, dryRun) {
     `\n✅ ${tag} marks ${commit.slice(0, 12)} — the commit now public.`,
   );
   console.log(
-    `   Nothing has been pushed:\n   git push origin ${ctx.branch} ${tag} refs/notes/${NOTES_REF}`,
+    `   Nothing has been pushed:\n   git push origin ${tag} refs/notes/${NOTES_REF}`,
   );
   return 0;
 }
@@ -504,11 +500,7 @@ async function main() {
         "     start Metro as needed — first run on a cold machine takes a while",
       );
     }
-    if (mode === "local") {
-      console.log(
-        `  2. set every manifest to ${version}, commit, and tag ${tag}`,
-      );
-    }
+    if (mode === "local") console.log(`  2. tag ${tag} on HEAD`);
     console.log(
       `  ${mode === "local" ? "3" : "2"}. build and publish: ${ready.map((t) => t.id).join(", ") || "nothing (no ready targets)"}`,
     );
@@ -526,35 +518,17 @@ async function main() {
   }
 
   // ── The gate ────────────────────────────────────────────────────────────────────────
-  // Bump first so the suite runs against the tree that will be tagged, not the one before
-  // it. A red suite restores the manifests, leaving the repo exactly as it was found.
-  if (mode === "local") {
-    console.log(`\n→ setting every manifest to ${version}`);
-    if (setVersion(version).status !== 0) return 1;
-  }
-
   const suiteArgs = ["--strict", ...(provision ? ["--provision"] : [])];
   console.log(
     `\n→ pnpm test:all${suiteArgs.length ? ` ${suiteArgs.join(" ")}` : ""}`,
   );
   if (run("pnpm", ["run", "test:all", "--", ...suiteArgs]).status !== 0) {
-    if (mode === "local") {
-      console.error(
-        `\n✗ the suite is red — restoring the manifests to ${manifestVersion}`,
-      );
-      if (setVersion(manifestVersion).status !== 0) {
-        console.error(
-          `✗ could not restore — run: node scripts/set-version.mjs ${manifestVersion}`,
-        );
-      }
-    }
     return 1;
   }
 
   // ── The tag ─────────────────────────────────────────────────────────────────────────
   if (mode === "local") {
-    console.log(`\n→ committing and tagging ${tag}`);
-    commitAll(ROOT, `Cut ${version}`);
+    console.log(`\n→ tagging ${tag}`);
     createTag(ROOT, tag, `${version} (${stage})`);
   }
 
@@ -621,7 +595,7 @@ async function main() {
   // `refs/notes/releases` is named in every push hint below because it does not travel with
   // an ordinary push: leave it behind and the receipts exist only on this machine, so a
   // fresh clone — or a runner — cannot tell which commit a released build came from.
-  const push = `git push origin ${ctx.branch} ${tag} refs/notes/${NOTES_REF}`;
+  const push = `git push origin ${tag} refs/notes/${NOTES_REF}`;
 
   if (mode !== "local") {
     console.log(`\n✅ ${tag} shipped.`);
