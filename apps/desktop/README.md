@@ -307,6 +307,24 @@ The bridge cannot drift from core, by construction: the preload's `Api` type **i
 a method added to core without a handler is a type error rather than a missing feature
 discovered at runtime.
 
+## Swapping the store in place
+
+Account creation, sign out, Forget account and factory reset all replace the store underneath
+a running app. Each goes through `withStoreSwap` in `src/main/index.ts`, which closes the
+handle, runs the operation, and calls `openActiveStore` again, the same function the boot path
+runs. Custody is re-resolved from the roster on every open, so the re-open lands on the right
+store whether or not the operation got as far as writing a roster entry.
+
+**Never answer a store swap with `app.relaunch()`.** Under `electron-vite dev` the relaunch
+kills the renderer dev server along with the Electron child, so the new instance loads a dead
+`ELECTRON_RENDERER_URL`. And a packaged relaunch is downtime while the one-time recovery phrase
+is on screen. Mobile re-runs its bootstrap in place too.
+
+While the handle is closed, `storeSwapping` is true and every entry point checks it: the core
+getter throws a "try again" error, and background reminder regeneration skips. Without the
+check, better-sqlite3 raises "The database connection is not open", which a window-focus
+handler can trigger while the recovery phrase is showing.
+
 ## React lives at this app's version, not the workspace's
 
 **Each app owns its React version.** Mobile's is hard-pinned by its Expo SDK; desktop tracks

@@ -69,87 +69,45 @@ import {
 import { storeFileState } from "./db/sqlite-header.js";
 import { safeStorageKeyStore } from "./keystore/safe-storage-keystore.js";
 
-// The shared SQLite driver. Module-scoped so the core-rebuild and background-sync
-// helpers below can reach it without threading — and **reassigned** whenever the
-// store is replaced underneath a running app: account creation converts it to a
-// new file, factory reset erases it. See {@link openActiveStore}.
+// Reassigned whenever the store is replaced underneath a running app.
 let driver: SqliteDriver;
 
-// Where this device's store and key material live. `dbPath` moves with custody
-// (`stores/local/…` → `stores/<accountId>/…`), so it is re-derived on every open
-// rather than captured once; the other three are fixed for the process.
+// `dbPath` moves with custody, so every open re-derives it.
 let dbPath: string;
 let userDataPath: string;
 let keystorePath: string;
 let keyStore: KeyStore;
 
-// Why this device cannot prove which master key is the account's, when that is the
-// case: the *Degraded* state (`model.md` §7.5). Set by every open, so a repaired
-// device clears it by re-opening, and read by the boot IPC — the renderer keeps a
-// banner up while it is set.
+// Set while this device cannot prove which master key is the account's.
 let custodyDegraded: { detail: string } | undefined;
 
-// The live core the IPC handlers forward to. Reassigned whenever a store swap
-// rebuilds it; registerIpc reads it through a getter so the handlers never need
-// re-registering (ipcMain.handle throws on a second registration).
+// Read through a getter, so a store swap never re-registers a handler.
 let activeCore: CoreApi | undefined;
 
-// True from the instant the store's handle is closed for replacement until the
-// new one is open. `driver` is unusable in that window, so every entry point that
-// could fire during it checks this rather than letting better-sqlite3 raise
-// "The database connection is not open" — an error that is alarming, tells the
-// user nothing, and used to arrive from a window-focus handler while the
-// one-time recovery phrase was on screen.
+// True while the store's handle is closed for replacement; every entry point
+// that could fire then checks it rather than hit a closed driver.
 let storeSwapping = false;
 
-/** Build the live core over the open driver. Called at bootstrap and again after
- *  every store swap. */
 function setActiveCore(): void {
   activeCore = createCore(driver);
 }
 
-/**
- * This device's account roster — the unencrypted file that decides which store is
- * active and whether it is encrypted. Built per call rather than held, so it always
- * reflects a conversion that happened since the last read.
- */
+/** Built per call, so it reflects a conversion since the last read. */
 function deviceRoster(): AccountRoster {
   return createAccountRoster(jsonFileStorage(join(userDataPath, ROSTER_PATH)));
 }
 
 /**
- * Open this device's store — whichever one the roster points at — and rebuild
- * everything that hangs off it: the driver, the migrations, the key session, and
- * the live core. The boot path's whole database half, extracted so it can run a
- * **second** time in the same process.
- *
- * That re-entrancy is the point. Two operations replace the store underneath a
- * running app — account creation (an Unauthenticated store is converted to an Authenticated one at
- * a new path, `model.md` §7.2.1) and factory reset (everything is erased) — and
- * both used to be followed by `app.relaunch()`. A relaunch is a bad answer twice
- * over: it is user-visible downtime at the worst possible moment (the recovery
- * phrase is on screen and shown only once), and under `electron-vite dev` it
- * *breaks the app*, because electron-vite exits with its Electron child and takes
- * the renderer dev server with it, leaving the relaunched instance loading a dead
- * `ELECTRON_RENDERER_URL`. Mobile never had a relaunch primitive and has always
- * re-run its bootstrap in place; this makes desktop behave the same way.
- *
- * Custody is re-resolved from the roster on every call rather than remembered, so
- * a store that changed custody since the last open is opened correctly.
+ * Open whichever store the roster points at and rebuild everything on it.
+ * Re-entrant: see the desktop README → *Swapping the store in place*.
  */
 async function openActiveStore(): Promise<void> {
-  // Which store, and in which custody state (@leapsake/store-layout). Both answers
-  // come from the roster, which must be read before anything is opened — it is
-  // readable precisely because it lives outside every store. `dbPath` is
-  // *derived*, never a fixed `leapsake.db`.
   const activeStore = resolveActiveStore({
     accounts: await deviceRoster().list(),
   });
 
-  // An Authenticated launch that still finds an Unauthenticated store crashed part-way through
-  // account creation, after the roster entry but before the original was
-  // destroyed. The leftover is a plaintext copy of exactly the data the user
-  // asked to encrypt, so sweep it (create-account-flow.ts).
+  // An Unauthenticated store beside an Authenticated one is a crashed account
+  // creation's plaintext leftover, so sweep it.
   if (activeStore.custody === "encrypted") {
     const strandedOpenStore = join(
       userDataPath,
@@ -161,10 +119,6 @@ async function openActiveStore(): Promise<void> {
   }
   dbPath = join(userDataPath, activeStore.path);
 
-  // Open the store in that state: plaintext and keyless when Unauthenticated; when Authenticated,
-  // the enclave key on a normal launch, minting on a fresh launch, or recovery from
-  // the `.recovery` sidecar via a typed phrase if the enclave was wiped (open.ts).
-  // The prompt is hosted by the renderer's gate.
   let unlockedBy: AdoptionDoor | undefined;
   driver = await openAppDatabase({
     dbPath,
@@ -176,20 +130,9 @@ async function openActiveStore(): Promise<void> {
     },
   });
   await runMigrations(driver);
-  // The bundled holiday catalog, applied only when this install hasn't seen this
-  // bundle yet. Cheap no-op on every launch after the first.
   await seedHolidayCatalog({ driver });
 
-  // The key-custody half of the boot, in one call (custody slices 9/10): repair a
-  // device that came back through an unlock door — a door unlock means the OS
-  // keychain was lost, which took this device's master key with it — finish a repair
-  // an earlier boot left half-done, and produce the key session the core is built
-  // around. An Unauthenticated store gets none, since the master key is minted by account
-  // creation, not here.
-  //
-  // It reports rather than throws: a device that cannot prove which master key is
-  // the account's is *Degraded* — the store opens and the data is readable. The
-  // renderer shows `custodyDegraded` and the way out.
+  // Reports rather than throws: a Degraded device still opens its store.
   const established = await establishKeySession({
     keyStore,
     driver,
@@ -210,45 +153,20 @@ async function openActiveStore(): Promise<void> {
   setActiveCore();
 }
 
-/**
- * Re-open the store after an operation replaced it, and hand the running app back
- * a working database. The caller has already closed the old handle (the file
- * cannot be converted or deleted while one is open), so between that close and
- * this call **every core IPC is pointed at a dead driver** — hence keeping that
- * window as short as an `await`.
- */
+/** Re-open after an operation replaced the store; the old handle is closed. */
 async function reopenActiveStore(): Promise<void> {
   await openActiveStore();
   storeSwapping = false;
-  // Reconcile against the store that just arrived. Every swap can change what the
-  // onboarding nudges are asking for — creating an account answers the account
-  // invitation and the sign-in nudge both, and a factory reset puts a fresh store
-  // back at the start of the sequence — and without this the answer would wait for
-  // the next window focus, leaving a satisfied nudge on Home behind the one-time
-  // recovery phrase. Deliberately not awaited: it is best-effort (it swallows its
-  // own failures) and nothing here depends on it. It broadcasts `changed`, which
-  // is what makes the renderer revalidate the list in place.
+  // A swap can satisfy or reset the onboarding nudges; not awaited, since it
+  // swallows its own failures.
   void regenerateSystemReminders();
-  // Take the gate back down. Only sign out (@leapsake/key-custody) actually raises it
-  // mid-session — `openActiveStore` above parks inside `requestUnlock` until the
-  // password lands, leaving the renderer on `RecoveryGate` — but announcing
-  // unconditionally is right for the other swaps too: they leave the phase at
-  // "ready", so this is a no-op the renderer ignores.
+  // Takes down the gate a sign out raised; a no-op after the other swaps.
   announceBootReady();
 }
 
 /**
  * Run an operation that replaces the store, and leave the app on a live store
- * whatever happens — including when the operation throws.
- *
- * The two failure shapes need different answers, and {@link storeSwapping} is what
- * distinguishes them, because it is set by the operation's own `closeStore`
- * callback at the exact moment the handle dies. A failure *before* that leaves the
- * original store open and untouched, so there is nothing to restore. A failure
- * *after* it means the handle is gone and the app must genuinely re-open — and
- * re-resolving custody from the roster picks the right store either way: the
- * original if the conversion never got as far as a roster entry, the converted one
- * if it did.
+ * even when it throws.
  */
 async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -256,9 +174,7 @@ async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
     await restoreLiveStore(); // a failure here is real — let it surface
     return result;
   } catch (cause) {
-    // Restore before rethrowing, but never let a restore failure *replace* the
-    // error that actually happened — the mobile converter learned that one the
-    // hard way, with a `finally` whose cleanup error hid the real cause.
+    // A restore failure must never replace the error that actually happened.
     try {
       await restoreLiveStore();
     } catch (error) {
@@ -268,31 +184,19 @@ async function withStoreSwap<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Put the app back on a live store: a genuine re-open when the handle was
- *  closed, otherwise a no-op — the original store is still open. */
+// A failure before `closeStore` ran left the original store open and untouched.
 async function restoreLiveStore(): Promise<void> {
   if (storeSwapping) await reopenActiveStore();
 }
 
-/**
- * Persist this device's at-rest **recovery door** beside the store it opens,
- * handed to the rotation that changes this device's recovery key.
- *
- * `dbPath` is read at call time, so this always lands beside whichever store is
- * live. The boot path writes the same file from the keychain key on every launch
- * (`open.ts`), which is what makes a missed write self-correcting rather than
- * permanent.
- */
+// Reads `dbPath` at call time, so it lands beside whichever store is live.
 async function writeThisDeviceRecoveryDoor(door: Uint8Array): Promise<void> {
   writeSidecar(recoverySidecarPath(dbPath), door);
 }
 
 /**
- * Reconcile the automated (`system`) reminders — upcoming birthdays — against the
- * live core, then, only if anything actually changed, refresh the renderer in
- * place. Called at boot and on window focus (a new local day can bring a birthday
- * into range). Best-effort: a failure here must never break launch, so it is
- * logged and swallowed.
+ * Reconcile the automated birthday reminders, and refresh the renderer only if
+ * anything changed. Best-effort: failures are logged and swallowed.
  */
 async function regenerateSystemReminders(): Promise<void> {
   if (activeCore === undefined || storeSwapping) return;
@@ -305,36 +209,26 @@ async function regenerateSystemReminders(): Promise<void> {
   }
 }
 
-/** Tell every renderer that the main process changed rows behind its back, so it
- *  can re-run the active route's loaders in place. */
+/** Tell every renderer to re-run the active route's loaders. */
 function broadcastDataChanged(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("app:changed");
   }
 }
 
-/** Coerce IPC-supplied tag names to a clean `string[]` before the repo dedupes. */
 function asTagNames(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
-/**
- * As {@link asTagNames}, but an **omitted** list stays omitted. A gift idea's
- * tags are an optional trailing argument where `undefined` means "leave them
- * alone" and `[]` means "clear them" (see `gifts.ideas.update`), so coercing the
- * absent case to `[]` here would silently wipe an idea's tags on any write that
- * didn't mention them.
- */
+// An omitted list stays omitted: `undefined` leaves a gift idea's tags alone,
+// and `[]` would clear them.
 function asOptionalTagNames(value: unknown): string[] | undefined {
   return value === undefined ? undefined : asTagNames(value);
 }
 
 /**
- * The renderer trust boundary: the only channels that transform their raw IPC
- * args before forwarding to core. Writes Zod-parse their payload (the repo
- * validates again internally — cheap belt-and-suspenders) and reads coerce the
- * loosely-typed args (tag-name lists, the search term). Every other channel
- * forwards its args unchanged, so it isn't listed here.
+ * The channels that parse or coerce their raw IPC args before core sees them;
+ * every other channel forwards its args unchanged.
  */
 const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   "people.create": (a) => [
@@ -361,8 +255,7 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   "milestones.update": (a) => [a[0], updateMilestoneInputSchema.parse(a[1])],
   "reminders.create": (a) => [createReminderInputSchema.parse(a[0])],
   "reminders.update": (a) => [a[0], updateReminderInputSchema.parse(a[1])],
-  // A day count, and only that: core decides which day it lands on and whether
-  // this row may be put off at all, so a renderer can ask for nothing else.
+  // A day count only: core decides the day and whether this row may be put off.
   "reminders.snooze": (a) => [a[0], snoozeDaysSchema.parse(a[1])],
   "contactMethods.emails.create": (a) => [createEmailInputSchema.parse(a[0])],
   "contactMethods.emails.update": (a) => [
@@ -379,32 +272,20 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
     a[0],
     updatePostalInputSchema.parse(a[1]),
   ],
-  // A gift idea's tag list rides its create/update the way a Person's does; the
-  // idea payload itself is validated by the repo's own input schema.
+  // The idea payload itself is validated by the repo's own input schema.
   "gifts.ideas.create": (a) => [a[0], asOptionalTagNames(a[1])],
   "gifts.ideas.update": (a) => [a[0], a[1], asOptionalTagNames(a[2])],
-  // Read-only global search: non-string input coerces to an empty query, which
-  // the service short-circuits to no results.
+  // Non-string input becomes an empty query, which returns no results.
   "search.query": (a) => [typeof a[0] === "string" ? a[0] : ""],
-  // Contact import: the renderer parses the dropped file and sends these across,
-  // so the whole payload is untrusted and re-validated here against the parser's
-  // own boundary schema before core touches the DB.
+  // The renderer parsed the dropped file, so the whole payload is untrusted.
   "import.preview": (a) => [parsedContactsSchema.parse(a[0])],
-  // The schema has no `sourceId`, so zod strips one a renderer sends: desktop
-  // has no address book, and must not be able to write links for one.
+  // The schema has no `sourceId`, so zod strips one: desktop has no address
+  // book, and must not be able to write links for one.
   "import.commit": (a) => [importDecisionsSchema.parse(a[0])],
   "deviceContacts.setSyncEnabled": (a) => [a[0] === true],
 };
 
-/**
- * Register the typed IPC surface as a thin bridge over {@link CoreApi}. Every
- * operation lives in `@leapsake/core`; these handlers only forward to it — the
- * channel list (`API_CHANNELS`) and the two walkers in `shared/ipc-bridge.ts` do
- * the transcription that used to be hand-written per method. `getCore` is read
- * per call so `sync:join` can swap the session without re-registering, and the
- * boundary parses above run before forwarding. Handlers must **not** open their
- * own `driver.transaction`: core already owns atomicity.
- */
+/** Register every {@link CoreApi} channel as a forward to `getCore()`. */
 function registerIpc(getCore: () => CoreApi): void {
   registerCoreHandlers({
     channels: API_CHANNELS,
