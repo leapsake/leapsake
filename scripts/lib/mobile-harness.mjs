@@ -791,8 +791,9 @@ const androidDriver = {
     // used to key on a "People" tab, which increment 09 removed, and the runner then spun
     // the full timeout on an app that was in fact up. An id survives a label change.
     const started = Date.now();
+    let dump = "";
     while (Date.now() - started < HOME_TIMEOUT_MS) {
-      const dump =
+      dump =
         run(adb, ["-s", device, "exec-out", "uiautomator", "dump", "/dev/tty"])
           .stdout ?? "";
       if (/resource-id="tab-search"/.test(dump)) {
@@ -809,10 +810,22 @@ const androidDriver = {
         "the app's home screen never appeared within " +
         `${HOME_TIMEOUT_MS / 1000}s of loading the bundle. Check the Metro output for a ` +
         "bundling error, and that the installed build is the current dev client " +
-        "(re-run `pnpm --filter @leapsake/mobile android` if a native module changed).",
+        "(re-run `pnpm --filter @leapsake/mobile android` if a native module changed).\n" +
+        `on screen: ${uiautomatorLabels(dump).join(" · ") || "(nothing readable)"}`,
     };
   },
 };
+
+/** The text, descriptions and ids in a `uiautomator dump`, for a failure that must say what it saw. */
+export function uiautomatorLabels(dump, limit = 40) {
+  const seen = new Set();
+  for (const [, key, value] of dump.matchAll(
+    /\b(text|content-desc|resource-id)="([^"]+)"/g,
+  )) {
+    seen.add(key === "resource-id" ? `#${value}` : value);
+  }
+  return [...seen].slice(0, limit);
+}
 
 // --- ios driver ------------------------------------------------------------------
 
@@ -1141,7 +1154,8 @@ const iosDriver = {
       detail:
         `the app's home screen never appeared after opening ${DEV_CLIENT_LINK}. Check the ` +
         "Metro output for a bundling error, and that the installed build is the current " +
-        "dev client:\n    pnpm --filter @leapsake/mobile ios",
+        "dev client:\n    pnpm --filter @leapsake/mobile ios\n" +
+        `on screen: ${onScreen(ctx.device)}`,
     };
   },
 };
