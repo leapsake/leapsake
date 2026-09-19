@@ -17,7 +17,7 @@ commit that made it.
 ## Status
 
 **Steps 1 to 4 (`schema`, `reminders`, `key-custody`, `data`, `core`) are done and lint-enforced.
-Step 5 (`apps/desktop`) is next.**
+Step 5 (`apps/desktop/src`) is underway: `main/index.ts` is done, `router.tsx` is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -27,13 +27,13 @@ The biggest remaining files, measured 2026-09-18:
 
 | File                                  | Total | Comment | Share |
 | ------------------------------------- | ----: | ------: | ----: |
-| `apps/desktop/src/main/index.ts`      |   810 |     318 |   39% |
 | `apps/mobile/lib/core-context.tsx`    | 1,401 |     490 |   35% |
+| `apps/desktop/src/renderer/src/router.tsx` | 1,652 | 312 |   19% |
 
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
 about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383,
 `packages/key-custody/src` from 940 to 213, `packages/data/src` from 2,202 to 615, and
-`packages/core/src` from 364 to 164.
+`packages/core/src` from 364 to 164, and `apps/desktop/src/main/index.ts` from 318 to 79.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
@@ -187,6 +187,7 @@ Conventions the schema step settled:
 2. ✅ `packages/reminders/src`. Done 2026-09-18, in scope.
 3. ✅ `packages/key-custody/src` and `packages/data/src`. Done 2026-09-18, in scope.
 4. ✅ `packages/core/src`. Done 2026-09-18, in scope.
-5. `apps/desktop/src/main/index.ts`, `Settings.tsx`, `router.tsx`.
+5. `apps/desktop/src`, widened from three files so the lint scope is one directory:
+   `main/index.ts` ✅, then `router.tsx`, `Settings.tsx`, and the rest of the directory.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
 7. Everything else, by directory. `scripts/` last.
