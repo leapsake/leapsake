@@ -13,23 +13,12 @@ import { desktopUiAdapter } from "./lib/ui-adapter";
 import logo from "./assets/logo.png";
 import styles from "./App.module.css";
 
-/** The app's own name. Not drawn — it is what the header's mark is labelled with. */
+/** Not drawn: the header's mark is labelled with it. */
 const APP_NAME = "Leapsake";
 
 /**
- * Root layout. A persistent global search bar sits at the top as shared app
- * chrome; the active route renders below it via `<Outlet />`. The top nav
- * switches between the top-level lists — Reminders (the home screen), the
- * combined People & Pets list, the Holidays catalog, and the Gifts idea list —
- * plus Settings, which isn't reachable from any entity. Within People & Pets,
- * deeper navigation is handled by that list and breadcrumbs.
- *
- * Four providers wrap the layout, so every routed screen is below them:
- * `MessagesProvider` supplies the text `@leapsake/ui` renders (English today —
- * an i18n library replaces the catalog, not the components), `UiProvider` this
- * client's navigation and form primitives, `GiftsPortsProvider` the gift reads
- * and writes, and `DropImportProvider` the window-wide drop target whose hint and
- * review modal render as overlays above the active route.
+ * Root layout: search and the top nav above the active route, inside the
+ * providers every screen needs (messages, UI adapter, gifts, drop import).
  */
 export function App() {
   const navigate = useNavigate();
@@ -43,12 +32,8 @@ export function App() {
             onPreview={previewImport}
             onCommit={commitImport}
             onDone={(outcome) => {
-              // Reflect the new people wherever the user is; then land on the
-              // list — or on the duplicate review, when the import left pairs
-              // behind. The per-row flags only score each incoming contact
-              // against people who already existed, so two contacts *within* one
-              // import that duplicate each other are invisible to that pass, as
-              // is a match the user chose to import anyway.
+              // Ask for pairs afresh: the per-row flags miss duplicates within
+              // one import, and matches the user chose to import anyway.
               revalidator.revalidate();
               if (outcome.created === 0) {
                 navigate("/people");
@@ -67,19 +52,8 @@ export function App() {
             }}
           >
             <header>
-              {/*
-                The mark at the left edge and the search field centred, on one line.
-
-                The mark carries its name in `alt` rather than the empty string a
-                decorative image would take. It sat beside the word “Leapsake” until that
-                text came out of the header, and with the word gone this image *is* the
-                only thing in the chrome that says which app this is — a screen reader with
-                nothing here would land on an unnamed banner.
-
-                Still not an <h1>. Every screen below already provides the page's heading,
-                and a banner that also claimed h1 would give each page two, letting the
-                app's name outrank the name of what you are actually looking at.
-              */}
+              {/* The mark is the only thing naming the app, so it keeps its alt
+                  text; not an <h1>, since every screen supplies its own. */}
               <div className={styles.bar}>
                 <img className={styles.mark} src={logo} alt={APP_NAME} />
                 <div className={styles.search}>

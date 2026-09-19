@@ -8,39 +8,25 @@ import { RecoveryGate } from "./screens/RecoveryGate";
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root not found");
 
-// The data router is built lazily once boot is "ready" (see Root): `createHashRouter`
-// runs its initial loader eagerly, so creating it at module load would fire
-// `views.entityList` before the main process registers its IPC during a recovery
-// boot.
+// Built only once boot is ready: see `createAppRouter`.
 let appRouter: ReturnType<typeof createAppRouter> | undefined;
 
-// Reactive invalidation: the main process regenerates the automated birthday
-// reminders at boot and on window focus, so re-run the active route's loaders in
-// place when it says rows changed. `revalidate()` keeps the old data on screen
-// until the new resolves (no spinner/flicker).
+// `revalidate()` keeps the old data on screen until the new resolves.
 window.app.onChanged(() => {
   void appRouter?.revalidate();
 });
 
 /**
- * The boot gate: the renderer mounts before the database is open, so it watches
- * the main process's boot phase and renders the at-rest recovery prompt while the
- * enclave key is being recovered, swapping in the real app once the core is live.
- * `status()` is the race-safe initial read in case an event fired before we
- * subscribed (encryption `model.md` §6).
+ * The boot gate: the unlock prompt while the store is locked, then the app once
+ * the core is live. `status()` covers an event that fired before subscribing.
  */
 function Root() {
   const [phase, setPhase] = useState<"starting" | "recovering" | "ready">(
     "starting",
   );
   const [error, setError] = useState<string | undefined>();
-  // Which unlock doors this store has, so the gate offers the password when there
-  // is one and the phrase alone when there isn't (encryption `model.md` §7.5).
   const [doors, setDoors] = useState({ password: false, phrase: true });
-  // Why this device cannot prove its master key, when that is the case: the
-  // Degraded state (custody slice 10). It rides along with "ready" rather than
-  // being a phase of its own, because the app genuinely is ready — see
-  // {@link CustodyBanner}.
+  // Degraded rides along with "ready": the app genuinely is ready.
   const [degraded, setDegraded] = useState<{ detail: string } | undefined>();
 
   useEffect(() => {
@@ -50,8 +36,6 @@ function Root() {
       setPhase("recovering");
     });
     const offReady = window.boot.onReady((payload) => {
-      // Core is live — safe to build the router now (its eager initial loader
-      // will hit a registered `views.entityList`).
       appRouter ??= createAppRouter();
       setDegraded(payload.degraded);
       setPhase("ready");
@@ -69,8 +53,7 @@ function Root() {
     };
   }, []);
 
-  // The banner sits above the router, not inside a screen: the state is a property
-  // of the device, so it must be true on every screen the user navigates to.
+  // Above the router, so the device's state shows on every screen.
   if (phase === "ready" && appRouter !== undefined)
     return (
       <>

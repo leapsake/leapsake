@@ -1,22 +1,8 @@
 import { useState } from "react";
 
 /**
- * The **Degraded** state's standing notice (encryption `model.md` §7.5): this
- * device's store opened and every screen works, but the device cannot prove which
- * master key belongs to the account until that is repaired.
- *
- * It is a banner rather than a gate on purpose. The cause is invisible to the person
- * it happens to — an OS reinstall, a restored machine, a changed signing identity —
- * and their data is sitting readable on their own disk, so refusing to open the app
- * (which is what slice 9 did) punishes them for a problem they did not cause and
- * cannot see. What they *do* need is to know sync has stopped, since a silent
- * one-device island is the failure that costs them work.
- *
- * **The way out is the unlock gate.** Signing out drops the boot path into that
- * gate, where the *other* door is one click away — a phrase door is untouched by a
- * broken password door and vice versa — and the next open re-runs the repair with
- * it. That is why the CTA is sign-out and not a bespoke prompt: the gate, the doors,
- * and the repair all already exist and are proven.
+ * The Degraded notice: a banner, not a gate, since the data is readable. The
+ * way out is signing out to the unlock gate and using the other door.
  */
 export function CustodyBanner({ detail }: { detail: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -24,12 +10,9 @@ export function CustodyBanner({ detail }: { detail: string }) {
 
   function signOut() {
     setSignOutError(null);
-    // Resolves only *after* the user unlocks (the re-open parks in the gate), so
-    // nothing awaits it here — the gate takes over the window either way.
+    // Not awaited: it resolves only after the user passes the gate.
     void window.account.signOut().catch((cause: unknown) => {
-      // The one refusal that matters: a device with no password door would be
-      // locked behind the phrase alone, so sign out declines. Show it, because the
-      // honest answer then is Forget account in Settings.
+      // Refused without a password door; the answer then is Forget account.
       setSignOutError(cause instanceof Error ? cause.message : String(cause));
     });
   }
