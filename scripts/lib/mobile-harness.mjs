@@ -90,6 +90,12 @@ const IOS_AUTOFILL_FLOW = join(MAESTRO_DIR, "ios-autofill.yaml"); // iOS AutoFil
 // pass on a starved emulator is one that can no longer tell slow from broken.
 const EMULATOR_SIZE = ["-cores", "6", "-memory", "8192"];
 
+/** Linux with no display (a hosted runner): boot without a window, on software GL. */
+const EMULATOR_HEADLESS =
+  process.platform === "linux" && !process.env.DISPLAY
+    ? ["-no-window", "-no-audio", "-gpu", "swiftshader_indirect"]
+    : [];
+
 const HOME_TIMEOUT_MS = 180_000; // budget for the first Metro bundle build → app home
 const BOOT_TIMEOUT_MS = 300_000; // budget for a cold emulator/simulator boot
 const METRO_TIMEOUT_MS = 120_000; // budget for `expo start` → packager-status:running
@@ -102,6 +108,7 @@ export const BLOCKED = "blocked"; // not reachable here (no device / no toolchai
 const run = (cmd, args, opts = {}) =>
   spawnSync(cmd, args, { encoding: "utf8", ...opts });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const seconds = (since) => `${((Date.now() - since) / 1000).toFixed(0)}s`;
 
 // --- shared: which device ---------------------------------------------------------
 //
@@ -314,6 +321,7 @@ function installDevClient(platform, device) {
   console.log(
     `  building + installing the dev client (expo run:${platform}) — several minutes…`,
   );
+  const started = Date.now();
   const built = spawnSync(
     "pnpm",
     [
@@ -327,6 +335,7 @@ function installDevClient(platform, device) {
     ],
     { cwd: ROOT, stdio: "inherit" },
   );
+  console.log(`  expo run:${platform} took ${seconds(started)}`);
   return built.status === 0;
 }
 
@@ -591,10 +600,14 @@ const androidDriver = {
     }
 
     console.log(`  booting the Android emulator (${avd})…`);
-    const child = spawn(emulator, ["-avd", avd, ...EMULATOR_SIZE], {
-      detached: true,
-      stdio: "ignore",
-    });
+    const child = spawn(
+      emulator,
+      ["-avd", avd, ...EMULATOR_SIZE, ...EMULATOR_HEADLESS],
+      {
+        detached: true,
+        stdio: "ignore",
+      },
+    );
     child.unref();
 
     const adb = resolveAdb();
@@ -1251,7 +1264,12 @@ async function runPlatform(driver, provision, suite) {
       console.log(
         `\n  ▸ ${flow.label}  [${flow.file.replace(MAESTRO_DIR, "…")}]\n`,
       );
-      if (runMaestroFlow(ctx.device, flow.file) !== 0) {
+      const started = Date.now();
+      const status = runMaestroFlow(ctx.device, flow.file);
+      console.log(
+        `  ${status === 0 ? "✓" : "✗"} ${flow.label} ${seconds(started)}`,
+      );
+      if (status !== 0) {
         return wrap(FAIL, `flow RED: ${flow.label} (${flow.file})`);
       }
       const custody = runCustody(driver, ctx, flow);
