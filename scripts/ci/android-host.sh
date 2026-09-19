@@ -14,6 +14,13 @@ sudo udevadm trigger --name-match=kvm
 bin="${ANDROID_HOME:?ANDROID_HOME is not set}/cmdline-tools/latest/bin"
 yes | "$bin/sdkmanager" --licenses >/dev/null || true
 "$bin/sdkmanager" --install "platform-tools" "emulator" "platforms;android-${API}" "$IMAGE" >/dev/null
-echo no | "$bin/avdmanager" create avd --force --name ci --package "$IMAGE" --device pixel_6
+# avdmanager follows XDG_CONFIG_HOME when it is set; the emulator only looks in ~/.android.
+mkdir -p "$HOME/.android/avd"
+echo no | ANDROID_AVD_HOME="$HOME/.android/avd" "$bin/avdmanager" create avd --force \
+  --name ci --package "$IMAGE" --device pixel_6
 
+if ! "$ANDROID_HOME/emulator/emulator" -list-avds | grep -qx ci; then
+  echo "the emulator does not list the AVD it was just given" >&2
+  exit 1
+fi
 echo "AVD ci on ${IMAGE}; cores $(nproc), memory $(free -g | awk '/Mem:/ {print $2}')G"
