@@ -179,8 +179,9 @@ rather than described here. Run `pnpm release --help` for the current rules.
   counter is computed per channel from the tags, so `alpha.4` may follow `beta.9`. **Only a
   final closes a core:** once `vX.Y.Z` exists, nothing more is cut on `X.Y.Z`, and no tag
   ever goes below the highest core already tagged.
-- **Cutting a tag commits nothing.** The release tags HEAD as it is; there is no version-bump
-  commit.
+- **Cutting a tag commits nothing.** `pnpm release cut <channel>` computes the next tag, shows
+  the plan, and tags HEAD once you type the tag back; `--push` pushes just that tag. There is
+  no version-bump commit.
 - Targets are a registry in the same shape as the test tiers, and readiness is per
   **platform × channel**: a cell a platform may not ship yet is `blocked` with its reason,
   **reported, never silently skipped**, while a ready cell whose checks fail fails the
@@ -196,13 +197,13 @@ rather than described here. Run `pnpm release --help` for the current rules.
   property that has to hold once releases run from a runner and a tag is public the moment it
   is pushed. Which commit a released build came from is recorded by
   [`scripts/release/receipts.mjs`](scripts/release/receipts.mjs), since Apple names only the
-  build number. ⚠️ `final` still builds and uploads today
-  ([`scripts/release/targets/ios.mjs`](scripts/release/targets/ios.mjs) → `TIERS`);
-  restructuring it into a marker that releases the approved version and tags its commit is
-  the change that move forces.
-- **The script tags and never pushes.** Store version strings are permanent and monotonic, a
-  Play production rollout reaches strangers as soon as it goes live, and a notarized artifact is
-  public the moment its feed sees it — so the irreversible step stays a person's.
+  build number. `cut final` tags the commit behind the build Apple approved, and releasing
+  that tag makes the approved version public; it builds nothing.
+- **A release pushes a tag and the receipts note, never a branch.** Store version strings are
+  permanent, a Play production rollout reaches strangers as soon as it goes live, and a
+  notarized artifact is public the moment its feed sees it. So uploading from a laptop needs
+  `--here`, a tag origin already has, and the tag typed back; there is no `--yes`, and on a
+  runner (`CI=true`) nothing prompts.
 
 ## Commit and PR conventions
 

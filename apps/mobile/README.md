@@ -78,9 +78,10 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 > for why sharing one would have cost more than it bought.
 
 ```sh
-git tag -a v0.1.0-alpha.4 -m 0.1.0-alpha.4   # until `pnpm release cut` exists
-pnpm release plan --tag=v0.1.0-alpha.4        # what is each platform waiting on?
-pnpm release ship --tag=v0.1.0-alpha.4        # gate, build all, upload all, record
+pnpm release cut alpha --dry-run                # the next tag, and what each platform is waiting on
+pnpm release cut alpha                          # tag HEAD once the tag is typed back
+git push origin v0.1.0-alpha.4                  # starts the hosted pipeline, once it exists
+pnpm release ship --tag=v0.1.0-alpha.4 --here   # or ship from this machine: gate, build, upload, record
 ```
 
 > **Android ships one fewer permission than prebuild writes.** Expo's template declares

@@ -242,35 +242,20 @@ that build) runs `test:all --strict --provision --platforms=<list>`. `ship` pass
 cells' platforms. Verified by `scripts/test-all.test.mjs` and by selection only: no device tier
 was run while landing it.
 
-### Step 4 — The laptop backdoor gets its safeguards; `cut` exists
+### Step 4 — The laptop backdoor gets its safeguards; `cut` exists ✅ landed 2026-09-18
 
-**Goal:** the everyday path is "a tag appears at the remote". A person can still do everything
-from a laptop, but never by reflex and never invisibly.
+`pnpm release cut <channel>`, `scripts/release/guards.mjs`, and receipts carrying `via`. What
+later steps need to know:
 
-**Files:** `scripts/release/index.mjs`, `scripts/release/git.mjs`, `scripts/release/receipts.mjs`,
-`scripts/release/targets/ios.mjs` (the `final` commit resolution), tests.
-
-1. **`cut <channel>`.** Full-fetch check (refuse a shallow clone), compute the tag, run
-   `plan`, print it, then **ask the person to type the tag name back**. Any other input aborts.
-   Create the annotated tag; `--push` pushes it (only the tag, never a branch). `cut final`
-   asks each marker-rung target for the commit the store approved (`releaseToPublic` already
-   resolves it from App Store Connect plus receipts; split the _resolve_ half from the _release_
-   half so `cut` can call resolve without releasing) and tags **that** commit. The pipeline's
-   `publish` then does the release half and `record` writes the receipt.
-2. **`ship --tag --here`.** Refuses without `--here`. Refuses if `git ls-remote --tags origin
-<tag>` does not find the tag: nothing ships that the remote cannot see. Same typed
-   confirmation as `cut`. Every receipt it writes carries `via: "laptop"`; the pipeline's carry
-   `via: "ci"`. `publish` alone has the same `--here` rule outside CI; `build` does not (it spends
-   nothing).
-3. **Prompts are skipped only when `CI=true`.** There is deliberately no `--yes`.
-4. **`abandon`** from a laptop needs the typed confirmation too.
-
-**Tests:** the confirmation reader (stub stdin: exact tag accepted, anything else aborts), the
-`--here` refusal, the ls-remote refusal (stub git), `via` in the receipt.
-
-**Done when:** `pnpm release cut beta --dry-run` prints the plan and stops; without `--dry-run`
-it waits for the tag to be typed. `pnpm release ship --tag=v0.1.0-beta.9` without `--here`
-refuses in one line.
+- **`cut --no-checks`** skips the cells' checks, like `plan --no-checks`. `cut.yml` on Linux
+  needs it for any channel but `final`, since iOS's preflight wants Xcode.
+- **`cut final` needs App Store Connect read credentials** (it calls the iOS target's
+  `approved()`), as step 7's `cut.yml` note says.
+- **The final tag now exists before its release runs**, so `plan`/`ship` check it like any
+  other tag (`FROM_TAG_CHECKS`: the tag must name HEAD). On a laptop that means
+  `git checkout v0.1.0` before `ship --tag=v0.1.0 --here`. `record` refuses a receipt whose
+  commit is not the one the tag names. `MARKER_CHECKS` is only for `cut final`.
+- The upload guard checks `git ls-remote` against `origin` by name.
 
 ### Step 5 — The repo goes public (owner)
 
