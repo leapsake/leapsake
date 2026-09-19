@@ -1,14 +1,6 @@
-// `monotonic` is the check `preflight.mjs` calls the one that cannot be softened: a store
-// version that goes backwards is not fixable in a later release, only abandoned.
-//
-// Its dangerous failure is not a wrong comparison — that is one line, and obvious when it
-// breaks — but an *absent* one. A tag list this process cannot read is indistinguishable
-// from a repository that has never released, and both of the checkouts that produce it are
-// what a CI runner does by default, on the machine where nobody is watching the output. So
-// the empty cases are what carry the weight here, not the arithmetic.
 import { describe, expect, it } from "vitest";
 
-import { baseIsSuccessor, monotonic } from "./preflight.mjs";
+import { monotonic, tagMatchesManifests } from "./preflight.mjs";
 
 /** A context in the shape `runChecks` passes, defaulting to a healthy local checkout. */
 const ctx = (over = {}) => ({
@@ -22,12 +14,6 @@ const ctx = (over = {}) => ({
 describe("monotonic", () => {
   it("accepts a version that comes after the highest tag", () => {
     expect(monotonic.check(ctx())).toBeUndefined();
-  });
-
-  it("refuses a version equal to one already tagged", () => {
-    expect(monotonic.check(ctx({ version: "0.1.0-beta.6" }))).toMatch(
-      /does not come after/,
-    );
   });
 
   it("refuses a version that goes backwards", () => {
@@ -71,77 +57,58 @@ describe("monotonic", () => {
     });
   });
 
-  it("names --base when the core has already shipped", () => {
-    // Forgetting to start a new train computes a prerelease of a released core. Saying
-    // only "does not come after" would leave the reader to infer the remedy.
-    const reason = monotonic.check(
-      ctx({ version: "0.1.0-alpha.4", tags: ["v0.1.0-alpha.3", "v0.1.0"] }),
-    );
-    expect(reason).toMatch(/already shipped/);
-    expect(reason).toMatch(/--base=patch\|minor\|major/);
-  });
-});
-
-// The asymmetry this closes: `monotonic` refuses every base that goes backwards and none
-// that goes too far forwards — and forwards is the direction that cannot be undone, since
-// the stores see the numeric core and an upload spends it permanently.
-/** A repository whose 0.1.0 train is finished: the bare tag exists. */
-const shipped = (over = {}) => ({
-  manifestVersion: "0.1.0-rc.2",
-  tags: ["v0.1.0-rc.2", "v0.1.0"],
-  ...over,
-});
-
-describe("baseIsSuccessor", () => {
-  it("has nothing to say when no base was passed", () => {
-    expect(baseIsSuccessor.check(shipped({ base: undefined }))).toBeUndefined();
-  });
-
-  it("waves through a bump kind, which was computed rather than typed", () => {
-    for (const base of ["patch", "minor", "major"]) {
-      expect(baseIsSuccessor.check(shipped({ base }))).toBeUndefined();
-    }
-  });
-
-  it("accepts each of the three cores semver allows next", () => {
-    for (const base of ["0.1.1", "0.2.0", "1.0.0"]) {
-      expect(baseIsSuccessor.check(shipped({ base }))).toBeUndefined();
-    }
-  });
-
-  it("refuses a fat-fingered core that monotonic would have allowed", () => {
-    // `0.11.0` and `1.1.0` both sort *above* 0.1.0, so nothing else in the file objects.
-    for (const base of ["0.11.0", "1.1.0", "9.9.9"]) {
-      const reason = baseIsSuccessor.check(shipped({ base }));
-      expect(reason).toMatch(/is not where this can go next/);
-      expect(reason).toMatch(/0\.1\.1, 0\.2\.0, 1\.0\.0/);
-    }
-  });
-
-  it("refuses re-releasing a core that already shipped", () => {
-    expect(baseIsSuccessor.check(shipped({ base: "0.1.0" }))).toMatch(
-      /already released/,
-    );
-  });
-
-  it("allows restating the core of a train still in progress", () => {
-    // Pre-GA the manifests sit on 0.1.0 with no bare tag: naming it again is a no-op.
+  it("accepts alpha after beta on an open core", () => {
     expect(
-      baseIsSuccessor.check({
-        base: "0.1.0",
-        manifestVersion: "0.1.0-beta.7",
-        tags: ["v0.1.0-beta.7"],
-      }),
+      monotonic.check(
+        ctx({
+          version: "0.1.0-alpha.4",
+          tags: ["v0.1.0-alpha.3", "v0.1.0-beta.9"],
+        }),
+      ),
     ).toBeUndefined();
   });
 
-  it("still bounds the jump while a train is in progress", () => {
+  it("refuses a lower core than one already tagged", () => {
     expect(
-      baseIsSuccessor.check({
-        base: "1.1.0",
-        manifestVersion: "0.1.0-beta.7",
-        tags: ["v0.1.0-beta.7"],
+      monotonic.check(
+        ctx({ version: "0.1.1-beta.1", tags: ["v0.2.0-alpha.1"] }),
+      ),
+    ).toMatch(/0\.2\.0 has already been tagged/);
+  });
+
+  it("refuses every channel on a core a final has closed", () => {
+    const tags = ["v0.1.0-rc.2", "v0.1.0"];
+    for (const version of ["0.1.0-alpha.1", "0.1.0-rc.3", "0.1.0"]) {
+      const reason = monotonic.check(ctx({ version, tags }));
+      expect(reason).toMatch(/0\.1\.0 is closed/);
+      expect(reason).toMatch(/set-version\.mjs patch\|minor\|major/);
+    }
+  });
+
+  it("accepts the next core once the last one is closed", () => {
+    expect(
+      monotonic.check(
+        ctx({ version: "0.1.1-alpha.1", tags: ["v0.1.0-rc.2", "v0.1.0"] }),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("tagMatchesManifests", () => {
+  it("accepts a tag whose core is the manifests' core", () => {
+    for (const version of ["0.1.0-beta.10", "0.1.0"]) {
+      expect(
+        tagMatchesManifests.check({ version, manifestVersion: "0.1.0" }),
+      ).toBeUndefined();
+    }
+  });
+
+  it("refuses a tag on another core", () => {
+    expect(
+      tagMatchesManifests.check({
+        version: "0.2.0-beta.1",
+        manifestVersion: "0.1.0",
       }),
-    ).toMatch(/the train in progress/);
+    ).toMatch(/the manifests say 0\.1\.0/);
   });
 });
