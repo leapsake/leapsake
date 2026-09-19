@@ -285,9 +285,11 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
 
-**The run to read next: `35468482457`** (commit 8307729, started 2026-09-19 20:47 UTC), the
-first with the AutoFill and "isn't responding" fixes. `node scripts/ci/measure-results.mjs
-35468482457` shows each finished job. What to look for: whether iOS gets past the AutoFill preflight and Flow 1 (open
+**The run to read next: `35470466445`** (commit 22ee3ae, started 2026-09-19 21:27 UTC), the
+first with the factory-reset animation wait and the `on screen:` report on red flows. Run
+35468482457 (8307729) runs alongside it and still owes Android's `dismissed … with Wait`
+evidence. `node scripts/ci/measure-results.mjs <run>` shows each finished job. What to look
+for: whether iOS Flow 1 passes, or what its `on screen:` line and simulator name say (open
 item 1), and whether Android logs `dismissed … with Wait` and then reaches home (open item 2).
 When a newer run supersedes it, replace this paragraph with that run's id.
 
