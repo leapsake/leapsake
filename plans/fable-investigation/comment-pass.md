@@ -16,8 +16,8 @@ commit that made it.
 
 ## Status
 
-**Steps 1 to 4 (`schema`, `reminders`, `key-custody`, `data`, `core`) are done and lint-enforced.
-Step 5 (`apps/desktop/src`) is underway: `main/index.ts`, `router.tsx` and `Settings.tsx` are done; the rest of the directory is next, biggest first (`main/db/`, `preload/index.ts`, `lib/reminder-row.ts`).**
+**Steps 1 to 5 (`schema`, `reminders`, `key-custody`, `data`, `core`, `apps/desktop/src`) are
+done and lint-enforced. Step 6 (`apps/mobile`) is next.**
 The `files` list of the comment-rules override in `.oxlintrc.json` is the record of which
 directories are finished.
 
@@ -32,7 +32,7 @@ The biggest remaining files, measured 2026-09-18:
 "Comment" counts lines starting with `//`, `*` or `/*`. For scale: `packages/schema` went from
 about 2,850 comment lines to about 900, `packages/reminders/src` from 1,522 to 383,
 `packages/key-custody/src` from 940 to 213, `packages/data/src` from 2,202 to 615, and
-`packages/core/src` from 364 to 164, `apps/desktop/src/main/index.ts` from 318 to 79, `router.tsx` from 312 to 111, and `Settings.tsx` from 104 to 37.
+`packages/core/src` from 364 to 164, and `apps/desktop/src` from 1,940 to 612.
 
 Decision-history markers in non-test source, by grep, before the pass began:
 
@@ -136,7 +136,7 @@ do the pass: most of the cut is judgment on comments that are short and phrase-f
    `.oxlintrc.json`, run the verification in [`README.md`](./README.md) → _Rules that apply to
    every workstream_, update the _Status_ and the table here, and commit.
 
-Lessons from steps 2 to 4:
+Lessons from steps 2 to 5:
 
 - **The verification tiers break the vitest run after them.** The `bundle` tier runs an
   electron-vite build, which switches the native SQLite binary to Electron's ABI. Restore the
@@ -161,6 +161,10 @@ Lessons from steps 2 to 4:
   what is particular to it (step 4).
 - **Lint before every commit, not just at the end of the step.** A rewrap that looks short can
   still run to 81 columns, and `comments-only.mjs` will not catch it.
+- **A client's converter points at the shared README, not its twin.** Step 5 moved the
+  store-conversion invariants out of desktop's `convert-store.ts` into
+  `packages/key-custody/README.md` → _Before you change the conversion_; mobile's copy of the
+  same list goes the same way in step 6.
 - **A comment that describes a real bug stays.** Shorten it, flag it in the commit message, and
   tell the owner (`milestones-repo.ts`'s `removeAllForEntity` TODO is the example from step 3).
 
@@ -186,7 +190,7 @@ Conventions the schema step settled:
 2. ✅ `packages/reminders/src`. Done 2026-09-18, in scope.
 3. ✅ `packages/key-custody/src` and `packages/data/src`. Done 2026-09-18, in scope.
 4. ✅ `packages/core/src`. Done 2026-09-18, in scope.
-5. `apps/desktop/src`, widened from three files so the lint scope is one directory:
-   `main/index.ts` ✅, `router.tsx` ✅, `Settings.tsx` ✅, then the rest of the directory.
+5. ✅ `apps/desktop/src`, widened from three files so the lint scope is one directory. Done
+   2026-09-18, in scope.
 6. `apps/mobile/lib/core-context.tsx`, `settings.tsx`, then `components/`.
 7. Everything else, by directory. `scripts/` last.

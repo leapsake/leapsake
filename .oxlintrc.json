@@ -31,7 +31,8 @@
         "packages/reminders/src/**",
         "packages/key-custody/src/**",
         "packages/data/src/**",
-        "packages/core/src/**"
+        "packages/core/src/**",
+        "apps/desktop/src/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
