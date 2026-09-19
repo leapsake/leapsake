@@ -885,7 +885,7 @@ async function remindersLoader() {
   return { reminders, targets, duplicatesNudgeId };
 }
 
-/** The prompt's own screen: the offer set for the milestone being asked about. */
+/** The offer set for the milestone the prompt is asking about. */
 async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
   const milestoneId = params.milestoneId as string;
   const target = (await window.api.reminders.targets()).plans.find(
@@ -910,9 +910,7 @@ async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
-/** Save edits to a gift idea; a blank title is a no-op back to the list. The
- *  form always carries the tags field, so the whole desired set goes with the
- *  write (a Person saves its tags the same way). */
+/** A blank title is a no-op; the tags field always carries the whole set. */
 async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   const input = readGiftIdeaInput(formData);
@@ -925,13 +923,12 @@ async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
   return redirect("/gifts");
 }
 
-/** Remove a gift idea. */
 async function giftIdeaDeleteAction({ params }: ActionFunctionArgs) {
   await window.api.gifts.ideas.softDelete(params.id as string);
   return redirect("/gifts");
 }
 
-/** Toggle completion — posted by a list-row fetcher, so it revalidates in place. */
+/** Posted by a list-row fetcher, so the list revalidates in place. */
 async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   await window.api.reminders.setCompleted(
@@ -942,12 +939,8 @@ async function reminderToggleAction({ request, params }: ActionFunctionArgs) {
 }
 
 /**
- * Put a reminder off — posted by one of the list row's "Remind me…" fetchers, so
- * the list revalidates and the row drops out of Today in place.
- *
- * It posts a day count, the one the offered action carried; core turns it into
- * the day the row comes back. The main process re-validates it at the IPC
- * boundary, which is what stops a mangled form value from reaching core.
+ * Posted by a row's "Remind me…" fetcher as a day count; core picks the day,
+ * and the main process re-validates the count.
  */
 async function reminderSnoozeAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
@@ -965,9 +958,7 @@ const routes: RouteObject[] = [
     errorElement: <ErrorPage />,
     children: [
       {
-        // The landing screen is Reminders; `/` redirects there. The combined
-        // People & Pets list keeps its own path (`/people`), reached from the
-        // top nav and the breadcrumb root.
+        // The landing screen is Reminders.
         index: true,
         loader: () => redirect("/reminders"),
       },
@@ -978,21 +969,17 @@ const routes: RouteObject[] = [
         element: <EntityList />,
       },
       {
-        // Account & sync setup owns its own state (the one-time recovery-key
-        // reveal must not survive a loader re-run), so no loader/action here.
+        // No loader: the one-time recovery-phrase reveal must not survive a
+        // loader re-run, so the screen owns its state.
         path: "settings",
         element: <Settings />,
       },
       {
-        // Static, and deliberately so: no loader, no account, no data. The list it
-        // renders is a compile-time constant shared with `apps/mobile`.
+        // Static: a compile-time list shared with `apps/mobile`.
         path: "acknowledgements",
         element: <Acknowledgements />,
       },
       {
-        // Review duplicates: propose candidate pairs (reconciliation Increment
-        // B). The "Not the same" action records the rejection and revalidates
-        // this loader in place; "Merge…" routes into the people merge confirm.
         path: "duplicates",
         loader: duplicatesLoader,
         element: <Duplicates />,
@@ -1006,8 +993,6 @@ const routes: RouteObject[] = [
         },
       },
       {
-        // Reminders — a standalone list of user-created reminders (the seed of the
-        // future home screen). #tags are parsed inline from the text in core.
         path: "reminders",
         loader: remindersLoader,
         element: <ReminderList />,
@@ -1048,8 +1033,7 @@ const routes: RouteObject[] = [
         action: milestonePlanAction,
       },
       {
-        // Gifts — the whole graph keyed by idea. Creating is its
-        // own screen, so this stays a plain list (the People & Pets pattern).
+        // The whole gift graph, keyed by idea.
         path: "gifts",
         loader: () => window.api.gifts.overview(),
         element: <GiftList />,
@@ -1086,10 +1070,7 @@ const routes: RouteObject[] = [
             person.id,
             readRelationships(formData),
           );
-          // Detection runs at the moment the duplicate is created, which is the
-          // moment the user still remembers both entries and can act on them.
-          // Only when there is actually something to resolve — otherwise saving
-          // lands on the new person as it always has.
+          // Offer the review now, while the user remembers both entries.
           const matches = await window.api.duplicates.findFor(person.id);
           return redirect(
             matches.length > 0
@@ -1127,8 +1108,7 @@ const routes: RouteObject[] = [
         },
       },
       {
-        // Merge a duplicate person into this one: this person survives, the
-        // picked duplicate's facts re-point onto it, then it is tombstoned.
+        // This person survives; the duplicate's facts move here, then it goes.
         path: "people/:id/merge",
         loader: async ({ params, request }: LoaderFunctionArgs) => {
           const id = params.id as string;
@@ -1349,9 +1329,7 @@ const routes: RouteObject[] = [
         action: milestoneDeleteAction("relationship"),
       },
       {
-        // The holiday catalog. Read-only: a catalog row is immutable by design,
-        // and the user's levers (observe / hide) hang off it rather than editing
-        // it.
+        // Read-only: the user observes or hides a catalog row, never edits it.
         path: "holidays",
         loader: () => window.api.holidays.list(),
         element: <HolidayList />,
@@ -1367,14 +1345,11 @@ const routes: RouteObject[] = [
           if (!holiday) {
             throw new Response("Holiday not found", { status: 404 });
           }
-          // The whole address book with each answer: the screen splits it into
-          // the observers it lists and the pool its add-field suggests from.
+          // Every person and pet with their answer: observers and the add pool.
           return { holiday, candidates };
         },
         element: <HolidayView />,
         action: async ({ params, request }: ActionFunctionArgs) => {
-          // Hide / unhide. A catalog row is read-only, so suppressing it is the
-          // user's only lever over the holiday itself.
           const formData = await request.formData();
           await window.api.holidays.setHidden(
             params.id as string,
@@ -1384,10 +1359,8 @@ const routes: RouteObject[] = [
         },
       },
       {
-        // One observance's reminder schedule. Per-observance rather than
-        // per-holiday because the rule's bearer is the observance — the seam
-        // that lets two people who observe the same holiday be reminded about
-        // entirely different things.
+        // Per observance, not per holiday: two observers of one holiday can be
+        // reminded about different things.
         path: "holidays/:id/observers/:bearerType/:bearerId",
         loader: async ({ params }: LoaderFunctionArgs) => {
           const id = params.id as string;
@@ -1473,14 +1446,9 @@ const routes: RouteObject[] = [
 ];
 
 /**
- * Build the renderer's data router. Constructed **lazily** by the boot gate
- * (`main.tsx`) rather than at module load, because `createHashRouter` runs the
- * initial route's loader *eagerly* on creation. Building it before the main
- * process has opened the DB and registered its IPC — a window that only opens
- * during a slow, human-paced recovery boot — makes the index `views.entityList`
- * load reject ("No handler registered") and the router opens straight into
- * `ErrorPage` even though recovery succeeded. Deferring creation until the core
- * is live closes that race.
+ * Call only once the core is live: `createHashRouter` runs the first route's
+ * loader immediately, which rejects before the main process registers its IPC.
  */
+
 export const createAppRouter = (): ReturnType<typeof createHashRouter> =>
   createHashRouter(routes);
