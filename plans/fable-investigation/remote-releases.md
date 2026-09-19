@@ -282,6 +282,22 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
    and whether the harness's warning about an under-sized emulator fires.
 3. Both: three runs each, on the same commit. Anything that fails twice is a finding, not a flake.
 
+**Measured so far (2026-09-19, `measure.yml`; iOS still open):**
+
+- **Android, `ubuntu-latest` (4 cores), KVM on:** emulator boot 70–76s; cold `expo run:android`
+  295–366s (the cache has never saved, so no warm number yet); `native` tier 476–541s; E2E
+  arc 1548–1636s. Flow 4 took 183s and 182s, so it is **not bimodal** here, and the
+  under-sized-emulator warning never fired. Whole gate ≈ 40 min. 2 of 3 runs fully green;
+  the third timed out waiting for the app's home screen (180s) in E2E.
+- **iOS, `macos-latest` (3 cores):** cold `expo run:ios` 841–1015s; `native` tier
+  1828–1970s. E2E has not run: the AutoFill preflight cannot find its switch on the
+  runner's simulator (5 of 6), though the same flow passes on a brand-new local iOS 26.5
+  simulator.
+- **Harness bugs the runners exposed, now fixed:** `expo run` never exits when no Metro is up
+  (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator left, so
+  the next tier used a dying device; the AutoFill flow did not wait for its switch; tests
+  and formatting depended on the owner's global git identity and `~/.editorconfig`.
+
 **Decide from the numbers** (owner): if Flow 4 is bimodal on the runner, the options are the
 cheap-KDF-in-E2E decision that `ci-and-test-tiers.md` leaves open, or a paid larger runner. If
 the Android emulator cannot run accelerated on Linux either, decision 6 needs revisiting; do not
