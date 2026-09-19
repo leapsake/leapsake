@@ -1,16 +1,8 @@
 import type { ApiChannel } from "./ipc-bridge.js";
 
 /**
- * The single source of truth for the desktop IPC surface: one dotted-path entry
- * per {@link import("@leapsake/core").CoreApi} method. The `satisfies` clause
- * rejects any entry that names no real method, and the exhaustiveness assertion
- * below rejects any method left off the list — so the main-process handlers
- * (`registerCoreHandlers`) and the renderer wrappers (`buildBridgeApi`) both stay
- * in lockstep with core, the way `satisfies CoreApi` kept the old hand-written
- * preload object honest.
- *
- * Adding a core method? Add its dotted path here and the bridge picks it up on
- * both sides; forget, and `_assertAllMethodsListed` fails the typecheck.
+ * One entry per {@link import("@leapsake/core").CoreApi} method. `satisfies`
+ * rejects an unknown one, and the check below a missing one.
  */
 export const API_CHANNELS = [
   "people.list",
@@ -64,8 +56,7 @@ export const API_CHANNELS = [
   "milestones.softDelete",
 
   "reminders.list",
-  // Exposed for completeness, unused by the desktop client today: it schedules
-  // no local notifications yet, and this read exists to feed that planner.
+  // Unused on desktop, which schedules no local notifications yet.
   "reminders.listNotifiable",
   "reminders.listInWindow",
   "reminders.getInWindow",
@@ -76,8 +67,7 @@ export const API_CHANNELS = [
   "reminders.snooze",
   "reminders.softDelete",
   "reminders.regenerateSystem",
-  // One read behind every affordance the rows carry — gifts, prompts, and the
-  // ways to reach a `wish`'s person. Three filters over one engine walk.
+  // What the gift, plan and wish rows each act on, from one engine walk.
   "reminders.targets",
   "reminders.mentioning",
 
@@ -133,16 +123,12 @@ export const API_CHANNELS = [
   "import.preview",
   "import.commit",
 
-  // Mobile's address-book sync. Desktop has no address book to read; these are
-  // listed because the exhaustiveness check below wants every CoreApi method.
+  // Mobile's address-book sync; listed because every method must be.
   "deviceContacts.linkedIds",
   "deviceContacts.getSyncEnabled",
   "deviceContacts.setSyncEnabled",
 
-  // The channel, not the surface: desktop has no Export button yet (that is
-  // `plans/v0-2.md` → *Export*), but the exhaustiveness
-  // assertion below is what keeps this list honest, so a core method reaches it
-  // the moment core grows one.
+  // Desktop has no Export button yet; listed because every method must be.
   "export.archive",
 
   "views.entityList",
@@ -158,13 +144,11 @@ export const API_CHANNELS = [
   "views.milestoneNew",
 ] as const satisfies readonly ApiChannel[];
 
-// Every CoreApi method that has no channel above. Wrapping both sides in a tuple
-// stops the conditional from distributing over the union (so the `never` happy
-// path stays `true`, not `never`).
+// Every CoreApi method that has no channel above.
 type MissingChannels = Exclude<ApiChannel, (typeof API_CHANNELS)[number]>;
 
-// Fails the typecheck if any CoreApi method is missing from API_CHANNELS; hover
-// `missing` in the error to see which.
+// Hover `missing` in the error to see which. The tuples stop the conditional
+// distributing over the union, which would make the happy path `never`.
 const channelsCoverCoreApi: [MissingChannels] extends [never]
   ? true
   : {

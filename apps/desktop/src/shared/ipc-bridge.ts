@@ -1,25 +1,13 @@
 import type { CoreApi } from "@leapsake/core";
 
 /**
- * The generic Electron-IPC bridge that desktop uses to expose the entire
- * {@link CoreApi} to the renderer without hand-transcribing every method three
- * times (the core impl, the `ipcMain.handle` registrations, the
- * `ipcRenderer.invoke` wrappers). The shape is provably 1:1 — the renderer
- * consumes `window.api` typed as `CoreApi` — so the only real work is forwarding
- * args across the process boundary, which these two walkers do from one channel
- * manifest (`api-channels.ts`).
- *
- * This is deliberately desktop-only and Electron-agnostic: it imports `electron`
- * nowhere; the caller injects `invoke`/`handle`. Mobile calls `core` in-process
- * and bridges nothing.
+ * Expose {@link CoreApi} over IPC from one channel manifest. Electron-free: the
+ * caller injects `invoke` and `handle`. Mobile calls core in-process instead.
  */
 
 /**
- * The dotted paths of every *method* (function leaf) on `T`, e.g.
- * `"people.create"`, `"contactMethods.emails.update"`. Nested objects recurse;
- * non-function leaves drop out. This is the type the channel manifest is checked
- * against, so a method with no channel — or a channel naming no method — is a
- * compile error, preserving the no-drift guarantee `satisfies CoreApi` gave.
+ * The dotted path of every method on `T`, e.g. `"people.create"`; non-function
+ * leaves drop out.
  */
 export type Leaves<T, Prefix extends string = ""> = {
   [K in keyof T & string]: T[K] extends (...args: never[]) => unknown
@@ -32,11 +20,7 @@ export type Leaves<T, Prefix extends string = ""> = {
 /** Every IPC channel string: one per `CoreApi` method, as a dotted path. */
 export type ApiChannel = Leaves<CoreApi>;
 
-/**
- * Transform the loosely-typed args that arrive over IPC into the args the core
- * method receives — the renderer trust boundary. Only the ~handful of write
- * channels that Zod-parse / coerce need one; every other channel forwards as-is.
- */
+/** Parse or coerce a channel's raw IPC args before core receives them. */
 export type ArgParser = (args: readonly unknown[]) => unknown[];
 
 /** Walk a dotted `channel` to its bound method on `root`. */
@@ -56,13 +40,7 @@ export function resolveMethod(
   return (target as (...args: unknown[]) => unknown).bind(parent);
 }
 
-/**
- * Build the renderer-side `window.api` object: a `CoreApi`-shaped tree of
- * functions, each forwarding to `invoke(channel, args)`. The returned object is
- * the runtime implementation of `CoreApi`; the renderer's static types come from
- * `CoreApi` itself, and the channel list's completeness is guaranteed by the
- * `ApiChannel` exhaustiveness check in `api-channels.ts`.
- */
+/** Build `window.api`: a `CoreApi`-shaped tree, each leaf calling `invoke`. */
 export function buildBridgeApi(
   channels: readonly string[],
   invoke: (channel: string, args: unknown[]) => unknown,
@@ -82,11 +60,8 @@ export function buildBridgeApi(
 }
 
 /**
- * Register one `ipcMain` handler per channel, each forwarding to the *current*
- * core (read through `getCore` so `sync:join` can swap the underlying session
- * without re-registering). A channel listed in `parsers` runs its boundary parse
- * first; the rest forward their args unchanged. `core` already owns atomicity, so
- * a handler must never open its own transaction.
+ * One handler per channel, each forwarding to the current `getCore()` after its
+ * parser, if any. Core owns atomicity, so a handler never opens a transaction.
  */
 export function registerCoreHandlers(opts: {
   channels: readonly string[];
