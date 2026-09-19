@@ -24,17 +24,17 @@ this and its `--only` two-step is retired.
 Nine questions were put to the owner on 2026-09-18. These are the answers. **Do not reopen
 them**; if a step cannot be done under one of them, stop and say so rather than bending it.
 
-| #   | Question                                     | Decision                                                                                                                                                                                                                                                       |
-| --- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | How does a release start?                    | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The laptop command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).           |
-| 2   | Where does the version live?                 | **Manifests carry only the core (`0.1.0`). The tag carries the rest (`v0.1.0-beta.10`).** No "Cut X" commit; the pipeline never writes to `main`. Condition: versions must stay _visible_ — see _Keeping the version visible_.                                   |
-| 3   | Can alpha follow beta on one core?           | **Yes: channels, not a ladder.** Each of alpha/beta/rc counts up independently per core. **Only a final closes a core.** The core never goes below the highest core ever tagged.                                                                                |
-| 4   | What happens when something fails midway?    | **Build every platform, then upload every platform.** A build failure spends nothing and the tag is deleted. An upload failure after another upload succeeded is resumed, never rolled back: re-run the failed job with the same artifact and build number.     |
-| 5   | A platform that cannot ship a rung yet?      | **Ship the ready ones.** Readiness is per platform × rung. A blocked cell is printed with its reason and skipped; a ready cell that fails a check is a failure. All-or-nothing applies to the ready set.                                                        |
-| 6   | Where do the tests run?                      | **Split by platform on GitHub-hosted runners:** iOS on macOS, Android on Linux, one job that requires both before any upload. **The macOS runner is accepted lock-in**, written down as such. A self-hosted Mac is off the table for now.                        |
-| 7   | How host-specific may the pipeline be?       | **Workflow files stay dumb.** Every step is one command from the repo. The scripts decide everything, including which jobs exist. Portability rules below.                                                                                                     |
-| 8   | Who approves `final`?                        | **`final` is its own deliberate trigger**, as today: it builds nothing, releases what the store already approved, and tags the commit that went live. No host approval feature.                                                                                |
-| 9   | What runs when?                              | Push or PR: the fast tiers. Push to `main`: fast tiers plus the device tiers per platform, so `main` is always known-releasable. Tag: the release. The owner does not have to start using PRs; the same workflow fires for both.                                |
+| #   | Question                                  | Decision                                                                                                                                                                                                                                                    |
+| --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | How does a release start?                 | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The laptop command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).     |
+| 2   | Where does the version live?              | **Manifests carry only the core (`0.1.0`). The tag carries the rest (`v0.1.0-beta.10`).** No "Cut X" commit; the pipeline never writes to `main`. Condition: versions must stay _visible_ — see _Keeping the version visible_.                              |
+| 3   | Can alpha follow beta on one core?        | **Yes: channels, not a ladder.** Each of alpha/beta/rc counts up independently per core. **Only a final closes a core.** The core never goes below the highest core ever tagged.                                                                            |
+| 4   | What happens when something fails midway? | **Build every platform, then upload every platform.** A build failure spends nothing and the tag is deleted. An upload failure after another upload succeeded is resumed, never rolled back: re-run the failed job with the same artifact and build number. |
+| 5   | A platform that cannot ship a rung yet?   | **Ship the ready ones.** Readiness is per platform × rung. A blocked cell is printed with its reason and skipped; a ready cell that fails a check is a failure. All-or-nothing applies to the ready set.                                                    |
+| 6   | Where do the tests run?                   | **Split by platform on GitHub-hosted runners:** iOS on macOS, Android on Linux, one job that requires both before any upload. **The macOS runner is accepted lock-in**, written down as such. A self-hosted Mac is off the table for now.                   |
+| 7   | How host-specific may the pipeline be?    | **Workflow files stay dumb.** Every step is one command from the repo. The scripts decide everything, including which jobs exist. Portability rules below.                                                                                                  |
+| 8   | Who approves `final`?                     | **`final` is its own deliberate trigger**, as today: it builds nothing, releases what the store already approved, and tags the commit that went live. No host approval feature.                                                                             |
+| 9   | What runs when?                           | Push or PR: the fast tiers. Push to `main`: fast tiers plus the device tiers per platform, so `main` is always known-releasable. Tag: the release. The owner does not have to start using PRs; the same workflow fires for both.                            |
 
 **What is explicitly not feasible, so no step tries:** undoing a store upload (a build number is
 spent the moment it lands; a TestFlight distribution cannot be unsent; a Play rollout can be
@@ -94,7 +94,7 @@ The host today is GitHub. The next could be GitLab, Codeberg/Forgejo, or anythin
   commit behind the build Apple approved. Two receipts exist today, on `v0.1.0-beta.9`.
 - **Per-target policy lives in `scripts/release/targets/*.mjs`** with the contract in
   `targets/index.mjs`: `preflight`, `tiers[stage] = { name, requires, manual, external?,
-  storeSubmission?, marker? }`, `build(ctx)`, `publish(ctx)`, and `release(ctx)` for a marker
+storeSubmission?, marker? }`, `build(ctx)`, `publish(ctx)`, and `release(ctx)` for a marker
   rung. Android `final` currently carries an always-failing `productionAccess` check in
   `requires`; `index.mjs` refuses a `final` that mixes a marker target with a building one.
 - **The gate is one process on one machine.** `scripts/test-all.mjs --strict --provision` runs
@@ -121,7 +121,7 @@ The host today is GitHub. The next could be GitLab, Codeberg/Forgejo, or anythin
 - **Play's edit is transactional; Apple's upload is not.** `play.mjs` `withEdit` commits at the end
   or abandons; `altool --upload-app` is spent on success. Both sides have a pre-upload validation
   (`altool --validate-app`; Play `:validate` in the `consolePreconditions` check).
-- **Vitest runs `scripts/**/*.test.mjs`**, so the release-path tests are part of `pnpm test`.
+- **Vitest runs `scripts/**/\*.test.mjs`**, so the release-path tests are part of `pnpm test`.
 - **The website deploys on push, outside the version set**, and stays that way.
 - **Two existing decisions this must not disturb:** the rung-to-track mapping on Play (`beta`
   ships to the API track named `alpha`; nothing ever targets Play's `beta`, which is open testing)
@@ -205,52 +205,18 @@ pnpm release plan --tag=v0.1.0-beta.9 --dry-run   # once step 2 exists; reads on
 ⚠️ Never run `pnpm release ship`, `publish`, `cut --push` or `abandon` from an agent shell. They
 spend build numbers, reach real stores, or touch the remote.
 
-### Step 1 — The version comes from the tag; channels replace the ladder
+### Step 1 — The version comes from the tag; channels replace the ladder ✅ landed 2026-09-18
 
-**Goal:** manifests hold `0.1.0`; the tag holds `v0.1.0-beta.10`; alpha.6 after beta.1 is legal;
-a final closes the core. No "Cut X" commit ever again.
+Manifests are at `0.1.0`; `pnpm release beta --dry-run` names `v0.1.0-beta.10` and `alpha`
+names `v0.1.0-alpha.4`. See `git log -- scripts/set-version.mjs scripts/release`. Two things
+it left for later steps:
 
-**Files:** `scripts/set-version.mjs`, `scripts/release/version.mjs`, `scripts/release/preflight.mjs`,
-`scripts/release/index.mjs`, `scripts/release/git.mjs`, `apps/mobile/app.config.ts`,
-`apps/mobile/app/data.tsx`, `apps/mobile/app/dev-export.tsx`, their tests, `.env.example`.
-
-Commits, in order:
-
-1. **Manifests carry the core only.** `set-version.mjs` refuses a suffix. Its `--check` is
-   unchanged except for that. Run it once to set every manifest to `0.1.0` in the same commit.
-   Move the successor guard from `preflight.mjs`'s `baseIsSuccessor` into `set-version.mjs`: a
-   written core must be `patch`/`minor`/`major` of the current one, computed when named by kind;
-   an explicit `X.Y.Z` is accepted only if it equals one of those three. Add a test for the
-   script (it has none). `--base` disappears from the release CLI.
-2. **`version.mjs`: channels.** `nextVersion({ current: core, stage, tags })` already counts per
-   (core, stage); drop `base` and `resolveCore`. Keep `compareVersions`, `releaseVersions`,
-   `highestVersion` — they are used for the core comparison and for reporting.
-3. **`preflight.mjs`: the new `monotonic`.** Two rules replace precedence: the tag's core must be
-   ≥ the highest core in any release tag (the store guard, unchanged in spirit), and a core with a
-   final tag is closed — nothing with that core may be cut, at any channel. Keep the shallow-clone
-   and no-tags refusals verbatim; they guard the same permanent mistake. `tagMatchesManifests`
-   becomes _the tag's core equals the manifests' core_. `cleanTree`, `tagAvailable`, `tagOnHead`
-   and `manifestsAgree` stay. `baseIsSuccessor` is gone (moved in commit 1).
-4. **`index.mjs`: no local bump, no commit.** Delete `commitAll` and the manifest write/restore
-   around the gate. The "local" mode becomes: compute the tag, run the gate, create the tag, ship
-   — the same thing `--from-tag` does after the tag exists. (Step 2 restructures this into
-   subcommands; here only remove what decision 2 removes, and keep the tests green.)
-5. **The full version rides in the app.** `app.config.ts`: `extra.release` from
-   `LEAPSAKE_RELEASE`, `dev` when unset; the release path sets it from the tag before any
-   `expo config` / prebuild. `data.tsx` and `dev-export.tsx` read `extra.release` for what they
-   show and write, falling back to the core. Document the variable in `.env.example` next to
-   `LEAPSAKE_BUILD_NUMBER`.
-6. **`index.mjs` header, `CONTRIBUTING.md` → _Versioning and releases_.** Rewrite the model
-   paragraphs: channels, core-only manifests, the tag as the version, the closing rule. Keep the
-   sections short; the reasons are in this doc's _Decisions_ and go to the commit message.
-
-**Tests to add or change:** `version.test.mjs` (channel counting; no base), `preflight.test.mjs`
-(closed core refused; lower core refused; alpha after beta on an open core accepted; tag/manifest
-core equality), a new `set-version.test.mjs` (suffix refused; successor guard).
-
-**Done when:** every manifest says `0.1.0`; `pnpm test:versions` passes; `pnpm release beta
---dry-run` (or its step-2 equivalent) names `v0.1.0-beta.10` on HEAD without touching a file;
-`pnpm release alpha --dry-run` names `v0.1.0-alpha.4`.
+- **Nothing in the mobile UI shows the version.** `extra.release` is stamped into exports
+  only; condition 4 of _Keeping the version visible_ still needs a visible line (step 8, or
+  sooner).
+- **Tags cut before this step can't be re-shipped with `--from-tag`.** Their commits' manifests
+  carry a suffix, which `test:versions` and `tagMatchesManifests` now refuse. That's harmless
+  because they are never rebuilt, but step 2's `plan --tag=v0.1.0-beta.9` must only read.
 
 ### Step 2 — Two phases, an artifact directory, per-cell readiness
 
@@ -267,7 +233,7 @@ blocked cell is reported and skipped; the mixed-`final` refusal disappears.
    stays ready (closed track). `mac` keeps its target-level `blocked`; both levels are legal and
    the target level means "every cell".
 2. **`plan --json`.** Emits `{ tag, version, stage, core, buildNumber, targets: [{ id, platform,
-   status, note, marker, host: "macos"|"linux" }] }`. `buildNumber` is the clock reading taken
+status, note, marker, host: "macos"|"linux" }] }`. `buildNumber` is the clock reading taken
    here, once. `host` is what the target's build needs (iOS: macOS; Android: Linux is enough).
    This is the only thing a workflow reads to build its matrices.
 3. **`build --only=<t> --build-number=<n> --out=<dir>`.** Runs that target's `preflight` and
@@ -286,7 +252,7 @@ blocked cell is reported and skipped; the mixed-`final` refusal disappears.
 6. **`abandon --tag`.** Refuses if `shipmentsFor(tagCommit)` has any receipt naming the tag;
    otherwise deletes the tag locally and at origin, and says why that is safe.
 7. **The in-process path.** `ship` (step 4 adds its guards) is `plan → gate → build all →
-   publish all → record`, in one process, with the build number from `plan`. It replaces today's
+publish all → record`, in one process, with the build number from `plan`. It replaces today's
    ship loop. The old `--from-tag` and bare `<stage>` forms go away; `--help` shows the new set.
 
 **Tests:** `targets/index.mjs` contract (a blocked cell is reported and skipped; a ready cell
@@ -337,7 +303,7 @@ from a laptop, but never by reflex and never invisibly.
    half so `cut` can call resolve without releasing) and tags **that** commit. The pipeline's
    `publish` then does the release half and `record` writes the receipt.
 2. **`ship --tag --here`.** Refuses without `--here`. Refuses if `git ls-remote --tags origin
-   <tag>` does not find the tag: nothing ships that the remote cannot see. Same typed
+<tag>` does not find the tag: nothing ships that the remote cannot see. Same typed
    confirmation as `cut`. Every receipt it writes carries `via: "laptop"`; the pipeline's carry
    `via: "ci"`. `publish` alone has the same `--here` rule outside CI; `build` does not (it spends
    nothing).
@@ -407,19 +373,19 @@ Then the workflows. Each step is one command; the matrices come from `plan --jso
 
 - **`ci.yml`** — `on: [push, pull_request]`. Job `fast` on Linux: `pnpm test`. On push to `main`
   only: jobs `gate-ios` (macOS) and `gate-android` (Linux, KVM) running `pnpm release gate
-  --platforms=<x>`. The caches from step 6.
+--platforms=<x>`. The caches from step 6.
 - **`release.yml`** — `on: push: tags: ['v*']`. `plan` (Linux): full fetch with tags, `pnpm
-  release plan --tag=$TAG --json` as a job output. `gate-<platform>` and `build-<platform>` from
+release plan --tag=$TAG --json` as a job output. `gate-<platform>` and `build-<platform>` from
   the matrix (`--build-number` from `plan`'s output; `build` uploads `<dir>` as an artifact named
   by target). `publish-ios` (macOS: `altool` needs it) and `publish-android` (Linux), both
   `needs` every gate and build job, each downloading its artifact and running `publish
-  --from=<dir> --only=<t>`, uploading its receipt. `record` (`if: always()`, Linux): download
+--from=<dir> --only=<t>`, uploading its receipt. `record` (`if: always()`, Linux): download
   receipts, `pnpm release record --from=<dir> --push`. `abandon` (`if: failure()`, after `record`):
   `pnpm release abandon --tag=$TAG`, which refuses if anything shipped. Marker rungs: `plan`'s
   matrices are empty, so only the publish jobs run. Host sugar allowed: a `concurrency` group per
   tag, and attaching the artifacts to the host's Release page.
 - **`cut.yml`** — `workflow_dispatch` with a `channel` choice. One job: full fetch, `pnpm release
-  cut $CHANNEL --push`. For `final` it needs the App Store Connect read credentials; the others
+cut $CHANNEL --push`. For `final` it needs the App Store Connect read credentials; the others
   need only a token that can push a tag. This is the one file whose loss on a host move costs
   nothing.
 

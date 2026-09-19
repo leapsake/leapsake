@@ -8,12 +8,12 @@
 //
 // ## The model
 //
-//   vX.Y.Z-alpha.N  <  vX.Y.Z-beta.N  <  vX.Y.Z-rc.N  <  vX.Y.Z
+//   vX.Y.Z-alpha.N    vX.Y.Z-beta.N    vX.Y.Z-rc.N    then vX.Y.Z, which closes X.Y.Z
 //
-// **A human chooses the rung; the number is computed** (`version.mjs`). Starting a new
-// train is the single exception — one decision per train, passed as `--base=`, and best
-// given as `patch`/`minor`/`major` so even that number is computed rather than typed. A tag is
-// cut when a build is wanted, not on every merge: each one spends a store upload.
+// **A human chooses the channel; the counter is computed** per channel from the tags
+// (`version.mjs`). Manifests carry only the core, set by `scripts/set-version.mjs`; the tag
+// carries the rest, and cutting one commits nothing. A tag is cut when a build is wanted,
+// not on every merge: each one spends a store upload.
 //
 // **A tag covers the whole repo; the platforms it reaches are per-invocation.** Every
 // manifest in `apps/` and `packages/` carries one version so that iOS `1.2.3` and macOS
@@ -165,7 +165,7 @@ function resolveRelease({ positional, values }, { manifestVersion, tags }) {
     const stage = stageOf(version);
     if (stage === null) {
       fail(
-        `"${fromTag}" is not on the ladder (expected ${STAGES.join(", ")}) — the ladder is what decides where a build is allowed to go`,
+        `"${fromTag}" is not on a channel (expected ${STAGES.join(", ")}) — the channel decides where a build is allowed to go`,
       );
     }
     return { mode: "from-tag", version, stage, tag: fromTag };

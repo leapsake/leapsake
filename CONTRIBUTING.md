@@ -111,12 +111,12 @@ Windows and Linux are **deliberately deferred — blocked on a host, not waived*
 Leapsake is a product anyone can buy into; what the grading changes is that the earliest rung a
 stranger installs does not have to carry the whole of it on day one.
 
-| Rung    | Who installs it                                           | What its worst failure costs them                        | What must be green                                                                                                                                                                                                                                                                    |
-| ------- | --------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us                                     | the suite under `--strict`, like every other rung — the catalog is green on both platforms, so the exemption it once needed has no premise left                                                                                                                                       |
-| `beta`  | external TestFlight — the first strangers                 | an evening of typing, and only if they ignored the notes | catalog Flows **1–5**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict`                                                                                                                                                                       |
+| Rung    | Who installs it                                           | What its worst failure costs them                        | What must be green                                                                                                                                                                                                                                                               |
+| ------- | --------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us                                     | the suite under `--strict`, like every other rung — the catalog is green on both platforms, so the exemption it once needed has no premise left                                                                                                                                  |
+| `beta`  | external TestFlight — the first strangers                 | an evening of typing, and only if they ignored the notes | catalog Flows **1–5**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict`                                                                                                                                                                  |
 | `rc`    | external TestFlight, ship-ready                           | records they have started to rely on                     | the above **plus** Flows **7b, 7c** and **every _reachable_ out-of-band custody assertion** — four of the catalog's five rows; the key store is a written-down deferral, not a gap ([`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md) → _Asserting on custody_) |
-| `final` | the store — the public                                    | the thing the product exists to hold                     | `rc`'s bar, unchanged                                                                                                                                                                                                                                                                 |
+| `final` | the store — the public                                    | the thing the product exists to hold                     | `rc`'s bar, unchanged                                                                                                                                                                                                                                                            |
 
 **What the rungs ratchet on is data loss, not defect count** _(owner, 2026-08-28)_. Alpha and
 beta are allowed to be buggy — the aim is high, but a bug at those rungs costs a tester an
@@ -157,9 +157,13 @@ must run on a self-hosted host with only config changes.
 **One version across every manifest** in `apps/` and `packages/`, so that iOS `1.2.3` and
 macOS `1.2.3` are known to work together. New workspaces join at whatever the repo is on:
 `scripts/set-version.mjs` _discovers_ manifests rather than listing them, and
-`pnpm test:versions` fails the suite when they disagree. Both stores reject a non-numeric
-version, so `apps/mobile/app.config.ts` strips any pre-release suffix — the repo runs on real
-semver and the stores see the numeric core, distinguished by a clock-derived build number.
+`pnpm test:versions` fails the suite when they disagree.
+
+**Manifests carry only the core (`0.1.0`); the tag carries the rest (`v0.1.0-beta.10`).**
+The stores see the core plus a clock-derived build number, and the app gets the full version
+through `LEAPSAKE_RELEASE`. Moving to the next core is one ordinary commit:
+`node scripts/set-version.mjs patch|minor|major`, which refuses anything but the three cores
+semver allows next.
 
 > ⚠️ **The number is a promise, not a mechanism.** What actually makes two separately-installed
 > artifacts compatible is `@leapsake/schema` migrations and `@leapsake/sync`.
@@ -169,16 +173,15 @@ unreleasable. `release/X.Y.Z` exists for exactly one situation — stabilizing a
 unrelated work keeps landing — and is deleted once the release ships.
 
 **A release is a tag, and [`scripts/release/`](scripts/release/) is the whole policy.** The
-ladder (`alpha` → `beta` → `rc` → final), what each rung requires per platform, and every
-precondition are enforced there rather than described here. Read its header for the reasoning;
-run `pnpm release --help` for the current rules.
+channels, what each one requires per platform, and every precondition are enforced there
+rather than described here. Run `pnpm release --help` for the current rules.
 
-- **A human chooses the rung; the number is computed** from the tags that already exist.
-  Starting a new train is the one decision left over, made once per train with
-  `--base=patch|minor|major` — prefer the kind to a typed `X.Y.Z`, because a base that goes
-  _too far forward_ is the single unrecoverable mistake in the path (the stores see the
-  numeric core, so a mistyped `1.1.0` burns every version below it). An explicit base is
-  still accepted, bounded to the three cores semver actually allows next.
+- **`alpha`, `beta` and `rc` are channels, not a ladder.** A human chooses the channel; the
+  counter is computed per channel from the tags, so `alpha.4` may follow `beta.9`. **Only a
+  final closes a core:** once `vX.Y.Z` exists, nothing more is cut on `X.Y.Z`, and no tag
+  ever goes below the highest core already tagged.
+- **Cutting a tag commits nothing.** The release tags HEAD as it is; there is no version-bump
+  commit.
 - Targets are a registry in the same shape as the test tiers, `ready` or `blocked`, so a
   platform that cannot ship is **reported, never silently skipped**. `pnpm release <stage>
 --dry-run` answers "what is this platform waiting on?" without building anything.
