@@ -17,9 +17,10 @@ production access, earned by the [14-day closed test](./android-pipeline.md).
 ① **App Store Connect metadata** — privacy URL, a _published_ App Privacy questionnaire,
 description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone + 13" iPad);
 `ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
-③ **Public repo**, full-history secret scan first. ④ `rc`, then `final` — from the tag-triggered
-pipeline in [`remote-releases.md`](./fable-investigation/remote-releases.md), whose script-only
-steps can start now and which also makes the `rc` catalog gate a job rather than a `manual:` note.
+③ `rc`, then `final` — from the tag-triggered pipeline in
+[`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 are done (the repo is
+public); **step 6, measuring the gate on hosted runners, is in flight** — its _Where step 6
+stands_ says what is open and how to read a run.
 
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
