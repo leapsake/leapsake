@@ -139,11 +139,10 @@ merely _skipped_ would defeat the whole thing. Every flow also stays non-vacuous
 the standard [`apps/mobile/maestro/README.md`](apps/mobile/maestro/README.md) holds its flows
 to.
 
-> **A platform's gate travels with that platform's release, and does not lapse when the
-> platform leaves a release.** Android's flows are green and stay in the suite even though
-> Android does not ship in v0.1 — Maestro flows are byte-identical across the two mobile
-> platforms, so keeping them costs nothing and they catch regressions on the platform that does
-> ship.
+> **A platform's gate travels with that platform's release**, and this is enforced: `pnpm release
+> gate` runs the device tiers only for the platforms whose cells are ready, under `--strict`.
+> A platform that is not shipping does not lapse: `pnpm test:all` without `--platforms` still
+> runs every platform's flows.
 
 **Vendor-neutrality is two layers, kept apart.** The **authoring layer** — the flow catalog and
 its harness specs (Maestro flows, Playwright/Electron specs) — is open-source, portable, drives

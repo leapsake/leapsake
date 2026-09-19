@@ -235,28 +235,12 @@ What later steps need to know:
 - `ship` builds into a fresh `os.tmpdir()` directory and prints the `publish --from=` line to
   resume from it.
 
-### Step 3 — The gate runs only the platforms in the release, and can run alone
+### Step 3 — The gate runs only the platforms in the release, and can run alone ✅ landed 2026-09-18
 
-**Goal:** `pnpm release gate --platforms=ios` runs exactly the iOS device tiers under
-`--strict --provision`, so a macOS job and a Linux job can each prove their half.
-
-**Files:** `scripts/test-all.mjs`, `scripts/release/index.mjs`, `CONTRIBUTING.md` → _The E2E
-release gate_.
-
-1. `test-all.mjs`: a `platform` field on the device tiers (`native-android` → `android`,
-   `native-ios` → `ios`, `e2e` → both) and a `--platforms=<list>` flag. A tier whose platforms do
-   not intersect the list is not run and not reported. `e2e` is forwarded `--platform=<x>` per
-   platform in the list (`test-e2e.mjs` and `test-native.mjs` already accept it). With no
-   `--platforms`, behaviour is unchanged. Test the filtering.
-2. `gate` in the dispatcher: the non-device tiers plus the device tiers for `--platforms`, always
-   `--strict`, `--provision` unless `--no-provision`. `ship` passes the platforms of the ready
-   cells. Under `--strict` an unbootable emulator still fails, but only when Android is in the
-   release: nothing is waived, and nothing is run for a platform that is not shipping.
-3. `CONTRIBUTING.md`: "a platform's gate travels with that platform's release" is now enforced
-   rather than described. Say so in one sentence.
-
-**Done when:** `pnpm exec node scripts/test-all.mjs --platforms=ios --only=native-ios,e2e --strict`
-lists no Android row; the same with `--platforms=android` lists no iOS row.
+`pnpm release gate --platforms=<list>` (or `--tag=<tag>`, which takes the platforms of the cells
+that build) runs `test:all --strict --provision --platforms=<list>`. `ship` passes its building
+cells' platforms. Verified by `scripts/test-all.test.mjs` and by selection only: no device tier
+was run while landing it.
 
 ### Step 4 — The laptop backdoor gets its safeguards; `cut` exists
 
