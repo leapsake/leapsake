@@ -285,6 +285,12 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
 
+**The run to read next: `35466401578`** (commit 4e97b6d, started 2026-09-19 20:07 UTC), the first
+with both fixes below. `node scripts/ci/measure-results.mjs 35466401578` shows each finished job.
+What to look for: whether iOS gets past Flow 1 (open item 1), and the `on screen:` line under any
+Android "home screen never appeared" (open item 2). When a newer run supersedes it, replace this
+paragraph with that run's id.
+
 | | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores |
 |---|---|---|
 | Device boot | 70–78s | not timed |
@@ -299,12 +305,12 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
 **Open, in the order to take them:**
 
 1. **iOS Flow 1 goes red in `subflows/relaunch.yaml`:** the dev launcher's `localhost:8081`
-   entry vanished between `when: visible` and the tap. The fix (tap made `optional`) is
-   committed and **not yet pushed** (6f1f25e).
+   entry vanished between `when: visible` and the tap. The fix (tap made `optional`, 6f1f25e)
+   is first measured in run 35466401578.
 2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
    1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
    Flow 1 instead (183s, red). The cause is unknown. The failure now lists what was on screen
-   (62fc8c9, **not yet pushed**), which is the next thing to read. A gate that fails 1 in 3
+   (62fc8c9, first in run 35466401578), which is the next thing to read. A gate that fails 1 in 3
    is not one to release on, so this outranks speed.
 3. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
