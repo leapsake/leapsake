@@ -182,9 +182,11 @@ rather than described here. Run `pnpm release --help` for the current rules.
   ever goes below the highest core already tagged.
 - **Cutting a tag commits nothing.** The release tags HEAD as it is; there is no version-bump
   commit.
-- Targets are a registry in the same shape as the test tiers, `ready` or `blocked`, so a
-  platform that cannot ship is **reported, never silently skipped**. `pnpm release <stage>
---dry-run` answers "what is this platform waiting on?" without building anything.
+- Targets are a registry in the same shape as the test tiers, and readiness is per
+  **platform × channel**: a cell a platform may not ship yet is `blocked` with its reason,
+  **reported, never silently skipped**, while a ready cell whose checks fail fails the
+  release. `pnpm release plan --tag=<tag>` answers "what is each platform waiting on?"
+  without building anything.
 - Credentials come from an untracked `.env` (copy `.env.example`). The environment wins over
   the file, so a runner's secrets are never shadowed by a local copy.
 - **A tag names a build, not a release.** `alpha`/`beta`/`rc` each upload an artifact, and

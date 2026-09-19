@@ -78,8 +78,9 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 > for why sharing one would have cost more than it bought.
 
 ```sh
-pnpm release alpha --dry-run   # what is this rung waiting on?
-pnpm release alpha             # bump, tag, archive, export, upload
+git tag -a v0.1.0-alpha.4 -m 0.1.0-alpha.4   # until `pnpm release cut` exists
+pnpm release plan --tag=v0.1.0-alpha.4        # what is each platform waiting on?
+pnpm release ship --tag=v0.1.0-alpha.4        # gate, build all, upload all, record
 ```
 
 > **Android ships one fewer permission than prebuild writes.** Expo's template declares

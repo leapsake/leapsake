@@ -218,51 +218,22 @@ it left for later steps:
   carry a suffix, which `test:versions` and `tagMatchesManifests` now refuse. That's harmless
   because they are never rebuilt, but step 2's `plan --tag=v0.1.0-beta.9` must only read.
 
-### Step 2 — Two phases, an artifact directory, per-cell readiness
+### Step 2 — Two phases, an artifact directory, per-cell readiness ✅ landed 2026-09-18
 
-**Goal:** `build` spends nothing and can run anywhere; `publish` reads what `build` wrote; a
-blocked cell is reported and skipped; the mixed-`final` refusal disappears.
+`scripts/release/phases.mjs` + the dispatcher in `index.mjs`; see `git log -- scripts/release`.
+What later steps need to know:
 
-**Files:** `scripts/release/index.mjs` (becomes the dispatcher above), `scripts/release/targets/index.mjs`
-(contract), `targets/ios.mjs`, `targets/android.mjs`, `targets/mac.mjs`, `mobile.mjs`, tests.
-
-1. **The contract gains a per-cell status.** `tiers[stage]` may carry `status: "blocked"` and a
-   `note`. `plan` prints ready cells with ✅, blocked cells with ⏳ and the note, and a ready cell
-   whose `preflight`/`requires` fail with ✗. Only ✗ fails. Android `final` becomes a blocked cell
-   whose note is today's `productionAccess` sentence; delete the always-failing check. Android `rc`
-   stays ready (closed track). `mac` keeps its target-level `blocked`; both levels are legal and
-   the target level means "every cell".
-2. **`plan --json`.** Emits `{ tag, version, stage, core, buildNumber, targets: [{ id, platform,
-status, note, marker, host: "macos"|"linux" }] }`. `buildNumber` is the clock reading taken
-   here, once. `host` is what the target's build needs (iOS: macOS; Android: Linux is enough).
-   This is the only thing a workflow reads to build its matrices.
-3. **`build --only=<t> --build-number=<n> --out=<dir>`.** Runs that target's `preflight` and
-   `requires`, then `build()`. Writes the artifact under `<dir>/<t>/` and `<dir>/<t>.json` =
-   `{ tag, version, stage, target, buildNumber, bundleId, artifact, commit, builtAt }`. The build
-   number comes from the flag (from `plan`), never from the clock here.
-4. **`publish --from=<dir>`.** For every `<t>.json` present (narrowed by `--only`), run that
-   target's `publish()` with the recorded artifact. Writes `<receipts>/<t>.receipt.json` per success.
-   Marker rungs: no `<t>.json` exists; `publish` calls `release()` instead and writes the same
-   receipt shape with the commit the target reports. A failure on one target does not stop the
-   others; the summary and exit code report per target as today.
-5. **`record --from=<dir> [--push]`.** Appends each receipt file to the note on the tagged
-   commit (`recordShipment` unchanged); with `--push`, fetches `refs/notes/releases` first, then
-   pushes it. For a marker rung, `record` also creates the `vX.Y.Z` tag on the reported commit
-   if `cut final` did not already (see step 4) — keep one code path; decide in step 4.
-6. **`abandon --tag`.** Refuses if `shipmentsFor(tagCommit)` has any receipt naming the tag;
-   otherwise deletes the tag locally and at origin, and says why that is safe.
-7. **The in-process path.** `ship` (step 4 adds its guards) is `plan → gate → build all →
-publish all → record`, in one process, with the build number from `plan`. It replaces today's
-   ship loop. The old `--from-tag` and bare `<stage>` forms go away; `--help` shows the new set.
-
-**Tests:** `targets/index.mjs` contract (a blocked cell is reported and skipped; a ready cell
-failing `requires` fails), `plan --json` shape, `build` writing the manifest file, `publish`
-reading it (stub `build()`/`publish()` targets), `abandon` refusing with a receipt. The existing
-`ios.release.test.mjs`, `ios.submit.test.mjs`, `android.release.test.mjs` keep passing.
-
-**Done when:** `pnpm release plan --tag=v0.1.0-beta.9 --json` prints the matrix with Android
-`final` as ⏳ under `--tag=v0.1.0`; `build` for a stub target writes the two files; `publish`
-from that directory calls the stub.
+- **`plan --no-checks`** exists because a Linux `plan` job cannot run iOS's preflight (Xcode,
+  CocoaPods). Step 7's `plan` job passes it; `build` runs the cell's checks on its own host
+  either way. `publish` runs no checks: the build already did.
+- **`record` creates a marker's tag** (`v0.1.0`) on the commit its receipts agree on, if the tag
+  does not exist. Step 4's `cut final` tags that commit first, and `record` then finds it
+  already there. Keep the one code path, or remove this branch when `cut final` lands.
+- **No command computes the next tag** until step 4's `cut`. Meanwhile a person runs
+  `git tag -a` by hand (`apps/mobile/README.md` says so). `LOCAL_CHECKS` in `preflight.mjs` is
+  unused until `cut` picks it up.
+- `ship` builds into a fresh `os.tmpdir()` directory and prints the `publish --from=` line to
+  resume from it.
 
 ### Step 3 — The gate runs only the platforms in the release, and can run alone
 

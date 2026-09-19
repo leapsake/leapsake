@@ -33,7 +33,7 @@ pipeline itself runs the gate per platform on hosted runners before any upload, 
 that runs the tests is not the person shipping, and no local receipt is ever built. Steps 1–4
 of that doc are script-only and can start now; steps 6–8 need step 2 below.
 
-**Acceptance:** `pnpm release rc` cannot ship a build the catalog has not passed.
+**Acceptance:** an `rc` release cannot ship a build the catalog has not passed.
 
 ## 2 — Public repo
 
@@ -66,10 +66,10 @@ step 1 depends on. Before GA because going public first makes desktop auto-updat
 
 `ascSetup` reads the beta group, Test Information and Beta App Review Information, and stops
 there, because nothing more is required to distribute a _beta_. It does **not** read
-`privacyPolicyUrl` or the App Privacy answers, so a green `pnpm release beta --dry-run` says
+`privacyPolicyUrl` or the App Privacy answers, so a green `pnpm release plan` for a beta says
 nothing about either and both are required here.
 
-**These have to be in place before `pnpm release rc`, not before `final`**: `rc` is the rung
+**These have to be in place before the `rc` release, not before `final`**: `rc` is the rung
 that submits to review, so the metadata is what Apple reads on the day.
 
 - Paste <https://leapsake.com/privacy/> into the app record.
