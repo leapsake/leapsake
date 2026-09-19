@@ -1,11 +1,11 @@
-// What stands between a laptop and a store upload or a tag: `--here`, a tag the remote
-// can already see, and the tag typed back. On a runner (`CI=true`) none of them apply.
+// What stands between a local machine and a store upload or a tag: `--here`, a tag the
+// remote can already see, and the tag typed back. On a runner (`CI=true`) none apply.
 import { createInterface } from "node:readline";
 
 export const isCI = (env = process.env) => env.CI === "true";
 
-/** Where a receipt says the release ran. */
-export const via = (env = process.env) => (isCI(env) ? "ci" : "laptop");
+/** Where a receipt says the release ran: the remote pipeline, or a local machine. */
+export const via = (env = process.env) => (isCI(env) ? "remote" : "local");
 
 /** Ask for `tag` to be typed back; true only for an exact match. */
 export function confirmTag(
@@ -27,8 +27,8 @@ export function confirmTag(
   });
 }
 
-/** The reason a laptop may not upload `tag`, or `undefined` when it may. */
-export async function laptopUploadRefusal({
+/** The reason this machine may not upload `tag`, or `undefined` when it may. */
+export async function localUploadRefusal({
   tag,
   here,
   ci,

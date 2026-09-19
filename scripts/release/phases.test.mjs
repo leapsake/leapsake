@@ -203,7 +203,7 @@ describe("publishAll", () => {
     const results = await publishAll(cells, ctx(), {
       from: out,
       receiptsOut: out,
-      via: "laptop",
+      via: "local",
       log: () => {},
     });
 
@@ -219,7 +219,7 @@ describe("publishAll", () => {
         target: "ios",
         buildNumber: 42,
         commit: "abc",
-        via: "laptop",
+        via: "local",
       }),
     ]);
   });
@@ -326,11 +326,11 @@ describe("recordReceipts", () => {
     const { root, git, head } = repo();
     git("tag", "-a", "v0.1.0-beta.10", "-m", "beta");
     recordReceipts(root, "v0.1.0-beta.10", [
-      { ...ctx(), target: "ios", buildNumber: 42, commit: head, via: "ci" },
+      { ...ctx(), target: "ios", buildNumber: 42, commit: head, via: "remote" },
       { ...ctx(), target: "android", buildNumber: 42, commit: head },
     ]);
     expect(shipmentsFor(root, head).map((r) => [r.target, r.via])).toEqual([
-      ["ios", "ci"],
+      ["ios", "remote"],
       ["android", undefined],
     ]);
   });

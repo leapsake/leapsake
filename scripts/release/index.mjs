@@ -35,7 +35,7 @@ import {
   remoteHasTag,
   tagSha,
 } from "./git.mjs";
-import { confirmTag, isCI, laptopUploadRefusal, via } from "./guards.mjs";
+import { confirmTag, isCI, localUploadRefusal, via } from "./guards.mjs";
 import {
   abandonTag,
   buildInto,
@@ -248,7 +248,7 @@ async function planRelease(opts, { write = console.log } = {}) {
 
 /** Refuses, in one line, unless this machine may upload `ctx.tag`. */
 async function guardUpload(opts, ctx) {
-  const reason = await laptopUploadRefusal({
+  const reason = await localUploadRefusal({
     tag: ctx.tag,
     here: opts.flags.has("here"),
     ci: isCI(),

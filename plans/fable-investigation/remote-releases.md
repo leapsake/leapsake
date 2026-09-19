@@ -1,8 +1,8 @@
 # Releases from the remote: a tag appears, the pipeline ships it
 
-**Decision (owner, 2026-09-18).** Releases stop being something a person runs on a laptop.
+**Decision (owner, 2026-09-18).** Releases stop being something a person runs on a local machine.
 The trigger is a git tag arriving at the remote; a hosted pipeline runs the gate, builds every
-platform, and only then uploads any of them. The laptop path survives as a guarded backdoor.
+platform, and only then uploads any of them. The local path survives as a guarded backdoor.
 The version model changes so the pipeline never has to write to `main`. Alpha, beta and rc
 become channels rather than a one-way ladder.
 
@@ -26,7 +26,7 @@ them**; if a step cannot be done under one of them, stop and say so rather than 
 
 | #   | Question                                  | Decision                                                                                                                                                                                                                                                    |
 | --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | How does a release start?                 | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The laptop command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).     |
+| 1   | How does a release start?                 | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The local command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).     |
 | 2   | Where does the version live?              | **Manifests carry only the core (`0.1.0`). The tag carries the rest (`v0.1.0-beta.10`).** No "Cut X" commit; the pipeline never writes to `main`. Condition: versions must stay _visible_ — see _Keeping the version visible_.                              |
 | 3   | Can alpha follow beta on one core?        | **Yes: channels, not a ladder.** Each of alpha/beta/rc counts up independently per core. **Only a final closes a core.** The core never goes below the highest core ever tagged.                                                                            |
 | 4   | What happens when something fails midway? | **Build every platform, then upload every platform.** A build failure spends nothing and the tag is deleted. An upload failure after another upload succeeded is resumed, never rolled back: re-run the failed job with the same artifact and build number. |
@@ -150,7 +150,7 @@ pnpm release record --tag=<tag> --from=<dir> [--push]
 pnpm release abandon --tag=<tag>
     delete the tag locally and at origin — refuses if any receipt names it
 pnpm release ship --tag=<tag> --here
-    the laptop backdoor: plan → gate → build all → publish all → record, in one process, guarded
+    the local backdoor: plan → gate → build all → publish all → record, in one process, guarded
 pnpm release --help
 ```
 
@@ -242,7 +242,7 @@ that build) runs `test:all --strict --provision --platforms=<list>`. `ship` pass
 cells' platforms. Verified by `scripts/test-all.test.mjs` and by selection only: no device tier
 was run while landing it.
 
-### Step 4 — The laptop backdoor gets its safeguards; `cut` exists ✅ landed 2026-09-18
+### Step 4 — The local backdoor gets its safeguards; `cut` exists ✅ landed 2026-09-18
 
 `pnpm release cut <channel>`, `scripts/release/guards.mjs`, and receipts carrying `via`. What
 later steps need to know:
@@ -252,7 +252,7 @@ later steps need to know:
 - **`cut final` needs App Store Connect read credentials** (it calls the iOS target's
   `approved()`), as step 7's `cut.yml` note says.
 - **The final tag now exists before its release runs**, so `plan`/`ship` check it like any
-  other tag (`FROM_TAG_CHECKS`: the tag must name HEAD). On a laptop that means
+  other tag (`FROM_TAG_CHECKS`: the tag must name HEAD). Locally that means
   `git checkout v0.1.0` before `ship --tag=v0.1.0 --here`. `record` refuses a receipt whose
   commit is not the one the tag names. `MARKER_CHECKS` is only for `cut final`.
 - The upload guard checks `git ls-remote` against `origin` by name.
@@ -303,7 +303,7 @@ Script pieces first, each testable without a runner:
    `IOS_DIST_CERT_PASSWORD_PATH` are set: create a temporary keychain, import the `.p12`, set the
    partition list, add it to the search list, copy `IOS_PROVISIONING_PROFILE_PATH` into
    `~/Library/MobileDevice/Provisioning Profiles/`. Tear down after the export. When they are not
-   set (a laptop), today's behaviour. Add the three variables to `.env.example` under iOS.
+   set (a local machine), today's behaviour. Add the three variables to `.env.example` under iOS.
 2. **Secrets as files.** A runner holds secrets as strings; the scripts want paths. One small
    command, `pnpm release materialize --into=<dir>`, reads `LEAPSAKE_SECRET_<NAME>_B64` variables,
    writes each to `<dir>/<name>`, and prints the `*_PATH=` lines to export. Portable: every host
@@ -347,7 +347,7 @@ the tag deleted and nothing uploaded.
 - `plans/android-pipeline.md`: delete the `--only` two-step paragraphs; the "final is
   structurally mixed" item is resolved by per-cell readiness; the `rc` production-half item stays.
 - `apps/mobile/README.md` → _Cutting a release_: the everyday path is the button or a tag; the
-  laptop path and its guards.
+  local path and its guards.
 - `.env.example`: the header line still says `--only=<target> --dry-run`; make it `plan`.
 - Delete this doc and its row in `README.md`; update `plans/README.md`, `plans/shipping.md` step
   4 and `plans/status.md` where they point here.

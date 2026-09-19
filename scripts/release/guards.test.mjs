@@ -1,7 +1,7 @@
 import { PassThrough, Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
-import { confirmTag, laptopUploadRefusal, via } from "./guards.mjs";
+import { confirmTag, localUploadRefusal, via } from "./guards.mjs";
 
 const typed = (text) => ({
   input: Readable.from([text]),
@@ -29,7 +29,7 @@ describe("confirmTag", () => {
 });
 
 const guard = (over = {}) =>
-  laptopUploadRefusal({
+  localUploadRefusal({
     tag: "v0.1.0-beta.10",
     here: true,
     ci: false,
@@ -38,7 +38,7 @@ const guard = (over = {}) =>
     ...over,
   });
 
-describe("laptopUploadRefusal", () => {
+describe("localUploadRefusal", () => {
   it("refuses without --here, in one line", async () => {
     const reason = await guard({ here: false });
     expect(reason).toMatch(/without --here/);
@@ -71,9 +71,9 @@ describe("laptopUploadRefusal", () => {
 });
 
 describe("via", () => {
-  it("says ci only when CI=true", () => {
-    expect(via({ CI: "true" })).toBe("ci");
-    expect(via({ CI: "1" })).toBe("laptop");
-    expect(via({})).toBe("laptop");
+  it("says remote only when CI=true", () => {
+    expect(via({ CI: "true" })).toBe("remote");
+    expect(via({ CI: "1" })).toBe("local");
+    expect(via({})).toBe("local");
   });
 });

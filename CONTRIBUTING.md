@@ -201,7 +201,7 @@ rather than described here. Run `pnpm release --help` for the current rules.
   that tag makes the approved version public; it builds nothing.
 - **A release pushes a tag and the receipts note, never a branch.** Store version strings are
   permanent, a Play production rollout reaches strangers as soon as it goes live, and a
-  notarized artifact is public the moment its feed sees it. So uploading from a laptop needs
+  notarized artifact is public the moment its feed sees it. So uploading from a local machine needs
   `--here`, a tag origin already has, and the tag typed back; there is no `--yes`, and on a
   runner (`CI=true`) nothing prompts.
 

@@ -88,7 +88,7 @@ that submits to review, so the metadata is what Apple reads on the day.
 
 **Two commands, days apart, and the rungs mean different things.** Once
 [`remote-releases.md`](./fable-investigation/remote-releases.md) lands, both are a tag arriving
-at the remote; the laptop path stays as the guarded backdoor.
+at the remote; the local path stays as the guarded backdoor.
 
 `rc` builds, uploads, hands the build to TestFlight's testers _and_ submits it to App Store
 review. A rejection is answered with another `rc`: the version record is reused, so the attempts
