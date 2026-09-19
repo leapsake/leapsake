@@ -1061,6 +1061,8 @@ const TIERS = {
 export default {
   id: "ios",
   label: "iOS (App Store Connect)",
+  platform: "ios",
+  host: "macos",
   status: "ready",
 
   preflight: [xcodeSelected, cocoapods, ...signing, ...ascKey],
@@ -1168,7 +1170,7 @@ export default {
     // `bundleId` travels with the artifact rather than being re-read in `publish()`: it is
     // what identifies the app to App Store Connect, and it must be the value Expo actually
     // resolved for *this* build, not what `app.json` says a second later.
-    return { ipa: join(exportPath, ipa), buildNumber, bundleId };
+    return { files: { ipa: join(exportPath, ipa) }, buildNumber, bundleId };
   },
 
   /**
@@ -1199,7 +1201,7 @@ export default {
       "altool",
       "--validate-app",
       "-f",
-      artifact.ipa,
+      artifact.files.ipa,
       "-t",
       "ios",
       ...credentials,
@@ -1209,7 +1211,7 @@ export default {
       "altool",
       "--upload-app",
       "-f",
-      artifact.ipa,
+      artifact.files.ipa,
       "-t",
       "ios",
       ...credentials,

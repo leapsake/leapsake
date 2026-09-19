@@ -105,7 +105,7 @@ export const monotonic = {
   },
 };
 
-/** In `--from-tag` mode the tag is the input, so it has to describe *this* commit. */
+/** The tag exists and names the commit checked out, so the build is of that commit. */
 const tagOnHead = {
   name: "tag names HEAD",
   check: ({ root, tag }) => {
@@ -138,20 +138,19 @@ export const LOCAL_CHECKS = [
 /** Marking a release that already went public: the tag lands on an older commit, not HEAD. */
 export const MARKER_CHECKS = [tagAvailable, monotonic];
 
-/**
- * Building an existing tag, as a runner does. The tag is the input here rather than the
- * output, so it is verified instead of created.
- *
- * `releaseBranch` is deliberately absent: a tag checkout is a detached HEAD, and *which*
- * branch a tag was cut from is a question about the commit's history, which
- * `LOCAL_CHECKS` already answered when the tag was made. `monotonic` is deliberately
- * present — a tag pushed by hand never passed through the local path, and that guard is
- * the one whose failure mode cannot be undone.
- */
+/** Planning or shipping an existing tag. `monotonic` is here because a hand-pushed tag skipped `cut`. */
 export const FROM_TAG_CHECKS = [
   cleanTree,
   manifestsAgree,
   tagOnHead,
   tagMatchesManifests,
   monotonic,
+];
+
+/** Building one target of an existing tag. History is `plan`'s job, so a shallow clone may build. */
+export const BUILD_CHECKS = [
+  cleanTree,
+  manifestsAgree,
+  tagOnHead,
+  tagMatchesManifests,
 ];

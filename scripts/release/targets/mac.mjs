@@ -12,6 +12,8 @@
 export default {
   id: "mac",
   label: "macOS (notarized, direct download)",
+  platform: "mac",
+  host: "macos",
   status: "blocked",
   note: "packaging and notarization deferred past v0.1 — plans/v0-2.md",
 

@@ -3,9 +3,8 @@
 //   1. **The track mapping.** Play's closed track is named `alpha` over the API and its
 //      `beta` is *open* testing — the whole internet. A rung table that drifted by one
 //      name would publish a beta to strangers and report success.
-//   2. **`final` refusing.** Until Play grants production access, `final` cannot publish
-//      on Android, and it must say so in the preflight pass — after iOS has shipped is
-//      too late.
+//   2. **`final` blocked.** Until Play grants production access, Android's `final` is a
+//      blocked cell, reported with the reason and skipped.
 //   3. **The signer.** A debug-signed release AAB builds, installs and is only rejected
 //      at upload.
 //   4. **The body `publish()` sends.** The track it names, the status it asks for, the
@@ -71,20 +70,10 @@ describe("the rung → track mapping", () => {
 });
 
 describe("final", () => {
-  it("refuses, naming what would unlock it", async () => {
-    const failures = await runChecks(android.tiers.final.requires, {
-      root: repoWith(),
-    });
-    expect(failures).toHaveLength(1);
-    expect(failures[0].reason).toMatch(/production access/i);
-    expect(failures[0].reason).toMatch(/12 testers/);
-  });
-
-  it("points at the escape hatch rather than just failing", async () => {
-    const [failure] = await runChecks(android.tiers.final.requires, {
-      root: repoWith(),
-    });
-    expect(failure.reason).toMatch(/--only=ios/);
+  it("is a blocked cell naming what would unlock it", () => {
+    expect(android.tiers.final.status).toBe("blocked");
+    expect(android.tiers.final.note).toMatch(/production access/i);
+    expect(android.tiers.final.note).toMatch(/12 testers/);
   });
 });
 
@@ -231,7 +220,7 @@ function stubPlay(overrides = {}) {
 function artifactIn(root) {
   const aab = join(root, "app-release.aab");
   writeFileSync(aab, "an-app-bundle");
-  return { aab, buildNumber: CODE, bundleId: "com.leapsake.app" };
+  return { files: { aab }, buildNumber: CODE, bundleId: "com.leapsake.app" };
 }
 
 const trackPut = (calls) => calls.find((call) => call.key.startsWith("PUT "));

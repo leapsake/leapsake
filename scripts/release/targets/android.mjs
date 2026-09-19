@@ -149,21 +149,6 @@ const playReachable = {
 };
 
 /**
- * Production access, which a personal account earns by running a closed test.
- *
- * This is the check that stops a half-finished cross-platform release: without it `final`
- * would ship iOS and *then* discover Android cannot go live. It fails in the preflight
- * pass, before anything is built.
- */
-const productionAccess = {
-  name: "production access",
-  check: () =>
-    "Play has not granted this account production access yet — it is earned by 12 testers " +
-    "opted into the closed track for 14 continuous days, then applied for. Until then " +
-    "`final` cannot publish on Android. Ship iOS with `--only=ios` if that is what you mean.",
-};
-
-/**
  * Play's release notes, which come from `whats-new.txt` at *every* rung.
  *
  * ⚠️ Not `what-to-test.txt`, which is the iOS pairing. Apple has two fields — TestFlight's
@@ -231,7 +216,11 @@ const TIERS = {
   final: {
     name: "production track",
     track: TRACK.production,
-    requires: [productionAccess, consolePreconditions(TRACK.production)],
+    status: "blocked",
+    note:
+      "Play has not granted this account production access yet — it is earned by 12 testers " +
+      "opted into the closed track for 14 continuous days, then applied for",
+    requires: [consolePreconditions(TRACK.production)],
     manual: [],
   },
 };
@@ -239,6 +228,8 @@ const TIERS = {
 export default {
   id: "android",
   label: "Android (Google Play)",
+  platform: "android",
+  host: "linux",
   status: "ready",
 
   preflight: [java, ...signing, serviceAccount, playReachable],
@@ -319,7 +310,7 @@ export default {
     if (!existsSync(aab)) throw new Error(`gradle produced no AAB at ${aab}`);
     assertSignedByUploadKey(aab);
 
-    return { aab, buildNumber: versionCode, bundleId: packageName };
+    return { files: { aab }, buildNumber: versionCode, bundleId: packageName };
   },
 
   /**
@@ -339,7 +330,7 @@ export default {
       const bundle = await play.uploadBundle(
         artifact.bundleId,
         editId,
-        artifact.aab,
+        artifact.files.aab,
       );
       if (bundle.versionCode !== artifact.buildNumber) {
         throw new Error(
