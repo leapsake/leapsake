@@ -84,16 +84,12 @@ import {
 } from "@leapsake/schema";
 import { duplicatesReminderId } from "@leapsake/reminders";
 import { createRemindersApi } from "@leapsake/reminders/api";
-// The onboarding-nudge id-convention, surfaced through core (the apps' single
-// entry point) so a client can map a Home reminder's id to its CTA route without
-// depending on `@leapsake/reminders` directly.
+// Re-exported so a client can map a Home reminder's id to its CTA route
+// without depending on `@leapsake/reminders` directly.
 export { ONBOARDING_REMINDERS, onboardingRouteOf } from "@leapsake/reminders";
 export type { OnboardingReminder, OnboardingRoute } from "@leapsake/reminders";
 
-/**
- * The reminder shapes a client types its screens against, surfaced through core
- * — the apps' single entry point — like the onboarding route above.
- */
+// The reminder shapes a client types its screens against.
 export type {
   ContactReminderTarget,
   GiftReminderTarget,
@@ -122,8 +118,8 @@ import { createViews } from "./views.js";
 // concrete SqliteDriver, run migrations, then build the core.
 export { runMigrations, type SqliteDriver, type GenderResult };
 
-// Duplicate-detection result shapes (reconciliation Increment B), re-exported
-// from the data layer so every client renders candidates against one contract.
+// Duplicate-detection results, so every client renders candidates against one
+// contract.
 export type {
   DuplicateCandidate,
   DuplicateCandidatePerson,
@@ -154,10 +150,7 @@ export type { AlreadyStored } from "@leapsake/contact-import";
 // What an export run produced, re-exported so a client can type the bytes it
 // writes and the counts it shows without depending on `@leapsake/export`.
 export type { ExportArchive } from "@leapsake/export";
-// The shape of the archive's `data.json`, for a client (or a test) that reads
-// one back. Re-exported here for the same reason `ExportArchive` is: core is the
-// composition root every client wires against, and nothing else should have to
-// take a direct dependency on `@leapsake/export` to understand its output.
+// The archive's `data.json` shape, for a client or test that reads one back.
 export { exportDataSchema } from "@leapsake/export";
 export type { ExportData } from "@leapsake/export";
 
@@ -165,13 +158,8 @@ export type { ExportData } from "@leapsake/export";
 // type what `notificationSettings` reads and writes.
 export type { NotificationMode, NotificationSettings } from "@leapsake/schema";
 
-// The custody Phase 0 bootstrap: the first KeyStore consumer, run between
-// migrations and createCore to make the device's master key available. Plus the
-// Phase-1/2 password unlock door: enable sync (add the password + recovery
-// wrappings of MK) and unlock the master key from the password / recovery key
-// alone, with no enclave involved. And the relinquish half (@leapsake/key-custody):
-// `lockThisDevice` is sign out — forget the two secrets that open this device's
-// store so the next open must pass the password gate.
+// Key custody: the device master key, the password and recovery doors, and
+// `lockThisDevice` (sign out).
 export {
   ensureDeviceMasterKey,
   ensureLocalDeviceId,
@@ -206,9 +194,8 @@ export {
   type RecoveryChannel,
 } from "@leapsake/key-custody";
 
-// The production sync-engine assembly: the canonical syncable allowlist plus a
-// one-call cycle for an enabled account, so each client drives sync the same way
-// (desktop now; mobile in Phase C) instead of hand-rolling the repo registry.
+// The syncable allowlist plus a one-call cycle for an enabled account, so each
+// client drives sync the same way.
 export { syncableRepos } from "./sync.js";
 export {
   createAccountSyncEngine,
@@ -233,8 +220,7 @@ export {
 } from "@leapsake/sync";
 
 // The bundled holiday catalog's seed, applied at store open once per bundle
-// version. Re-exported so a client never depends on `@leapsake/holidays`
-// directly, the same way the reminders engine is kept behind this surface.
+// version, and the holidays API.
 export { seedHolidayCatalog, createHolidaysApi } from "@leapsake/holidays";
 export type {
   BearerHolidayCandidate,
@@ -245,10 +231,8 @@ export type {
   ObserverDecision,
 } from "@leapsake/holidays";
 
-// The scheduling layer that turns the manual one-shot sync into seamless
-// background sync: a debounced, single-flight scheduler plus a CoreApi wrapper
-// that kicks a sync after every local write. Each client wires the platform
-// triggers (focus/foreground) to it.
+// Background sync: a debounced, single-flight scheduler and a CoreApi wrapper
+// that kicks a sync after every local write. Clients wire focus/foreground in.
 export {
   createSyncScheduler,
   withSyncKick,
@@ -257,9 +241,8 @@ export {
   type SyncScheduler,
 } from "@leapsake/sync";
 
-// Whether the relay claims to keep a durable copy of the account's data — the
-// check that words the "Forget account" confirmation (@leapsake/key-custody). Silence
-// means "no copy", so a client that never reaches its relay still warns honestly.
+// Whether the relay claims a durable copy of the account's data, which words
+// the "Forget account" warning. Silence means "no copy".
 export {
   fetchRelayCapabilities,
   NO_DURABLE_BACKUP,
@@ -285,30 +268,12 @@ export type {
   MilestoneNewView,
 } from "./views.js";
 
-/**
- * The client-agnostic application surface. Every operation is a composition over
- * the repositories in `@leapsake/data` — transactional writes, cascade deletes,
- * relationship orientation, label resolution, and the cross-repo read services.
- * It is deliberately free of any transport (Electron IPC) or UI concern, so each
- * client uses it the same way:
- *
- * - **Desktop** builds the core in the Electron main process and forwards each
- *   method over typed IPC (`window.api`).
- * - **Mobile (Expo/RN)** builds the core in-process and calls it directly.
- *
- * The shape mirrors what the desktop renderer already consumes as `window.api`,
- * so the desktop preload can derive its type from {@link CoreApi}.
- */
+/** The client-agnostic application surface every client wires against. */
 export type CoreApi = ReturnType<typeof createCore>;
 
 /**
- * Wire the repositories and services over a {@link SqliteDriver} and return the
- * composed {@link CoreApi}. Synchronous wiring only — run {@link runMigrations}
- * against the same driver before issuing any query.
- *
- * Inputs are passed straight to the repositories, which validate them with their
- * Zod schemas internally. A client that accepts untrusted input (e.g. the desktop
- * IPC boundary) should additionally parse at its trust boundary before calling in.
+ * Wire the repositories over a {@link SqliteDriver} into a {@link CoreApi}; run
+ * {@link runMigrations} on it first. Trust boundaries parse before calling in.
  */
 export function createCore(driver: SqliteDriver) {
   const people = createPeopleRepo(driver);
