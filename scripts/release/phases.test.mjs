@@ -203,6 +203,7 @@ describe("publishAll", () => {
     const results = await publishAll(cells, ctx(), {
       from: out,
       receiptsOut: out,
+      via: "laptop",
       log: () => {},
     });
 
@@ -218,6 +219,7 @@ describe("publishAll", () => {
         target: "ios",
         buildNumber: 42,
         commit: "abc",
+        via: "laptop",
       }),
     ]);
   });
@@ -320,41 +322,38 @@ function repo() {
 }
 
 describe("recordReceipts", () => {
-  it("appends each receipt to the note on the commit it shipped from", () => {
+  it("appends each receipt to the note on the tagged commit", () => {
     const { root, git, head } = repo();
     git("tag", "-a", "v0.1.0-beta.10", "-m", "beta");
     recordReceipts(root, "v0.1.0-beta.10", [
-      { ...ctx(), target: "ios", buildNumber: 42, commit: head },
+      { ...ctx(), target: "ios", buildNumber: 42, commit: head, via: "ci" },
       { ...ctx(), target: "android", buildNumber: 42, commit: head },
     ]);
-    expect(shipmentsFor(root, head).map((r) => r.target)).toEqual([
-      "ios",
-      "android",
+    expect(shipmentsFor(root, head).map((r) => [r.target, r.via])).toEqual([
+      ["ios", "ci"],
+      ["android", undefined],
     ]);
   });
 
-  it("creates a marker's tag on the commit its receipts name", () => {
+  it("refuses a receipt from another commit than the tag names", () => {
     const { root, git, first } = repo();
-    const final = {
-      ...ctx({ tag: "v0.1.0", version: "0.1.0", stage: "final" }),
-    };
-    recordReceipts(root, "v0.1.0", [
-      { ...final, target: "ios", buildNumber: "7", commit: first },
-    ]);
-    expect(git("rev-list", "-n", "1", "v0.1.0")).toBe(first);
-  });
-
-  it("refuses to create a tag when the receipts disagree on the commit", () => {
-    const { root, first, head } = repo();
-    const final = {
-      ...ctx({ tag: "v0.1.0", version: "0.1.0", stage: "final" }),
-    };
+    git("tag", "-a", "v0.1.0", "-m", "final");
+    const final = ctx({ tag: "v0.1.0", version: "0.1.0", stage: "final" });
     expect(() =>
       recordReceipts(root, "v0.1.0", [
-        { ...final, target: "ios", commit: first },
-        { ...final, target: "android", commit: head },
+        { ...final, target: "ios", buildNumber: "7", commit: first },
       ]),
-    ).toThrow(/cannot name them all/);
+    ).toThrow(/ios shipped .* but v0\.1\.0 names/);
+    expect(shipmentsFor(root, first)).toEqual([]);
+  });
+
+  it("refuses a tag that does not exist", () => {
+    const { root, head } = repo();
+    expect(() =>
+      recordReceipts(root, "v0.1.0", [
+        { ...ctx(), tag: "v0.1.0", target: "ios", commit: head },
+      ]),
+    ).toThrow(/v0\.1\.0 does not exist/);
   });
 });
 

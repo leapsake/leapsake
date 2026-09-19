@@ -54,3 +54,17 @@ export function tagSha(root, tag) {
 export function createTag(root, tag, message, commit) {
   git(root, ["tag", "-a", tag, "-m", message, ...(commit ? [commit] : [])]);
 }
+
+/** Whether `remote` has `tag`. False when the remote cannot be reached. */
+export function remoteHasTag(root, tag, remote = "origin") {
+  const run = spawnSync(
+    "git",
+    ["ls-remote", "--tags", remote, `refs/tags/${tag}`],
+    {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  );
+  return run.status === 0 && run.stdout.trim() !== "";
+}

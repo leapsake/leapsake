@@ -58,6 +58,7 @@ export function formatReceipt({
   target,
   buildNumber,
   bundleId,
+  via,
   at,
 }) {
   if (!tag || !target) {
@@ -72,6 +73,7 @@ export function formatReceipt({
     // compared against Apple's `filter[version]` should not care which produced it.
     build: buildNumber === undefined ? undefined : String(buildNumber),
     bundleId,
+    via,
     at: at ?? new Date().toISOString(),
   });
 }

@@ -12,7 +12,7 @@ import {
 import { basename, join, resolve } from "node:path";
 
 import { runChecks } from "./checks.mjs";
-import { createTag, tagSha } from "./git.mjs";
+import { tagSha } from "./git.mjs";
 import { recordShipment, shipmentsFor } from "./receipts.mjs";
 import { coreOf } from "./version.mjs";
 
@@ -161,7 +161,7 @@ function artifactFrom(dir, manifest) {
 export async function publishAll(
   cells,
   ctx,
-  { from, receiptsOut, only, log = console.log },
+  { from, receiptsOut, only, via, log = console.log },
 ) {
   const built = new Map(
     builtIn(from).map(({ id, manifest }) => [id, manifest]),
@@ -208,7 +208,7 @@ export async function publishAll(
       }
       writeFileSync(
         receiptPath(receiptsOut, target.id),
-        `${JSON.stringify({ tag: ctx.tag, version: ctx.version, stage: ctx.stage, target: target.id, ...receipt, at: new Date().toISOString() }, null, 2)}\n`,
+        `${JSON.stringify({ tag: ctx.tag, version: ctx.version, stage: ctx.stage, target: target.id, ...receipt, via, at: new Date().toISOString() }, null, 2)}\n`,
       );
       results.push({ target, ok: true, ms: Date.now() - started });
     } catch (error) {
@@ -231,35 +231,25 @@ export function receiptsIn(dir) {
     .map((name) => JSON.parse(readFileSync(join(dir, name), "utf8")));
 }
 
-/**
- * Append each receipt to `refs/notes/releases` on the commit it shipped from. A marker
- * release's tag is created here, on the commit its receipts agree on, if it does not exist.
- */
+/** Append each receipt to `refs/notes/releases` on the commit `tag` names. */
 export function recordReceipts(root, tag, receipts) {
-  const own = receipts.filter((each) => each.tag === tag);
-  if (own.length !== receipts.length) {
-    throw new Error(`the receipts include ones for another tag than ${tag}`);
-  }
-  if (own.length === 0) return { recorded: [], lost: [] };
-
-  if (tagSha(root, tag) === null) {
-    const commits = new Set(own.map((each) => each.commit));
-    if (commits.size !== 1) {
+  const tagged = tagSha(root, tag);
+  if (tagged === null) throw new Error(`${tag} does not exist here`);
+  for (const receipt of receipts) {
+    if (receipt.tag !== tag) {
+      throw new Error(`a receipt for ${receipt.tag} is not one of ${tag}'s`);
+    }
+    if (receipt.commit && receipt.commit !== tagged) {
       throw new Error(
-        `the receipts name ${commits.size} commits (${[...commits].map((c) => c?.slice(0, 12)).join(", ")}) — ${tag} cannot name them all`,
+        `${receipt.target} shipped ${receipt.commit.slice(0, 12)}, but ${tag} names ${tagged.slice(0, 12)}`,
       );
     }
-    const [commit] = commits;
-    createTag(root, tag, `${own[0].version} (released)`, commit);
   }
-
-  const tagged = tagSha(root, tag);
   const recorded = [];
   const lost = [];
-  for (const receipt of own) {
-    const commit = receipt.commit ?? tagged;
-    const ok = recordShipment(root, commit, receipt);
-    (ok ? recorded : lost).push({ ...receipt, commit });
+  for (const receipt of receipts) {
+    const ok = recordShipment(root, tagged, receipt);
+    (ok ? recorded : lost).push({ ...receipt, commit: tagged });
   }
   return { recorded, lost };
 }
