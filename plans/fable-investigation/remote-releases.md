@@ -365,6 +365,18 @@ plumbing done in the scripts so the YAML stays dumb.
 **Files:** `.github/workflows/ci.yml`, `release.yml`, `cut.yml`; `scripts/release/targets/ios.mjs`
 (keychain import); `scripts/release/checks.mjs` or a new `credentials.mjs`; `.env.example`.
 
+**Leave the door open to fastlane.** It is deferred, not ruled out
+([`dependency-balance.md`](./dependency-balance.md) → _Evaluated and kept_ has the trigger).
+If it comes, it replaces only what is inside `targets/ios.mjs` and `targets/android.mjs`. Three
+rules keep it that way:
+
+- **The scripts own the version and the build number.** A future lane takes both as inputs;
+  never fastlane's `increment_build_number` or version bumps, which write to project files.
+- **The keychain import stays one self-contained function** in the iOS target, so fastlane's
+  `setup_ci`/`import_certificate` can replace it whole. No certificate-sharing scheme of our
+  own; that is `match`'s job if it is ever needed.
+- **Receipts are written from what `build()`/`publish()` return**, never from a tool's output.
+
 Script pieces first, each testable without a runner:
 
 1. **Keychain import in the iOS target.** When `IOS_DIST_CERT_P12_PATH` and
