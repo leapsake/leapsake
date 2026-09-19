@@ -900,20 +900,10 @@ async function requestRelease(asc, versionId) {
 }
 
 /**
- * Make the approved version public, and report which commit went with it.
- *
- * The commit is looked up rather than assumed, because by now HEAD has almost certainly
- * moved past the thing Apple approved — a README fix, a dependency bump. Tagging HEAD would
- * put the release marker on a commit whose binary nobody ever shipped.
- *
- * ⚠️ **Refuses rather than guesses.** If no receipt names the live build, or more than one
- * does, the honest answer to "which commit is this?" is *unknown*, and this is one tag that
- * must not be approximately right. `--commit=` is the way to say it by hand.
- *
- * Exported for its tests: like the submission path, every branch here is a conversation
- * with Apple that cannot be rehearsed against the real thing.
+ * The approved version's record and the commit its build came from, without releasing it.
+ * Refuses rather than guesses; `--commit=` names the commit by hand.
  */
-export async function releaseToPublic({ root, storeVersion, commit }) {
+export async function approvedRelease({ root, storeVersion, commit }) {
   const asc = ascFromEnv();
   const bundleId = readAppJson(root).expo?.ios?.bundleIdentifier;
   const app = await findApp(asc, bundleId);
@@ -950,8 +940,6 @@ export async function releaseToPublic({ root, storeVersion, commit }) {
     );
   }
 
-  // Resolve before releasing: discovering the commit is unknowable is a refusal worth
-  // making *before* the app is public rather than after.
   const resolved =
     commit ?? commitOfBuild(root, { target: "ios", buildNumber });
   if (!resolved) {
@@ -961,15 +949,20 @@ export async function releaseToPublic({ root, storeVersion, commit }) {
         "it, or name the commit with --commit=<sha>",
     );
   }
+  return { asc, version, state, buildNumber, commit: resolved };
+}
 
+/** Make the approved version public, and report which commit went with it. */
+export async function releaseToPublic(ctx) {
+  const { asc, version, state, buildNumber, commit } =
+    await approvedRelease(ctx);
   if (state === "READY_FOR_SALE") {
-    say(`${storeVersion} is already on the App Store`);
+    say(`${ctx.storeVersion} is already on the App Store`);
   } else {
     await requestRelease(asc, version.id);
   }
-
-  say(`build ${buildNumber} came from ${resolved.slice(0, 12)}`);
-  return { commit: resolved, buildNumber };
+  say(`build ${buildNumber} came from ${commit.slice(0, 12)}`);
+  return { commit, buildNumber };
 }
 
 export async function submitToAppStore({
@@ -1075,6 +1068,12 @@ export default {
    * produces a commit rather than a file.
    */
   release: releaseToPublic,
+
+  /** The commit a marker rung will release, for `cut final` to tag before anything goes live. */
+  async approved(ctx) {
+    const { commit, buildNumber } = await approvedRelease(ctx);
+    return { commit, buildNumber };
+  },
 
   tiers: TIERS,
 

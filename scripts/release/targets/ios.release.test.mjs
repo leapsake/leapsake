@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { recordShipment } from "../receipts.mjs";
-import { releaseToPublic } from "./ios.mjs";
+import ios, { releaseToPublic } from "./ios.mjs";
 
 /** A git repo carrying app.json and, optionally, receipts for a build. */
 function repoWith({ builds = [] } = {}) {
@@ -174,5 +174,26 @@ describe("releaseToPublic", () => {
     await expect(
       releaseToPublic({ root, storeVersion: "0.1.0", commit: "deadbeefcafe" }),
     ).resolves.toMatchObject({ commit: "deadbeefcafe" });
+  });
+});
+
+describe("approved", () => {
+  it("names the commit behind the approved build without releasing it", async () => {
+    const { root, commit } = repoWith({ builds: ["368500"] });
+    const calls = stubRoutes(approved());
+    await expect(
+      ios.approved({ root, storeVersion: "0.1.0" }),
+    ).resolves.toEqual({ commit, buildNumber: "368500" });
+    expect(calls.map((each) => each.key)).not.toContain(
+      "POST /v1/appStoreVersionReleaseRequests",
+    );
+  });
+
+  it("refuses a version Apple has not approved", async () => {
+    const { root } = repoWith({ builds: ["368500"] });
+    stubRoutes(approved("IN_REVIEW"));
+    await expect(ios.approved({ root, storeVersion: "0.1.0" })).rejects.toThrow(
+      /IN_REVIEW/,
+    );
   });
 });
