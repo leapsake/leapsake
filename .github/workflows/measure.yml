@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - uses: actions/cache/restore@v4
@@ -36,7 +37,7 @@ jobs:
             ~/Library/Caches/CocoaPods
             ~/.expo
       - run: bash scripts/ci/install-maestro.sh
-      - run: pnpm release gate --platforms=ios
+      - run: bash scripts/ci/measure-gate.sh ios
       - uses: actions/cache/save@v4
         if: always()
         with:
@@ -62,6 +63,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - uses: actions/cache/restore@v4
@@ -74,7 +76,7 @@ jobs:
             ~/.expo
       - run: bash scripts/ci/android-host.sh
       - run: bash scripts/ci/install-maestro.sh
-      - run: pnpm release gate --platforms=android
+      - run: bash scripts/ci/measure-gate.sh android
       - uses: actions/cache/save@v4
         if: always()
         with:
