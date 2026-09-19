@@ -29,12 +29,14 @@ kill "$watchdog" "$tailer" 2>/dev/null
 host="$(uname -s), $(getconf _NPROCESSORS_ONLN) cores"
 clean=$(sed -E 's/\x1b\[[0-9;]*m//g' "$log")
 lines=$(printf '%s\n' "$clean" | awk '
+  /^  ✗ / { for (i = 1; i <= 15; i++) if (before[(n + i) % 15] != "") print "    | " before[(n + i) % 15] }
+  { before[n = (n + 1) % 15] = $0 }
   /^(✅|❌|⏳) / { print; detail = /^(❌|⏳)/; next }
   detail && /^      / { print; next }
   { detail = 0 }
   /took [0-9]+s|up \([0-9]+s\)|simulator up|! this emulator|✖|^  [✓✗] .*[0-9]s$/ { print }
   /^[^ ].* \([0-9]+ms\)$|^Format issues|^measure-gate:/ { print }
-' | head -80)
+' | head -120)
 last=$(printf '%s\n' "$clean" | tail -n 25)
 message=$(printf '%s\n%s\n\n— last lines —\n%s' "$host" "$lines" "$last" |
   sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
