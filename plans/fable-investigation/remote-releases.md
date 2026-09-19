@@ -257,11 +257,10 @@ later steps need to know:
   commit is not the one the tag names. `MARKER_CHECKS` is only for `cut final`.
 - The upload guard checks `git ls-remote` against `origin` by name.
 
-### Step 5 — The repo goes public (owner)
+### Step 5 — The repo goes public (owner) ✅ done 2026-09-19
 
-Already `shipping.md` → Part 1, step 2: the history scan is done; the remaining item is reading
-the security findings as a stranger would, then flipping visibility. Needed before step 6 because
-hosted macOS minutes are free only for a public repo. **Not an agent's step.**
+`leapsake/leapsake` is public. GitHub now reports Dependabot alerts on it (53 on 2026-09-19);
+reading them is the owner's, outside this plan.
 
 ### Step 6 — A throwaway workflow measures the device tiers on hosted runners
 
@@ -282,21 +281,58 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
    and whether the harness's warning about an under-sized emulator fires.
 3. Both: three runs each, on the same commit. Anything that fails twice is a finding, not a flake.
 
-**Measured so far (2026-09-19, `measure.yml`; iOS still open):**
+#### Where step 6 stands (2026-09-19, updated each run)
 
-- **Android, `ubuntu-latest` (4 cores), KVM on:** emulator boot 70–76s; cold `expo run:android`
-  295–366s (the cache has never saved, so no warm number yet); `native` tier 476–541s; E2E
-  arc 1548–1636s. Flow 4 took 183s and 182s, so it is **not bimodal** here, and the
-  under-sized-emulator warning never fired. Whole gate ≈ 40 min. 2 of 3 runs fully green;
-  the third timed out waiting for the app's home screen (180s) in E2E.
-- **iOS, `macos-latest` (3 cores):** cold `expo run:ios` 841–1015s; `native` tier
-  1828–1970s. E2E has not run: the AutoFill preflight cannot find its switch on the
-  runner's simulator (5 of 6), though the same flow passes on a brand-new local iOS 26.5
-  simulator.
-- **Harness bugs the runners exposed, now fixed:** `expo run` never exits when no Metro is up
-  (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator left, so
-  the next tier used a dying device; the AutoFill flow did not wait for its switch; tests
-  and formatting depended on the owner's global git identity and `~/.editorconfig`.
+**Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
+
+| | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores |
+|---|---|---|
+| Device boot | 70–78s | not timed |
+| Cold `expo run` | 256–402s | 643–1015s |
+| `native` tier | 393–541s, usually green | 1476–1970s, green |
+| E2E arc | 1548–1636s when green | not reached past Flow 1 |
+| Flow 4 | 183s, 182s: **not bimodal** | not reached |
+| Whole gate | ≈ 40 min | ≈ 60+ min expected |
+
+The under-sized-emulator warning has never fired. Every non-device tier passes on both.
+
+**Open, in the order to take them:**
+
+1. **iOS Flow 1 goes red in `subflows/relaunch.yaml`:** the dev launcher's `localhost:8081`
+   entry vanished between `when: visible` and the tap. The fix (tap made `optional`) is
+   committed and **not yet pushed** (6f1f25e).
+2. **Android's prepare step times out (180s) waiting for the app's home screen, flakily:**
+   1 in 3 jobs in one run, all 3 in the next, with nothing Android-specific changed. Once in
+   Flow 1 instead (183s, red). The cause is unknown. The failure now lists what was on screen
+   (62fc8c9, **not yet pushed**), which is the next thing to read. A gate that fails 1 in 3
+   is not one to release on, so this outranks speed.
+3. **The build cache never saves** ("Cache save failed" on every job), so every build is
+   cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
+4. After those: three clean runs per platform, then the owner decides (below).
+
+**Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no
+Metro is up (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator
+left; the AutoFill preflight neither waited for its switch nor survived a slow Settings (now a
+self-checking retry); the AVD was created under `XDG_CONFIG_HOME` where the emulator does not
+look; tests and formatting depended on the owner's global git identity and
+`~/.editorconfig`; one website test ran `astro build` twice in 5s.
+
+#### How to run and read a measurement
+
+- **A push to `main` that touches `measure.yml`, `scripts/ci/**` or `scripts/lib/**` starts a
+  run.** Otherwise: Actions → *measure* → *Run workflow*. Each platform runs three jobs in
+  sequence, run 1 cold; `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
+- **Read results with `node scripts/ci/measure-results.mjs`** (the latest runs) and
+  `node scripts/ci/measure-results.mjs <run> [job]`. It reads check-run annotations, which the
+  public API serves without a login; job logs and artifacts need one, and the owner does not
+  want `gh` installed. Anonymous calls are capped at **60 an hour**: poll every 10 minutes, not
+  every minute.
+- **Each job's annotation** carries the harness's timing lines, the tier summary, Maestro's
+  15 lines before any red flow, what was on screen when a wait failed, and the gate's last 25
+  lines.
+- **Pushing:** the owner allows the agent to push for this measuring work only, and wants to
+  be told before each push. A run takes 1–2 hours; cancel a superseded one in the Actions tab
+  (the API cannot, without auth).
 
 **Decide from the numbers** (owner): if Flow 4 is bimodal on the runner, the options are the
 cheap-KDF-in-E2E decision that `ci-and-test-tiers.md` leaves open, or a paid larger runner. If
