@@ -285,9 +285,9 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done.** Android has run the whole gate green; iOS has not yet run a flow to completion.
 
-**The run to read next:** the one started by the push of the AutoFill and "isn't responding"
-fixes (2026-09-19, after 35466401578 was cancelled). `node scripts/ci/measure-results.mjs`
-lists it. What to look for: whether iOS gets past the AutoFill preflight and Flow 1 (open
+**The run to read next: `35468482457`** (commit 8307729, started 2026-09-19 20:47 UTC), the
+first with the AutoFill and "isn't responding" fixes. `node scripts/ci/measure-results.mjs
+35468482457` shows each finished job. What to look for: whether iOS gets past the AutoFill preflight and Flow 1 (open
 item 1), and whether Android logs `dismissed … with Wait` and then reaches home (open item 2).
 When a newer run supersedes it, replace this paragraph with that run's id.
 
