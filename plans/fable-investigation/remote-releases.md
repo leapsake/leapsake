@@ -283,12 +283,11 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 #### Where step 6 stands (2026-09-19, updated each run)
 
-**Not done. Both platforms have run the whole gate green at least once** (iOS first in
-35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 12 green of 23 jobs and Android 20 of 25, and the newest run (35522010752, eae02f0)
-was iOS 3/3 with Android's one red being an app bug rather than the harness, with a different cause each time. Every
-cause so far has been the harness or a flow meeting a slow machine, not app code — but the
-gate cannot be released on until a platform strings three clean runs together.
+**Not done, but close on both platforms.** Of every job measured to 2026-09-20, iOS is 14
+green of 29 and Android 25 of 31, and the trend is the point: the newest run (35530663975,
+5ed5c50) was Android 3/3 and iOS 2/3. Every cause has been the harness or a flow meeting a
+slow machine, except one — the store-handle bug in item 3, which is app code. No cause has
+recurred once fixed; what recurs is the *family*, in a new place each run.
 
 **The runs read so far:** `35470466445` (22ee3ae) and `35476256905` (69f6c59), plus
 `35468482457` (8307729) before it. `node scripts/ci/measure-results.mjs <run>` shows each
@@ -350,8 +349,11 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    **Typed text is the same story as taps** and now has the same answer: 35527913453 lost a
    username (Flow 4 submitted a form with an empty field under a filled password) and a
    reminder title (Flow 5, twice now). `subflows/type-checked.yaml` types and reads back;
-   `add-person`, `create-account` and Flow 5 use it. **Secret fields cannot** — the hierarchy
-   shows dots — so the password keeps `create-account.yaml`'s own two-pass dance.
+   `add-person`, `create-account` and Flow 5 use it. **Secret fields can be half-checked**:
+   the hierarchy renders them as dots, so `type-secret-checked.yaml` asserts the field is *not
+   empty* — the failure that happens (35530663975 iOS 2 dropped a password, `submit()` returned
+   early, and Flow 7b waited on a "Checking…" that could never come). The door flows use it;
+   `create-account.yaml` keeps its two-pass AutoFill dance on top.
    **A non-device tier failed for the first time** in the same run: `master-key-repair.test.ts`
    hit vitest's 5s default while an emulator had the cores. The default is now 15s.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
