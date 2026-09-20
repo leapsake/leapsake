@@ -285,7 +285,7 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 4 green of 9 and Android 8 of 9, with a different cause each time. Every
+2026-09-19, iOS is 5 green of 12 and Android 11 of 12, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
@@ -316,10 +316,14 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
    it at launch. Invisible on a developer's machine, where both are long since set.
    `settleDevMenuIos` now writes all three keys and `app.json`'s `infoPlist` carries them.
    Earlier iOS stoppers: the AutoFill preflight (8307729) and `relaunch.yaml` (6f1f25e) hold.
-   **Flow 1's factory reset came back** (35476256905 iOS 2) with the Data screen static and
-   "Factory reset…" plainly on it, so the animation wait (22ee3ae) was not the whole story:
-   the tap itself did not fire. Both opening buttons now tap a point inside the element, the
-   repo's known workaround for a Maestro tap that an RN Pressable ignores.
+   **Flow 1's factory reset is the persistent one** (35476256905 iOS 2, 35507495771 iOS 2):
+   the Data screen sits there with "Factory reset…" on it and the confirmation never opens,
+   so the tap is swallowed. Neither the animation wait (22ee3ae) nor a point inside the
+   element (e263172) stopped it; the whole opening is now retried, which is what fixed the
+   same class in `ios-autofill.yaml`.
+   **A typed name can lose everything but its first keystroke** (35507495771 iOS 1): Flow 2
+   saved a person called "M Bailey" and went red on "Mary Bailey" not being visible.
+   `add-person.yaml` now erases, types, and reads the field back, twice if it has to.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
