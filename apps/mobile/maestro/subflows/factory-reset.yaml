@@ -169,14 +169,14 @@ appId: com.leapsake.app
 # roster and every keystore secret, and stopping the app in the middle of that would leave
 # a half-erased device that the next launch has to make sense of.
 - openLink: "leapsake://"
-# 60s, not 30: this waits out the *provider rebuild* the reset kicks off — a new store
-# opened, the schema created, the reminders engine reconciled — not a screen transition.
-# On a loaded machine 30s was not enough for it, and the flow then died here having done
-# everything right (Android, 2026-08-31).
+# 120s: this waits out the *provider rebuild* the reset kicks off — a new store opened, the
+# schema created, the reminders engine reconciled — not a screen transition. 30s was not
+# enough on a loaded machine (Android, 2026-08-31) and 60s was not enough on a hosted runner
+# (iOS, 2026-09-20); it now matches the relaunch wait below.
 - extendedWaitUntil:
     visible:
       id: "tab-search"
-    timeout: 60000
+    timeout: 120000
 
 # The relaunch, and the one assertion. It is non-vacuous in exactly the way the vacuous
 # `assertNotVisible` above was not: `import-contacts` applies only while the store holds
