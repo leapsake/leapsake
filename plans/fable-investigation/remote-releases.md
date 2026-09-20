@@ -364,8 +364,9 @@ look; tests and formatting depended on the owner's global git identity and
 - **Each job's annotation** carries the harness's timing lines, the tier summary, Maestro's
   15 lines before any red flow, what was on screen when a wait failed, and the gate's last 25
   lines.
-- **Pushing:** the owner allows the agent to push for this measuring work only, and wants to
-  be told before each push. A run takes 1–2 hours; cancel a superseded one in the Actions tab
+- **Pushing:** the owner allows the agent to push for this measuring work only. Until the
+  gate is consistently green, each push need not be asked for first (2026-09-20); say what
+  went out. After that, ask again. A run takes 1–2 hours; cancel a superseded one in the Actions tab
   (the API cannot, without auth).
 
 **Decide from the numbers** (owner): if Flow 4 is bimodal on the runner, the options are the
