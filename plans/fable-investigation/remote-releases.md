@@ -351,8 +351,9 @@ look; tests and formatting depended on the owner's global git identity and
 
 #### How to run and read a measurement
 
-- **A push to `main` that touches `measure.yml`, `scripts/ci/**` or `scripts/lib/**` starts a
-  run.** Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
+- **A push to `main` that touches `measure.yml`, `scripts/ci/**`, `scripts/lib/**` or
+  `apps/mobile/maestro/**` starts a run.** (The flows were not in that list until 2026-09-20,
+  so a push that only fixed a flow measured nothing.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
   **in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
   cache, which is worth nothing while the cache never saves (open item 4; put `max-parallel: 1`
   back when it does). `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
