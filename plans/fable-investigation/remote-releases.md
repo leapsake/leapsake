@@ -305,6 +305,17 @@ finished job. Replace this paragraph with the next run's id and what it showed.
 
 The under-sized-emulator warning has never fired. Every non-device tier passes on both.
 
+**Determinism first, retries second** (owner, 2026-09-20). A step-level retry with a
+post-condition is synchronization and stays; a re-run of a whole flow or job is flake-hiding
+and does not enter the gate. What removes the need for either: animations off (Android
+`*_animation_scale 0`, iOS Reduce Motion), a pinned simulator model
+(`LEAPSAKE_IOS_SIMULATOR`, default iPhone 17 Pro — the runner image's default iPhone can
+change under us), and a frozen status bar. All landed 2026-09-20. **Not pinned: the
+timezone** — the simulator takes the host's, and `simctl` has no knob for it, so a runner
+(UTC) and the owner's Mac (ET) still differ on anything date-shaped. The structural fix for
+the rest is dropping the dev client (`ci-and-test-tiers.md` step 5), which this week's
+failures argue for: the dev menu, the launcher and Metro caused four of them.
+
 **Open, in the order to take them:**
 
 1. **iOS: the dev menu opens itself over the app** (2 of 4 jobs — 35470466445 iOS 2,

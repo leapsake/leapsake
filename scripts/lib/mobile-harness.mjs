@@ -118,6 +118,33 @@ const run = (cmd, args, opts = {}) =>
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const seconds = (since) => `${((Date.now() - since) / 1000).toFixed(0)}s`;
 
+/**
+ * Turn Android's window animations off, so a tap cannot land on a moving screen.
+ *
+ * Three hosted-runner failures were exactly that (`plans/fable-investigation/
+ * remote-releases.md` → step 6): a pane still sliding in when Maestro tapped where the
+ * element had been. Scale 0 is the standard CI setting and makes every transition instant;
+ * the app's own animations are untouched, so nothing under test is skipped. Best-effort:
+ * a device that refuses is slower and flakier, not wrong.
+ */
+function stopAnimations(adb, device) {
+  const scales = [
+    "window_animation_scale",
+    "transition_animation_scale",
+    "animator_duration_scale",
+  ];
+  const failed = scales.filter(
+    (scale) =>
+      run(adb, ["-s", device, "shell", "settings", "put", "global", scale, "0"])
+        .status !== 0,
+  );
+  if (failed.length > 0) {
+    console.warn(
+      `  ! could not turn off ${failed.join(", ")} — taps may land on a moving screen`,
+    );
+  }
+}
+
 // --- shared: which device ---------------------------------------------------------
 //
 // **A run must not depend on which device happened to be first in a list.** Both drivers
@@ -666,6 +693,7 @@ const androidDriver = {
         console.log(
           `  emulator up (${((Date.now() - started) / 1000).toFixed(0)}s)`,
         );
+        stopAnimations(adb, serial);
         return { ok: true };
       }
       await sleep(2000);
@@ -795,6 +823,8 @@ const androidDriver = {
       `tcp:${METRO_PORT}`,
       `tcp:${METRO_PORT}`,
     ]);
+    // Both settles also cover a device someone else booted, where `boot` never ran.
+    stopAnimations(adb, device);
     // Put the dev menu in a state that does not fight the flows. This force-stops the app,
     // so it has to come before the deep link that launches it.
     settleDevMenu(adb, device);
@@ -899,6 +929,53 @@ export function uiautomatorLabels(dump, limit = 40) {
 // this script entirely. This step stays because Info.plist only supplies a *registered
 // default* — an explicit UserDefaults value, which any dev who has ever toggled the button
 // by hand now has, silently outranks it.
+/** The model CI measures on; `boot` warns when it runs on anything else. */
+const IOS_SIMULATOR =
+  process.env.LEAPSAKE_IOS_SIMULATOR?.trim() || "iPhone 17 Pro";
+
+/**
+ * Reduce Motion and a frozen status bar, the iOS half of what `stopAnimations` does.
+ *
+ * Reduce Motion replaces the slide transitions a tap can land in the middle of; the status
+ * bar override stops a changing clock, carrier and battery from walking through every
+ * `on screen:` line (and any assertion that reads the whole screen). Best-effort, like the
+ * dev-menu settle: a simulator that refuses is flakier, not wrong.
+ */
+function settleSimulator(device) {
+  const reduced = run("xcrun", [
+    "simctl",
+    "spawn",
+    device,
+    "defaults",
+    "write",
+    "com.apple.Accessibility",
+    "ReduceMotionEnabled",
+    "-bool",
+    "true",
+  ]);
+  if (reduced.status !== 0) {
+    console.warn(
+      "  ! could not turn Reduce Motion on — taps may land on a moving screen",
+    );
+  }
+  run("xcrun", [
+    "simctl",
+    "status_bar",
+    device,
+    "override",
+    "--time",
+    "9:41",
+    "--batteryState",
+    "charged",
+    "--batteryLevel",
+    "100",
+    "--cellularBars",
+    "4",
+    "--wifiBars",
+    "3",
+  ]);
+}
+
 const IOS_FAB_KEY = "EXDevMenuShowFloatingActionButton";
 // The dev menu opens itself at launch on a simulator that has never run it, onboarding sheet
 // and all, and covers whatever the flow was about to drive (hosted runners, 2026-09-19).
@@ -1026,12 +1103,17 @@ const iosDriver = {
       "devices",
       "available",
     ]).stdout;
-    const match = available
+    const candidates = available
       .split("\n")
       .map((line) =>
         line.match(/^\s+(iPhone[^(]*)\(([0-9A-Fa-f-]{36})\) \(Shutdown\)/),
       )
-      .find(Boolean);
+      .filter(Boolean);
+    // The pinned model, or whatever iPhone exists — a runner image swaps its default
+    // iPhone from under us, and a different screen is a different set of what is on it.
+    const match =
+      candidates.find(([, name]) => name.trim() === IOS_SIMULATOR) ??
+      candidates[0];
     if (!match) {
       return {
         ok: false,
@@ -1041,6 +1123,12 @@ const iosDriver = {
       };
     }
     const [, name, udid] = match;
+    if (name.trim() !== IOS_SIMULATOR) {
+      console.warn(
+        `  ! no ${IOS_SIMULATOR} simulator here — running on ${name.trim()}, which is ` +
+          "not what CI measures",
+      );
+    }
 
     console.log(`  booting the iOS simulator (${name.trim()})…`);
     if (run("xcrun", ["simctl", "boot", udid]).status !== 0) {
@@ -1057,6 +1145,7 @@ const iosDriver = {
       };
     }
     console.log(`  simulator up (${name.trim()})`);
+    settleSimulator(udid);
     return { ok: true };
   },
 
@@ -1223,6 +1312,8 @@ const iosDriver = {
    * the load this link just performed.
    */
   async prepare(ctx) {
+    // Also covers a simulator someone else booted, where `boot` never ran.
+    settleSimulator(ctx.device);
     settleDevMenuIos(ctx.device);
     console.log("  loading JS bundle into the dev client…");
     run("xcrun", ["simctl", "openurl", ctx.device, DEV_CLIENT_LINK]);
