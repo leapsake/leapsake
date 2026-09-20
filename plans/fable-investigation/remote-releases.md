@@ -367,17 +367,16 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **A store handle outlives its store — the one finding here that is app code.**
-   35522010752's Android 3 went red in Flow 2 with the app's own "Couldn't save" dialog on
-   screen: `NativeDatabase.prepareAsync` rejected, "the 2nd argument cannot be cast to
-   NativeStatement (received Integer)", "JavaScriptObject … doesn't contain valid id" — a
-   statement whose native object is gone. Third sighting of the family: the same job logged
-   `notification reconcile failed` with the identical rejection, and the native crash below
-   is plausibly the same root, since a freed native object is how a JS error becomes a
-   segfault. Every sighting is shortly after a **factory reset**, which closes the store and
-   rebuilds the provider (`apps/mobile/db/expo-sqlite-driver.ts` → `close`,
-   `lib/core-context.tsx`), so a query holding the old handle across the swap fits. **Own
-   this outside step 6**: it is a bug in the app, found by the gate doing its job.
+3. ~~**A store handle outlives its store.**~~ **Fixed 2026-09-20** in
+   `apps/mobile/db/expo-sqlite-driver.ts`: `close()` now drains in-flight work before it calls
+   `closeAsync`, refuses work started after that, and is idempotent; tests are beside it
+   (`expo-sqlite-driver.test.ts`, wired in through `vitest.config.ts`). The evidence was three
+   sightings ending in two crashes: Android rejecting `NativeStatement.getColumnNamesAsync` and
+   iOS dying with `EXC_BAD_ACCESS`/SIGSEGV on a poisoned pointer (35537256657), both while the
+   reminders reconciler was mid-query and a reset closed the driver under it. `isLiveCore` in
+   `core-context.tsx` could not fix this: it stops the reconciler *starting*, but a close always
+   lands one instruction later. **Residual, unmeasured:** `convert-store.ts`, `doors.ts` and
+   `roster-storage.ts` call `closeAsync` on their own handles, outside this guard.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a
