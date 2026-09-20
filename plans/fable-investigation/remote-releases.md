@@ -285,7 +285,8 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 8 green of 17 jobs and Android 16 of 19, with a different cause each time. Every
+2026-09-19, iOS is 12 green of 23 jobs and Android 20 of 25, and the newest run (35522010752, eae02f0)
+was iOS 3/3 with Android's one red being an app bug rather than the harness, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
@@ -350,7 +351,18 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
+3. **A store handle outlives its store — the one finding here that is app code.**
+   35522010752's Android 3 went red in Flow 2 with the app's own "Couldn't save" dialog on
+   screen: `NativeDatabase.prepareAsync` rejected, "the 2nd argument cannot be cast to
+   NativeStatement (received Integer)", "JavaScriptObject … doesn't contain valid id" — a
+   statement whose native object is gone. Third sighting of the family: the same job logged
+   `notification reconcile failed` with the identical rejection, and the native crash below
+   is plausibly the same root, since a freed native object is how a JS error becomes a
+   segfault. Every sighting is shortly after a **factory reset**, which closes the store and
+   rebuilds the provider (`apps/mobile/db/expo-sqlite-driver.ts` → `close`,
+   `lib/core-context.tsx`), so a query holding the old handle across the swap fits. **Own
+   this outside step 6**: it is a bug in the app, found by the gate doing its job.
+4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a
    tombstone. Seen three times now (35476256905 Android 2, 35483355076 iOS 2, this one), each
@@ -360,9 +372,9 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    so the next one should name a cause.
    - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
      with the reminder's `@Mary Bailey #birthday` line present. Once only.
-4. **The build cache never saves** ("Cache save failed" on every job), so every build is
+5. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
-5. After those: three clean runs per platform, then the owner decides (below).
+6. After those: three clean runs per platform, then the owner decides (below).
 
 **Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no
 Metro is up (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator
