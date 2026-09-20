@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [.github/workflows/measure.yml, scripts/ci/**, scripts/lib/**, apps/mobile/maestro/**]
+    paths: [.github/workflows/measure.yml, scripts/ci/**, scripts/lib/**, apps/mobile/**]
 
 jobs:
   ios:
