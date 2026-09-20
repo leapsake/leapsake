@@ -373,7 +373,17 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
      with the reminder's `@Mary Bailey #birthday` line present. Once only.
 5. **The build cache never saves** ("Cache save failed" on every job), so every build is
-   cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
+   cold: 640–1170s for an iOS `expo run`. Three causes are visible in the workflow without
+   the logs, and 2026-09-20 addresses all three: every job of a platform used **one key**, so
+   parallel jobs now collide by construction (keys are per job index); there were **no
+   `restore-keys`**, so any edit to `pnpm-lock.yaml` or `app.json` made every job cold with no
+   fallback (now a two-step prefix fallback); and the entry may simply be **too big** — the
+   repo's whole cache budget is 10 GB, and locally the iOS paths are ~3.5 GB *without*
+   `DerivedData`, which is dropped for now. `scripts/ci/measure-cache.sh` prints the sizes as
+   its own annotation, so the next run says whether size was it.
+   **Dropping `DerivedData` is not free**: it is what would make the *compile* warm. The
+   order is deliberate — get one save to succeed, read the sizes, then decide whether
+   `DerivedData` fits the budget.
 6. After those: three clean runs per platform, then the owner decides (below).
 
 **Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no

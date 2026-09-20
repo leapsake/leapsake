@@ -30,21 +30,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/cache/restore@v4
         with:
-          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}
+          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
+          restore-keys: |
+            ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-
+            ios-measure-
           path: |
             apps/mobile/ios
-            ~/Library/Developer/Xcode/DerivedData
             ~/Library/Caches/CocoaPods
             ~/.expo
       - run: bash scripts/ci/install-maestro.sh
       - run: bash scripts/ci/measure-gate.sh ios
+      - run: bash scripts/ci/measure-cache.sh ios
+        if: always()
       - uses: actions/cache/save@v4
         if: always()
         with:
-          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}
+          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
           path: |
             apps/mobile/ios
-            ~/Library/Developer/Xcode/DerivedData
             ~/Library/Caches/CocoaPods
             ~/.expo
 
@@ -68,7 +71,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/cache/restore@v4
         with:
-          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}
+          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
+          restore-keys: |
+            android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-
+            android-measure-
           path: |
             apps/mobile/android
             ~/.gradle/caches
@@ -77,10 +83,12 @@ jobs:
       - run: bash scripts/ci/android-host.sh
       - run: bash scripts/ci/install-maestro.sh
       - run: bash scripts/ci/measure-gate.sh android
+      - run: bash scripts/ci/measure-cache.sh android
+        if: always()
       - uses: actions/cache/save@v4
         if: always()
         with:
-          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}
+          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
           path: |
             apps/mobile/android
             ~/.gradle/caches
