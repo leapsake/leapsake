@@ -162,9 +162,11 @@ appId: com.leapsake.app
 # the standard all-zero-entropy vector (23 × `abandon` + `art`, verified against
 # `packages/crypto/src/recovery-phrase.ts`): it decodes cleanly to 32 zero bytes, reaches
 # the sidecar, and is rejected by its MAC.
-- tapOn:
-    id: "recovery-secret"
-- inputText: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+- runFlow:
+    file: ../subflows/type-secret-checked.yaml
+    env:
+      FIELD: "recovery-secret"
+      VALUE: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
 - runFlow:
     file: ../subflows/dismiss-keyboard.yaml
     env:
@@ -217,9 +219,11 @@ appId: com.leapsake.app
 - assertNotVisible: ".*That recovery phrase doesn't open this database.*"
 - tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
 - assertVisible: ".*Enter your recovery phrase to unlock it.*"
-- tapOn:
-    id: "recovery-secret"
-- inputText: "${output.phrase}"
+- runFlow:
+    file: ../subflows/type-secret-checked.yaml
+    env:
+      FIELD: "recovery-secret"
+      VALUE: "${output.phrase}"
 - runFlow:
     file: ../subflows/dismiss-keyboard.yaml
     env:
@@ -275,9 +279,11 @@ appId: com.leapsake.app
       id: "recovery-gate"
     timeout: 120000
 - assertVisible: ".*Enter your password to unlock it.*"
-- tapOn:
-    id: "recovery-secret"
-- inputText: "correct-horse-battery-staple"
+- runFlow:
+    file: ../subflows/type-secret-checked.yaml
+    env:
+      FIELD: "recovery-secret"
+      VALUE: "correct-horse-battery-staple"
 - runFlow:
     file: ../subflows/dismiss-keyboard.yaml
     env:
@@ -311,9 +317,11 @@ appId: com.leapsake.app
     timeout: 120000
 - tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
 - assertVisible: ".*Enter your recovery phrase to unlock it.*"
-- tapOn:
-    id: "recovery-secret"
-- inputText: "${output.phrase}"
+- runFlow:
+    file: ../subflows/type-secret-checked.yaml
+    env:
+      FIELD: "recovery-secret"
+      VALUE: "${output.phrase}"
 - runFlow:
     file: ../subflows/dismiss-keyboard.yaml
     env:
