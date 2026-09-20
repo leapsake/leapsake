@@ -15,5 +15,7 @@ appId: com.leapsake.app
     commands:
       - tapOn:
           id: "${TARGET}"
-      - assertVisible:
-          id: "${EXPECT}"
+      - extendedWaitUntil:
+          visible:
+            id: "${EXPECT}"
+          timeout: 20000

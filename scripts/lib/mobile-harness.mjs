@@ -738,6 +738,8 @@ const androidDriver = {
   preflight: () => ({ ok: true }),
 
   // What Android's crash buffer holds for our package, for a flow that found the app gone.
+  // The head of a tombstone, not its tail: the signal and the abort message say what died,
+  // where 40 frames of `libreactnative.so` do not.
   crashes(ctx) {
     const out =
       run(ctx.adb, [
@@ -748,15 +750,18 @@ const androidDriver = {
         "-b",
         "crash",
         "-t",
-        "200",
+        "400",
       ]).stdout ?? "";
     const lines = out
       .split("\n")
       .filter(
         (line) =>
-          line.includes(APP_ID) || /FATAL|ANR in|Force finishing/.test(line),
+          /signal \d|Abort message|FATAL EXCEPTION|ANR in|Cmdline|^\s*#0[0-9] /.test(
+            line,
+          ) ||
+          (line.includes(APP_ID) && !line.includes("/base.apk!")),
       );
-    return lines.slice(-12).join("\n");
+    return lines.slice(0, 14).join("\n");
   },
 
   stop: (ctx) =>

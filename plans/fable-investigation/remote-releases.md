@@ -341,18 +341,23 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    `subflows/tap-checked.yaml` (or its `-text` twin), which re-taps only while the target is
    still on screen. Animations off (885b002) should remove most of the cause; the checked
    tap is what makes a swallowed one fail honestly instead of one step later.
+   **Animations off did not end it** (35518189593: iOS 3 lost a tap on a dev-clear button,
+   iOS 1 never reached the self-test screen). The dev-clear taps are checked now too. The
+   remaining suspect is the JS thread: on a 3-core runner with Metro attached, a dev client
+   that is busy cannot answer a touch, and no amount of waiting in the flow fixes that —
+   the release-configuration build (`ci-and-test-tiers.md` step 5) does.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **Two singles, each seen once, each on a job that got deep into the arc.** Neither is
-   understood; if one repeats it is the next thing to take.
-   - **The app disappears mid-arc, on both platforms.** Android Flow 7c (35476256905 job 2)
-     found the **launcher** home screen; iOS Flow 4 (35483355076 job 2) found the **iOS home
-     screen**, five flows in. Whether the app crashed, was killed after that job's System UI
-     ANR, or was lost by a relaunch is unknown — so a red flow now also prints any crash
-     report (iOS `DiagnosticReports`) or crash-buffer lines (Android `logcat -b crash`).
-     Read that first if it happens again; Flow 4 is the heaviest thing in the suite.
+3. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
+   answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
+   screen because the process died in `libreactnative.so`, in the job's crash buffer as a
+   tombstone. Seen three times now (35476256905 Android 2, 35483355076 iOS 2, this one), each
+   deep in the arc. **This is the first finding here that may be app code rather than
+   environment, and it outranks the rest once the taps are settled.** The crash capture now
+   prints the head of the tombstone (signal, abort message, top frames) rather than its tail,
+   so the next one should name a cause.
    - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
      with the reminder's `@Mary Bailey #birthday` line present. Once only.
 4. **The build cache never saves** ("Cache save failed" on every job), so every build is
