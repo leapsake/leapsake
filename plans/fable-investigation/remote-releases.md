@@ -314,7 +314,7 @@ and does not enter the gate. What removes the need for either: animations off (A
 change under us), and a frozen status bar. All landed 2026-09-20. **Not pinned: the
 timezone** — the simulator takes the host's, and `simctl` has no knob for it, so a runner
 (UTC) and the owner's Mac (ET) still differ on anything date-shaped. The structural fix for
-the rest is dropping the dev client (`ci-and-test-tiers.md` step 5), which this week's
+the rest is dropping the dev client (`ci-and-test-tiers.md` step 4), which this week's
 failures argue for: the dev menu, the launcher and Metro caused four of them.
 
 **Open, in the order to take them:**
@@ -346,7 +346,7 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    iOS 1 never reached the self-test screen). The dev-clear taps are checked now too. The
    remaining suspect is the JS thread: on a 3-core runner with Metro attached, a dev client
    that is busy cannot answer a touch, and no amount of waiting in the flow fixes that —
-   the release-configuration build (`ci-and-test-tiers.md` step 5) does.
+   the release-configuration build (`ci-and-test-tiers.md` step 4) does.
    **Typed text is the same story as taps** and now has the same answer: 35527913453 lost a
    username (Flow 4 submitted a form with an empty field under a filled password) and a
    reminder title (Flow 5, twice now). `subflows/type-checked.yaml` types and reads back;
@@ -515,4 +515,5 @@ the tag deleted and nothing uploaded.
   the owner wants it; nothing here prevents it.
 - **Listing assets, dSYMs, R8 mapping** — `plans/android-pipeline.md` → _Still to build_.
 - **What binary E2E drives** (dev client vs release-configuration simulator build) —
-  `ci-and-test-tiers.md` step 5. Step 6 here measures the dev client because that is what exists.
+  `ci-and-test-tiers.md` step 4, which now carries step 6's evidence. Step 6 here measures the
+  dev client because that is what exists.

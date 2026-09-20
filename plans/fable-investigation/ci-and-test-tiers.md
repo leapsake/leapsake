@@ -64,23 +64,18 @@ Three places are inverted or empty:
 **A fidelity note the docs overstate.** `CONTRIBUTING.md` says E2E drives "the production app
 binary on that OS image". It drives the dev client loading a dev-mode bundle from Metro
 (`scripts/lib/mobile-harness.mjs` requires Metro and says so). That is not the artifact `rc`
-uploads. See step 5.
+uploads. See step 4.
 
 ## Steps, each a commit
 
-Order: 1 is independent of everything. 2 to 4 touch `core-context.tsx`, which is free to work
-in now that its relay half is gone.
+Order: 1 to 3 touch `core-context.tsx`, which is free to work in now that its relay half is
+gone. 4 is independent of them and now has step 6's evidence behind it.
 
 **Open decision, carried over from the KDF injection that landed:** whether to lower the cost in
 E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
 never be mistaken for a real one, and it changes what the door files say. Worth minutes per arc.
 
-### 1. Gate follows the targets
-
-[`remote-releases.md`](./remote-releases.md) step 3. Listed here so the CI picture is complete;
-that doc owns it.
-
-### 2. Extract the unlock loop into `key-custody`
+### 1. Extract the unlock loop into `key-custody`
 
 Desktop already has the right shape: `openAppDatabase` in `apps/desktop/src/main/db/open.ts`
 runs the `for (;;)` unlock loop with `requestUnlock` injected, and `apps/desktop/test/open.test.ts`
@@ -94,7 +89,7 @@ the mobile-only ones: wrong password then right password; wrong phrase rejected 
 the store does not have refused with the right message. These are exactly the cases 07b and
 07c step through at a minute each.
 
-### 3. A mobile hook tier
+### 2. A mobile hook tier
 
 `apps/mobile` gets `@testing-library/react` and a jsdom docblock, the same setup
 `packages/ui` uses, for **hooks only**: no React Native rendering, no `jest-expo`. What gets
@@ -110,9 +105,9 @@ tested:
 The screens themselves stay untested below E2E. That is deliberate: once state is in hooks, a
 screen is a rendering of hook output and the smoke flow is the right test for it.
 
-### 4. Shrink the E2E arc
+### 3. Shrink the E2E arc
 
-With 2 and 3 in place, replace 02, 03 and 05 with one `02-smoke.yaml`: add a person, add a
+With 1 and 2 in place, replace 02, 03 and 05 with one `02-smoke.yaml`: add a person, add a
 relationship, add a milestone, add a reminder with the `@` splice and a `#tag`, **relaunch the
 app** (`subflows/relaunch.yaml` exists), and assert every one of those is still on screen. That
 is fewer steps than today's three flows and proves more, because today nothing relaunches
@@ -122,7 +117,7 @@ so the catalog matches the harness, and its rung table so `beta` reads "01, smok
 Do not remove 01, 04, 07b or 07c. Do not remove the out-of-band custody assertions or the
 sabotage rule in `apps/mobile/maestro/README.md`.
 
-### 5. Decide what binary E2E drives
+### 4. Decide what binary E2E drives
 
 An open decision, recorded here so the fidelity gap is not forgotten. Options:
 
@@ -141,7 +136,32 @@ gated on a build-time flag instead of `__DEV__` so one build serves both tiers.
 
 Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to describe it.
 
-### 6. Desktop, when it ships
+**What [`remote-releases.md`](./remote-releases.md) step 6 added to this, 2026-09-20.** Two days
+of hosted-runner measurement is the strongest evidence this decision has, and it costs work to
+re-derive:
+
+- **The dev client caused four separate stoppers** that a release build would not have: the
+  dev-menu onboarding sheet opening over the app, the launcher's entry vanishing mid-tap, Metro
+  bundle waits, and a LogBox banner over the tab bar. Each cost a run to find.
+- **Three `__DEV__` routes are load-bearing, not one.** `dev-selftest` (driver-contract tier)
+  **and `dev-clear-dbkey` (Flows 07b and 07c)** both redirect home when `__DEV__` is false, so a
+  release build breaks the custody flows too, silently. The build-time flag has to cover both.
+- **Android is where the work is.** An iOS *simulator* Release build needs no signing. Android's
+  release build type deliberately has **no debug-key fallback**
+  (`plugins/with-android-release-signing.js`; "a debug-signed release build is the failure that
+  looks like success"), so an Android release-variant E2E build needs either the upload keystore
+  on the runner or a new E2E variant signed with the debug key. That decision is this step's.
+- **It will not fix dropped input by itself.** React Native does a JS round trip per keystroke,
+  so a busy JS thread still loses characters; the flows keep their read-back retries
+  (`maestro/subflows/type-checked.yaml`). Dropping Metro frees the thread, it does not remove it.
+- **Two alternatives were checked and rejected.** *Pasting*: Maestro 2.8.0 has no
+  `setText`/`replaceText`; `pasteText` only pastes what `copyTextFrom` took from an element
+  already on screen, so arbitrary text needs the device clipboard set from outside the flow
+  (`simctl pbcopy` on iOS; Android has no simple `adb` equivalent). *Seeding fixtures through a
+  dev route*: worth little here, because the arc already shares state — later flows inherit Mary
+  rather than retyping her — and the typing that remains is what each flow exists to prove.
+
+### 5. Desktop, when it ships
 
 Not now. When `desktop-packaging.md` lands, the desktop E2E harness is Playwright over the
 packaged app, running the same catalog (`crucial-flows.md` is tool-agnostic on purpose), keyed
