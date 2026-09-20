@@ -285,7 +285,7 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 5 green of 14 and Android 12 of 15, with a different cause each time. Every
+2026-09-19, iOS is 8 green of 17 jobs and Android 16 of 19, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
