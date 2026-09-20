@@ -289,7 +289,8 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done, but close on both platforms.** Of every job measured to 2026-09-20, iOS is 14
 green of 29 and Android 25 of 31, and the trend is the point: the newest run (35530663975,
-5ed5c50) was Android 3/3 and iOS 2/3. Every cause has been the harness or a flow meeting a
+5ed5c50) was Android 3/3 and iOS 2/3; 35534331965 was 0/6, entirely from one bad flow edit of
+mine (1dad725), with Android reaching Flow 7c green in every job first. Every cause has been the harness or a flow meeting a
 slow machine, except one — the store-handle bug in item 3, which is app code. No cause has
 recurred once fixed; what recurs is the *family*, in a new place each run.
 
@@ -353,11 +354,13 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    **Typed text is the same story as taps** and now has the same answer: 35527913453 lost a
    username (Flow 4 submitted a form with an empty field under a filled password) and a
    reminder title (Flow 5, twice now). `subflows/type-checked.yaml` types and reads back;
-   `add-person`, `create-account` and Flow 5 use it. **Secret fields can be half-checked**:
-   the hierarchy renders them as dots, so `type-secret-checked.yaml` asserts the field is *not
-   empty* — the failure that happens (35530663975 iOS 2 dropped a password, `submit()` returned
-   early, and Flow 7b waited on a "Checking…" that could never come). The door flows use it;
-   `create-account.yaml` keeps its two-pass AutoFill dance on top.
+   `add-person`, `create-account` and Flow 5 use it. **A dropped secret is real** —
+   35530663975's iOS 2 lost a password, `submit()` returned early, and Flow 7b waited on a
+   "Checking…" that could never come — **but a masked field cannot be read back**. An attempt
+   to assert it renders as dots (`•+`) failed on *both* platforms and took all six jobs of
+   35534331965 down; reverted in 1dad725. **Do not retry it without evidence**: what a masked
+   field exposes to the hierarchy is unknown, and the next `on screen:` line that catches a
+   recovery gate is where to look. Until then the 15s "Checking…" guard catches it late.
    **A non-device tier failed for the first time** in the same run: `master-key-repair.test.ts`
    hit vitest's 5s default while an emulator had the cores. The default is now 15s.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
