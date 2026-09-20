@@ -872,24 +872,34 @@ export function uiautomatorLabels(dump, limit = 40) {
 // default* — an explicit UserDefaults value, which any dev who has ever toggled the button
 // by hand now has, silently outranks it.
 const IOS_FAB_KEY = "EXDevMenuShowFloatingActionButton";
+// The dev menu opens itself at launch on a simulator that has never run it, onboarding sheet
+// and all, and covers whatever the flow was about to drive (hosted runners, 2026-09-19).
+const IOS_DEV_MENU_KEYS = [
+  [IOS_FAB_KEY, "false"],
+  ["EXDevMenuShowsAtLaunch", "false"],
+  ["EXDevMenuIsOnboardingFinished", "true"],
+];
 
 function settleDevMenuIos(device) {
   run("xcrun", ["simctl", "terminate", device, APP_ID]);
-  const wrote = run("xcrun", [
-    "simctl",
-    "spawn",
-    device,
-    "defaults",
-    "write",
-    APP_ID,
-    IOS_FAB_KEY,
-    "-bool",
-    "false",
-  ]);
-  if (wrote.status !== 0) {
+  const failed = IOS_DEV_MENU_KEYS.filter(
+    ([key, value]) =>
+      run("xcrun", [
+        "simctl",
+        "spawn",
+        device,
+        "defaults",
+        "write",
+        APP_ID,
+        key,
+        "-bool",
+        value,
+      ]).status !== 0,
+  );
+  if (failed.length > 0) {
     console.warn(
-      "  ! could not hide the dev-menu floating button — it may swallow taps. Turn it\n" +
-        "    off by hand: dev menu → Floating action button.",
+      `  ! could not settle the dev menu (${failed.map(([key]) => key).join(", ")}) — it\n` +
+        "    may open over the app or swallow taps. Set them by hand in the dev menu.",
     );
   }
 }

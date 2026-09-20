@@ -283,14 +283,15 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 #### Where step 6 stands (2026-09-19, updated each run)
 
-**Not done, but both platforms now run the whole gate green.** iOS went green for the first
-time in run 35470466445 (2026-09-19), after the AutoFill and factory-reset animation waits.
-What is left is repetition (three clean runs each) and the cache.
+**Not done. Both platforms have run the whole gate green at least once** (iOS first in
+35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
+2026-09-19, iOS is 1 green of 4 and Android 5 of 6, with a different cause each time. Every
+cause so far has been the harness or a flow meeting a slow machine, not app code — but the
+gate cannot be released on until a platform strings three clean runs together.
 
-**The runs read so far: `35470466445`** (22ee3ae: iOS 1 and Android 1–2 green) and
-**`35468482457`** (8307729: Android 1–3 and iOS 2 green, iOS 1 red on factory-reset).
-`node scripts/ci/measure-results.mjs <run>` shows each finished job. Replace this paragraph
-with the next run's id and what it showed.
+**The runs read so far:** `35470466445` (22ee3ae) and `35476256905` (69f6c59), plus
+`35468482457` (8307729) before it. `node scripts/ci/measure-results.mjs <run>` shows each
+finished job. Replace this paragraph with the next run's id and what it showed.
 
 | | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
 |---|---|---|
@@ -306,22 +307,30 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
 
 **Open, in the order to take them:**
 
-1. ~~**iOS never finishes a flow.**~~ **Done.** Both stoppers were taps landing on a moving
-   screen, on a 3-core runner: the AutoFill preflight opened General → Dictionary (8307729),
-   then Flow 1's factory reset tapped before the Data screen settled (22ee3ae). Each flow now
-   waits for the animation to end first. iOS ran the whole catalog green in 35470466445, and
-   `relaunch.yaml`'s optional tap (6f1f25e) held. A red flow now prints `on screen:` and the
-   boot line names the simulator, which is what found the second stopper in one run.
-2. **Android's home-screen timeout has not recurred**, in five green gate jobs across
-   35468482457 and 35470466445. The cause was named in 35466401578 — a "System UI isn't
-   responding" dialog over the app, on the job's second emulator boot — and the home wait now
-   taps Wait on it (86cce1f). **Untested: no job has logged `dismissed … with Wait`, and
-   `measure-gate.sh`'s annotation filter would not print it if one had.** Widen the filter
-   (it matches `! this emulator`, not `! dismissed`) before reading the next runs, or the
-   evidence stays invisible.
-3. **The build cache never saves** ("Cache save failed" on every job), so every build is
+1. **iOS: the dev menu opens itself over the app** (2 of 4 jobs — 35470466445 iOS 2,
+   35476256905 iOS 1). The `on screen:` line shows the menu and its onboarding sheet
+   ("This is the developer menu…" / Continue) instead of the app, and the driver-contract
+   self-test goes red. Cause: `EXDevMenuShowsAtLaunch` registers `true` and
+   `EXDevMenuIsOnboardingFinished` `false` on iOS (`expo-dev-menu`'s
+   `Modules/DevMenuPreferences.swift`), so a simulator that has never run the dev menu opens
+   it at launch. Invisible on a developer's machine, where both are long since set.
+   `settleDevMenuIos` now writes all three keys and `app.json`'s `infoPlist` carries them.
+   Earlier iOS stoppers are fixed and held: the AutoFill preflight (8307729), Flow 1's
+   factory reset (22ee3ae), `relaunch.yaml` (6f1f25e).
+2. **The Android dialog fix works**, and is the one thing now proven: 35476256905's Android 2
+   logged `! dismissed "System UI isn't responding" with Wait` and went on to reach Flow 7c.
+   The home-screen timeout has not recurred in six gate jobs.
+3. **Two singles, each seen once, each on a job that got deep into the arc.** Neither is
+   understood; if one repeats it is the next thing to take.
+   - **Android Flow 7c** (35476256905, job 2): `recovery-gate` never appeared and the
+     `on screen:` line is the **launcher home screen** — the app was not in front at all.
+     Whether it crashed, was killed after the System UI ANR earlier in that same job, or the
+     relaunch simply lost it is unknown.
+   - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
+     with the reminder's `@Mary Bailey #birthday` line present.
+4. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
-4. After those: three clean runs per platform, then the owner decides (below).
+5. After those: three clean runs per platform, then the owner decides (below).
 
 **Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no
 Metro is up (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator
