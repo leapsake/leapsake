@@ -42,7 +42,13 @@
 // / app not installed / prepare never reached home); 3 = nothing reachable here (no device
 // booted, or the platform toolchain is absent) — *blocked*, not a failure.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -703,6 +709,28 @@ const androidDriver = {
   // Nothing to check: the AutoFill preflight guards an iOS-only system behaviour.
   preflight: () => ({ ok: true }),
 
+  // What Android's crash buffer holds for our package, for a flow that found the app gone.
+  crashes(ctx) {
+    const out =
+      run(ctx.adb, [
+        "-s",
+        ctx.device,
+        "logcat",
+        "-d",
+        "-b",
+        "crash",
+        "-t",
+        "200",
+      ]).stdout ?? "";
+    const lines = out
+      .split("\n")
+      .filter(
+        (line) =>
+          line.includes(APP_ID) || /FATAL|ANR in|Force finishing/.test(line),
+      );
+    return lines.slice(-12).join("\n");
+  },
+
   stop: (ctx) =>
     run(ctx.adb, ["-s", ctx.device, "shell", "am", "force-stop", APP_ID]),
 
@@ -1033,6 +1061,22 @@ const iosDriver = {
   },
 
   install: (ctx) => installDevClient("ios", ctx.device),
+
+  // The newest crash report naming our bundle id, if the app died in the last ten minutes.
+  crashes() {
+    const dir = join(homedir(), "Library", "Logs", "DiagnosticReports");
+    if (!existsSync(dir)) return "";
+    const recent = readdirSync(dir)
+      .filter((name) => name.endsWith(".ips"))
+      .map((name) => join(dir, name))
+      .filter((path) => Date.now() - statSync(path).mtimeMs < 10 * 60_000)
+      .filter((path) => readFileSync(path, "utf8").includes(APP_ID))
+      .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+    if (!recent) return "";
+    const text = readFileSync(recent, "utf8");
+    const reason = text.match(/"(termination|exception)"[^\n]*/g) ?? [];
+    return [recent, ...reason.slice(0, 3)].join("\n");
+  },
 
   /**
    * The same wipe as Android's `pm clear`, assembled by hand — because iOS has no
@@ -1375,10 +1419,12 @@ async function runPlatform(driver, provision, suite) {
         `  ${status === 0 ? "✓" : "✗"} ${flow.label} ${seconds(started)}`,
       );
       if (status !== 0) {
+        const crashed = driver.crashes?.(ctx) ?? "";
         return wrap(
           FAIL,
           `flow RED: ${flow.label} (${flow.file})\n` +
-            `on screen: ${onScreen(ctx.device)}`,
+            `on screen: ${onScreen(ctx.device)}` +
+            (crashed ? `\nthe app crashed:\n${crashed}` : ""),
         );
       }
       const custody = runCustody(driver, ctx, flow);

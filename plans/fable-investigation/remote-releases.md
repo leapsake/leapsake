@@ -285,7 +285,7 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 2 green of 6 and Android 5 of 6, with a different cause each time. Every
+2026-09-19, iOS is 4 green of 9 and Android 8 of 9, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
@@ -320,17 +320,20 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
    "Factory reset…" plainly on it, so the animation wait (22ee3ae) was not the whole story:
    the tap itself did not fire. Both opening buttons now tap a point inside the element, the
    repo's known workaround for a Maestro tap that an RN Pressable ignores.
-2. **The Android dialog fix works**, and is the one thing now proven: 35476256905's Android 2
-   logged `! dismissed "System UI isn't responding" with Wait` and went on to reach Flow 7c.
-   The home-screen timeout has not recurred in six gate jobs.
+2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
+   35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
+   everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
+   not rare, and the home-screen timeout has not recurred in nine gate jobs.
 3. **Two singles, each seen once, each on a job that got deep into the arc.** Neither is
    understood; if one repeats it is the next thing to take.
-   - **Android Flow 7c** (35476256905, job 2): `recovery-gate` never appeared and the
-     `on screen:` line is the **launcher home screen** — the app was not in front at all.
-     Whether it crashed, was killed after the System UI ANR earlier in that same job, or the
-     relaunch simply lost it is unknown.
+   - **The app disappears mid-arc, on both platforms.** Android Flow 7c (35476256905 job 2)
+     found the **launcher** home screen; iOS Flow 4 (35483355076 job 2) found the **iOS home
+     screen**, five flows in. Whether the app crashed, was killed after that job's System UI
+     ANR, or was lost by a relaunch is unknown — so a red flow now also prints any crash
+     report (iOS `DiagnosticReports`) or crash-buffer lines (Android `logcat -b crash`).
+     Read that first if it happens again; Flow 4 is the heaviest thing in the suite.
    - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
-     with the reminder's `@Mary Bailey #birthday` line present.
+     with the reminder's `@Mary Bailey #birthday` line present. Once only.
 4. **The build cache never saves** ("Cache save failed" on every job), so every build is
    cold and there is no warm number. Cause unknown; job logs would say, and they need a login.
 5. After those: three clean runs per platform, then the owner decides (below).
