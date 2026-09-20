@@ -68,8 +68,11 @@ appId: com.leapsake.app
 # The point of the flow. Mary, her milestone and her relationship were all written into a
 # plaintext store; they must still be there, and still readable, out of an encrypted one.
 - openLink: "leapsake://"
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 - assertVisible: ".*Mary Bailey.*"

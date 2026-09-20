@@ -22,8 +22,11 @@ appId: com.leapsake.app
 # Flow 2 ends on Mary's page, which is pushed over the tab navigator and so has no tab bar
 # of its own. Back to the navigator before reaching for a tab.
 - openLink: "leapsake://"
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 # Wrapped, because a list row's accessibility text carries a trailing space and Maestro
 # matches in full — see the note in `02-person-and-relationship.yaml`.
 - tapOn:
@@ -80,8 +83,11 @@ appId: com.leapsake.app
 # A deep link rather than a tab tap: this person's page is pushed over the tab navigator
 # and has no tab bar of its own — the same trap as the top of this flow.
 - openLink: "leapsake://"
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 - tapOn: ".*Mary Bailey.*"

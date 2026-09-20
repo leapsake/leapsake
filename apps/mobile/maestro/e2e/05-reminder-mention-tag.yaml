@@ -67,8 +67,11 @@ appId: com.leapsake.app
 # instead of opening it — which is how an earlier draft of this flow silently completed
 # its own fixture. That checkbox is gone and a Home row is now a link and nothing else,
 # so the hazard is retired; the route stays for the reason above.
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 - tapOn: ".*Mary Bailey.*"
@@ -101,8 +104,11 @@ appId: com.leapsake.app
 
 # --- (d) and the tag's own page lists it too ---------------------------------------------
 - openLink: "leapsake://"
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-tags"
 - tapOn:
     id: "browse-tile-tags"
 # This assertion found a real accessibility defect rather than a harness problem: the tag

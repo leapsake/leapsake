@@ -86,8 +86,11 @@ appId: com.leapsake.app
 # The screen it opens is named for custody — with no account it titles itself "Account",
 # not "Account & sync" — and "Protect your data" is the create-an-account offer's own
 # heading.
-- tapOn:
-    id: "tab-settings"
+- runFlow:
+    file: ../subflows/tap-checked-text.yaml
+    env:
+      TARGET: "tab-settings"
+      EXPECT: ".*Account.*"
 - tapOn: ".*Account.*"
 - assertVisible: "Protect your data"
 

@@ -39,8 +39,11 @@ appId: com.leapsake.app
 #
 # People & Pets is reached from Search's browse tiles, not from a tab (increment 09).
 - openLink: "leapsake://"
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 # **A list row's accessibility text carries a trailing space** — the hierarchy reads

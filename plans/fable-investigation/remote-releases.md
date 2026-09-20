@@ -285,7 +285,7 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 5 green of 12 and Android 11 of 12, with a different cause each time. Every
+2026-09-19, iOS is 5 green of 14 and Android 12 of 15, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
@@ -335,6 +335,12 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    **A typed name can lose everything but its first keystroke** (35507495771 iOS 1): Flow 2
    saved a person called "M Bailey" and went red on "Mary Bailey" not being visible.
    `add-person.yaml` now erases, types, and reads the field back, twice if it has to.
+   **A swallowed tap is the whole family**, not three separate bugs: 35514492654 lost a
+   *tab* tap on both platforms in one run (Flow 3 on iOS, Flow 7b on Android), each failing
+   one step later on a tile that was never going to be there. Every tab tap now goes through
+   `subflows/tap-checked.yaml` (or its `-text` twin), which re-taps only while the target is
+   still on screen. Animations off (885b002) should remove most of the cause; the checked
+   tap is what makes a swallowed one fail honestly instead of one step later.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,

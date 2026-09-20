@@ -1,0 +1,19 @@
+# A tap that proves it landed: tap `TARGET`, then look for `EXPECT`, twice if it has to.
+#
+# **Maestro's `tapOn` reports COMPLETED whether or not anything happened.** A tap swallowed
+# on a slow host leaves the previous screen up, and the flow then fails on the *next* step,
+# naming an element that was never going to be there. Measured on hosted runners across
+# three flows (`plans/fable-investigation/remote-releases.md` → step 6): a tab tap that did
+# not switch tabs, twice in one run.
+#
+# Re-tapping is safe for navigation: `TARGET` is only still on screen if the first tap did
+# nothing, and arriving where we already are is a no-op.
+appId: com.leapsake.app
+---
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "${TARGET}"
+      - assertVisible:
+          id: "${EXPECT}"

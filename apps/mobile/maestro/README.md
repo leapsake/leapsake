@@ -289,7 +289,7 @@ The tree tells you what is there; only the screenshot tells you it is on top of 
 ### Two ways a `tapOn` lies to you
 
 - ⚠️ **Maestro matches text as a regex, in full.** `tapOn: "Pick yourself."` failed on the
-  nudge that used to read *"🙋 Which of these is you? Pick yourself."* twice over: it is a
+  nudge that used to read _"🙋 Which of these is you? Pick yourself."_ twice over: it is a
   substring (so it must be `.*Pick yourself\..*`) and `.` and `?` are metacharacters. That
   nudge has since been reworded, but the trap has not moved. This is the same family as the
   trailing-space trap above, and it is why the id selectors in `subflows/` are worth their
@@ -320,14 +320,14 @@ question the opposite way twice: rows correct on disk, wrong in the list.
 ⚠️ **Close the app before writing to it.** `xcrun simctl terminate` first; the app re-reads
 on boot.
 
-### When the row is right on disk *and* right out of the engine
+### When the row is right on disk _and_ right out of the engine
 
 There is a third answer to that question, and it cost most of a session before it was
 found: **Hermes miscompiled the code between them.** More than one `await` in a single
 branch of a ternary makes Hermes discard the branch's value and hand back a leftover
 register — a plain number — which then type-checks, buckets and renders until something
 reads a property off it. `core.reminders.listInWindow` joined its rows that way, so every
-*stored* reminder reached mobile Home as `0`, while desktop, Node and the whole vitest
+_stored_ reminder reached mobile Home as `0`, while desktop, Node and the whole vitest
 suite were fine. `scripts/hermes-await-in-ternary.test.mjs` now bans the shape and explains it.
 
 What actually found it, after a lot of reading of correct-looking source, was **printing
@@ -342,13 +342,13 @@ Deep links skip the navigation entirely, which is what makes ad-hoc driving bear
 are ordinary expo-router paths under the `leapsake://` scheme, so anything in `app/` is
 reachable; these are the ones that come up:
 
-| Link | Lands on |
-|---|---|
-| `leapsake://` | Home, inside the tab navigator |
-| `leapsake://add` | the combined create form, on its Person half |
-| `leapsake://about-you` | the screen that sets the self-person |
-| `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind |
-| `leapsake://dev-selftest` | the driver-contract self-test (`__DEV__` only) |
+| Link                                                        | Lands on                                       |
+| ----------------------------------------------------------- | ---------------------------------------------- |
+| `leapsake://`                                               | Home, inside the tab navigator                 |
+| `leapsake://add`                                            | the combined create form, on its Person half   |
+| `leapsake://about-you`                                      | the screen that sets the self-person           |
+| `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind           |
+| `leapsake://dev-selftest`                                   | the driver-contract self-test (`__DEV__` only) |
 
 When something behaves oddly, run `maestro test maestro/driver-selftest.yaml` early: it
 asserts **PASS** from the driver contract in a few seconds, which rules out the whole layer
@@ -376,9 +376,9 @@ What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only
 of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), and **`rc`'s out-of-band
 custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
 keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
-the catalog becomes a release *check* rather than a `manual:` sentence when the tag-triggered
+the catalog becomes a release _check_ rather than a `manual:` sentence when the tag-triggered
 pipeline lands (`plans/fable-investigation/remote-releases.md`); see
-[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → *The E2E release gate* for the rung table.
+[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → _The E2E release gate_ for the rung table.
 
 ### The out-of-band half: what the bytes say, not the screen
 
@@ -388,7 +388,7 @@ and 4 carry a second half that runs in Node the moment the flow goes green:
 [`scripts/lib/custody-assertions.mjs`](../../../scripts/lib/custody-assertions.mjs), wired in
 [`scripts/test-e2e.mjs`](../../../scripts/test-e2e.mjs). It reads the store's first sixteen
 bytes, the roster and the doors out of the simulator's own container — never through the app,
-which is the point (`plans/testing/crucial-flows.md` → *Asserting on custody*). You will see
+which is the point (`plans/testing/crucial-flows.md` → _Asserting on custody_). You will see
 one line per flow:
 
 ```
@@ -422,13 +422,13 @@ Two shapes the checks must respect, each pinned by a unit test so nobody "fixes"
   and the old `stores/<accountId>/` remain as **empty directories** while their `.db` files are
   deleted. An assertion written as "the directory does not exist" goes red against a correct app.
 - **Assert on rows, not on a doors file.** `doors.ts` and `roster-storage.ts` both run
-  `CREATE TABLE IF NOT EXISTS` on *every* open, read included, so an empty `door` or `roster`
+  `CREATE TABLE IF NOT EXISTS` on _every_ open, read included, so an empty `door` or `roster`
   table is a state a correct app reaches. And the checks must **create nothing**: a bare
   `new DatabaseSync(path)` creates the file, so a check asking "does the roster exist?" could
   otherwise answer by planting one.
 
 **Two of the seven do not fit the "ordered arc" description above, and the exceptions are the
-point.** `07c` must *follow* `04` — it needs the store, the data and the password `04` leaves
+point.** `07c` must _follow_ `04` — it needs the store, the data and the password `04` leaves
 behind. `07b` must run **last** and inherits nothing at all: the 24 words it needs cannot cross
 a flow boundary, so it resets the device and builds its own account, which destroys what `04`
 and `07c` were standing on. The whole iOS arc is **13 minutes**; the two door flows are 7 of
@@ -564,10 +564,10 @@ first and separately:
 ```yaml
 - tapOn:
     id: "account-submit"
-- extendedWaitUntil:      # the form was accepted at all
+- extendedWaitUntil: # the form was accepted at all
     notVisible: "Protect my data"
     timeout: 15000
-- extendedWaitUntil:      # ...and only then, the conversion
+- extendedWaitUntil: # ...and only then, the conversion
     visible: "Save your recovery phrase"
     timeout: 480000
 ```
@@ -581,7 +581,7 @@ Two shapes were tried on the way here and are worth not re-deriving:
 
 ⚠️ **Do not loop `while: visible: "Encrypting your data…"`.** It is the obvious phrasing for
 "wait while the app says it is working" and it is racy. `tapOn` returns as soon as the view
-hierarchy changes, which on a loaded machine is *before* React has committed the re-render,
+hierarchy changes, which on a loaded machine is _before_ React has committed the re-render,
 so Maestro reads the button still saying "Protect my data", skips the loop and falls straight
 through — measured doing exactly that with the host cores saturated, which is the one
 condition such a loop would exist for.
@@ -758,7 +758,7 @@ swallows keystrokes into `textContentType="newPassword"` fields entirely.
 
 **It comes back**, and two different things bring it back: installing the iOS 26.5 (23F77)
 runtime did on 2026-09-08, and a `simctl erase` does (2026-09-17). Both times Flow 4 reddened
-on a form whose code had not changed, naming the *password length* rather than the cover view.
+on a form whose code had not changed, naming the _password length_ rather than the cover view.
 
 There are two manifestations, and they are not equally survivable. The one-shot **"Use Strong
 Password?" card** is defeated by `subflows/create-account.yaml` typing the password, tapping
@@ -793,11 +793,11 @@ than the edit. There is no signal in the log that a refresh happened. Edit betwe
 
 **Each flow is its own `maestro test` process** (`scripts/lib/mobile-harness.mjs` runs one per
 entry in the suite), so `output.*` and `maestro.copiedText` do not survive from one flow to the
-next. Only the *device* carries state forward — the app's own store, keychain and roster — which
+next. Only the _device_ carries state forward — the app's own store, keychain and roster — which
 is exactly why `e2e/` is an ordered arc rather than a set.
 
 **`pasteText` is not a clipboard read**, and this is worth knowing before it costs you an
-afternoon: `Orchestra.pasteText` replays Maestro's *own* `copiedText` field through
+afternoon: `Orchestra.pasteText` replays Maestro's _own_ `copiedText` field through
 `Maestro.inputText`. It never touches the device pasteboard, so a value the app put there — the
 recovery reveal's **Copy** button, say — is invisible to it (verified against
 `~/.maestro/lib/maestro-orchestra.jar`, Maestro 2.8.0).
@@ -806,7 +806,7 @@ Together those two decide the shape of any flow that needs a secret the app show
 has to be the same flow that watched the secret appear. That is why Flow 7c inherits `04`'s
 password (a constant this repo already knows) while Flow 7b creates its own account rather than
 reusing the one `04` made — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ *The phrase-capture rule*.
+→ _The phrase-capture rule_.
 
 ### Capturing a secret the app shows once: `repeat` + `copyTextFrom` + `output`
 
@@ -837,7 +837,7 @@ Four things make it work, and three of them are not obvious:
 - **Text selectors are full-match**, which is what makes numbering safe: `1\. .*` matches
   `1. abandon` and never `11. abandon`. A substring matcher would have silently captured the
   wrong word.
-- **An `evalScript` must contain no `{` or `}`.** Interpolation closes a `${...}` at the *first*
+- **An `evalScript` must contain no `{` or `}`.** Interpolation closes a `${...}` at the _first_
   `}` it finds, so a brace inside the script truncates it and the error is a syntax error in
   something you did not write. Avoid object literals and braced arrow bodies entirely.
 - **`maestro.copiedText` is readable from `evalScript`** (`GraalJsEngine` binds it), which is the
@@ -881,7 +881,7 @@ The **phrase** door is the opposite: it unwraps raw key material and derives not
 phrase comes back in ~0.12s. Its waits do not need the big budget.
 
 And a busy label only helps if it reaches the screen. The gate's "Checking…" did not, at first:
-resolving into a synchronous Argon2id pass hands the work a *microtask*, which runs before React
+resolving into a synchronous Argon2id pass hands the work a _microtask_, which runs before React
 commits, so the button kept reading "Unlock" for the whole derivation. If you are guarding a slow
 step with its busy text — worth doing, it is what turns an eight-minute mystery into a
 fifteen-second failure — check the app actually paints it before trusting the guard.

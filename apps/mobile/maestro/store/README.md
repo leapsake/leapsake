@@ -2,7 +2,7 @@
 
 Flows that populate the app with a presentable roster and capture the screenshots a store
 listing needs. **Not a test tier** — nothing here asserts on behaviour, and nothing runs in
-CI. They exist because a listing needs pictures of a *full* app, and the e2e arc leaves two
+CI. They exist because a listing needs pictures of a _full_ app, and the e2e arc leaves two
 people in it.
 
 First used for the Play listing on 2026-09-15. The same captures serve the App Store listing
@@ -65,10 +65,10 @@ Each cost a failed run to find.
   record loads.
 - ⚠️ **The holidays list is ordered by date proximity and virtualised.** Only the next few
   weeks are mounted, so waiting on `New Year's Day` in September times out having never
-  rendered. Wait on a holiday near *today*. (The apostrophe is not the problem — the stored
+  rendered. Wait on a holiday near _today_. (The apostrophe is not the problem — the stored
   name is plain ASCII.)
 - ⚠️ **There is no Holidays tab.** `(tabs)/_layout.tsx` gives gifts, holidays and tags
-  `href: null` — they sit in the tab group deliberately *without* a bar button and are reached
+  `href: null` — they sit in the tab group deliberately _without_ a bar button and are reached
   from Search's browse tiles. `tab-holidays` does not exist; use `browse-tile-holidays`, whose
   key is verified in `lib/search-categories.ts`.
 - ⚠️ **Fill a reminder's body BEFORE its title.** A long title typed first wedged the form —
@@ -78,7 +78,7 @@ Each cost a failed run to find.
 - ⚠️ **A stuck keyboard survives `openLink`.** Gboard left open by an abandoned form covers the
   tab bar, and Maestro does **not** model the keyboard as occluding anything — so `tab-search`
   is "visible" in the hierarchy and the tap lands on a key. Recovery is two Back keyevents
-  (`adb shell input keyevent 4`) then the dev-client link. To *detect* it, probe for any node
+  (`adb shell input keyevent 4`) then the dev-client link. To _detect_ it, probe for any node
   whose id matches `com.google.android.inputmethod.latin:id/.*`, as `subflows/dismiss-keyboard.yaml`
   does — a hierarchy dump alone will not tell you.
 

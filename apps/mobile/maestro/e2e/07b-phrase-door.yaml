@@ -239,8 +239,11 @@ appId: com.leapsake.app
 # --- the data came back with it ----------------------------------------------------------------
 # The point of the door. Mary was written into a plaintext store, converted into an encrypted
 # one, and is now read out of a store whose key was reconstructed from 24 words.
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 - assertVisible: ".*Mary Bailey.*"
@@ -325,8 +328,11 @@ appId: com.leapsake.app
 # The same tail as Act 2, and for the same reason: an unlock that opened a store the app
 # could not read would still clear the gate. It also leaves the device unlocked rather than
 # parked at a gate, so a standalone re-run of anything in the arc starts from a usable app.
-- tapOn:
-    id: "tab-search"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
 - tapOn:
     id: "browse-tile-people"
 - assertVisible: ".*Mary Bailey.*"

@@ -1,0 +1,10 @@
+# `tap-checked.yaml`, for a destination named by text rather than by id. Same reason, same
+# shape: Maestro reports a swallowed tap as COMPLETED, so the tap has to prove it landed.
+appId: com.leapsake.app
+---
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "${TARGET}"
+      - assertVisible: "${EXPECT}"
