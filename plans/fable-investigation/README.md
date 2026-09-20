@@ -22,8 +22,32 @@ ports).
 | 4   | [`remote-releases.md`](./remote-releases.md)     | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels. | **Do it.** Nine decisions recorded in the doc; steps 1–4 are script-only and can start now.                             |
 | 5   | [`dependency-balance.md`](./dependency-balance.md) | Bespoke code that a platform API or an already-present package covers (the relay's uncapped body reader, a hand-rolled base64, an ESLint plugin for one rule); the kept bespoke tooling gets a tripwire each. | **Do it.** Step 1 is a live vulnerability and goes first; the rest are independent. Kept items are not reopened until their tripwire fires. |
 
-2 and 3 can run in parallel with 1. 4's steps 6–8 wait on the repo going public
-([`../shipping.md`](../shipping.md) → Part 1, step 2). 5 is independent of all of them.
+2 and 3 can run in parallel with 1; 5 is independent of all of them. The repo is public, so
+4 has no gate left outside itself.
+
+### Where 3 and 4 pull on each other
+
+They are separate docs on purpose (different decisions, different lifetimes: 4 is deleted when
+its step 8 lands, 3 outlives it). But four couplings are real, and doing them out of order costs
+work:
+
+- **3's steps 1–3 make 4's step 6 and 7 cheaper, and less flaky.** The unlock loop moving into
+  `key-custody` (3.1) is what lets 07b and 07c stop stepping through every case in the UI —
+  they are the arc's two longest flows at 425–623s each — and 3.3 folds 02, 03 and 05 into one
+  smoke flow. That is roughly half the typing and tapping in the arc, and *every* hosted-runner
+  flake so far has been a dropped tap or dropped keystroke. A shorter arc is a steadier gate.
+- **3's step 4 should land before 4's step 7 wires the gate into `ci.yml`.** Step 7 runs the
+  device tiers on every push to `main`; whatever the gate costs and however often it flakes,
+  that is what the repo pays from then on. The release-configuration build deletes the dev
+  client, a third of the harness, and four stopper classes step 6 measured.
+- **But 4's step 6 should close first**, because 3.4 invalidates its numbers: they measure a dev
+  client, and step 6 asks only whether hosted runners can carry the gate at all.
+- **4's step 6 has already paid its debt to 3.4** — the evidence is written into that step. Do
+  not re-derive it.
+
+**Not in either doc, and ahead of both:** the store-handle bug in 4's step 6 open items
+(`NativeDatabase.prepareAsync` rejected; a native crash with it). It is app code, and a gate
+cannot be trusted while a real bug fails it at random.
 
 ## Rules that apply to every workstream
 

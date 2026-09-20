@@ -66,6 +66,10 @@ binary on that OS image". It drives the dev client loading a dev-mode bundle fro
 (`scripts/lib/mobile-harness.mjs` requires Metro and says so). That is not the artifact `rc`
 uploads. See step 4.
 
+**Before starting, read [`README.md`](./README.md) → _Where 3 and 4 pull on each other_**:
+steps 1–3 here make `remote-releases.md`'s gate cheaper, and step 4 has an ordering constraint
+against its step 7.
+
 ## Steps, each a commit
 
 Order: 1 to 3 touch `core-context.tsx`, which is free to work in now that its relay half is

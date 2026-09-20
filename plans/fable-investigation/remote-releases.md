@@ -188,6 +188,10 @@ which reuses the uploaded artifact and the same build number.
 
 ---
 
+**Before starting, read [`README.md`](./README.md) → _Where 3 and 4 pull on each other_**:
+`ci-and-test-tiers.md` steps 1–3 make this doc's gate cheaper, and its step 4 belongs before
+step 7 here.
+
 ## Steps, each a commit series
 
 Every step ends with `pnpm test` green (or, in a sandboxed agent shell, the two commands under
