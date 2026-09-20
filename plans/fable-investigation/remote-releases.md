@@ -285,7 +285,7 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 **Not done. Both platforms have run the whole gate green at least once** (iOS first in
 35470466445, Android many times), **but neither repeats reliably**: of the jobs read on
-2026-09-19, iOS is 1 green of 4 and Android 5 of 6, with a different cause each time. Every
+2026-09-19, iOS is 2 green of 6 and Android 5 of 6, with a different cause each time. Every
 cause so far has been the harness or a flow meeting a slow machine, not app code — but the
 gate cannot be released on until a platform strings three clean runs together.
 
@@ -315,8 +315,11 @@ The under-sized-emulator warning has never fired. Every non-device tier passes o
    `Modules/DevMenuPreferences.swift`), so a simulator that has never run the dev menu opens
    it at launch. Invisible on a developer's machine, where both are long since set.
    `settleDevMenuIos` now writes all three keys and `app.json`'s `infoPlist` carries them.
-   Earlier iOS stoppers are fixed and held: the AutoFill preflight (8307729), Flow 1's
-   factory reset (22ee3ae), `relaunch.yaml` (6f1f25e).
+   Earlier iOS stoppers: the AutoFill preflight (8307729) and `relaunch.yaml` (6f1f25e) hold.
+   **Flow 1's factory reset came back** (35476256905 iOS 2) with the Data screen static and
+   "Factory reset…" plainly on it, so the animation wait (22ee3ae) was not the whole story:
+   the tap itself did not fire. Both opening buttons now tap a point inside the element, the
+   repo's known workaround for a Maestro tap that an RN Pressable ignores.
 2. **The Android dialog fix works**, and is the one thing now proven: 35476256905's Android 2
    logged `! dismissed "System UI isn't responding" with Wait` and went on to reach Flow 7c.
    The home-screen timeout has not recurred in six gate jobs.

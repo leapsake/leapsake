@@ -69,7 +69,11 @@ appId: com.leapsake.app
     when:
       visible: "Factory reset…"
     commands:
-      - tapOn: "Factory reset…"
+      # A point inside the element, not the element: Maestro's plain tap does not always
+      # fire an RN Pressable, and a swallowed tap here leaves this screen exactly as it was.
+      - tapOn:
+          text: "Factory reset…"
+          point: "50%,50%"
       # **Wait for the field, exactly as the Forget branch below does.** Without this the
       # `when: visible: factory-reset-confirm` gate underneath is evaluated a few
       # milliseconds after the tap, before the confirmation has rendered — so it reads
@@ -93,7 +97,10 @@ appId: com.leapsake.app
     when:
       visible: "Forget account…"
     commands:
-      - tapOn: "Forget account…"
+      # As above: a point inside the element, so the tap reaches the Pressable.
+      - tapOn:
+          text: "Forget account…"
+          point: "50%,50%"
       # Entering this confirmation asks the relay whether it keeps a durable copy, so the
       # fields arrive a beat after the tap. Waiting for the field is the difference
       # between branching on custody and branching on a render race.
