@@ -342,8 +342,10 @@ look; tests and formatting depended on the owner's global git identity and
 #### How to run and read a measurement
 
 - **A push to `main` that touches `measure.yml`, `scripts/ci/**` or `scripts/lib/**` starts a
-  run.** Otherwise: Actions → *measure* → *Run workflow*. Each platform runs three jobs in
-  sequence, run 1 cold; `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
+  run.** Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
+  **in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
+  cache, which is worth nothing while the cache never saves (open item 4; put `max-parallel: 1`
+  back when it does). `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
 - **Read results with `node scripts/ci/measure-results.mjs`** (the latest runs) and
   `node scripts/ci/measure-results.mjs <run> [job]`. It reads check-run annotations, which the
   public API serves without a login; job logs and artifacts need one, and the owner does not
