@@ -1,0 +1,23 @@
+# Type `VALUE` into `FIELD` and read it back, twice if it has to.
+#
+# **`inputText` drops characters on a loaded host**, and nothing in the app sees it happen:
+# a person saved as "M Bailey", an empty username under a filled password, a reminder with
+# no title (hosted runners, 2026-09-19/20; the same thing bit a saturated dev machine on
+# 2026-09-05). Each one went red somewhere later, naming the assertion rather than the
+# typing.
+#
+# `eraseText` first, so a second attempt types into an empty field instead of appending to
+# whatever arrived. **Secret fields cannot use this** — the hierarchy shows dots, not the
+# value — so `create-account.yaml` keeps its own two-pass dance for those.
+appId: com.leapsake.app
+---
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "${FIELD}"
+      - eraseText
+      - inputText: "${VALUE}"
+      - assertVisible:
+          id: "${FIELD}"
+          text: "${VALUE}"

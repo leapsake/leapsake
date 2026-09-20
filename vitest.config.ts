@@ -6,6 +6,9 @@ export default defineConfig({
     // per-file with a `@vitest-environment jsdom` docblock, so every other tier
     // (repos, drivers, pure logic) keeps running without a DOM.
     environment: "node",
+    // 15s, not the 5s default: the integration tiers do real Argon2id and SQLite work, and
+    // a hosted runner sharing its cores with an emulator takes longer than a dev machine.
+    testTimeout: 15_000,
     // Lowers the Argon2id cost for the whole run; the override refuses to load outside
     // Vitest, so nothing that ships can reach it (packages/crypto/README.md → *The test cost*).
     setupFiles: ["./vitest.setup.ts"],

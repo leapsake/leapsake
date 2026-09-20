@@ -347,6 +347,13 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    remaining suspect is the JS thread: on a 3-core runner with Metro attached, a dev client
    that is busy cannot answer a touch, and no amount of waiting in the flow fixes that —
    the release-configuration build (`ci-and-test-tiers.md` step 5) does.
+   **Typed text is the same story as taps** and now has the same answer: 35527913453 lost a
+   username (Flow 4 submitted a form with an empty field under a filled password) and a
+   reminder title (Flow 5, twice now). `subflows/type-checked.yaml` types and reads back;
+   `add-person`, `create-account` and Flow 5 use it. **Secret fields cannot** — the hierarchy
+   shows dots — so the password keeps `create-account.yaml`'s own two-pass dance.
+   **A non-device tier failed for the first time** in the same run: `master-key-repair.test.ts`
+   hit vitest's 5s default while an emulator had the cores. The default is now 15s.
 2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,

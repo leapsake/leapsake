@@ -29,9 +29,11 @@ appId: com.leapsake.app
 # looking: the evidence they landed is the submit below getting past validation, which
 # refuses a password under 12 characters or a mismatched confirmation. That evidence is now
 # an assertion of its own rather than an inference — see "the form was accepted" below.
-- tapOn:
-    id: "account-username"
-- inputText: "${USERNAME}"
+- runFlow:
+    file: type-checked.yaml
+    env:
+      FIELD: "account-username"
+      VALUE: "${USERNAME}"
 # --- the password, typed twice on purpose -------------------------------------------------
 # **iOS eats the first attempt, and nothing in the app can see it happen.** On the first
 # entry into a `newPassword` field, iOS raises its own "Use Strong Password?" AutoFill card

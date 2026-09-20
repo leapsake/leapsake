@@ -19,9 +19,11 @@ appId: com.leapsake.app
 
 # Title first. Both fields are `ChipTextField`s and both are empty, so they are reached by
 # id — an empty TextInput carries no accessibility text to tell them apart by.
-- tapOn:
-    id: "reminder-title"
-- inputText: "Send a card"
+- runFlow:
+    file: ../subflows/type-checked.yaml
+    env:
+      FIELD: "reminder-title"
+      VALUE: "Send a card"
 
 # --- the mention, spliced by the picker rather than typed -----------------------------
 # Typing "@Mary" and moving on would prove nothing about the picker: the token has to be

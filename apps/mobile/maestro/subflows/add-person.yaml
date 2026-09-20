@@ -12,29 +12,16 @@ appId: com.leapsake.app
 - openLink: "leapsake://add"
 - assertVisible:
     id: "person-first-name"
-# **Each field is typed, then read back.** On a hosted runner one job saved a person called
-# "M Bailey": the first keystroke landed and the rest went missing. `eraseText` first, so a
-# retry types into an empty field rather than appending to what did arrive.
-- retry:
-    maxRetries: 2
-    commands:
-      - tapOn:
-          id: "person-first-name"
-      - eraseText
-      - inputText: "${FIRST}"
-      - assertVisible:
-          id: "person-first-name"
-          text: "${FIRST}"
-- retry:
-    maxRetries: 2
-    commands:
-      - tapOn:
-          id: "person-last-name"
-      - eraseText
-      - inputText: "${LAST}"
-      - assertVisible:
-          id: "person-last-name"
-          text: "${LAST}"
+- runFlow:
+    file: type-checked.yaml
+    env:
+      FIELD: "person-first-name"
+      VALUE: "${FIRST}"
+- runFlow:
+    file: type-checked.yaml
+    env:
+      FIELD: "person-last-name"
+      VALUE: "${LAST}"
 - runFlow:
     file: dismiss-keyboard.yaml
     env:
