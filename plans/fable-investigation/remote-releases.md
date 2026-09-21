@@ -287,25 +287,25 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 #### Where step 6 stands (2026-09-19, updated each run)
 
-**Not done, but close on both platforms.** The last three runs, newest last —
-35543574890, 35546805924, 35550536039 — were **Android 2/3, 3/3, 3/3** and **iOS 2/3, 2/3,
-2/3**. Android looks settled. iOS's reds are now one-offs of different kinds (a Maestro
-session that never opened, a crash with no report) rather than the one recurring family that
-ran through the earlier runs. Cumulative counts are not worth keeping here; read the last
-three runs.
+**The measurement is done: `35558802346` (c0b7eb0) was 3/3 on both platforms, every flow
+green, no crash.** That is step 6's own bar — three jobs per platform on one commit — met for
+the first time on 2026-09-21, after the shared-connection fix in open item 3. One clean run is
+not proof that the crash is gone (it was always intermittent), so **the next run to read is the
+one that confirms or refutes it**. Everything else here is history worth keeping only until the
+owner decides.
 
-**The runs read so far:** `35470466445` (22ee3ae) and `35476256905` (69f6c59), plus
-`35468482457` (8307729) before it. `node scripts/ci/measure-results.mjs <run>` shows each
-finished job. Replace this paragraph with the next run's id and what it showed.
+**Reading a run:** `node scripts/ci/measure-results.mjs <run>`, then `<run> "<job>"` for one
+job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
+is a record of one fix each, summarised in the open items below.
 
 | | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
 |---|---|---|
-| Device boot | 68–78s cold, 14–49s after | not timed |
-| Cold `expo run` | 256–402s | 643–1015s |
-| `native` tier | 393–541s | 1476–1970s |
-| E2E arc | 1548–1636s | 1775s |
-| Flow 4 | 157–186s: **not bimodal** | 162s: **not bimodal** |
-| Slowest flow (7b) | 549–623s | 425s |
+| Device boot | 62–78s | not timed |
+| Cold `expo run` | 256–402s | 507–1170s |
+| `native` tier | 393–541s | 348–1970s |
+| E2E arc, all flows green | 884s (35558802346) | 1307s (35558802346) |
+| Flow 4 (Argon2id) | 157–187s: **not bimodal** | 151–162s: **not bimodal** |
+| Slowest flow (7b) | 549–623s | 404–425s |
 | Whole job | ≈ 40 min | ≈ 60 min |
 
 The under-sized-emulator warning has never fired. Every non-device tier passes on both.
@@ -380,7 +380,7 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **A store handle outlives its store — still open, and still crashing.** Two rounds of
+3. **A store handle outlives its store — one clean run, not yet a cure.** Two rounds of
    fixes have not stopped it: `close()` in `expo-sqlite-driver.ts` now drains in-flight work
    (f6121a3) and `with-database.ts` serializes the per-call handles in `doors.ts` and
    `roster-storage.ts` (d2dd420), both tested. 35554646445 crashed anyway, **on both
@@ -388,13 +388,15 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    7b, Android SIGSEGV on `mqt_v_js` in Flow 7c. Earlier sightings named the object —
    `NativeStatement.getColumnNamesAsync` rejected — so it is a native handle used after it
    was freed.
-   **The next hypothesis, landed but unmeasured:** expo-sqlite returns a **shared** connection
+   **What changed it:** expo-sqlite returns a **shared** connection
    per path unless asked otherwise, so a `closeAsync` in one module closes the handle another
    module is using — which no amount of guarding *inside* the driver can prevent. Every open
    in the app now passes `useNewConnection: true` (`core-context.tsx`, `convert-store.ts`,
-   `with-database.ts`); `storeState` already did, which is the hint that led here. If a crash
-   survives this, stop guessing and get a symbolicated stack: the `.ips` is in the job's
-   artifacts, which need a login.
+   `with-database.ts`); `storeState` already did, which is the hint that led here. **The first
+   run with it (35558802346) was 3/3 on both platforms with no crash** — consistent with the
+   hypothesis, and the first time the door flows ran clean on every job. The crash was
+   intermittent, so one run is not proof: if it returns, stop guessing and get a symbolicated
+   stack from the `.ips` in the job's artifacts, which needs a login.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a
@@ -405,7 +407,11 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    so the next one should name a cause.
    - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
      with the reminder's `@Mary Bailey #birthday` line present. Once only.
-5. **The build cache never saves** ("Cache save failed" on every job). Three causes have been
+5. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
+   clean on the runner (only "Removing leading '/'"), so the archive is fine and what is left is
+   the cache service, whose reason is in the job log behind a login. Every build being cold
+   costs 5–10 min a job and **did not stop step 6 answering its question**. Step 7's `ci.yml`
+   should set caching up properly, with logs the owner can read. The history: ("Cache save failed" on every job). Three causes have been
    addressed and the sizes are now measured (`scripts/ci/measure-cache.sh`, its own annotation):
    one key per platform meant parallel jobs collided (keys are now per job index); no
    `restore-keys` meant any lockfile edit went cold with no fallback (now a prefix chain); and
