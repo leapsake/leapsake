@@ -22,5 +22,10 @@ done
 total="$(du -sc "${paths[@]}" 2>/dev/null | tail -1 | cut -f1)"
 lines+="total ${total:-unknown} KB"
 
+# Why a save fails is in the job log, which needs a login — but the archive step is `tar`,
+# and its complaint is not. Write one to /dev/null and keep whatever it says.
+tar_err="$(tar -cf /dev/null "${paths[@]}" 2>&1 >/dev/null | head -5)"
+lines+=$'\n'"tar: ${tar_err:-ok}"
+
 printf '%s\n' "$lines"
 echo "::notice title=${platform} cache::$(printf '%s' "$lines" | awk '{printf "%s%%0A", $0}')"
