@@ -287,10 +287,12 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 
 #### Where step 6 stands (2026-09-19, updated each run)
 
-**Not done, but close on both platforms.** Of every job measured to 2026-09-20, iOS is 14
-green of 29 and Android 25 of 31, and the trend is the point: the newest run (35530663975,
-f2aaf02) was **Android 3/3 for the second run running**, iOS 2/3. Android looks settled; iOS's
-reds are now one-offs of different kinds rather than one recurring family.
+**Not done, but close on both platforms.** The last three runs, newest last —
+35543574890, 35546805924, 35550536039 — were **Android 2/3, 3/3, 3/3** and **iOS 2/3, 2/3,
+2/3**. Android looks settled. iOS's reds are now one-offs of different kinds (a Maestro
+session that never opened, a crash with no report) rather than the one recurring family that
+ran through the earlier runs. Cumulative counts are not worth keeping here; read the last
+three runs.
 
 **The runs read so far:** `35470466445` (22ee3ae) and `35476256905` (69f6c59), plus
 `35468482457` (8307729) before it. `node scripts/ci/measure-results.mjs <run>` shows each
