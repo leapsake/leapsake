@@ -23,7 +23,8 @@ export function withDatabase<T>(
   work: (db: SQLiteDatabase) => Promise<T>,
 ): Promise<T> {
   const run = (queues.get(name) ?? Promise.resolve()).then(async () => {
-    const db = await SQLite.openDatabaseAsync(name);
+    // Own connection: a shared one closes for everybody when this `finally` runs.
+    const db = await SQLite.openDatabaseAsync(name, { useNewConnection: true });
     try {
       return await work(db);
     } finally {

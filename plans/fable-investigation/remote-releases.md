@@ -380,22 +380,21 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. ~~**A store handle outlives its store.**~~ **Fixed 2026-09-20** in
-   `apps/mobile/db/expo-sqlite-driver.ts`: `close()` now drains in-flight work before it calls
-   `closeAsync`, refuses work started after that, and is idempotent; tests are beside it
-   (`expo-sqlite-driver.test.ts`, wired in through `vitest.config.ts`). The evidence was three
-   sightings ending in two crashes: Android rejecting `NativeStatement.getColumnNamesAsync` and
-   iOS dying with `EXC_BAD_ACCESS`/SIGSEGV on a poisoned pointer (35537256657), both while the
-   reminders reconciler was mid-query and a reset closed the driver under it. `isLiveCore` in
-   `core-context.tsx` could not fix this: it stops the reconciler *starting*, but a close always
-   lands one instruction later.
-   **The residual was the rest of it.** 35543574890 crashed again in Flow 7b — SIGSEGV on the
-   JS thread (`mqt_v_js`) — and that flow's work goes through `doors.ts` and
-   `roster-storage.ts`, which open a handle per call and close it in a `finally`. Two calls on
-   one file overlap (the recovery gate reads the password door and the phrase door), so one
-   closes under the other. `with-database.ts` now serializes per file and both use it, tested
-   beside it. **Still outside the guard:** `convert-store.ts`, whose handles are scoped to one
-   conversion.
+3. **A store handle outlives its store — still open, and still crashing.** Two rounds of
+   fixes have not stopped it: `close()` in `expo-sqlite-driver.ts` now drains in-flight work
+   (f6121a3) and `with-database.ts` serializes the per-call handles in `doors.ts` and
+   `roster-storage.ts` (d2dd420), both tested. 35554646445 crashed anyway, **on both
+   platforms, in the door flows**: iOS `EXC_BAD_ACCESS`/SIGSEGV on a poisoned pointer in Flow
+   7b, Android SIGSEGV on `mqt_v_js` in Flow 7c. Earlier sightings named the object —
+   `NativeStatement.getColumnNamesAsync` rejected — so it is a native handle used after it
+   was freed.
+   **The next hypothesis, landed but unmeasured:** expo-sqlite returns a **shared** connection
+   per path unless asked otherwise, so a `closeAsync` in one module closes the handle another
+   module is using — which no amount of guarding *inside* the driver can prevent. Every open
+   in the app now passes `useNewConnection: true` (`core-context.tsx`, `convert-store.ts`,
+   `with-database.ts`); `storeState` already did, which is the hint that led here. If a crash
+   survives this, stop guessing and get a symbolicated stack: the `.ips` is in the job's
+   artifacts, which need a login.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a

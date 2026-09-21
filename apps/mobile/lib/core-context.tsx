@@ -546,7 +546,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       // The path is derived (§7.4), never a fixed `leapsake.db`. expo-sqlite
       // accepts the nested name and creates the directory — verified on device by
       // the custody self-test.
-      const db = await SQLite.openDatabaseAsync(activeStore.path);
+      const db = await SQLite.openDatabaseAsync(activeStore.path, {
+        useNewConnection: true,
+      });
       const driver = expoSqliteDriver(db);
       // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
       // the very first statement on the fresh connection, before migrations. An

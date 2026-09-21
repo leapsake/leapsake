@@ -69,7 +69,11 @@ export async function convertStoreToEncrypted(opts: {
   // Past this line the destination may hold bytes, and the guard above proved it
   // held none a moment ago — so anything found there on the way out is ours.
   try {
-    const source = await SQLite.openDatabaseAsync(fromName);
+    // Own connections, always: without this expo-sqlite hands back the *shared* handle for
+    // a path, and the `finally` below would close one the running store still holds.
+    const source = await SQLite.openDatabaseAsync(fromName, {
+      useNewConnection: true,
+    });
     try {
       const versionRow = await source.getFirstAsync<{ user_version: number }>(
         "PRAGMA user_version",
@@ -121,7 +125,9 @@ export async function convertStoreToEncrypted(opts: {
     // Prove the result opens under the key before the caller commits to it. The
     // caller keeps the original until the roster points at this one, so a failure
     // here costs nothing.
-    const check = await SQLite.openDatabaseAsync(toName);
+    const check = await SQLite.openDatabaseAsync(toName, {
+      useNewConnection: true,
+    });
     try {
       await check.execAsync(`PRAGMA key = "${rawKeyLiteral(toKey)}"`);
       await check.getFirstAsync("PRAGMA user_version");

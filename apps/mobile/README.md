@@ -72,7 +72,7 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 > **The bundle ID is `com.leapsake.app`, and it is permanent.** It is chosen when the App Store
 > Connect record is created and cannot be edited afterwards, so it outlives every other choice
 > here. It is deliberately **form-factor-neutral** — no `.ios`, no `.phone` — so a future iPad or
-> watchOS target joins the *same* Apple record rather than starting a new one, and so it survives
+> watchOS target joins the _same_ Apple record rather than starting a new one, and so it survives
 > a React Native → native rewrite. The desktop app is a **separate** identity
 > (`com.leapsake.desktop`); see [`plans/desktop-packaging.md`](../../plans/desktop-packaging.md)
 > for why sharing one would have cost more than it bought.
@@ -86,10 +86,10 @@ pnpm release ship --tag=v0.1.0-alpha.4 --here   # or ship from this machine: gat
 
 > **Android ships one fewer permission than prebuild writes.** Expo's template declares
 > `SYSTEM_ALERT_WINDOW` — the "draw over other apps" overlay, there for React Native's dev
-> menu — in the *main* manifest, so it reaches release builds too. Play treats it as sensitive
+> menu — in the _main_ manifest, so it reaches release builds too. Play treats it as sensitive
 > and asks apps to justify it, which this one cannot: no code requests it, and no dependency
 > declares it (the manifest-merger report names only our own file). `android.blockedPermissions`
-> in `app.json` removes it. Blocking it cannot change behaviour in *any* variant, dev client
+> in `app.json` removes it. Blocking it cannot change behaviour in _any_ variant, dev client
 > included, because the permission is never auto-granted — a declared-but-ungranted overlay
 > permission and an undeclared one both make `canDrawOverlays()` false. Verify a change here
 > against `app/build/intermediates/merged_manifests/`, never the source manifest, which keeps
@@ -151,12 +151,12 @@ app transfer moves it to the company. What is still unbuilt on this side is
 **A rung means the same thing on every platform, and each store's vocabulary bends to fit it.**
 Where a store cannot express a rung, the rung is **withheld**, never redefined.
 
-| Rung    | Play track                                                       | What happens                                                  |
-| ------- | ---------------------------------------------------------------- | ------------------------------------------------------------- |
-| `alpha` | `internal`                                                       | ≤100 testers, live in minutes, no review wait                 |
-| `beta`  | `alpha` _(closed)_                                               | the tester list; reviewed; testers join by opt-in link        |
-| `rc`    | `alpha` _(closed)_ **plus a held production release, once possible** | testers get it, Google reviews it, it waits               |
-| `final` | `production`                                                     | publishes what review approved; the tag names the commit that did |
+| Rung    | Play track                                                           | What happens                                                      |
+| ------- | -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `alpha` | `internal`                                                           | ≤100 testers, live in minutes, no review wait                     |
+| `beta`  | `alpha` _(closed)_                                                   | the tester list; reviewed; testers join by opt-in link            |
+| `rc`    | `alpha` _(closed)_ **plus a held production release, once possible** | testers get it, Google reviews it, it waits                       |
+| `final` | `production`                                                         | publishes what review approved; the tag names the commit that did |
 
 ⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's `alpha` is closed
 testing and its **`beta` is open testing, the whole internet**. No rung here may ever target it;
@@ -231,14 +231,14 @@ each becomes wrong on a specific event. A declaration that no longer matches the
 problem, not stale paperwork; declaration changes go through review, so they cannot be flipped on
 rollout morning. Sequence them **with** the release that changes the behaviour, not after it.
 
-| Declaration                         | Answered                                                                                         | Becomes wrong when                                                                                                      |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Data safety                         | no data collected, no data shared                                                                | the **relay** ships (v0.2)                                                                                              |
-| Sign in details                     | No, nothing restricted                                                                           | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run                  |
-| Advertising ID                      | **No**: no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath   | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
-| Content rating                      | _Everyone_, All Other App Types                                                                  | **purchases**, **sharing**, or **multimedia** land                                                                      |
-| Target audience                     | **18 and over** only                                                                             | GA, _if_ teens ever become an audience worth designing for                                                              |
-| App Store **App Privacy** (iOS)     | mirrors Data safety                                                                              | the **relay** ships. ⚠️ Same event, _different store_                                                                   |
+| Declaration                     | Answered                                                                                       | Becomes wrong when                                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Data safety                     | no data collected, no data shared                                                              | the **relay** ships (v0.2)                                                                                                  |
+| Sign in details                 | No, nothing restricted                                                                         | the **relay** ships: a relay login is a real sign-in. Also if a device lock is ever forced at first run                     |
+| Advertising ID                  | **No**: no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
+| Content rating                  | _Everyone_, All Other App Types                                                                | **purchases**, **sharing**, or **multimedia** land                                                                          |
+| Target audience                 | **18 and over** only                                                                           | GA, _if_ teens ever become an audience worth designing for                                                                  |
+| App Store **App Privacy** (iOS) | mirrors Data safety                                                                            | the **relay** ships. ⚠️ Same event, _different store_                                                                       |
 
 ⚠️ **The relay is one event that invalidates three declarations across two stores.** Updating
 Play alone and shipping a stale iOS declaration is the failure this table exists to prevent. A
@@ -379,7 +379,7 @@ Prefer a native element over novel custom UI for any of these.
 
 ### Adding one: regenerate, don't pod-install into a stale project
 
-**Symptom** *(cost 25 minutes, 2026-09-07, adding `expo-sharing` + `expo-file-system`)*: the build
+**Symptom** _(cost 25 minutes, 2026-09-07, adding `expo-sharing` + `expo-file-system`)_: the build
 fails to link with dozens of missing **React Native** symbols —
 `facebook::react::DebugStringConvertible`, `Sealable`, `ShadowNode::getDebugName`,
 `_OBJC_CLASS_$_RCTPackagerConnection` — plus `cannot link directly with 'SwiftUICore'`.
@@ -398,7 +398,7 @@ CI=1 pnpm --filter @leapsake/mobile exec expo prebuild --clean --platform ios
 CI=1 pnpm --filter @leapsake/mobile exec expo run:ios --device <simulator-udid>
 ```
 
-Two things to expect from that last command in a non-interactive shell. It fails at the *end*
+Two things to expect from that last command in a non-interactive shell. It fails at the _end_
 with `osascript … System Events` — that is Expo trying to focus the Simulator window, **after** a
 successful build; install and launch by hand instead:
 
