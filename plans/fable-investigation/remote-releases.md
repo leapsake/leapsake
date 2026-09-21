@@ -375,8 +375,14 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    iOS dying with `EXC_BAD_ACCESS`/SIGSEGV on a poisoned pointer (35537256657), both while the
    reminders reconciler was mid-query and a reset closed the driver under it. `isLiveCore` in
    `core-context.tsx` could not fix this: it stops the reconciler *starting*, but a close always
-   lands one instruction later. **Residual, unmeasured:** `convert-store.ts`, `doors.ts` and
-   `roster-storage.ts` call `closeAsync` on their own handles, outside this guard.
+   lands one instruction later.
+   **The residual was the rest of it.** 35543574890 crashed again in Flow 7b — SIGSEGV on the
+   JS thread (`mqt_v_js`) — and that flow's work goes through `doors.ts` and
+   `roster-storage.ts`, which open a handle per call and close it in a `finally`. Two calls on
+   one file overlap (the recovery gate reads the password door and the phrase door), so one
+   closes under the other. `with-database.ts` now serializes per file and both use it, tested
+   beside it. **Still outside the guard:** `convert-store.ts`, whose handles are scoped to one
+   conversion.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a

@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import type { RosterStorage } from "@leapsake/store-layout";
+import { withDatabase } from "./with-database";
 
 /**
  * The mobile {@link RosterStorage}: the account roster (`model.md` §7.4) in a
@@ -31,29 +32,23 @@ export async function deleteAccountRoster(): Promise<void> {
 export function sqliteRosterStorage(): RosterStorage {
   return {
     async read() {
-      const db = await SQLite.openDatabaseAsync(ROSTER_DB);
-      try {
+      return withDatabase(ROSTER_DB, async (db) => {
         await db.execAsync(SCHEMA);
         const row = await db.getFirstAsync<{ json: string }>(
           "SELECT json FROM roster WHERE id = 1",
         );
         return row === null ? undefined : row.json;
-      } finally {
-        await db.closeAsync();
-      }
+      });
     },
 
     async write(text) {
-      const db = await SQLite.openDatabaseAsync(ROSTER_DB);
-      try {
+      await withDatabase(ROSTER_DB, async (db) => {
         await db.execAsync(SCHEMA);
         await db.runAsync(
           "INSERT OR REPLACE INTO roster (id, json) VALUES (1, ?)",
           text,
         );
-      } finally {
-        await db.closeAsync();
-      }
+      });
     },
   };
 }

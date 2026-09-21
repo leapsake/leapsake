@@ -1,6 +1,7 @@
 import * as SQLite from "expo-sqlite";
 import { base64ToBytes, bytesToBase64 } from "@leapsake/bytes";
 import { storeDir } from "@leapsake/store-layout";
+import { withDatabase } from "./with-database";
 
 /**
  * The mobile **db-key doors** (encryption `model.md` §6, §7.5 Phase 0.5): the two
@@ -73,31 +74,25 @@ export function accountDoors(slot: string): AccountDoors {
   const name = doorsPath(slot);
 
   async function readBlob(kind: string): Promise<Uint8Array | undefined> {
-    const db = await SQLite.openDatabaseAsync(name);
-    try {
+    return withDatabase(name, async (db) => {
       await db.execAsync(SCHEMA);
       const row = await db.getFirstAsync<{ blob: string }>(
         "SELECT blob FROM door WHERE kind = ?",
         kind,
       );
       return row === null ? undefined : base64ToBytes(row.blob);
-    } finally {
-      await db.closeAsync();
-    }
+    });
   }
 
   async function writeBlob(kind: string, bytes: Uint8Array): Promise<void> {
-    const db = await SQLite.openDatabaseAsync(name);
-    try {
+    await withDatabase(name, async (db) => {
       await db.execAsync(SCHEMA);
       await db.runAsync(
         "INSERT OR REPLACE INTO door (kind, blob) VALUES (?, ?)",
         kind,
         bytesToBase64(bytes),
       );
-    } finally {
-      await db.closeAsync();
-    }
+    });
   }
 
   return {

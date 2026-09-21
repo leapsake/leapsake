@@ -149,7 +149,11 @@ appId: com.leapsake.app
 # link renders only from `doors.phrase`, a live read of the recovery sidecar, so tapping it
 # is also the assertion that the sidecar survived the key-store reset.
 - assertVisible: "Forgot your password\\? Use your 24-word recovery phrase"
-- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- runFlow:
+    file: ../subflows/tap-text-checked.yaml
+    env:
+      TARGET: "Forgot your password\\? Use your 24-word recovery phrase"
+      EXPECT: ".*Enter your recovery phrase to unlock it.*"
 - assertVisible: ".*Enter your recovery phrase to unlock it.*"
 
 # --- the negative, first --------------------------------------------------------------------
@@ -215,7 +219,11 @@ appId: com.leapsake.app
 - tapOn: "Use your password instead"
 - assertVisible: ".*Enter your password to unlock it.*"
 - assertNotVisible: ".*That recovery phrase doesn't open this database.*"
-- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- runFlow:
+    file: ../subflows/tap-text-checked.yaml
+    env:
+      TARGET: "Forgot your password\\? Use your 24-word recovery phrase"
+      EXPECT: ".*Enter your recovery phrase to unlock it.*"
 - assertVisible: ".*Enter your recovery phrase to unlock it.*"
 - tapOn:
     id: "recovery-secret"
@@ -309,7 +317,11 @@ appId: com.leapsake.app
     visible:
       id: "recovery-gate"
     timeout: 120000
-- tapOn: "Forgot your password\\? Use your 24-word recovery phrase"
+- runFlow:
+    file: ../subflows/tap-text-checked.yaml
+    env:
+      TARGET: "Forgot your password\\? Use your 24-word recovery phrase"
+      EXPECT: ".*Enter your recovery phrase to unlock it.*"
 - assertVisible: ".*Enter your recovery phrase to unlock it.*"
 - tapOn:
     id: "recovery-secret"
