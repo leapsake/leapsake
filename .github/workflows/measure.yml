@@ -1,5 +1,6 @@
 # Throwaway (remote-releases.md step 6): measures the device tiers on hosted runners.
-# Each platform runs three times in sequence: run 1 is cold, runs 2-3 restore its cache.
+# Each platform runs three jobs at once, all cold: nothing here could ever save a cache
+# (remote-releases.md step 6, open item 5), so step 7's ci.yml owns caching instead.
 # Delete this file when step 7's workflows land.
 name: measure
 
@@ -28,28 +29,8 @@ jobs:
           package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - uses: actions/cache/restore@v4
-        with:
-          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
-          restore-keys: |
-            ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-
-            ios-measure-
-          path: |
-            apps/mobile/ios
-            ~/Library/Caches/CocoaPods
-            ~/.expo
       - run: bash scripts/ci/install-maestro.sh
       - run: bash scripts/ci/measure-gate.sh ios
-      - run: bash scripts/ci/measure-cache.sh ios
-        if: always()
-      - uses: actions/cache/save@v4
-        if: always() && matrix.run == 1
-        with:
-          key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
-          path: |
-            apps/mobile/ios
-            ~/Library/Caches/CocoaPods
-            ~/.expo
 
   android:
     runs-on: ubuntu-latest
@@ -69,28 +50,6 @@ jobs:
           package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - uses: actions/cache/restore@v4
-        with:
-          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
-          restore-keys: |
-            android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-
-            android-measure-
-          path: |
-            apps/mobile/android
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.expo
       - run: bash scripts/ci/android-host.sh
       - run: bash scripts/ci/install-maestro.sh
       - run: bash scripts/ci/measure-gate.sh android
-      - run: bash scripts/ci/measure-cache.sh android
-        if: always()
-      - uses: actions/cache/save@v4
-        if: always() && matrix.run == 1
-        with:
-          key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
-          path: |
-            apps/mobile/android
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.expo
