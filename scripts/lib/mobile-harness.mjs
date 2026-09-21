@@ -268,6 +268,40 @@ function onScreen(device) {
   }
 }
 
+/**
+ * Wait until Maestro can open a session against `device`, or say it never could.
+ *
+ * Maestro installs and launches its own UITest runner the first time it drives a simulator,
+ * and on a hosted runner straight off a cold build that has failed outright —
+ * `MaestroSessionManager.newSession`, twice, always on the job that built (2026-09-20). The
+ * first *flow* then carries the blame for it. A cheap `hierarchy` call is the same handshake,
+ * so doing it here makes the wait explicit and the failure honest.
+ */
+async function maestroReady(device, timeoutMs = 120_000) {
+  const started = Date.now();
+  let last = "";
+  while (Date.now() - started < timeoutMs) {
+    const probe = run(maestro, ["--udid", device, "hierarchy"]);
+    if (probe.status === 0) {
+      console.log(`  maestro ready (${seconds(started)})`);
+      return { ok: true };
+    }
+    last = (probe.stderr || probe.stdout || "")
+      .trim()
+      .split("\n")
+      .slice(-3)
+      .join("\n");
+    await sleep(5000);
+  }
+  return {
+    ok: false,
+    detail:
+      `maestro could not open a session on ${device} within ${timeoutMs / 1000}s — its ` +
+      "UITest runner never came up. Last error:\n" +
+      last,
+  };
+}
+
 function runMaestroFlow(device, file) {
   const flow = run(maestro, ["--udid", device, "test", file], {
     stdio: "inherit",
@@ -1317,6 +1351,8 @@ const iosDriver = {
    * the load this link just performed.
    */
   async prepare(ctx) {
+    const ready = await maestroReady(ctx.device);
+    if (!ready.ok) return ready;
     // Also covers a simulator someone else booted, where `boot` never ran.
     settleSimulator(ctx.device);
     settleDevMenuIos(ctx.device);

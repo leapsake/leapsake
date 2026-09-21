@@ -43,7 +43,7 @@ jobs:
       - run: bash scripts/ci/measure-cache.sh ios
         if: always()
       - uses: actions/cache/save@v4
-        if: always()
+        if: always() && matrix.run == 1
         with:
           key: ios-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
           path: |
@@ -86,7 +86,7 @@ jobs:
       - run: bash scripts/ci/measure-cache.sh android
         if: always()
       - uses: actions/cache/save@v4
-        if: always()
+        if: always() && matrix.run == 1
         with:
           key: android-measure-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/app.json') }}-${{ matrix.run }}
           path: |
