@@ -216,7 +216,7 @@ export function createSyncScheduler(opts: {
  * so this is a cleanup to take when it next causes trouble, not a live defect.
  */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate)/;
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|link(?=[A-Z]))/;
 
 /**
  * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
