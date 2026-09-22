@@ -288,7 +288,8 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 #### Where step 6 stands (2026-09-19, updated each run)
 
 **The measurement is done: `35558802346` (c0b7eb0) was 3/3 on both platforms, every flow
-green, no crash.** That is step 6's own bar — three jobs per platform on one commit — met for
+green, no crash; `35595001195` repeated it at iOS 3/3, Android 2/3 — its one red the crash in
+open item 3.** That is step 6's own bar — three jobs per platform on one commit — met for
 the first time on 2026-09-21, after the shared-connection fix in open item 3. One clean run is
 not proof that the crash is gone (it was always intermittent), so **the next run to read is the
 one that confirms or refutes it**. Everything else here is history worth keeping only until the
@@ -392,11 +393,15 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    per path unless asked otherwise, so a `closeAsync` in one module closes the handle another
    module is using — which no amount of guarding *inside* the driver can prevent. Every open
    in the app now passes `useNewConnection: true` (`core-context.tsx`, `convert-store.ts`,
-   `with-database.ts`); `storeState` already did, which is the hint that led here. **The first
-   run with it (35558802346) was 3/3 on both platforms with no crash** — consistent with the
-   hypothesis, and the first time the door flows ran clean on every job. The crash was
-   intermittent, so one run is not proof: if it returns, stop guessing and get a symbolicated
-   stack from the `.ips` in the job's artifacts, which needs a login.
+   `with-database.ts`); `storeState` already did, which is the hint that led here. 35558802346
+   was 3/3 on both platforms — and then **35595001195 crashed again** (Android 2, Flow 7c,
+   `SIGSEGV code 128 SI_KERNEL, fault addr 0x0` on `mqt_v_js`), so `useNewConnection` was not
+   the cure either. Three hypotheses have now been tried and the crash has outlived all three;
+   it is rarer (1 of 6 jobs, and iOS has been clean for two runs) but not gone.
+   **Stop guessing.** The Android capture printed only the tombstone header because the frame
+   filter missed logcat's line prefix; fixed, so the next one names the library that died. If
+   that is not enough, the `.ips` and the full tombstone are in the job's artifacts, which need
+   a login — the owner's step, not the agent's.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a

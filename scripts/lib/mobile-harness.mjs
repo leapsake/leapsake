@@ -786,16 +786,14 @@ const androidDriver = {
         "-t",
         "400",
       ]).stdout ?? "";
-    const lines = out
-      .split("\n")
-      .filter(
-        (line) =>
-          /signal \d|Abort message|FATAL EXCEPTION|ANR in|Cmdline|^\s*#0[0-9] /.test(
-            line,
-          ) ||
-          (line.includes(APP_ID) && !line.includes("/base.apk!")),
-      );
-    return lines.slice(0, 14).join("\n");
+    const lines = out.split("\n").filter((line) =>
+      // `#00 pc …` frames carry a logcat prefix, so match the frame anywhere in the line —
+      // the first few name the library that died, which is the whole point of reading this.
+      /signal \d|Abort message|FATAL EXCEPTION|ANR in|Cmdline|#\d\d pc /.test(
+        line,
+      ),
+    );
+    return lines.slice(0, 18).join("\n");
   },
 
   stop: (ctx) =>
