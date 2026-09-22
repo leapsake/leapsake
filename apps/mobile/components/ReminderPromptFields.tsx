@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   type ReminderRuleInput,
   actionDefOf,
@@ -8,6 +8,7 @@ import {
   setPromptDelivery,
   setPromptItem,
 } from "@leapsake/schema";
+import { CheckboxBox } from "./Checkbox";
 import { SegmentedControl } from "./SegmentedControl";
 import { colors, styles } from "../lib/styles";
 
@@ -21,7 +22,7 @@ const DELIVERY = [
 
 /**
  * The prompt's answer form (mobile twin of the web `ReminderPromptFields`): one
- * toggle per thing you might do, each wearing its lead time, and — under them,
+ * checkbox per thing you might do, each wearing its lead time, and — under them,
  * only once something it could deliver is on — a single *in person or by mail?*
  * for the whole occasion.
  *
@@ -70,18 +71,13 @@ export function ReminderPromptFields({
             onPress={() => onChange(setPromptItem(value, index, !rule.enabled))}
             style={[styles.row, styles.rowWithLead]}
           >
-            <Switch
-              value={rule.enabled}
-              onValueChange={(next) =>
-                onChange(setPromptItem(value, index, next))
-              }
-            />
+            <CheckboxBox checked={rule.enabled} />
             <View style={styles.rowBody}>
               <Text style={styles.rowText}>
                 {def.icon ? `${def.icon} ` : ""}
                 {label}
               </Text>
-              {/* The lead time, muted and underneath: it is what the toggle
+              {/* The lead time, muted and underneath: it is what the tick
                   actually buys — a reminder at a time — and the screen said
                   nothing about it until now. */}
               <Text style={local.lead}>{leadTimeLabel(rule.offsetDays)}</Text>
@@ -120,7 +116,7 @@ const local = StyleSheet.create({
     fontSize: 13,
     color: colors.muted,
   },
-  // Indented under the toggles it belongs to, and given room above: it is a
+  // Indented under the ticks it belongs to, and given room above: it is a
   // follow-up question, not a fifth thing to do.
   delivery: {
     marginTop: 12,
