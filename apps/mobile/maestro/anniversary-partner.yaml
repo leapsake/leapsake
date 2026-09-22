@@ -1,0 +1,127 @@
+# Who an anniversary is with, and the person field that asks it.
+#
+# An anniversary from the phone's contacts names nobody else, so its question
+# asks "Who's it with?" and moves the anniversary onto the marriage. The same
+# field picks a relationship's other end, where Edit waits for a role.
+#
+#   1. A typed name shows as a row with Edit and Remove; Remove clears it.
+#   2. Edit writes the new person and opens their page; Remove then deletes them.
+#   3. Save links the spouse and retires the question; the spouse stays out of
+#      People.
+#   4. On Add relationship, Edit on a new name appears only once a role is
+#      picked, and a Save after Edit revises that relationship, not a second.
+#
+# The anniversary cannot be typed in: Month and Day are wheels iOS does not
+# expose to automation. So a contact carrying one is added to the simulator's
+# address book first, dated 20 days out, and the app's contact sync brings it
+# in (run the import once on a fresh store):
+#
+#   N:Wainwright<RUN>;Sam;;;
+#   FN:Sam Wainwright<RUN>
+#   item1.X-ABDATE;type=pref:2001-<MM-DD, 20 days out>
+#   item1.X-ABLABEL:_$!<Anniversary>!$_
+#
+#   xcrun simctl addmedia <sim> sam.vcf
+#   maestro --udid <sim> test -e RUN=<RUN> anniversary-partner.yaml
+#
+# Open the app to its home screen against a running Metro first.
+appId: com.leapsake.app
+---
+# ── 1. The question asks who it is with ─────────────────────────────────────
+- openLink: "leapsake://"
+- extendedWaitUntil:
+    visible: ".*Sam Wainwright${RUN}'s anniversary.*"
+    timeout: 15000
+- tapOn: ".*Sam Wainwright${RUN}'s anniversary.*"
+- assertVisible: "Who’s it with?"
+- tapOn:
+    id: "partner-name"
+- inputText: "Ruth${RUN}"
+- assertVisible: "Add “Ruth${RUN}”"
+- tapOn: "Add “Ruth${RUN}”"
+# The chosen row, not the typed query: only the row has Edit and Remove.
+- assertVisible: "Edit"
+- assertVisible: "Ruth${RUN}"
+- tapOn: "Remove"
+- assertVisible:
+    id: "partner-name"
+
+# ── 2. Edit writes her and opens her page ───────────────────────────────────
+- tapOn:
+    id: "partner-name"
+- inputText: "Ruth${RUN}"
+- tapOn: "Add “Ruth${RUN}”"
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Add relationship"
+    timeout: 10000
+- assertVisible: ".*Sam Wainwright${RUN}.*"
+- tapOn: ".*Back.*"
+- assertVisible: "Who’s it with?"
+- assertVisible: "Ruth${RUN}"
+# She was written by Edit, so Remove deletes her with the relationship.
+- tapOn: "Remove"
+- assertVisible:
+    id: "partner-name"
+
+# ── 3. Save links the spouse ────────────────────────────────────────────────
+- tapOn:
+    id: "partner-name"
+- inputText: "Ruth${RUN}"
+- tapOn: "Add “Ruth${RUN}”"
+- tapOn: "Save"
+- extendedWaitUntil:
+    notVisible: ".*Sam Wainwright${RUN}'s anniversary.*"
+    timeout: 10000
+
+- openLink: "leapsake://people"
+- assertNotVisible: ".*Ruth${RUN}.*"
+- tapOn: ".*Sam Wainwright${RUN}.*"
+- scrollUntilVisible:
+    element:
+      text: "Ruth${RUN}"
+    direction: DOWN
+- assertVisible: ".*Spouse.*"
+# One Ruth: the one Edit wrote was removed, and Save wrote only this one.
+- assertNotVisible:
+    text: "Ruth${RUN}"
+    index: 1
+
+# ── 4. Add relationship: Edit waits for a role ──────────────────────────────
+- scrollUntilVisible:
+    element:
+      text: "Add relationship"
+    direction: DOWN
+- tapOn: "Add relationship"
+- tapOn:
+    id: "relationship-other-name"
+- inputText: "Violet${RUN}"
+- tapOn: "Add “Violet${RUN}” as a new person"
+- assertVisible: "Violet${RUN}"
+- assertVisible: "Remove"
+- assertNotVisible: "Edit"
+- tapOn:
+    id: "relationship-other-role"
+- tapOn:
+    id: "relationship-other-role-filter"
+# A partial query, so the tap lands on the option rather than the filter.
+- inputText: "Frien"
+- tapOn: "Friend"
+- assertVisible: "Edit"
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Add relationship"
+    timeout: 10000
+- tapOn: ".*Back.*"
+- assertVisible: "Violet${RUN}"
+- tapOn: "Save"
+
+- scrollUntilVisible:
+    element:
+      text: "Violet${RUN}"
+    direction: DOWN
+- assertVisible: ".*Friend.*"
+# Save revised the relationship Edit wrote rather than adding a second.
+- assertNotVisible:
+    text: "Violet${RUN}"
+    index: 1
