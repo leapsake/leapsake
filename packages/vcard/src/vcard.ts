@@ -610,16 +610,14 @@ function buildContact(
         else dropField(dropped, "BDAY", p.value);
         break;
       }
-      // RFC 6350 §6.2.6. The property names the occasion but not the couple, so
-      // it lands on the `anniversary` kind rather than `wedding` — the card does
-      // not say which anniversary this is, and inventing one would be the same
-      // guess `RELATED` refuses to make about an unmapped role.
+      // RFC 6350 §6.2.6. An unqualified anniversary is a wedding anniversary;
+      // the card does not name the spouse, so it lands on the person.
       case "ANNIVERSARY": {
         const parsed = parseDateValue(p);
         if (parsed) {
           dates.push({
-            kind: "anniversary",
-            label: "Anniversary",
+            kind: "wedding",
+            label: kindDefs.wedding.label,
             date: parsed,
             note: null,
             id: null,

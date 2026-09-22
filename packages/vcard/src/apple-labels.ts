@@ -83,7 +83,6 @@ export function appleLabelText(raw: string): string {
 const FROM_A_LABEL: Record<MilestoneKind, boolean> = {
   birthday: false,
   other: false,
-  anniversary: true,
   death: true,
   "first-date": true,
   graduation: true,

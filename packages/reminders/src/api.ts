@@ -5,6 +5,7 @@ import {
   type GiftPartyType,
   type MilestoneBearerType,
   type MilestoneKind,
+  type Relationship,
   type Reminder,
   type ReminderRuleInput,
   type ReminderWithTags,
@@ -295,6 +296,28 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     return found;
   }
 
+  /** Whether a milestone is about the user's own romantic partnership: borne
+   *  by the relationship, by you, or by your partner. */
+  async function isOwnPartnership(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean> {
+    const selfId = (await self.getSelf())?.personId;
+    if (selfId === undefined) return false; // nobody has said who they are
+    const includesSelfRomantically = (rel: Relationship | undefined) =>
+      rel !== undefined &&
+      endpointsOf(rel).some((e) => e.type === "person" && e.id === selfId) &&
+      (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole));
+    if (bearerType === "relationship")
+      return includesSelfRomantically(await relationships.get(bearerId));
+    if (bearerType !== "person") return false;
+    if (bearerId === selfId) return true;
+    // Read from the bearer's edges: one person has few, "you" may have many.
+    return (await relationships.listForEntity("person", bearerId)).some(
+      includesSelfRomantically,
+    );
+  }
+
   /** Which of `planQuestion`'s three shapes a prompt takes. */
   async function planPhrasing(
     bearerType: MilestoneBearerType,
@@ -307,7 +330,9 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       subjectIsSelf,
       shared:
         !subjectIsSelf &&
-        (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf),
+        (isSelf ||
+          (kindDefs[kind].coupled === true &&
+            (await isOwnPartnership(bearerType, bearerId)))),
     };
   }
 
@@ -358,34 +383,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     // `null` means gone, and only gone: the engine skips a row it cannot name.
     resolveLabel: milestoneBearerLabel,
     isSelf: milestoneIsSelf,
-    // Borne by the relationship, or by the partner with the relationship only
-    // implied. The second is the common one, which is why this is not `isSelf`.
-    isOwnPartnership: async (bearerType, bearerId) => {
-      const selfId = (await self.getSelf())?.personId;
-      if (selfId === undefined) return false; // nobody has said who they are
-      if (bearerType === "relationship") {
-        const rel = await relationships.get(bearerId);
-        if (rel === undefined) return false;
-        return (
-          endpointsOf(rel).some(
-            (e) => e.type === "person" && e.id === selfId,
-          ) &&
-          (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole))
-        );
-      }
-      if (bearerType !== "person") return false;
-      // Borne by you with the other party unknown: still your own occasion.
-      if (bearerId === selfId) return true;
-      // Read from the bearer's edges: one person has few, "you" may have many.
-      const edges = await relationships.listForEntity("person", bearerId);
-      return edges.some(
-        (rel) =>
-          endpointsOf(rel).some(
-            (e) => e.type === "person" && e.id === selfId,
-          ) &&
-          (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole)),
-      );
-    },
+    isOwnPartnership,
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
     onboarding: {

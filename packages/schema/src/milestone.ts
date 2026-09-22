@@ -30,7 +30,6 @@ export const milestoneKindSchema = z.enum([
   "death",
   "first-date",
   "wedding",
-  "anniversary",
   "met",
   "graduation",
   "job-start",
@@ -86,6 +85,11 @@ export interface MilestoneKindDef {
    */
   selfWish?: { plain: string; belated: string };
   /**
+   * Whether the occasion belongs to a couple, so one held by your partner is
+   * yours too and worded as shared.
+   */
+  coupled?: true;
+  /**
    * Present when an unconfigured occasion of this kind asks what to do for it,
    * offering its default schedule. `occasion` is the noun the question uses.
    */
@@ -136,6 +140,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       plain: "\u{1F49E} It's your anniversary!",
       belated: "\u{1F49E} It was your anniversary",
     },
+    coupled: true,
     prompt: { occasion: "first date", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
@@ -143,40 +148,27 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
+  // Shown as "Anniversary": unqualified, the word means a wedding anniversary.
   wedding: {
-    label: "Wedding",
-    icon: "💍",
-    allowedBearerTypes: ["relationship", "person"],
-    recursAnnually: true,
-    greeting: "a happy anniversary",
-    selfWish: {
-      plain: "\u{1F48D} It's your wedding anniversary!",
-      belated: "\u{1F48D} It was your wedding anniversary",
-    },
-    prompt: { occasion: "wedding anniversary", onlyOwnPartnership: true },
-    defaultReminderSchedule: [
-      { action: "get:gift", offsetDays: 7, enabledByDefault: false },
-      { action: "send:gift", offsetDays: 3, enabledByDefault: false },
-      { action: "wish", offsetDays: 0, enabledByDefault: false },
-    ],
-  },
-  anniversary: {
     label: "Anniversary",
-    icon: "\u{1F389}",
-    // Person first: an imported contact card records an anniversary with no
-    // second party, and this keeps it out of the "with whom?" step.
-    allowedBearerTypes: ["person", "relationship"],
+    icon: "\u{1F48D}",
+    // Relationship first; a person holds one whose spouse is not known yet.
+    allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
     selfWish: {
-      plain: "\u{1F389} It's your anniversary!",
-      belated: "\u{1F389} It was your anniversary",
+      plain: "\u{1F48D} It's your anniversary!",
+      belated: "\u{1F48D} It was your anniversary",
     },
+    coupled: true,
     prompt: { occasion: "anniversary" },
+    // One offset for each pair, because the prompt asks "by mail?" only once.
     defaultReminderSchedule: [
+      { action: "get:gift", offsetDays: 12, enabledByDefault: false },
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
+      { action: "send:gift", offsetDays: 7, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },

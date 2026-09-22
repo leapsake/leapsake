@@ -304,7 +304,7 @@ describe("core.export.archive", () => {
 
     const vcf = unfold(await exportedVcf());
 
-    expect(vcf.match(/X-ABLABEL:Wedding/g)).toHaveLength(2);
+    expect(vcf.match(/X-ABLABEL:Anniversary/g)).toHaveLength(2);
     expect(
       vcf.match(new RegExp(`X-LEAPSAKE-MILESTONE-ID=${wedding.id}`, "g")),
     ).toHaveLength(2);

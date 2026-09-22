@@ -51,7 +51,7 @@ tombstone guard and prune unchanged.
 | Why an unconfigured occasion gets a question instead of errands       | the `plan` synthesis in `computeDesired`, and _The prompt_ below                        |
 | When that question is asked                                           | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers                   |
 | What a question can still offer, and when a late one is due           | `planOffers` and `planTiming` in `@leapsake/schema`, and _You can't be late…_ below     |
-| Why `first-date` and `wedding` ask only about your own                | `prompt.onlyOwnPartnership` in `kindDefs`, and _Who gets asked_ below                   |
+| Why `first-date` asks only about your own                             | `prompt.onlyOwnPartnership` in `kindDefs`, and _Who gets asked_ below                   |
 | Why a reminder asks for a date instead of giving one                  | the `partnerships` port in `ReminderEngineDeps`, and _Collecting what is missing_ below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port in `ReminderEngineDeps`, and _Two entry points_ above               |
 | Why a schedule has two levels and not four                            | `resolveReminderSchedule` in `@leapsake/schema`, and _Schedules_ below                  |
@@ -138,13 +138,13 @@ answer reach.
 
 Every family derives its ids under the one `SYSTEM_REMINDER_NAMESPACE`, in disjoint name-spaces:
 
-| Family      | Name                                         | Why that key                                                                        |
-| ----------- | -------------------------------------------- | ----------------------------------------------------------------------------------- |
-| milestone   | `milestone:<id>:<year>:<action>`             | a milestone falls once a year                                                       |
-| holiday     | `observance:<id>:<YYYY-MM-DD>:<action>`      | a lunisolar holiday can fall twice in one Gregorian year (Ramadan did in 1997)      |
-| onboarding  | `onboarding:<key>`                           | fixed, so a retired step stays retired                                              |
-| partnership | `partnership:<relationship>:<kind>`          | no year, so a dismissal is permanent; the kind, because it dismisses one question   |
-| duplicates  | `duplicates:<sorted pair keys>`              | see below                                                                           |
+| Family      | Name                                    | Why that key                                                                      |
+| ----------- | --------------------------------------- | --------------------------------------------------------------------------------- |
+| milestone   | `milestone:<id>:<year>:<action>`        | a milestone falls once a year                                                     |
+| holiday     | `observance:<id>:<YYYY-MM-DD>:<action>` | a lunisolar holiday can fall twice in one Gregorian year (Ramadan did in 1997)    |
+| onboarding  | `onboarding:<key>`                      | fixed, so a retired step stays retired                                            |
+| partnership | `partnership:<relationship>:<kind>`     | no year, so a dismissal is permanent; the kind, because it dismisses one question |
+| duplicates  | `duplicates:<sorted pair keys>`         | see below                                                                         |
 
 Reconcile never resurrects a tombstoned id. That is right for a first-run step and wrong for
 duplicates, which can appear years in, so the duplicates nudge is keyed on the **set** of unresolved
@@ -423,24 +423,25 @@ answer it, or to say _don't ask again_.
 
 ### Who gets asked, where that is narrower than which kinds ask
 
-`first-date` and `wedding` ask only about a **romantic partnership the user is in** _(owner,
-2026-09-05)_; every other prompting kind asks about everyone's. Two decisions are stacked there, and
-they are worth keeping apart.
+`first-date` asks only about a **romantic partnership the user is in**; every other prompting kind,
+`wedding` included, asks about everyone's _(owner, 2026-09-21)_.
 
 That they ask at all is a volume argument in reverse: both kinds ship every action **off**, so
 without a question a wedding or a first date you record generates _nothing at all_, which makes
 recording one pointless.
 
-That they ask **narrowly** turns on what the app is doing when it asks. Wishing someone else a happy
-anniversary is a perfectly normal thing to want — but the prompt is not the wish, it is the app
-**volunteering a set of errands** about an occasion nobody asked it about. That earns its place only
-where the user has already shown the occasion matters to them, and their own marriage is that
-showing. Someone else's stays fully remindable; it just has to be asked for, on the milestone's own
-schedule editor, rather than raised unprompted.
+A first date asks **narrowly** because it is not an occasion a third party marks. An anniversary
+is: people wish their friends and family a happy anniversary as readily as a happy birthday, so it
+asks about everyone's, the way a birthday does. (On 2026-09-05 `wedding` was gated too, on the
+grounds that the prompt volunteers errands nobody asked for; folding the contact card's plain
+`anniversary` into `wedding` would then have silenced every imported one, and the owner chose the
+question over the silence.)
 
-⚠️ **This reverses an earlier reading from the same day**, which had `wedding` asking about
-everyone's on the grounds that third parties do mark the occasion. That is true of the _wish_ and
-not of the volunteered errands, and the two were being conflated.
+**Unqualified, "anniversary" means a wedding anniversary** _(owner, 2026-09-21)_. So there is one
+kind, `wedding`, shown as _Anniversary_, and a card's `ANNIVERSARY` lands on it with the spouse not
+yet known. Every other anniversary names its occasion. Because `wedding` is ungated, the gate can no
+longer double as proof that a question is the user's own: `kindDefs.coupled` marks a couple's
+occasion, and the question is worded as shared when `isOwnPartnership` says it is yours.
 
 **"The user's own" has three storage shapes, and all three count**: borne by the relationship, borne
 by the partner, or borne by **the user alone** — a wedding recorded before its spouse exists at all,

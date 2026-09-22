@@ -219,13 +219,13 @@ describe("parseVCards — birthday", () => {
 });
 
 describe("parseVCards — anniversary", () => {
-  it("parses an ANNIVERSARY onto the anniversary kind", () => {
+  it("parses an ANNIVERSARY onto the wedding kind", () => {
     const [c] = parseVCards(
       card("FN:Jane Wainwright", "ANNIVERSARY:2015-06-20"),
     );
     expect(c.dates).toEqual([
       {
-        kind: "anniversary",
+        kind: "wedding",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
         note: null,
@@ -311,7 +311,7 @@ describe("parseVCards — Apple's labelled dates", () => {
     );
     expect(c.dates).toEqual([
       {
-        kind: "anniversary",
+        kind: "wedding",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
         note: null,
@@ -874,7 +874,7 @@ describe("parseVCards — the milestone parameters", () => {
         "item1.X-ABLABEL:Anniversary",
       ),
     );
-    expect(known.dates[0]).toMatchObject({ kind: "anniversary" });
+    expect(known.dates[0]).toMatchObject({ kind: "wedding" });
 
     const [unknown] = parseVCards(
       card(

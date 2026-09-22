@@ -179,7 +179,7 @@ describe("ingestContacts", () => {
           birthday: { year: null, month: 3, day: 9 },
           dates: [
             {
-              kind: "anniversary",
+              kind: "wedding",
               label: "Anniversary",
               date: { year: 2015, month: 6, day: 20 },
               note: null,
@@ -196,7 +196,7 @@ describe("ingestContacts", () => {
       {
         bearerType: "person",
         bearerId: "person-1",
-        kind: "anniversary",
+        kind: "wedding",
         note: null,
       },
     ]);
@@ -849,8 +849,8 @@ describe("ingestContacts — milestones a relationship bears", () => {
           name: { firstName: "Jimmy", middleName: null, lastName: "" },
           dates: [
             wedding({
-              kind: "anniversary",
-              label: "Anniversary",
+              kind: "graduation",
+              label: "Graduation",
               id: null,
               relationshipId: null,
             }),
@@ -863,7 +863,7 @@ describe("ingestContacts — milestones a relationship bears", () => {
     expect(dates).toEqual([]);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].message).toBe(
-      "Skipped a milestone a pet cannot hold: anniversary",
+      "Skipped a milestone a pet cannot hold: graduation",
     );
   });
 });

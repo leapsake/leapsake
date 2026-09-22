@@ -101,7 +101,7 @@ describe("deviceContactToParsed", () => {
     );
     expect(parsed.dates).toEqual([
       {
-        kind: "anniversary",
+        kind: "wedding",
         label: "Anniversary",
         date: { year: 2015, month: 6, day: 20 },
         // A device contact carries no Leapsake ids — those are the writer's
@@ -135,7 +135,7 @@ describe("deviceContactToParsed", () => {
     );
     expect(parsed.dates).toEqual([
       {
-        kind: "anniversary",
+        kind: "wedding",
         label: "Anniversary",
         date: { year: null, month: 11, day: 14 },
         id: null,

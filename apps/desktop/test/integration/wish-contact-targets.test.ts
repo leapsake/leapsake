@@ -135,7 +135,7 @@ describe("core.reminders.targets — the wish half", () => {
     });
     const occ = civilDaysFromToday(0);
     await core.milestones.create({
-      kind: "anniversary",
+      kind: "wedding",
       bearerType: "relationship",
       bearerId: marriage.id,
       month: occ.month,

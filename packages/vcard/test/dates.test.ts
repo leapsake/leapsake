@@ -79,7 +79,7 @@ describe.each([
       const card = byCase.get(name);
       expect(card?.birthday ?? null).toBeNull();
       expect(card?.dates.map((d) => `${d.kind} ${show(d.date)}`)).toEqual([
-        "anniversary ---4-12",
+        "wedding ---4-12",
       ]);
     },
   );

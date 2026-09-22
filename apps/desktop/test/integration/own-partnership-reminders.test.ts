@@ -98,12 +98,10 @@ describe("a milestone borne by a relationship", () => {
     // an empty list, silently. And the wording is the *shared* one — the
     // relationship resolves to the other end's name, so the question names her.
     expect(await titles()).toContain(
-      "🗓 What do you want to do for your wedding anniversary with Violet?",
+      "🗓 What do you want to do for your anniversary with Violet?",
     );
   });
 
-  // An `anniversary`, not a `wedding`: this is about the *label*, and a wedding's
-  // question is gated to the user's own, so Harry and Tilly's would raise nothing.
   it("names both ends when the relationship is somebody else's", async () => {
     await twoPeople();
     const harry = await core.people.create({ firstName: "Harry" }, []);
@@ -118,10 +116,10 @@ describe("a milestone borne by a relationship", () => {
     });
     // Inside that kind's own prompt window, derived rather than written down.
     const occ = civilDaysFromToday(
-      promptOffsetDays("anniversary") + actionDefs.plan.activeDays - 5,
+      promptOffsetDays("wedding") + actionDefs.plan.activeDays - 5,
     );
     await core.milestones.create({
-      kind: "anniversary",
+      kind: "wedding",
       bearerType: "relationship",
       bearerId: rel.id,
       year: 2015,
@@ -231,10 +229,10 @@ describe("the partnership question, against real repositories", () => {
   const questions = async () =>
     (await titles()).filter((t) => t.startsWith("💍") || t.startsWith("💞"));
 
-  it("asks for a wedding anniversary when the role is a marriage", async () => {
+  it("asks for an anniversary when the role is a marriage", async () => {
     const { partner } = await partnered("spouse");
     expect(await questions()).toEqual([
-      `💍 When is your wedding anniversary with @[Violet](person:${partner.id})?`,
+      `💍 When is your anniversary with @[Violet](person:${partner.id})?`,
     ]);
   });
 
@@ -247,7 +245,7 @@ describe("the partnership question, against real repositories", () => {
 
   it("reads a marriage through its gendered roles too", async () => {
     await partnered("husband");
-    expect((await questions())[0]).toContain("wedding anniversary");
+    expect((await questions())[0]).toContain("💍 When is your anniversary");
   });
 
   // ⚠️ The one that matters most. A wedding lives on the *person* until its
@@ -370,7 +368,7 @@ describe("a wedding with nobody on the other side of it", () => {
     // And it still reminds, which is the half that must never depend on the
     // record being complete.
     expect(await titles()).toContain(
-      "🗓 What do you want to do for your own wedding anniversary?",
+      "🗓 What do you want to do for your own anniversary?",
     );
   });
 
@@ -443,7 +441,7 @@ describe("your own anniversary, on the day, with no spouse attached", () => {
       ],
     });
 
-    expect(await titles()).toContain("💍 It's your wedding anniversary!");
+    expect(await titles()).toContain("💍 It's your anniversary!");
 
     const { linkPartners } = await core.reminders.targets();
     const offer = linkPartners.find((l) => l.milestoneId === milestone.id);

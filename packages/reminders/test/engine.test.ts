@@ -232,7 +232,7 @@ describe("regenerateSystemReminders", () => {
     await regenerateSystemReminders(h.deps);
 
     const [reminder] = h.activeSystem();
-    expect(reminder.title).toBe("💍 It's your wedding anniversary!");
+    expect(reminder.title).toBe("💍 It's your anniversary!");
     expect(reminder.title).not.toContain("@[");
   });
 

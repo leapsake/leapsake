@@ -463,7 +463,7 @@ describe("writeVCards — milestones", () => {
    */
   it("never writes ANNIVERSARY, which iOS ignores entirely", () => {
     const text = write([
-      contact({ dates: [date({ kind: "anniversary", label: "Anniversary" })] }),
+      contact({ dates: [date({ kind: "wedding", label: "Anniversary" })] }),
     ]);
     expect(text).not.toContain("ANNIVERSARY");
     expect(text).toContain("X-ABDATE");
@@ -898,11 +898,11 @@ describe("writeVCards — the card's identity, both directions", () => {
    */
   it("prefers the parameter over a label that maps to a different kind", () => {
     const text = write([
-      contact({ dates: [date({ kind: "wedding", label: "Anniversary" })] }),
+      contact({ dates: [date({ kind: "first-date", label: "Anniversary" })] }),
     ]);
-    expect(dateKindFor("Anniversary")).toBe("anniversary");
+    expect(dateKindFor("Anniversary")).toBe("wedding");
     expect(parseVCards(text)[0].dates[0]).toMatchObject({
-      kind: "wedding",
+      kind: "first-date",
       label: "Anniversary",
     });
   });

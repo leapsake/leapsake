@@ -178,15 +178,9 @@ describe("promptOffsetDays", () => {
     expect(promptOffsetDays("birthday")).toBe(
       12 + actionDefOf("get:gift").activeDays,
     );
-    // ⚠️ **`get:card`, not `send:card`** — and so 42 days, not 21. Anniversary
-    // offered a posting with nothing to post until the delivery pairing landed
-    // (2026-09-06); giving it the shop trip it was missing also gives it that
-    // trip's 30-day run-up, which is the widest thing it now offers. The question
-    // has to come and go before the errand it unlocks would have started, so a
-    // wider offer *means* an earlier prompt. That is the arithmetic working, not
-    // a regression — but it is a visible one: the anniversary and first-date
-    // prompts now arrive six weeks out rather than three.
-    expect(promptOffsetDays("anniversary")).toBe(
+    // The shop trips carry the widest run-up, so a question offering them comes
+    // six weeks out rather than three.
+    expect(promptOffsetDays("first-date")).toBe(
       12 + actionDefOf("get:card").activeDays,
     );
   });

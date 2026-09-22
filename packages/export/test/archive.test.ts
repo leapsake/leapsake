@@ -616,7 +616,7 @@ describe("buildArchive — the graph", () => {
     const { bytes } = await buildArchive(fake, OPTS);
     const vcf = unzip(bytes)[VCF_NAME].replace(/\r\n /g, "");
 
-    expect(vcf.match(/X-ABLABEL:Wedding/g)).toHaveLength(2);
+    expect(vcf.match(/X-ABLABEL:Anniversary/g)).toHaveLength(2);
     expect(
       vcf.match(new RegExp(`X-LEAPSAKE-MILESTONE-ID=${wedding.id}`, "g")),
     ).toHaveLength(2);

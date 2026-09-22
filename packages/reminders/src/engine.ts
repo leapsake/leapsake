@@ -94,10 +94,8 @@ export interface ReminderEngineDeps {
   partnerships?: {
     undated(): Promise<UndatedPartnership[]>;
   };
-  /**
-   * Whether a milestone is about the user's own romantic partnership, however
-   * borne. Gates `prompt.onlyOwnPartnership`; omitted, it is never minted.
-   */
+  /** Whether a milestone is about the user's own romantic partnership: gates
+   *  `onlyOwnPartnership` (none if omitted) and words `coupled` as shared. */
   isOwnPartnership?(
     bearerType: MilestoneBearerType,
     bearerId: string,
@@ -270,17 +268,17 @@ function copyOverrideOf(
   isSelf: boolean,
   /** ...and the subject the copy names is the user, not their partner. */
   subjectIsSelf: boolean,
+  /** A couple's occasion that is the user's, though borne by their partner. */
+  isOwnCouple: boolean,
   subject: string,
   action: ReminderAction,
   kind: MilestoneKind,
 ): { plain: string; belated: string } | null {
   if (verbOf(action) === "plan") {
     const occasion = kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label;
-    // Shared two ways: a gated kind borne by someone else (the gate has already
-    // made it the user's), or anything borne by the user's own relationship.
-    const shared =
-      !subjectIsSelf &&
-      (kindDefs[kind].prompt?.onlyOwnPartnership === true || isSelf);
+    // Shared two ways: a couple's occasion borne by the user's partner, or
+    // anything borne by the user's own relationship.
+    const shared = !subjectIsSelf && (isOwnCouple || isSelf);
     // Nothing differs from the template, so `actionDefs.plan` renders it.
     if (!subjectIsSelf && !shared) return null;
     const title = `${actionDefOf(action).icon ?? ""} ${planQuestion({
@@ -426,7 +424,7 @@ export function partnershipNudgeId(
 function partnershipNudgeTitle(p: UndatedPartnership): string {
   const who = mentionToken(p.partnerLabel, p.partnerType, p.partnerId);
   return p.kind === "wedding"
-    ? `\u{1F48D} When is your wedding anniversary with ${who}?`
+    ? `\u{1F48D} When is your anniversary with ${who}?`
     : `\u{1F49E} When was your first date with ${who}?`;
 }
 
@@ -772,6 +770,7 @@ async function computeDesired(
           (await deps.isOwnPartnership(m.bearerType, m.bearerId))));
     let subject: string | undefined;
     let bearerIsSelf = false;
+    let isOwnCouple = false;
 
     for (const occ of occurrences) {
       const learnedDaysOut = daysUntil(learned, occ);
@@ -841,6 +840,10 @@ async function computeDesired(
           deps.isSelf !== undefined
             ? await deps.isSelf(m.bearerType, m.bearerId)
             : false;
+        isOwnCouple =
+          kindDefs[m.kind].coupled === true &&
+          deps.isOwnPartnership !== undefined &&
+          (await deps.isOwnPartnership(m.bearerType, m.bearerId));
       }
 
       for (const { rule, offsetDays, runUp } of rules) {
@@ -866,6 +869,7 @@ async function computeDesired(
             // Only you personally: your relationship names your partner, so it
             // takes the shared wording.
             bearerIsSelf && m.bearerType === "person",
+            isOwnCouple,
             subject,
             rule.action,
             m.kind,

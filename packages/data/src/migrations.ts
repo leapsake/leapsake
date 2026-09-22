@@ -726,6 +726,16 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 38,
+    async up(driver) {
+      // The `anniversary` kind folds into `wedding`. Reminder ids hang off the
+      // milestone id, so no system reminder needs re-minting.
+      await driver.exec(
+        `UPDATE milestones SET kind = 'wedding' WHERE kind = 'anniversary'`,
+      );
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

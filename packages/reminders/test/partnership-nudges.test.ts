@@ -98,7 +98,7 @@ describe("the partnership question", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.live()[0].title).toBe(
-      "💍 When is your wedding anniversary with @[Violet](person:p1)?",
+      "💍 When is your anniversary with @[Violet](person:p1)?",
     );
   });
 

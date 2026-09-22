@@ -104,7 +104,7 @@ export interface ReminderCopyContext {
 export interface PlanQuestionContext {
   /** The bearer's label, mention-wrapped where applicable. */
   subject: string;
-  /** The occasion as a bare noun — "birthday", "wedding anniversary". */
+  /** The occasion as a bare noun — "birthday", "anniversary". */
   occasion: string;
   /**
    * The subject is the user: their own birthday, or a wedding with no other
