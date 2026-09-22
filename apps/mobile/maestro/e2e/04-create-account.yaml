@@ -50,10 +50,10 @@ appId: com.leapsake.app
 - assertVisible: '24\. .*'
 - assertNotVisible: '25\. .*'
 
-# The acknowledgement `Switch`, by id: it carries no text, its label is a sibling `Text`,
-# and a `rightOf:` selector picked something else entirely — leaving the switch off, Done
-# disabled, and the tap below doing nothing. "Done" staying disabled until the switch is on
-# is what turns that into a failure rather than an unacknowledged phrase.
+# The acknowledgement checkbox, by id: a `rightOf:` selector once picked something else
+# entirely — leaving it unticked, Done disabled, and the tap below doing nothing. "Done"
+# staying disabled until it is ticked is what turns that into a failure rather than an
+# unacknowledged phrase.
 - tapOn:
     id: "recovery-acknowledged"
 - tapOn: "Done"

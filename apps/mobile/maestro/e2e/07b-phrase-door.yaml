@@ -110,8 +110,8 @@ appId: com.leapsake.app
 # would name the door rather than this loop.
 - assertTrue: '${output.phrase.split(" ").length == 24 && output.phrase.indexOf(".") < 0}'
 
-# Acknowledge and continue, exactly as `04` does — "Done" stays disabled until the switch is
-# on, which is what turns a missed tap into a failure rather than an unacknowledged phrase.
+# Acknowledge and continue, exactly as `04` does — "Done" stays disabled until the box is
+# ticked, which is what turns a missed tap into a failure rather than an unacknowledged phrase.
 - tapOn:
     id: "recovery-acknowledged"
 - tapOn: "Done"

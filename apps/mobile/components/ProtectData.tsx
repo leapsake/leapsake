@@ -1,14 +1,8 @@
 import { useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MIN_PASSWORD_LENGTH } from "@leapsake/core";
+import { CheckboxBox } from "./Checkbox";
 import { useAccount } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
@@ -203,20 +197,19 @@ export function RecoveryKeyReveal({
         lose both, your data cannot be recovered.
       </Text>
       <RecoveryPhraseWords phrase={recoveryKey} />
-      <View style={[styles.rowMeta, { marginTop: 0 }]}>
+      {/* An id rather than its text, as the account fields above carry: a driver
+          must hit this exact row, or Done stays disabled two steps away. */}
+      <Pressable
+        testID="recovery-acknowledged"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: acknowledged }}
+        accessibilityLabel="I've saved my recovery phrase"
+        style={[styles.rowWithLead, { paddingVertical: 8 }]}
+        onPress={() => setAcknowledged(!acknowledged)}
+      >
+        <CheckboxBox checked={acknowledged} />
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
-        {/*
-          A `Switch` carries no text of its own, and the label beside it belongs to a
-          sibling `Text` — so a driver has only geometry to find it by, and a relative
-          selector picked the wrong element outright, leaving Done disabled and the
-          failure two steps away. The same reason the account fields above carry ids.
-        */}
-        <Switch
-          testID="recovery-acknowledged"
-          value={acknowledged}
-          onValueChange={setAcknowledged}
-        />
-      </View>
+      </Pressable>
       <Pressable
         style={[
           styles.button,

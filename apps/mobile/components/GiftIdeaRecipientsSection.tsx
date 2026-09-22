@@ -1,8 +1,9 @@
-import { Alert, Pressable, Switch, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import type { GiftForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
+import { CheckboxBox } from "./Checkbox";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -18,11 +19,11 @@ export interface RecipientCandidate {
  * The "For…" section on a gift idea's edit screen, ported from the desktop
  * `GiftIdeaRecipientsSection` — the idea end of the same link a person's "Gifts"
  * section shows from the other side. Adding someone here writes the row their
- * page would; ticking the switch here is the tick they would see.
+ * page would; ticking the box here is the tick they would see.
  *
  * Each row used to open an occasion/target-date editor behind an Edit. Occasion
  * and date were the only things it edited, so with those gone the row's whole
- * state is its switch, and it sits in the row rather than behind anything.
+ * state is its checkbox, and it sits in the row rather than behind anything.
  */
 export function GiftIdeaRecipientsSection({
   ideaId,
@@ -107,13 +108,16 @@ export function GiftIdeaRecipientsSection({
       ) : (
         ordered.map((row) => (
           <View key={row.id} style={styles.row}>
-            <View style={styles.rowMeta}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isGiven(row) }}
+              accessibilityLabel={row.recipientLabel}
+              style={styles.rowWithLead}
+              onPress={() => setGiven(row, !isGiven(row))}
+            >
+              <CheckboxBox checked={isGiven(row)} />
               <Text style={styles.rowText}>{row.recipientLabel}</Text>
-              <Switch
-                value={isGiven(row)}
-                onValueChange={(given) => setGiven(row, given)}
-              />
-            </View>
+            </Pressable>
             <View style={styles.rowMeta}>
               <Text style={styles.muted}>
                 {isGiven(row) ? "✓ Given" : "Not given yet"}

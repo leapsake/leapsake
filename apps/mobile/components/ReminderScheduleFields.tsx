@@ -1,12 +1,14 @@
-import { Pressable, Switch, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import {
   type ReminderAction,
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
   actionDefOf,
   nextSchedulableRule,
+  reminderRuleLabel,
   verbOf,
 } from "@leapsake/schema";
+import { CheckboxBox } from "./Checkbox";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 
@@ -60,10 +62,14 @@ export function ReminderScheduleFields({
               justifyContent: "space-between",
             }}
           >
-            <Switch
-              value={rule.enabled}
-              onValueChange={(on) => update(i, { enabled: on })}
-            />
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: rule.enabled }}
+              accessibilityLabel={reminderRuleLabel(rule)}
+              onPress={() => update(i, { enabled: !rule.enabled })}
+            >
+              <CheckboxBox checked={rule.enabled} />
+            </Pressable>
             <Pressable accessibilityRole="button" onPress={() => remove(i)}>
               <Text style={styles.link}>Remove</Text>
             </Pressable>

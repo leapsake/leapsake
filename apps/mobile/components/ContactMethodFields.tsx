@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, Switch, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import {
   type ContactMethod,
   type ContactMethodKind,
@@ -453,22 +453,16 @@ export function ContactMethodFields({
             value={draft.country}
             onChange={(value) => set("country", value)}
           />
-          <View
-            style={[
-              styles.field,
-              {
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              },
-            ]}
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: draft.smsCapable }}
+            accessibilityLabel="Can receive texts"
+            style={[styles.field, styles.rowWithLead, { paddingVertical: 8 }]}
+            onPress={() => set("smsCapable", !draft.smsCapable)}
           >
+            <CheckboxBox checked={draft.smsCapable} />
             <Text style={styles.fieldValue}>Can receive texts</Text>
-            <Switch
-              value={draft.smsCapable}
-              onValueChange={(value) => set("smsCapable", value)}
-            />
-          </View>
+          </Pressable>
 
           {/* Whether this number is on WhatsApp is the one thing Leapsake
               cannot work out for itself, and the only thing standing between a
