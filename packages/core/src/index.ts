@@ -389,6 +389,19 @@ export function createCore(driver: SqliteDriver) {
   });
   const regenerateSystem = remindersApi.regenerateSystem;
 
+  /** The occasions among `others` that are `milestone` recorded again: same
+   *  kind, month and day. The partner's own card often carries it. */
+  function sameDayCopies(milestone: Milestone, others: Milestone[]) {
+    if (milestone.month === null || milestone.day === null) return [];
+    return others.filter(
+      (m) =>
+        m.id !== milestone.id &&
+        m.kind === milestone.kind &&
+        m.month === milestone.month &&
+        m.day === milestone.day,
+    );
+  }
+
   /** The edge between two people a shared milestone belongs on: a romantic one
    *  if there is one, else any, else a new marriage. */
   async function partnerEdge(personId: string, otherId: string) {
@@ -762,8 +775,8 @@ export function createCore(driver: SqliteDriver) {
         await regenerateSystem();
         return milestone;
       },
-      // Move a milestone held by a person onto their relationship with a
-      // partner: an edge between the two if one exists, else a new marriage.
+      // Move a person's milestone onto their marriage, absorbing same-day
+      // copies already there or on the partner (see `sameDayCopies`).
       linkPartner: async (input: {
         milestoneId: string;
         personId: string;
@@ -786,10 +799,30 @@ export function createCore(driver: SqliteDriver) {
               ).relationship.id
             : await partnerEdge(personId, partner.personId);
         await driver.transaction(async () => {
+          const linked = (
+            await milestones.listForBearer("person", personId)
+          ).find((m) => m.id === milestoneId);
+          const candidates = await milestones.listForBearer(
+            "relationship",
+            relationshipId,
+          );
+          if ("personId" in partner)
+            candidates.push(
+              ...(await milestones.listForBearer("person", partner.personId)),
+            );
+          const copies =
+            linked === undefined ? [] : sameDayCopies(linked, candidates);
+          const year =
+            linked?.year ?? copies.find((c) => c.year !== null)?.year ?? null;
           await milestones.update(milestoneId, {
             bearerType: "relationship",
             bearerId: relationshipId,
+            ...(year === null ? {} : { year }),
           });
+          for (const copy of copies) {
+            await milestones.softDelete(copy.id);
+            await reminderRules.removeAllForBearer("milestone", copy.id);
+          }
           if (reminderSchedule !== undefined)
             await reminderRules.replaceForBearer(
               "milestone",

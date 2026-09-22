@@ -150,4 +150,110 @@ describe("core.milestones.linkPartner", () => {
     // Answered, so the question retires.
     expect(await promptTitles()).toEqual([]);
   });
+
+  /** Mary's own card carries the same anniversary George's does. */
+  async function bothCardsCarryIt(maryDate: {
+    year: number | null;
+    month: number;
+    day: number;
+  }) {
+    const { george, milestone } = await georgesAnniversary();
+    const mary = await person("Mary", "Hatch");
+    await core.milestones.create({
+      kind: "wedding",
+      bearerType: "person",
+      bearerId: mary.id,
+      ...maryDate,
+    });
+    return { george, mary, milestone };
+  }
+
+  const marriageOf = async (personId: string) =>
+    (await core.relationships.listForEntity("person", personId))[0];
+
+  it("keeps one anniversary when the partner's card carries the same one", async () => {
+    const occ = civilDaysFromToday(20);
+    const { george, mary, milestone } = await bothCardsCarryIt({
+      year: 1946,
+      month: occ.month,
+      day: occ.day,
+    });
+
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner: { personId: mary.id },
+    });
+
+    const marriage = await marriageOf(george.id);
+    const [kept, ...others] = await core.milestones.listForBearer(
+      "relationship",
+      marriage.relationshipId,
+    );
+    expect(others).toEqual([]);
+    // George's, with the year only Mary's card knew.
+    expect(kept).toMatchObject({ id: milestone.id, year: 1946 });
+    expect(await core.milestones.listForBearer("person", mary.id)).toEqual([]);
+    // Nobody is left to ask about it.
+    expect(await promptTitles()).toEqual([
+      expect.stringContaining("Mary Hatch"),
+    ]);
+  });
+
+  it("merges into an anniversary the marriage already holds", async () => {
+    const occ = civilDaysFromToday(20);
+    const { george, mary, milestone } = await bothCardsCarryIt({
+      year: null,
+      month: occ.month,
+      day: occ.day,
+    });
+    const [marys] = await core.milestones.listForBearer("person", mary.id);
+    await core.milestones.linkPartner({
+      milestoneId: marys.id,
+      personId: mary.id,
+      partner: { personId: george.id },
+    });
+
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner: { personId: mary.id },
+    });
+
+    const marriage = await marriageOf(george.id);
+    expect(
+      await core.milestones.listForBearer(
+        "relationship",
+        marriage.relationshipId,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps both when the two cards disagree on the day", async () => {
+    const occ = civilDaysFromToday(20);
+    const other = civilDaysFromToday(21);
+    const { george, mary, milestone } = await bothCardsCarryIt({
+      year: null,
+      month: other.month,
+      day: other.day,
+    });
+    expect(occ.day).not.toBe(other.day);
+
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner: { personId: mary.id },
+    });
+
+    const marriage = await marriageOf(george.id);
+    expect(
+      await core.milestones.listForBearer(
+        "relationship",
+        marriage.relationshipId,
+      ),
+    ).toHaveLength(1);
+    expect(await core.milestones.listForBearer("person", mary.id)).toHaveLength(
+      1,
+    );
+  });
 });
