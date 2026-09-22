@@ -159,11 +159,11 @@ lines). Re-check on each Expo SDK bump until it goes.
 
 ## Not a step here: the mobile E2E harness
 
-`scripts/lib/mobile-harness.mjs` is the largest bespoke file (about 1,500 lines), has no tests,
-and roughly a third of it exists to drive an Expo dev client: waiting on Metro, settling the dev
-menu, deep-linking past the launcher. No library replaces that; a release-configuration build
-deletes it. That is [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) step 4, an open decision
-this audit adds evidence to. **Do not restructure the harness under this doc.**
+Audited and deliberately left alone: no library replaces what
+`scripts/lib/mobile-harness.mjs` does, and the thing that would shrink it is a build choice, not
+a dependency. The case and the measurements live in
+[`ci-and-test-tiers.md`](./ci-and-test-tiers.md) step 4. **Do not restructure the harness under
+this doc**, and do not re-audit it.
 
 ## Evaluated and kept, with the tripwire that reopens each
 

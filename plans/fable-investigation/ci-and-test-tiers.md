@@ -131,12 +131,14 @@ An open decision, recorded here so the fidelity gap is not forgotten. Options:
   Closer to what ships, no Metro in the harness, and the custody flows run against the real
   bundle. Costs a second build per run unless the selftest moves off `__DEV__`.
 
-Evidence from the dependency audit ([`dependency-balance.md`](./dependency-balance.md)):
-`scripts/lib/mobile-harness.mjs` is the repo's largest bespoke file, about 1,500 lines with no
-tests, and roughly a third of it exists only to drive the dev client: waiting on Metro, settling
-the dev menu, deep-linking past the launcher. The second option deletes that third; the first
-keeps it and its maintenance. The audit's recommendation is the second, with the selftest route
-gated on a build-time flag instead of `__DEV__` so one build serves both tiers.
+Evidence from the dependency audit ([`dependency-balance.md`](./dependency-balance.md), which
+owns nothing else here — it looked at the harness, found **no library replaces it**, and left it
+to this step): `scripts/lib/mobile-harness.mjs` is the repo's largest bespoke file, about 1,500
+lines with no tests, and roughly a third of it exists only to drive the dev client — waiting on
+Metro, settling the dev menu, deep-linking past the launcher. The second option deletes that
+third; the first keeps it and its maintenance. The audit's recommendation is the second, with
+the selftest route gated on a build-time flag instead of `__DEV__` so one build serves both
+tiers.
 
 Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to describe it.
 
