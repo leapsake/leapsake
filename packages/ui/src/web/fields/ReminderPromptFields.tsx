@@ -2,6 +2,7 @@ import {
   type ReminderRuleInput,
   actionDefOf,
   leadTimeLabel,
+  offerLabel,
   promptGroupsOf,
   setPromptDelivery,
   setPromptItem,
@@ -20,9 +21,8 @@ import { useMessages } from "../../messages/index.js";
  * yet, eight weeks before a birthday, and its whole value is that answering it
  * is nearly free. Every control it does not have is the point.
  *
- * The labels are `actionDefOf(...).label` **verbatim** rather than new copy. That
- * registry was written as offers — "Send a card", "Get a gift" — for the
- * schedule editor, which is the same list asked at a different moment. The lead
+ * The labels are the registry's own offers — "Send a card", "Get a gift" — via
+ * `offerLabel`, which lets one name the occasion: "Wish them a happy birthday". The lead
  * time beside each is the rule's own `offsetDays`, said out loud because it is
  * what a tick actually buys; moving one is still the full editor's job.
  *
@@ -36,9 +36,12 @@ import { useMessages } from "../../messages/index.js";
  */
 export function ReminderPromptFields({
   value,
+  greeting,
   onChange,
 }: {
   value: readonly ReminderRuleInput[];
+  /** The occasion's greeting, "a happy birthday", which the labels may name. */
+  greeting: string;
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
   const m = useMessages();
@@ -53,6 +56,7 @@ export function ReminderPromptFields({
       <ul>
         {items.map(({ index, rule }) => {
           const def = actionDefOf(rule.action);
+          const label = offerLabel(rule.action, greeting);
           return (
             // Positional, like the schedule editor: no stable id until saved.
             <li key={index}>
@@ -65,7 +69,7 @@ export function ReminderPromptFields({
                   }
                 />{" "}
                 {def.icon ? `${def.icon} ` : ""}
-                {def.label} <small>{leadTimeLabel(rule.offsetDays)}</small>
+                {label} <small>{leadTimeLabel(rule.offsetDays)}</small>
               </label>
             </li>
           );

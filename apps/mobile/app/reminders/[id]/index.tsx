@@ -424,6 +424,7 @@ export default function ReminderDetailScreen() {
           </Text>
           <ReminderPromptFields
             value={draft ?? planTarget.offers}
+            greeting={kindDefs[planTarget.milestoneKind].greeting}
             onChange={setDraft}
           />
           {/* The one commit, and it looks like one. It used to be a blue word in

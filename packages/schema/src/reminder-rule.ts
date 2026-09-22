@@ -140,6 +140,11 @@ export function planQuestion({
 export interface ReminderActionDef {
   /** Display label, e.g. "Get a gift". */
   label: string;
+  /**
+   * The label a prompt shows once it knows the occasion, from its greeting:
+   * "Wish them a happy birthday". Absent keeps `label`.
+   */
+  offer?: (greeting: string) => string;
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
@@ -177,6 +182,7 @@ const OTHER_LABEL = "Other";
 export const actionDefs = {
   wish: {
     label: "Wish them",
+    offer: (greeting) => `Wish them ${greeting}`,
     icon: "🎉",
     activeDays: 0,
     template: ({ subject, greeting }) => `Wish ${subject} ${greeting}`,
@@ -419,6 +425,12 @@ export function reminderRuleLabel(rule: {
 }): string {
   if (verbOf(rule.action) === "other") return rule.label ?? OTHER_LABEL;
   return actionDefOf(rule.action).label;
+}
+
+/** An action's label on a prompt about an occasion with this greeting. */
+export function offerLabel(action: ReminderAction, greeting: string): string {
+  const def = actionDefOf(action);
+  return def.offer?.(greeting) ?? def.label;
 }
 
 /**

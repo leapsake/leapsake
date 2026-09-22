@@ -129,6 +129,7 @@ export {
   SCHEDULABLE_ACTIONS,
   nextSchedulableRule,
   leadTimeLabel,
+  offerLabel,
   promptGroupsOf,
   setPromptItem,
   setPromptDelivery,

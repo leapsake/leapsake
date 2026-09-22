@@ -3,6 +3,7 @@ import {
   type ReminderRuleInput,
   actionDefOf,
   leadTimeLabel,
+  offerLabel,
   promptGroupsOf,
   setPromptDelivery,
   setPromptItem,
@@ -44,9 +45,12 @@ const DELIVERY = [
  */
 export function ReminderPromptFields({
   value,
+  greeting,
   onChange,
 }: {
   value: readonly ReminderRuleInput[];
+  /** The occasion's greeting, "a happy birthday", which the labels may name. */
+  greeting: string;
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
   const { items, delivery } = promptGroupsOf(value);
@@ -55,12 +59,13 @@ export function ReminderPromptFields({
     <View>
       {items.map(({ index, rule }) => {
         const def = actionDefOf(rule.action);
+        const label = offerLabel(rule.action, greeting);
         return (
           <Pressable
             key={index}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: rule.enabled }}
-            accessibilityLabel={def.label}
+            accessibilityLabel={label}
             accessibilityHint={leadTimeLabel(rule.offsetDays)}
             onPress={() => onChange(setPromptItem(value, index, !rule.enabled))}
             style={[styles.row, styles.rowWithLead]}
@@ -74,7 +79,7 @@ export function ReminderPromptFields({
             <View style={styles.rowBody}>
               <Text style={styles.rowText}>
                 {def.icon ? `${def.icon} ` : ""}
-                {def.label}
+                {label}
               </Text>
               {/* The lead time, muted and underneath: it is what the toggle
                   actually buys — a reminder at a time — and the screen said

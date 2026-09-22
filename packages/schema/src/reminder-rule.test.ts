@@ -19,6 +19,7 @@ import {
   nextSchedulableRule,
   promptOffsetDays,
   leadTimeLabel,
+  offerLabel,
   promptGroupsOf,
   setPromptItem,
   setPromptDelivery,
@@ -427,6 +428,17 @@ describe("actionKeyOf", () => {
     // Re-capitalising a custom errand is an edit, not a new reminder.
     expect(actionKeyOf({ action: "other", label: " Bake A Cake " })).toBe(
       actionKeyOf({ action: "other", label: "bake a cake" }),
+    );
+  });
+});
+
+describe("offerLabel", () => {
+  it("names the occasion where the action's label would not", () => {
+    expect(offerLabel("wish", kindDefs.birthday.greeting)).toBe(
+      "Wish them a happy birthday",
+    );
+    expect(offerLabel("get:gift", kindDefs.birthday.greeting)).toBe(
+      "Get a gift",
     );
   });
 });

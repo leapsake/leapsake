@@ -36,7 +36,11 @@ export function MilestonePlanPrompt() {
         </p>
       )}
       <Form method="post">
-        <ReminderPromptFields value={schedule} onChange={setSchedule} />
+        <ReminderPromptFields
+          value={schedule}
+          greeting={kindDefs[target.milestoneKind].greeting}
+          onChange={setSchedule}
+        />
         <input
           type="hidden"
           name="reminderSchedule"
