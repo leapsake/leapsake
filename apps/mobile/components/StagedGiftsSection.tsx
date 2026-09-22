@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   type GiftDraft,
-  GiftGivenToggle,
+  GiftGivenCheckbox,
   GiftIdentityFields,
   emptyGiftDraft,
   giftDraftValid,
@@ -105,7 +105,7 @@ export function StagedGiftsSection({
             onChange={(draft) => patch(row.key, draft)}
             ideaPool={ideaPool}
           />
-          <GiftGivenToggle
+          <GiftGivenCheckbox
             value={row.draft.given}
             onChange={(given) => patch(row.key, { ...row.draft, given })}
           />

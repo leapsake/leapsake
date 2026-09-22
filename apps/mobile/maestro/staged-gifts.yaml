@@ -4,7 +4,7 @@
 # it belongs to, rather than on the standalone capture screen — and the only
 # place the two halves of a gift row meet: the shared identity fields
 # (`GiftIdentityFields`, a name-or-link input) and the recipient's own tick
-# (`GiftGivenToggle`).
+# (`GiftGivenCheckbox`).
 #
 # Three claims, none of which a lower tier can make. The repo and core tests
 # prove the write does the right thing when asked; this proves the screens ask.

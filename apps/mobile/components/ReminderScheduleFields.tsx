@@ -67,8 +67,10 @@ export function ReminderScheduleFields({
               accessibilityState={{ checked: rule.enabled }}
               accessibilityLabel={reminderRuleLabel(rule)}
               onPress={() => update(i, { enabled: !rule.enabled })}
+              style={styles.rowWithLead}
             >
               <CheckboxBox checked={rule.enabled} />
+              <Text style={styles.fieldValue}>Remind me</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => remove(i)}>
               <Text style={styles.link}>Remove</Text>

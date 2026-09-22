@@ -1,10 +1,11 @@
-import { Pressable, Switch, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   giftUrlLabel,
   giftUrlOf,
   pastedIntoField,
 } from "@leapsake/ui/headless";
+import { CheckboxBox } from "./Checkbox";
 import { styles } from "../lib/styles";
 
 /** Shortest query the idea suggestions act on, so the title field never dumps the
@@ -158,14 +159,8 @@ export function GiftIdentityFields({
   );
 }
 
-/**
- * The one thing a gift says about a recipient: whether they have it yet.
- *
- * A `Switch` rather than a checkbox — it is the platform's control for a
- * standing yes/no, and the row it sits in reads as a statement about that person
- * rather than a field to fill in.
- */
-export function GiftGivenToggle({
+/** The one thing a gift says about a recipient: whether they have it yet. */
+export function GiftGivenCheckbox({
   label,
   value,
   onChange,
@@ -177,14 +172,19 @@ export function GiftGivenToggle({
   onChange: (given: boolean) => void;
   testID?: string;
 }) {
+  const text =
+    label === undefined ? "Already gave it" : `Already gave it to ${label}`;
   return (
-    <View style={styles.rowMeta}>
-      <Text style={styles.rowText}>
-        {label === undefined
-          ? "Already gave it"
-          : `Already gave it to ${label}`}
-      </Text>
-      <Switch testID={testID} value={value} onValueChange={onChange} />
-    </View>
+    <Pressable
+      testID={testID}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={text}
+      style={[styles.rowWithLead, { paddingVertical: 8 }]}
+      onPress={() => onChange(!value)}
+    >
+      <CheckboxBox checked={value} />
+      <Text style={styles.rowText}>{text}</Text>
+    </Pressable>
   );
 }

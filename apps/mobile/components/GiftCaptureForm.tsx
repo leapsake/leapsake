@@ -14,7 +14,7 @@ import {
 } from "@leapsake/ui/headless";
 import {
   type GiftDraft,
-  GiftGivenToggle,
+  GiftGivenCheckbox,
   GiftIdentityFields,
   emptyGiftDraft,
 } from "./GiftFields";
@@ -26,7 +26,7 @@ import { Typeahead } from "./Typeahead";
 /**
  * The one consolidated "capture a gift" **screen** — a {@link GiftDraft} plus
  * whoever it is for, and the single `core.gifts.capture` that writes them. The
- * fields themselves are {@link GiftIdentityFields} and {@link GiftGivenToggle},
+ * fields themselves are {@link GiftIdentityFields} and {@link GiftGivenCheckbox},
  * which the entity forms' {@link StagedGiftsSection} renders directly; this is
  * the wrapper that owns state and has a Save.
  *
@@ -134,7 +134,7 @@ export function GiftCaptureForm({
       />
 
       {fixedRecipient ? (
-        <GiftGivenToggle
+        <GiftGivenCheckbox
           testID="gift-given"
           label={fixedRecipient.label}
           value={draft.given}
@@ -171,7 +171,7 @@ export function GiftCaptureForm({
                     <Text style={[styles.link, styles.danger]}>Remove</Text>
                   </Pressable>
                 </View>
-                <GiftGivenToggle
+                <GiftGivenCheckbox
                   value={r.given}
                   onChange={(given) =>
                     setRecipients((prev) =>
