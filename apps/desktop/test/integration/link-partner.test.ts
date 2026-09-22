@@ -256,4 +256,27 @@ describe("core.milestones.linkPartner", () => {
       1,
     );
   });
+
+  it("records a first date's new name as a partner", async () => {
+    const george = await person("George", "Bailey");
+    const occ = civilDaysFromToday(20);
+    const milestone = await core.milestones.create({
+      kind: "first-date",
+      bearerType: "person",
+      bearerId: george.id,
+      month: occ.month,
+      day: occ.day,
+    });
+
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner: { name: "Mary Hatch" },
+    });
+
+    expect(await marriageOf(george.id)).toMatchObject({
+      otherLabel: "Mary Hatch",
+      otherRole: "partner",
+    });
+  });
 });

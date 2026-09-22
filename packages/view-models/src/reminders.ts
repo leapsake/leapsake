@@ -341,24 +341,14 @@ export interface PartnershipReminderSubject {
 }
 
 /**
- * An unbound wedding's subject: the milestone with nobody on the other side of
- * it, and the person it is currently stored on.
- *
- * ⚠️ **Weddings only, and that is not an oversight.** A wedding is the one
- * occasion between two people that can be recorded knowing only one of them —
- * the create form offers "unknown" for it and for nothing else. A `first-date` or
- * a `met` stored on a person *is* about that person, so asking who it is with
- * would be asking a question whose answer is in the row.
+ * A couple's occasion held by one person, with nobody on the other side yet:
+ * the milestone, its kind, and the person it is stored on. `isSelf` changes
+ * only the wording: "who is your spouse?" rather than "add who it's with".
  */
 export interface LinkPartnerReminderSubject {
   milestoneId: string;
+  milestoneKind: "wedding" | "first-date";
   personId: string;
-  /**
-   * Whether the wedding is the **user's own**, which is only a wording
-   * difference — "who is your spouse?" rather than "add who it's with". Worth
-   * carrying because it is the case the whole affordance was asked for: an
-   * anniversary entered before the other person is in the app at all.
-   */
   isSelf: boolean;
 }
 

@@ -444,6 +444,7 @@ export default function ReminderDetailScreen() {
         <View style={styles.promptForm}>
           {linkPartnerTarget !== undefined && (
             <PartnerField
+              kind={linkPartnerTarget.milestoneKind}
               personId={linkPartnerTarget.personId}
               isSelf={linkPartnerTarget.isSelf}
               value={partner}

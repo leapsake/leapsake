@@ -93,7 +93,7 @@ export interface MilestoneKindDef {
    * Present when an unconfigured occasion of this kind asks what to do for it,
    * offering its default schedule. `occasion` is the noun the question uses.
    */
-  prompt?: { occasion: string; onlyOwnPartnership?: true };
+  prompt?: { occasion: string };
 }
 
 /** Every milestone kind's definition, in UI listing order. */
@@ -142,7 +142,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       belated: "\u{1F49E} It was the anniversary of your first date",
     },
     coupled: true,
-    prompt: { occasion: "first date anniversary", onlyOwnPartnership: true },
+    prompt: { occasion: "first date anniversary" },
     defaultReminderSchedule: [
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },

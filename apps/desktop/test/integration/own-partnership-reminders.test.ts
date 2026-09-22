@@ -133,7 +133,7 @@ describe("a milestone borne by a relationship", () => {
   });
 });
 
-describe("the first-date prompt, gated on the partnership being yours", () => {
+describe("a first date, asked about everyone's", () => {
   /** A first date recorded on `bearerId`, the common shape: borne by the person. */
   const recordFirstDate = (bearerId: string) =>
     core.milestones.create({
@@ -145,26 +145,38 @@ describe("the first-date prompt, gated on the partnership being yours", () => {
       day: FIRST_DATE_SOON.day,
     });
 
-  it("asks when a romantic edge joins them to you", async () => {
-    const { me, partner } = await twoPeople();
-    await core.relationships.create({
+  const romance = (me: string, partner: string, aRole = "partner" as const) =>
+    core.relationships.create({
       aType: "person",
-      aId: me.id,
-      aRole: "partner",
+      aId: me,
+      aRole,
       bType: "person",
-      bId: partner.id,
-      bRole: "partner",
+      bId: partner,
+      bRole: aRole,
     });
+
+  // It can only have been with you, so it moves onto your relationship unasked.
+  it("links a first date on your partner to your relationship", async () => {
+    const { me, partner } = await twoPeople();
+    const rel = await romance(me.id, partner.id);
     await recordFirstDate(partner.id);
 
-    expect((await titles()).some((t) => t.includes("first date"))).toBe(true);
+    expect(await core.milestones.listForBearer("person", partner.id)).toEqual(
+      [],
+    );
+    expect(
+      await core.milestones.listForBearer("relationship", rel.id),
+    ).toHaveLength(1);
+    expect(await titles()).toContain(
+      "🗓 What do you want to do for your first date anniversary with Violet?",
+    );
   });
 
-  // `spouse` and its gendered variants reach it through `baseRole`, which is the
-  // whole reason the predicate is a helper rather than an equality check.
-  it("counts a marriage, however the role was phrased", async () => {
+  // Recorded before the partner was: linked once the relationship exists.
+  it("links it when the partnership comes later", async () => {
     const { me, partner } = await twoPeople();
-    await core.relationships.create({
+    await recordFirstDate(partner.id);
+    const rel = await core.relationships.create({
       aType: "person",
       aId: me.id,
       aRole: "husband",
@@ -172,23 +184,27 @@ describe("the first-date prompt, gated on the partnership being yours", () => {
       bId: partner.id,
       bRole: "wife",
     });
-    await recordFirstDate(partner.id);
 
-    expect((await titles()).some((t) => t.includes("first date"))).toBe(true);
+    expect(
+      await core.milestones.listForBearer("relationship", rel.id),
+    ).toHaveLength(1);
   });
 
-  it("stays quiet about a first date between two other people", async () => {
+  it("asks about a first date between two other people", async () => {
     await twoPeople();
     const harry = await core.people.create({ firstName: "Harry" }, []);
     await recordFirstDate(harry.id);
 
-    expect((await titles()).some((t) => t.includes("first date"))).toBe(false);
+    expect(
+      (await titles()).some((t) => t.includes("first date anniversary")),
+    ).toBe(true);
+    expect(
+      await core.milestones.listForBearer("person", harry.id),
+    ).toHaveLength(1);
   });
 
-  // ⚠️ The known cost of the gate, recorded rather than lamented: it reads data
-  // the user may not have entered. A friendship is not a partnership, so this is
-  // correct — but the same silence falls on a real partner whose role nobody set.
-  it("stays quiet when the edge exists but is not a romantic one", async () => {
+  // A friendship is not a partnership: asked about, but not linked.
+  it("leaves it alone when the edge is not a romantic one", async () => {
     const { me, partner } = await twoPeople();
     await core.relationships.create({
       aType: "person",
@@ -200,14 +216,21 @@ describe("the first-date prompt, gated on the partnership being yours", () => {
     });
     await recordFirstDate(partner.id);
 
-    expect((await titles()).some((t) => t.includes("first date"))).toBe(false);
+    expect(
+      await core.milestones.listForBearer("person", partner.id),
+    ).toHaveLength(1);
   });
 
-  it("stays quiet when nobody has said who they are", async () => {
+  it("asks, unlinked, when nobody has said who they are", async () => {
     const partner = await core.people.create({ firstName: "Violet" }, []);
     await recordFirstDate(partner.id);
 
-    expect((await titles()).some((t) => t.includes("first date"))).toBe(false);
+    expect(
+      (await titles()).some((t) => t.includes("first date anniversary")),
+    ).toBe(true);
+    expect(
+      await core.milestones.listForBearer("person", partner.id),
+    ).toHaveLength(1);
   });
 });
 

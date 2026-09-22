@@ -18,7 +18,7 @@ import {
 } from "../src/index.js";
 
 /**
- * Two things that were once one bug, and the gate that sits on top of them.
+ * Two things that were once one bug, and the wording that sits on top of them.
  *
  * A milestone borne by a **relationship** used to generate nothing at all: the
  * composition root answered `null` to the label port for that bearer type, the
@@ -29,10 +29,8 @@ import {
  * {@link ReminderEngineDeps.isSelf} so a relationship you are in can say "your
  * own".
  *
- * The gate is `prompt.onlyOwnPartnership`, which `first-date` and `wedding`
- * set, and its default matters as much as its behaviour: with no port wired it
- * asks nobody, because the failure it exists to prevent is asking about other
- * people's.
+ * A couple's occasion asks about everyone's, and `isOwnPartnership` decides
+ * only whether the question says "yours with them".
  */
 
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };
@@ -197,7 +195,7 @@ describe("a milestone borne by a relationship", () => {
   });
 });
 
-describe("a prompt gated on the occasion being the user's own", () => {
+describe("a couple's occasion, asked about everyone's", () => {
   let h: ReturnType<typeof makeHarness>;
   beforeEach(() => {
     h = makeHarness();
@@ -225,36 +223,30 @@ describe("a prompt gated on the occasion being the user's own", () => {
     );
   });
 
-  // The point of the gate. Someone else's first date is not an occasion a third
-  // party marks, so a question about one reads as the app misunderstanding what
-  // it is for.
-  it("says nothing about anyone else's", async () => {
+  it("asks about somebody else's first date", async () => {
     h.setOwnPartnership(async () => false);
     h.setMilestones([firstDate("person", "p1")]);
 
-    expect(await regenerateSystemReminders(h.deps)).toEqual({
-      created: 0,
-      updated: 0,
-      removed: 0,
-    });
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.titles()).toContain(
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s first date anniversary?`,
+    );
   });
 
-  // ⚠️ Fails **closed**. An unwired port must not fall back to asking everybody:
-  // that is precisely the question the gate exists to suppress, and a wiring
-  // mistake would restore it everywhere at once.
-  it("asks nobody when the port is not wired at all", async () => {
+  // With no way to tell whose it is, the question is still asked, in the
+  // third person.
+  it("still asks when the ownership port is not wired", async () => {
     h.setOwnPartnership(undefined);
     h.setMilestones([firstDate("person", "p1")]);
 
-    expect(await regenerateSystemReminders(h.deps)).toEqual({
-      created: 0,
-      updated: 0,
-      removed: 0,
-    });
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.titles()).toContain(
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s first date anniversary?`,
+    );
   });
 
-  // The gate is per-kind, and only `first-date` declares it: an anniversary is
-  // an occasion anyone marks, so it asks about everyone's.
   it("asks about somebody else's anniversary", async () => {
     h.setOwnPartnership(async () => false);
     h.setMilestones([

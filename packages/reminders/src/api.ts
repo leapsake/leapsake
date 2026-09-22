@@ -97,13 +97,14 @@ export interface SystemReminderTargets {
   linkPartners: LinkPartnerReminderTarget[];
 }
 
-/** A wedding reminder with nobody on the other side yet: it knows the date and
- *  wants the couple. An affordance on an existing row, not a row of its own. */
+/** A couple's occasion with nobody on the other side yet: it knows the date
+ *  and wants the couple. An affordance on an existing row, not its own row. */
 export interface LinkPartnerReminderTarget {
   reminderId: string;
   milestoneId: string;
+  milestoneKind: "wedding" | "first-date";
   personId: string;
-  /** Whether it is the user's own wedding — a wording difference only. */
+  /** Whether it is the user's own occasion — a wording difference only. */
   isSelf: boolean;
 }
 
@@ -678,21 +679,25 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         partnerId: p.partnerId,
       }));
 
-      // Weddings on a person: the other party is unknown, since a bound wedding
-      // lives on the relationship.
+      // A couple's occasion on a person: the other party is unknown, since a
+      // linked one lives on the relationship.
       const selfPersonId = (await self.getSelf())?.personId;
-      const linkPartners: LinkPartnerReminderTarget[] = targets.flatMap((t) =>
-        t.milestone?.kind === "wedding" && t.bearerType === "person"
+      const linkPartners: LinkPartnerReminderTarget[] = targets.flatMap((t) => {
+        const kind = t.milestone?.kind;
+        return t.milestone !== undefined &&
+          (kind === "wedding" || kind === "first-date") &&
+          t.bearerType === "person"
           ? [
               {
                 reminderId: t.id,
                 milestoneId: t.milestone.id,
+                milestoneKind: kind,
                 personId: t.bearerId,
                 isSelf: t.bearerId === selfPersonId,
               },
             ]
-          : [],
-      );
+          : [];
+      });
 
       return { gifts, plans, contacts, partnerships, linkPartners };
     },

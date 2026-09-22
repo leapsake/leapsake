@@ -276,6 +276,20 @@ export type CoreApi = ReturnType<typeof createCore>;
  * Wire the repositories over a {@link SqliteDriver} into a {@link CoreApi}; run
  * {@link runMigrations} on it first. Trust boundaries parse before calling in.
  */
+/** Who a person's milestone is with, for `milestones.linkPartner`. */
+export interface PartnerLink {
+  milestoneId: string;
+  personId: string;
+  partner: { personId: string } | { name: string };
+  reminderSchedule?: ReminderRuleInput[];
+}
+
+/** The role a new partner is recorded in, by the occasion that named them. */
+const PARTNER_ROLE: Partial<Record<MilestoneKind, RelationshipRole>> = {
+  wedding: "spouse",
+  "first-date": "partner",
+};
+
 export function createCore(driver: SqliteDriver) {
   const people = createPeopleRepo(driver);
   const pets = createPetsRepo(driver);
@@ -387,7 +401,91 @@ export function createCore(driver: SqliteDriver) {
         today: todayCivil(),
       }),
   });
-  const regenerateSystem = remindersApi.regenerateSystem;
+  // A first date on your partner was with you, so it is linked before any
+  // reconcile rather than asked about.
+  const regenerateSystem = async () => {
+    await linkFirstDatesToPartners();
+    return remindersApi.regenerateSystem();
+  };
+
+  /** Moves a milestone held by one person onto their relationship with a
+   *  partner, absorbing same-day copies there or on the partner. */
+  async function moveOntoPartnership(input: PartnerLink): Promise<void> {
+    const { milestoneId, personId, partner, reminderSchedule } = input;
+    const linked = (await milestones.listForBearer("person", personId)).find(
+      (m) => m.id === milestoneId,
+    );
+    if (linked === undefined) return;
+    const role = PARTNER_ROLE[linked.kind] ?? "spouse";
+    // The partner first, in its own transaction: a failed move leaves a true
+    // relationship behind, which the retry finds and reuses.
+    const relationshipId =
+      "name" in partner
+        ? (
+            await relationshipsSvc.createWithNewOther({
+              subjectType: "person",
+              subjectId: personId,
+              otherType: "person",
+              otherName: partner.name,
+              otherRole: role,
+            })
+          ).relationship.id
+        : await partnerEdge(personId, partner.personId, role);
+    await driver.transaction(async () => {
+      const candidates = await milestones.listForBearer(
+        "relationship",
+        relationshipId,
+      );
+      if ("personId" in partner)
+        candidates.push(
+          ...(await milestones.listForBearer("person", partner.personId)),
+        );
+      const copies = sameDayCopies(linked, candidates);
+      const year =
+        linked.year ?? copies.find((c) => c.year !== null)?.year ?? null;
+      await milestones.update(milestoneId, {
+        bearerType: "relationship",
+        bearerId: relationshipId,
+        ...(year === null ? {} : { year }),
+      });
+      for (const copy of copies) {
+        await milestones.softDelete(copy.id);
+        await reminderRules.removeAllForBearer("milestone", copy.id);
+      }
+      if (reminderSchedule !== undefined)
+        await reminderRules.replaceForBearer(
+          "milestone",
+          milestoneId,
+          reminderSchedule,
+        );
+    });
+  }
+
+  /** Links every first date held by the user's romantic partner to their
+   *  relationship. */
+  async function linkFirstDatesToPartners(): Promise<void> {
+    const selfId = (await self.getSelf())?.personId;
+    if (selfId === undefined) return;
+    for (const m of await milestones.listRemindEligible()) {
+      if (m.kind !== "first-date" || m.bearerType !== "person") continue;
+      if (m.bearerId === selfId) continue;
+      const romantic = (
+        await relationshipsSvc.orientedNeighbors("person", m.bearerId)
+      ).some(
+        (n) =>
+          n.origin === "explicit" &&
+          n.otherType === "person" &&
+          n.otherId === selfId &&
+          isRomanticRole(n.otherRole),
+      );
+      if (romantic)
+        await moveOntoPartnership({
+          milestoneId: m.id,
+          personId: m.bearerId,
+          partner: { personId: selfId },
+        });
+    }
+  }
 
   /** The occasions among `others` that are `milestone` recorded again: same
    *  kind, month and day. The partner's own card often carries it. */
@@ -403,8 +501,12 @@ export function createCore(driver: SqliteDriver) {
   }
 
   /** The edge between two people a shared milestone belongs on: a romantic one
-   *  if there is one, else any, else a new marriage. */
-  async function partnerEdge(personId: string, otherId: string) {
+   *  if there is one, else any, else a new one in `role`. */
+  async function partnerEdge(
+    personId: string,
+    otherId: string,
+    role: RelationshipRole,
+  ) {
     const edges = (
       await relationshipsSvc.orientedNeighbors("person", personId)
     ).filter(
@@ -420,7 +522,7 @@ export function createCore(driver: SqliteDriver) {
       subjectId: personId,
       otherType: "person",
       otherId,
-      otherRole: "spouse",
+      otherRole: role,
     });
     return created.id;
   }
@@ -775,61 +877,9 @@ export function createCore(driver: SqliteDriver) {
         await regenerateSystem();
         return milestone;
       },
-      // Move a person's milestone onto their marriage, absorbing same-day
-      // copies already there or on the partner (see `sameDayCopies`).
-      linkPartner: async (input: {
-        milestoneId: string;
-        personId: string;
-        partner: { personId: string } | { name: string };
-        reminderSchedule?: ReminderRuleInput[];
-      }): Promise<void> => {
-        const { milestoneId, personId, partner, reminderSchedule } = input;
-        // The partner first, in its own transaction: a failed move leaves a
-        // true marriage behind, which the retry finds and reuses.
-        const relationshipId =
-          "name" in partner
-            ? (
-                await relationshipsSvc.createWithNewOther({
-                  subjectType: "person",
-                  subjectId: personId,
-                  otherType: "person",
-                  otherName: partner.name,
-                  otherRole: "spouse",
-                })
-              ).relationship.id
-            : await partnerEdge(personId, partner.personId);
-        await driver.transaction(async () => {
-          const linked = (
-            await milestones.listForBearer("person", personId)
-          ).find((m) => m.id === milestoneId);
-          const candidates = await milestones.listForBearer(
-            "relationship",
-            relationshipId,
-          );
-          if ("personId" in partner)
-            candidates.push(
-              ...(await milestones.listForBearer("person", partner.personId)),
-            );
-          const copies =
-            linked === undefined ? [] : sameDayCopies(linked, candidates);
-          const year =
-            linked?.year ?? copies.find((c) => c.year !== null)?.year ?? null;
-          await milestones.update(milestoneId, {
-            bearerType: "relationship",
-            bearerId: relationshipId,
-            ...(year === null ? {} : { year }),
-          });
-          for (const copy of copies) {
-            await milestones.softDelete(copy.id);
-            await reminderRules.removeAllForBearer("milestone", copy.id);
-          }
-          if (reminderSchedule !== undefined)
-            await reminderRules.replaceForBearer(
-              "milestone",
-              milestoneId,
-              reminderSchedule,
-            );
-        });
+      // Move a person's milestone onto their relationship with a partner.
+      linkPartner: async (input: PartnerLink): Promise<void> => {
+        await moveOntoPartnership(input);
         await regenerateSystem();
       },
       softDelete: async (id: string): Promise<void> => {
@@ -847,7 +897,7 @@ export function createCore(driver: SqliteDriver) {
 
     gifts: giftsApi,
 
-    reminders: remindersApi,
+    reminders: { ...remindersApi, regenerateSystem },
 
     // Who "you" are: a pointer at a Person. Reconciling flips your own
     // birthday's reminder to its self-directed copy at once.

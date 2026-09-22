@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { kindDefs } from "@leapsake/schema";
 import { useHeaderSave } from "../../../../../components/HeaderSave";
 import {
   PartnerField,
@@ -11,13 +12,18 @@ import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
 
-const COPY = { title: "Anniversary", failed: "Couldn’t save" } as const;
+const COPY = { failed: "Couldn’t save" } as const;
 
-/** Who an anniversary held by one person is with, asked from its reminders. */
+/** Who a couple's occasion held by one person is with, asked from its
+ *  reminders. */
 export default function MilestonePartnerScreen() {
   const core = useCore();
   const router = useRouter();
-  const { id, mid } = useLocalSearchParams<{ id: string; mid: string }>();
+  const { id, mid, kind } = useLocalSearchParams<{
+    id: string;
+    mid: string;
+    kind: "wedding" | "first-date";
+  }>();
   const [partner, setPartner] = useState<PartyChoice | null | undefined>(
     undefined,
   );
@@ -48,8 +54,8 @@ export default function MilestonePartnerScreen() {
     onPress: () => void save(),
   });
   const options = useMemo(
-    () => ({ title: COPY.title, headerRight }),
-    [headerRight],
+    () => ({ title: kindDefs[kind].label, headerRight }),
+    [kind, headerRight],
   );
 
   return (
@@ -60,6 +66,7 @@ export default function MilestonePartnerScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <PartnerField
+          kind={kind}
           personId={id}
           isSelf={self?.personId === id}
           value={partner}

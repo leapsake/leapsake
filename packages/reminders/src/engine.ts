@@ -94,8 +94,8 @@ export interface ReminderEngineDeps {
   partnerships?: {
     undated(): Promise<UndatedPartnership[]>;
   };
-  /** Whether a milestone is about the user's own romantic partnership: gates
-   *  `onlyOwnPartnership` (none if omitted) and words `coupled` as shared. */
+  /** Whether a milestone is about the user's own romantic partnership, which
+   *  words a `coupled` kind's question as shared. */
   isOwnPartnership?(
     bearerType: MilestoneBearerType,
     bearerId: string,
@@ -762,12 +762,7 @@ async function computeDesired(
     const asksAbout = (occ: CivilDate) =>
       asksAfter === "always" ||
       (asksAfter !== null && daysUntil(asksAfter, occ) > 0);
-    // The ownership port is called last, so the common case never pays for it.
-    const mayAsk =
-      occurrences.some(asksAbout) &&
-      (prompt?.onlyOwnPartnership !== true ||
-        (deps.isOwnPartnership !== undefined &&
-          (await deps.isOwnPartnership(m.bearerType, m.bearerId))));
+    const mayAsk = occurrences.some(asksAbout);
     let subject: string | undefined;
     let bearerIsSelf = false;
     let isOwnCouple = false;

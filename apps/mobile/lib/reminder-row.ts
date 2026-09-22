@@ -63,6 +63,7 @@ const OFFER_LABELS = {
   // rather than generic: at that moment the app knows exactly what it is short
   // of, and asking for it plainly is shorter than describing it.
   linkSpouse: "Who is your spouse? ›",
+  linkOwnPartner: "Who is your partner? ›",
   // No "›": the prompt is answered **on this screen**, not somewhere else. It is
   // the one CTA that navigates nowhere, which is why `RowOffer` needed a fourth
   // kind rather than a fourth path.
@@ -207,8 +208,12 @@ function ctaOffer(cta: ReminderCta): RowOffer {
     case "link-partner":
       return {
         kind: "navigate",
-        path: `/people/${cta.personId}/milestones/${cta.milestoneId}/partner`,
-        label: cta.isSelf ? OFFER_LABELS.linkSpouse : OFFER_LABELS.linkPartner,
+        path: `/people/${cta.personId}/milestones/${cta.milestoneId}/partner?kind=${cta.milestoneKind}`,
+        label: !cta.isSelf
+          ? OFFER_LABELS.linkPartner
+          : cta.milestoneKind === "wedding"
+            ? OFFER_LABELS.linkSpouse
+            : OFFER_LABELS.linkOwnPartner,
       };
   }
 }

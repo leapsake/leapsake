@@ -51,7 +51,7 @@ tombstone guard and prune unchanged.
 | Why an unconfigured occasion gets a question instead of errands       | the `plan` synthesis in `computeDesired`, and _The prompt_ below                        |
 | When that question is asked                                           | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers                   |
 | What a question can still offer, and when a late one is due           | `planOffers` and `planTiming` in `@leapsake/schema`, and _You can't be late…_ below     |
-| Why `first-date` asks only about your own                             | `prompt.onlyOwnPartnership` in `kindDefs`, and _Who gets asked_ below                   |
+| Why a couple's question says "yours with them"                        | `kindDefs.coupled` and `isOwnPartnership`, and _Who gets asked_ below                   |
 | Why a reminder asks for a date instead of giving one                  | the `partnerships` port in `ReminderEngineDeps`, and _Collecting what is missing_ below |
 | Why a second desired-row family is a parallel port, not a widened one | the `holidays` port in `ReminderEngineDeps`, and _Two entry points_ above               |
 | Why a schedule has two levels and not four                            | `resolveReminderSchedule` in `@leapsake/schema`, and _Schedules_ below                  |
@@ -421,46 +421,27 @@ offered just before it would silently forfeit the long-lead options; only the ch
 the deadline are offered. Once the prompt is belated it cannot be put off at all: what is left is to
 answer it, or to say _don't ask again_.
 
-### Who gets asked, where that is narrower than which kinds ask
+### Who gets asked: everyone's
 
-`first-date` asks only about a **romantic partnership the user is in**; every other prompting kind,
-`wedding` included, asks about everyone's _(owner, 2026-09-21)_.
+Every prompting kind asks about everyone's, `first-date` and `wedding` included _(owner,
+2026-09-21)_. Both ship every action **off**, so without a question a wedding or a first date you
+record generates _nothing at all_, which makes recording one pointless.
 
-That they ask at all is a volume argument in reverse: both kinds ship every action **off**, so
-without a question a wedding or a first date you record generates _nothing at all_, which makes
-recording one pointless.
-
-A first date asks **narrowly** because it is not an occasion a third party marks. An anniversary
-is: people wish their friends and family a happy anniversary as readily as a happy birthday, so it
-asks about everyone's, the way a birthday does. (On 2026-09-05 `wedding` was gated too, on the
-grounds that the prompt volunteers errands nobody asked for; folding the contact card's plain
-`anniversary` into `wedding` would then have silenced every imported one, and the owner chose the
-question over the silence.)
+(On 2026-09-05 both were gated to partnerships the user is in, on the grounds that the prompt
+volunteers errands nobody asked for. Folding the contact card's plain `anniversary` into `wedding`
+would then have silenced every imported one, and the owner chose the question over the silence, for
+first dates too.)
 
 **Unqualified, "anniversary" means a wedding anniversary** _(owner, 2026-09-21)_. So there is one
 kind, `wedding`, shown as _Anniversary_, and a card's `ANNIVERSARY` lands on it with the spouse not
-yet known. Every other anniversary names its occasion. Because `wedding` is ungated, the gate can no
-longer double as proof that a question is the user's own: `kindDefs.coupled` marks a couple's
-occasion, and the question is worded as shared when `isOwnPartnership` says it is yours.
+yet known. Every other anniversary names its occasion.
 
-**"The user's own" has three storage shapes, and all three count**: borne by the relationship, borne
-by the partner, or borne by **the user alone** — a wedding recorded before its spouse exists at all,
-which the create form's "unknown" escape allows. Your own occasion is yours whether or not the app
-knows who else was there, and refusing to ask because the record is incomplete is exactly the gate
-this package does not put in front of people.
-
-⚠️ **The gate fails closed**, and that is the deliberate half. `isOwnPartnership` is an optional
-port, and with no port wired the gated prompt is minted for nobody — because the failure it exists
-to prevent is asking about other people's, and a wiring mistake defaulting the other way would
-restore that everywhere at once.
-
-⚠️ **It reads data the user may not have entered**, which is the accepted cost. A first date is
-usually recorded on the _partner_, not on the relationship, so the check looks for a stored
-`spouse`/`partner` edge (`isRomanticRole`, which takes the gendered variants through `baseRole`)
-between them and the self-person. No self-person, or no role set, means no question — silence in
-exactly the case that wanted asking. The alternative was asking about everyone, and between a
-question that sometimes fails to appear and one that appears where it makes no sense, this one was
-chosen knowingly.
+**Whose it is changes only the wording.** `kindDefs.coupled` marks a couple's occasion, and its
+question reads "your … with Violet" when `isOwnPartnership` says it is the user's. That has three
+storage shapes, and all three count: borne by the relationship, borne by the partner, or borne by
+**the user alone**, recorded before the other person is in the app. The check reads a stored
+`spouse`/`partner` edge (`isRomanticRole`) between the partner and the self-person, so with no
+self-person or no such edge the question is asked in the third person.
 
 ### A relationship is a bearer like any other, and once was not
 
