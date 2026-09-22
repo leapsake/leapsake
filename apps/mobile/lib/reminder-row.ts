@@ -203,17 +203,11 @@ function ctaOffer(cta: ReminderCta): RowOffer {
         path: `/relationships/${cta.relationshipId}/milestones/new?kind=${cta.milestoneKind}`,
         label: OFFER_LABELS.addDate,
       };
-    // ⚠️ **A different destination from desktop's, deliberately.** Desktop sends
-    // the user to the rebind screen, which re-points the milestone onto the
-    // relationship; this client has no "with whom?" step to rebind *through*, so
-    // it goes to the relationship form instead. Recording the spouse is the part
-    // that matters — the reminder already works, and a milestone left on the
-    // person keeps working. Rebinding is tidying, and it can wait for the screen
-    // that does it.
+    // The prompt asks this on its own form; every later row comes here.
     case "link-partner":
       return {
         kind: "navigate",
-        path: `/people/${cta.personId}/relationships/new`,
+        path: `/people/${cta.personId}/milestones/${cta.milestoneId}/partner`,
         label: cta.isSelf ? OFFER_LABELS.linkSpouse : OFFER_LABELS.linkPartner,
       };
   }
@@ -257,7 +251,8 @@ export function offerFor(action: ReminderRowAction): RowOffer {
  * already on screen — and “Just the day” writes exactly what Save writes with
  * the offer set untouched, since a prompt is only ever seeded from its kind's
  * defaults (`resolveReminderSchedule(kind, [])`) and those arrive with the wish
- * alone ticked. Two buttons for one outcome, one of which led nowhere.
+ * alone ticked. Two buttons for one outcome, one of which led nowhere. Who
+ * the anniversary is with is asked on the form too.
  *
  * The actions stay in the view-model, which serves both clients: desktop's
  * prompt *is* a screen further in, and its CTA still has somewhere to go.
@@ -265,7 +260,8 @@ export function offerFor(action: ReminderRowAction): RowOffer {
 export function isAnsweredInline(action: ReminderRowAction): boolean {
   return (
     action.kind === "answer-plan" ||
-    (action.kind === "cta" && action.cta.kind === "plan")
+    (action.kind === "cta" &&
+      (action.cta.kind === "plan" || action.cta.kind === "link-partner"))
   );
 }
 

@@ -20,6 +20,8 @@ import {
 import { onboardingRouteOf } from "@leapsake/core";
 import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
+import { PartnerField, linkedPartner } from "../../../components/PartnerField";
+import type { PartyChoice } from "../../../components/PartyField";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
@@ -97,6 +99,10 @@ export default function ReminderDetailScreen() {
   // set (with its pre-ticks) stays the source until there is an actual edit —
   // and a reload that re-reads the offers cannot clobber a tick already made.
   const [draft, setDraft] = useState<ReminderRuleInput[] | null>(null);
+  // Who the anniversary is with; `undefined` until chosen or pre-filled.
+  const [partner, setPartner] = useState<PartyChoice | null | undefined>(
+    undefined,
+  );
   const load = useCallback(
     () =>
       Promise.all([
@@ -191,6 +197,9 @@ export default function ReminderDetailScreen() {
   // A couple's wish has one per partner, and asks for a way to reach the first
   // only when neither can be reached.
   const contactTargets = targets.contacts.filter((t) => t.reminderId === id);
+  const linkPartnerTarget = targets.linkPartners.find(
+    (t) => t.reminderId === id,
+  );
   const contactTarget = contactTargets[0];
   const actions = reminderActionsOf(reminder, {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
@@ -202,7 +211,7 @@ export default function ReminderDetailScreen() {
     partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
     // A wedding whose other party was left unknown — the dual question: this one
     // knows the date and wants the couple.
-    linkPartnerTarget: targets.linkPartners.find((t) => t.reminderId === id),
+    linkPartnerTarget,
     contactTarget:
       contactTarget === undefined
         ? undefined
@@ -269,7 +278,16 @@ export default function ReminderDetailScreen() {
    * because the row this screen is about is now gone.
    */
   function answer(milestoneId: string, schedule: ReminderRuleInput[]) {
-    core.milestones.update(milestoneId, { reminderSchedule: schedule }).then(
+    const write =
+      partner != null && linkPartnerTarget !== undefined
+        ? core.milestones.linkPartner({
+            milestoneId,
+            personId: linkPartnerTarget.personId,
+            partner: linkedPartner(partner),
+            reminderSchedule: schedule,
+          })
+        : core.milestones.update(milestoneId, { reminderSchedule: schedule });
+    write.then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
     );
@@ -420,6 +438,14 @@ export default function ReminderDetailScreen() {
           third that pointed at this very form. */}
       {planTarget !== undefined && (
         <View style={styles.promptForm}>
+          {linkPartnerTarget !== undefined && (
+            <PartnerField
+              personId={linkPartnerTarget.personId}
+              isSelf={linkPartnerTarget.isSelf}
+              value={partner}
+              onChange={setPartner}
+            />
+          )}
           {/* What a tick actually buys, said once above the set rather than
               implied by four switches. Without it the toggles read as today's
               to-do list, when what they schedule is a reminder weeks out — the
