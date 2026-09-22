@@ -79,6 +79,7 @@ import type {
 } from "@leapsake/schema";
 import {
   isPublished,
+  isRomanticRole,
   resolveReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
@@ -387,6 +388,29 @@ export function createCore(driver: SqliteDriver) {
       }),
   });
   const regenerateSystem = remindersApi.regenerateSystem;
+
+  /** The edge between two people a shared milestone belongs on: a romantic one
+   *  if there is one, else any, else a new marriage. */
+  async function partnerEdge(personId: string, otherId: string) {
+    const edges = (
+      await relationshipsSvc.orientedNeighbors("person", personId)
+    ).filter(
+      (n) =>
+        n.origin === "explicit" &&
+        n.otherType === "person" &&
+        n.otherId === otherId,
+    );
+    const found = edges.find((n) => isRomanticRole(n.otherRole)) ?? edges[0];
+    if (found !== undefined) return found.relationshipId;
+    const created = await relationshipsSvc.createFromSubject({
+      subjectType: "person",
+      subjectId: personId,
+      otherType: "person",
+      otherId,
+      otherRole: "spouse",
+    });
+    return created.id;
+  }
 
   const views = createViews({
     people: { list: () => people.list(), get: (id) => people.get(id) },
@@ -737,6 +761,43 @@ export function createCore(driver: SqliteDriver) {
         });
         await regenerateSystem();
         return milestone;
+      },
+      // Move a milestone held by a person onto their relationship with a
+      // partner: an edge between the two if one exists, else a new marriage.
+      linkPartner: async (input: {
+        milestoneId: string;
+        personId: string;
+        partner: { personId: string } | { name: string };
+        reminderSchedule?: ReminderRuleInput[];
+      }): Promise<void> => {
+        const { milestoneId, personId, partner, reminderSchedule } = input;
+        // The partner first, in its own transaction: a failed move leaves a
+        // true marriage behind, which the retry finds and reuses.
+        const relationshipId =
+          "name" in partner
+            ? (
+                await relationshipsSvc.createWithNewOther({
+                  subjectType: "person",
+                  subjectId: personId,
+                  otherType: "person",
+                  otherName: partner.name,
+                  otherRole: "spouse",
+                })
+              ).relationship.id
+            : await partnerEdge(personId, partner.personId);
+        await driver.transaction(async () => {
+          await milestones.update(milestoneId, {
+            bearerType: "relationship",
+            bearerId: relationshipId,
+          });
+          if (reminderSchedule !== undefined)
+            await reminderRules.replaceForBearer(
+              "milestone",
+              milestoneId,
+              reminderSchedule,
+            );
+        });
+        await regenerateSystem();
       },
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(async () => {
