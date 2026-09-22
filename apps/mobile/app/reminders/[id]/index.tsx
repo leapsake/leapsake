@@ -314,7 +314,11 @@ export default function ReminderDetailScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      // One tap picks a suggestion under "Who's it with?", keyboard up or not.
+      keyboardShouldPersistTaps="handled"
+    >
       <Stack.Screen options={HEADER} />
 
       {/* The heading. It strikes through when the reminder is done — the only
