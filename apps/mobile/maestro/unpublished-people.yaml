@@ -64,8 +64,8 @@ appId: com.leapsake.app
 
 # The offer only exists because nothing matched: assert the create row rather
 # than tapping it blind, or a stray match would silently pick a real person.
-- assertVisible: 'Add "Jenqx${output.run}" as a new person'
-- tapOn: 'Add "Jenqx${output.run}" as a new person'
+- assertVisible: "Add “Jenqx${output.run}” as a new person"
+- tapOn: "Add “Jenqx${output.run}” as a new person"
 
 # Role is a collapsed row over a sheet, not an inline field: forty-one roles
 # don't fit the third of a line it shares with Name. So the row opens the sheet
@@ -114,7 +114,7 @@ appId: com.leapsake.app
 # nothing. Typing a prefix means the only way her full name can appear is as a
 # row the picker offered.
 - inputText: "Jenqx"
-- assertVisible: 'Add "Jenqx" as a new person'
+- assertVisible: "Add “Jenqx” as a new person"
 - assertNotVisible: "Jenqx${output.run}"
 # Back out without saving. The screen has no Cancel because "‹ Back" is one:
 # nothing typed here was written, which is what makes leaving safe.

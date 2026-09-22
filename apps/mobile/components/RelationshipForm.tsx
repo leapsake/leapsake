@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { Alert, ScrollView } from "react-native";
 import { Stack } from "expo-router";
 import type { RelationshipCandidate } from "@leapsake/core";
@@ -39,6 +39,7 @@ export function RelationshipForm({
   candidates,
   initialDraft,
   canChangeOther = true,
+  commitOther,
   onSubmit,
 }: {
   /** The native header title, set here so it's declared in one place. */
@@ -49,6 +50,7 @@ export function RelationshipForm({
   /** What the screen opens on, built by the route. */
   initialDraft: RelationshipDraft;
   canChangeOther?: boolean;
+  commitOther?: ComponentProps<typeof RelationshipFields>["commitOther"];
   onSubmit: (value: RelationshipFormValue) => Promise<void>;
 }) {
   // Seeded once, like every other form here: the route's loader re-runs on
@@ -88,6 +90,7 @@ export function RelationshipForm({
           subjectType={subjectType}
           candidates={candidates}
           canChangeOther={canChangeOther}
+          commitOther={commitOther}
           draft={draft}
           onChange={setDraft}
         />

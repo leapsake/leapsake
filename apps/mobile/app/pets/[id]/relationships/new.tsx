@@ -80,21 +80,44 @@ export default function PetRelationshipNewScreen() {
             }
           : emptyRelationshipDraft()
       }
+      // Edit on somebody new writes them with this relationship at once, so
+      // Save then revises that relationship rather than adding a second.
+      commitOther={async (party, otherRole, otherRoleNote) => {
+        const { other, relationship } =
+          await core.relationships.createWithNewOther({
+            subjectType: "pet",
+            subjectId: id,
+            otherType: party.type,
+            otherName: party.name,
+            otherRole,
+            otherRoleNote,
+          });
+        return { id: other.id, relationshipId: relationship.id };
+      }}
       onSubmit={async (value) => {
-        // Two calls, because the other end is either somebody already in the
-        // list or somebody being named for the first time — the second creates
-        // them as a fact about this pet and nothing more.
-        await (value.other === "existing"
-          ? core.relationships.createFromSubject({
-              subjectType: "pet",
-              subjectId: id,
-              ...value,
-            })
-          : core.relationships.createWithNewOther({
-              subjectType: "pet",
-              subjectId: id,
-              ...value,
-            }));
+        if (value.other === "existing" && value.relationshipId !== undefined)
+          await core.relationships.editFromSubject({
+            subjectType: "pet",
+            subjectId: id,
+            relId: value.relationshipId,
+            otherRole: value.otherRole,
+            otherRoleNote: value.otherRoleNote,
+          });
+        else
+          // Two calls, because the other end is either somebody already in the
+          // list or somebody being named for the first time — the second creates
+          // them as a fact about this pet and nothing more.
+          await (value.other === "existing"
+            ? core.relationships.createFromSubject({
+                subjectType: "pet",
+                subjectId: id,
+                ...value,
+              })
+            : core.relationships.createWithNewOther({
+                subjectType: "pet",
+                subjectId: id,
+                ...value,
+              }));
         router.back();
       }}
     />

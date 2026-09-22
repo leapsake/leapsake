@@ -8,8 +8,12 @@ import {
   holderTypesFor,
   rolesForSubject,
 } from "@leapsake/schema";
+import {
+  type CommittedParty,
+  type PartyChoice,
+  PartyField,
+} from "./PartyField";
 import { PickerField } from "./PickerField";
-import { Typeahead } from "./Typeahead";
 import { styles } from "../lib/styles";
 
 /** A role option as the shared {@link PickerField} carries it. */
@@ -31,30 +35,13 @@ export type RelationshipFormValue = {
   otherRole: RelationshipRole;
   otherRoleNote: string | null;
 } & (
-  | { other: "existing"; otherId: string }
+  | { other: "existing"; otherId: string; relationshipId?: string }
   | { other: "new"; otherName: string }
 );
 
-/**
- * What the Name picker holds: a candidate, or a name typed past the end of the
- * list.
- *
- * `label` is the person's or pet's name in both cases — never the "Add … as a
- * new person" phrasing. That phrasing belongs to the row that *offers* the
- * option, not to the option, and putting it in `label` made the field read "Add
- * "Ruth" as a new person" after it had already been added.
- */
-export type OtherOption =
-  | { kind: "existing"; type: EntityType; id: string; label: string }
-  | { kind: "new"; type: EntityType; name: string; label: string };
-
-/** A stable key per option; the `new` rows key on type so the two offered for one
- *  typed name don't collide. */
-export function otherKey(option: OtherOption): string {
-  return option.kind === "existing"
-    ? `existing:${option.type}:${option.id}`
-    : `new:${option.type}`;
-}
+/** What the Name picker holds: a candidate, or a name typed past the end of
+ *  the list. */
+export type OtherOption = PartyChoice;
 
 /**
  * A relationship as the UI holds it: who the other end is, what they are to the
@@ -118,9 +105,16 @@ export function relationshipDraftToValue(
     otherRole: role,
     otherRoleNote: role === "other" ? draft.note.trim() : null,
   };
-  return other.kind === "existing"
+  if (other.kind === "new")
+    return { ...common, other: "new", otherName: other.name };
+  return other.relationshipId === undefined
     ? { ...common, other: "existing", otherId: other.id }
-    : { ...common, other: "new", otherName: other.name };
+    : {
+        ...common,
+        other: "existing",
+        otherId: other.id,
+        relationshipId: other.relationshipId,
+      };
 }
 
 /**
@@ -177,6 +171,7 @@ export function RelationshipFields({
   subjectType,
   candidates,
   canChangeOther = true,
+  commitOther,
 }: {
   draft: RelationshipDraft;
   onChange: (draft: RelationshipDraft) => void;
@@ -184,6 +179,13 @@ export function RelationshipFields({
   candidates?: readonly RelationshipCandidate[];
   /** Whether the other end may still be re-picked — see above. */
   canChangeOther?: boolean;
+  /** Writes a new other end with this relationship, so Edit can open them;
+   *  absent where there is no saved subject to relate them to. */
+  commitOther?: (
+    party: Extract<PartyChoice, { kind: "new" }>,
+    role: RelationshipRole,
+    note: string | null,
+  ) => Promise<CommittedParty>;
 }) {
   // Every role this subject could stand opposite, whoever the other end is.
   const roleOptions = useMemo(
@@ -231,6 +233,9 @@ export function RelationshipFields({
     />
   );
 
+  const role = draft.role;
+  const noteReady = role !== "other" || draft.note.trim().length > 0;
+
   const nameField =
     !canChangeOther && draft.other !== null ? (
       <View style={styles.field}>
@@ -238,44 +243,24 @@ export function RelationshipFields({
         <Text style={styles.fieldValue}>{draft.other.label}</Text>
       </View>
     ) : (
-      <Typeahead<OtherOption>
+      <PartyField
         testID="relationship-other-name"
         label="Name"
         value={draft.other}
-        options={(candidates ?? [])
-          .filter((c) => allowedTypes.includes(c.type))
-          .map((c) => ({
-            kind: "existing" as const,
-            type: c.type,
-            id: c.id,
-            label: c.label,
-          }))}
-        // Somebody not in the list yet: typing their name and picking one of
-        // these rows creates them alongside the relationship, as a person who
-        // exists only as this fact about the subject. Both entity types are
-        // offered unless the role has ruled one out — a coworker's dog is as
-        // legitimate a thing to record as their wife.
-        createOptions={(typed) =>
-          allowedTypes.map((type) => ({
-            kind: "new" as const,
-            type,
-            name: typed,
-            label: typed,
-          }))
-        }
-        // Only the offered row says "Add …". The chosen-value row renders
-        // `label`, which is the plain name, so the field reads as the person it
-        // now holds rather than as the invitation that put them there.
-        renderOption={(option) => (
-          <Text style={styles.rowText}>
-            {option.kind === "existing"
-              ? option.label
-              : `Add "${option.name}" as a new ${option.type}`}
-          </Text>
-        )}
         onChange={(other) => onChange({ ...draft, other })}
-        getKey={otherKey}
-        getLabel={(o) => o.label}
+        candidates={candidates ?? []}
+        types={allowedTypes}
+        // Edit on somebody new writes the relationship, so it waits for a role.
+        commit={
+          commitOther === undefined || role === null || !noteReady
+            ? undefined
+            : (party) =>
+                commitOther(
+                  party,
+                  role,
+                  role === "other" ? draft.note.trim() : null,
+                )
+        }
       />
     );
 
