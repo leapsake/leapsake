@@ -443,6 +443,12 @@ storage shapes, and all three count: borne by the relationship, borne by the par
 `spouse`/`partner` edge (`isRomanticRole`) between the partner and the self-person, so with no
 self-person or no such edge the question is asked in the third person.
 
+**One held by your partner is linked, not asked about** _(owner, 2026-09-21)_. A couple's occasion
+on the person you have that edge with can only be yours with them, so core moves it onto the
+relationship before every reconcile (`linkOwnCoupledOccasions` in `@leapsake/core`), folding in a
+same-day copy on your own card. "Who's it with?" is left for the occasions whose other half is
+genuinely unknown.
+
 ### A relationship is a bearer like any other, and once was not
 
 A milestone borne by a **relationship** — a wedding anniversary linked to the marriage it belongs

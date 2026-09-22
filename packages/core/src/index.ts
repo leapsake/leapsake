@@ -80,6 +80,7 @@ import type {
 import {
   isPublished,
   isRomanticRole,
+  kindDefs,
   resolveReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
@@ -401,10 +402,10 @@ export function createCore(driver: SqliteDriver) {
         today: todayCivil(),
       }),
   });
-  // A first date on your partner was with you, so it is linked before any
-  // reconcile rather than asked about.
+  // A couple's occasion on your partner was with you, so it is linked before
+  // any reconcile rather than asked about.
   const regenerateSystem = async () => {
-    await linkFirstDatesToPartners();
+    await linkOwnCoupledOccasions();
     return remindersApi.regenerateSystem();
   };
 
@@ -461,13 +462,14 @@ export function createCore(driver: SqliteDriver) {
     });
   }
 
-  /** Links every first date held by the user's romantic partner to their
-   *  relationship. */
-  async function linkFirstDatesToPartners(): Promise<void> {
+  /** Links every couple's occasion held by the user's romantic partner to
+   *  their relationship. */
+  async function linkOwnCoupledOccasions(): Promise<void> {
     const selfId = (await self.getSelf())?.personId;
     if (selfId === undefined) return;
     for (const m of await milestones.listRemindEligible()) {
-      if (m.kind !== "first-date" || m.bearerType !== "person") continue;
+      if (kindDefs[m.kind].coupled !== true || m.bearerType !== "person")
+        continue;
       if (m.bearerId === selfId) continue;
       const romantic = (
         await relationshipsSvc.orientedNeighbors("person", m.bearerId)

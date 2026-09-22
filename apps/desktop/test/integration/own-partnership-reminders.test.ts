@@ -518,3 +518,70 @@ describe("the spouse offer, shown beside the row's own action", () => {
     expect(new Set(actions.map(reminderActionKey)).size).toBe(actions.length);
   });
 });
+
+describe("an anniversary on your partner", () => {
+  const recordAnniversary = (bearerId: string) =>
+    core.milestones.create({
+      kind: "wedding",
+      bearerType: "person",
+      bearerId,
+      year: 2015,
+      month: FIRST_DATE_SOON.month,
+      day: FIRST_DATE_SOON.day,
+    });
+
+  const marriage = (me: string, spouse: string) =>
+    core.relationships.create({
+      aType: "person",
+      aId: me,
+      aRole: "husband",
+      bType: "person",
+      bId: spouse,
+      bRole: "wife",
+    });
+
+  // Your spouse's card carries your anniversary: linked, never asked about.
+  it("links it to your marriage without asking who it is with", async () => {
+    const { me, partner } = await twoPeople();
+    const rel = await marriage(me.id, partner.id);
+    await recordAnniversary(partner.id);
+
+    expect(await core.milestones.listForBearer("person", partner.id)).toEqual(
+      [],
+    );
+    expect(
+      await core.milestones.listForBearer("relationship", rel.id),
+    ).toHaveLength(1);
+    expect((await core.reminders.targets()).linkPartners).toEqual([]);
+  });
+
+  // Both cards carry it, yours and theirs: one anniversary on the marriage.
+  it("folds your own card's copy into it", async () => {
+    const { me, partner } = await twoPeople();
+    const rel = await marriage(me.id, partner.id);
+    await recordAnniversary(me.id);
+    await recordAnniversary(partner.id);
+
+    expect(
+      await core.milestones.listForBearer("relationship", rel.id),
+    ).toHaveLength(1);
+    expect(await core.milestones.listForBearer("person", me.id)).toEqual([]);
+  });
+
+  it("leaves a friend's anniversary to be asked about", async () => {
+    const { me, partner } = await twoPeople();
+    await core.relationships.create({
+      aType: "person",
+      aId: me.id,
+      aRole: "friend",
+      bType: "person",
+      bId: partner.id,
+      bRole: "friend",
+    });
+    await recordAnniversary(partner.id);
+
+    expect((await core.reminders.targets()).linkPartners).toEqual([
+      expect.objectContaining({ personId: partner.id }),
+    ]);
+  });
+});
