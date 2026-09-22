@@ -1466,7 +1466,13 @@ async function runPlatform(driver, provision, suite) {
   if (!pre.ok) return wrap(FAIL, pre.detail);
 
   // 3. dev-client installed (booted but not installed = broken env → fail).
-  if (!driver.installed(ctx)) {
+  //
+  // **Under --provision the build always runs**, even when the app is already there. It used
+  // to be skipped, so a device holding a stale build was driven as-is: the flows then failed
+  // on whatever the old binary lacked — a missing native module reported as "the home screen
+  // never appeared", hours from its cause (2026-09-22). `expo run` is incremental, so the
+  // cost when the build is current is seconds.
+  if (provision || !driver.installed(ctx)) {
     if (!provision) return wrap(FAIL, driver.installHint);
     if (!driver.install(ctx)) {
       return wrap(
