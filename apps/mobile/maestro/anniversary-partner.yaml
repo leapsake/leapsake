@@ -10,16 +10,17 @@
 #      People.
 #   4. On Add relationship, Edit on a new name appears only once a role is
 #      picked, and a Save after Edit revises that relationship, not a second.
+#   5. A first date asks the same question, and records a new name as Partner.
 #
-# The anniversary cannot be typed in: Month and Day are wheels iOS does not
-# expose to automation. So a contact carrying one is added to the simulator's
-# address book first, dated 20 days out, and the app's contact sync brings it
+# The dates cannot be typed in: Month and Day are wheels iOS does not expose to
+# automation. So two contacts carrying them are added to the simulator's
+# address book first, dated 20 days out, and the app's contact sync brings them
 # in (run the import once on a fresh store):
 #
-#   N:Wainwright<RUN>;Sam;;;
-#   FN:Sam Wainwright<RUN>
-#   item1.X-ABDATE;type=pref:2001-<MM-DD, 20 days out>
-#   item1.X-ABLABEL:_$!<Anniversary>!$_
+#   N:Wainwright<RUN>;Sam;;;               N:Bailey<RUN>;Harry;;;
+#   FN:Sam Wainwright<RUN>                 FN:Harry Bailey<RUN>
+#   item1.X-ABDATE;type=pref:2001-<MM-DD>  item1.X-ABDATE;type=pref:2001-<MM-DD>
+#   item1.X-ABLABEL:_$!<Anniversary>!$_    item1.X-ABLABEL:First Date
 #
 #   xcrun simctl addmedia <sim> sam.vcf
 #   maestro --udid <sim> test -e RUN=<RUN> anniversary-partner.yaml
@@ -125,3 +126,29 @@ appId: com.leapsake.app
 - assertNotVisible:
     text: "Violet${RUN}"
     index: 1
+
+# ── 5. A first date asks the same, and records a partner ───────────────────
+- openLink: "leapsake://"
+- extendedWaitUntil:
+    visible: ".*Harry Bailey${RUN}'s first date anniversary.*"
+    timeout: 15000
+- tapOn: ".*Harry Bailey${RUN}'s first date anniversary.*"
+- assertVisible: "Who’s it with?"
+- tapOn:
+    id: "partner-name"
+- inputText: "Mary${RUN}"
+- tapOn: "Add “Mary${RUN}”"
+- assertVisible: "Edit"
+- tapOn: "Save"
+- extendedWaitUntil:
+    notVisible: ".*Harry Bailey${RUN}'s first date anniversary.*"
+    timeout: 10000
+
+- openLink: "leapsake://people"
+- tapOn: ".*Harry Bailey${RUN}.*"
+- scrollUntilVisible:
+    element:
+      text: "Mary${RUN}"
+    direction: DOWN
+- assertVisible: ".*First Date · with Mary${RUN}.*"
+- assertVisible: ".*Partner.*"
