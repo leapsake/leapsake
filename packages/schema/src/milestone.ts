@@ -135,13 +135,14 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     icon: "💞",
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
-    greeting: "a happy anniversary",
+    greeting: "a happy first date anniversary",
+    belatedGreeting: "a happy belated first date anniversary",
     selfWish: {
-      plain: "\u{1F49E} It's your anniversary!",
-      belated: "\u{1F49E} It was your anniversary",
+      plain: "\u{1F49E} It's the anniversary of your first date!",
+      belated: "\u{1F49E} It was the anniversary of your first date",
     },
     coupled: true,
-    prompt: { occasion: "first date", onlyOwnPartnership: true },
+    prompt: { occasion: "first date anniversary", onlyOwnPartnership: true },
     defaultReminderSchedule: [
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
@@ -178,8 +179,8 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     // No `selfWish`: a `met` is the day you met someone else.
     allowedBearerTypes: ["relationship", "person"],
     recursAnnually: true,
-    greeting: "a happy anniversary",
-    belatedGreeting: "a happy belated anniversary",
+    greeting: "a happy anniversary of the day you met",
+    belatedGreeting: "a happy belated anniversary of the day you met",
     defaultReminderSchedule: [
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],

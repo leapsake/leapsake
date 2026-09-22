@@ -223,3 +223,29 @@ describe("milestoneLabel", () => {
     expect(milestoneLabel({ kind: "other", note: null })).toBe("Other");
   });
 });
+
+// Unqualified, "anniversary" means a wedding anniversary, so every other kind
+// has to say which anniversary it is.
+describe("the word anniversary", () => {
+  const copyOf = (kind: keyof typeof kindDefs) => {
+    const def = kindDefs[kind];
+    return [
+      def.label,
+      def.greeting,
+      def.belatedGreeting,
+      def.selfWish?.plain,
+      def.selfWish?.belated,
+      def.prompt?.occasion,
+    ].filter((text): text is string => text !== undefined);
+  };
+
+  it("stands alone only for a wedding", () => {
+    expect(kindDefs.wedding.label).toBe("Anniversary");
+    for (const kind of Object.keys(kindDefs) as (keyof typeof kindDefs)[]) {
+      if (kind === "wedding") continue;
+      for (const text of copyOf(kind))
+        if (/anniversary/i.test(text))
+          expect(text).toMatch(/first date anniversary|anniversary of/);
+    }
+  });
+});

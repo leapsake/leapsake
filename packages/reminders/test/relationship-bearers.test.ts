@@ -221,7 +221,7 @@ describe("a prompt gated on the occasion being the user's own", () => {
     // ⚠️ Not "Violet's first date" — it is not hers, it is yours with her, and
     // the possessive said something else about the user's life.
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for your first date with ${mentionToken("Violet", "person", "p1")}?`,
+      `🗓 What do you want to do for your first date anniversary with ${mentionToken("Violet", "person", "p1")}?`,
     );
   });
 
