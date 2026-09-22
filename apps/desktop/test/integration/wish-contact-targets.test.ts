@@ -117,6 +117,65 @@ describe("core.reminders.targets — the wish half", () => {
     expect(target.methods).toEqual([]);
   });
 
+  /** George and Mary's wedding anniversary today, stored on their marriage. */
+  async function coupleWithAnniversaryToday() {
+    const person = (firstName: string, lastName: string) =>
+      core.people.create(
+        { firstName, middleName: null, lastName, gender: null },
+        [],
+      );
+    const george = await person("George", "Bailey");
+    const mary = await person("Mary", "Hatch");
+    const marriage = await core.relationships.createFromSubject({
+      subjectType: "person",
+      subjectId: george.id,
+      otherType: "person",
+      otherId: mary.id,
+      otherRole: "spouse",
+    });
+    const occ = civilDaysFromToday(0);
+    await core.milestones.create({
+      kind: "anniversary",
+      bearerType: "relationship",
+      bearerId: marriage.id,
+      month: occ.month,
+      day: occ.day,
+      reminderSchedule: [
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
+    });
+    return { george, mary };
+  }
+
+  // A couple's anniversary is wished to both of them, so each partner brings
+  // their own ways to reach them, under their own name.
+  it("names both partners of a couple's anniversary", async () => {
+    const { george, mary } = await coupleWithAnniversaryToday();
+    await core.contactMethods.phones.create({
+      ownerType: "person",
+      ownerId: mary.id,
+      label: "Mobile",
+      number: "+15550102",
+    });
+
+    const contacts = (await core.reminders.targets()).contacts;
+    expect(contacts.map((t) => [t.subject, t.methods.length])).toEqual([
+      ["George Bailey", 0],
+      ["Mary Hatch", 1],
+    ]);
+    expect(new Set(contacts.map((t) => t.reminderId)).size).toBe(1);
+    expect(contacts.map((t) => t.personId)).toEqual([george.id, mary.id]);
+  });
+
+  // Your own anniversary is wished to your partner, never to yourself.
+  it("leaves you out of your own anniversary", async () => {
+    const { george, mary } = await coupleWithAnniversaryToday();
+    await core.self.set(george.id);
+
+    const contacts = (await core.reminders.targets()).contacts;
+    expect(contacts.map((t) => t.personId)).toEqual([mary.id]);
+  });
+
   // ⚠️ `contactOwnerTypeSchema` is person/household: a pet cannot own a contact
   // method, so asking the user to add one for Jimmy would be asking for something
   // the app has nowhere to put.

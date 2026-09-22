@@ -76,6 +76,7 @@ export interface GiftReminderTarget {
 /** A `wish` reminder with the ways its person can be reached: buttons when
  *  there are methods, a prompt to add one when there are none. */
 export interface ContactReminderTarget {
+  /** Not unique: a couple's wish has one target per partner. */
   reminderId: string;
   /** Always a person: a pet owns no contact methods. */
   personId: string;
@@ -231,6 +232,20 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         (e) => e.type === "person" && e.id === selfId,
       );
     return false; // a pet is never you
+  }
+
+  /** Who a wish on this bearer is for: the person, or a couple's partners but
+   *  you. A pet can own no contact method, so it is nobody here. */
+  async function wishRecipients(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<string[]> {
+    if (bearerType === "person") return [bearerId];
+    if (bearerType !== "relationship") return [];
+    const selfId = (await self.getSelf())?.personId;
+    return endpointsOf(await relationships.get(bearerId))
+      .filter((e) => e.type === "person" && e.id !== selfId)
+      .map((e) => e.id);
   }
 
   /** Any milestone bearer, named. Shared by the engine and `targets`, so a
@@ -638,25 +653,22 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           })),
       );
 
-      // ⚠️ `wish` only, and people only: an errand wants no call buttons, and a
-      // pet cannot own a contact method.
-      const wishes = targets.filter(
-        (t) => verbOf(t.action) === "wish" && t.bearerType === "person",
-      );
-      const contacts: ContactReminderTarget[] = await Promise.all(
-        wishes.map(async (t) => ({
-          reminderId: t.id,
-          personId: t.bearerId,
-          // `wishes` is filtered to people above, so the bearer is one.
-          subject: (await entities.label("person", t.bearerId)) ?? "",
-          methods: reachableMethods(
-            await listContactMethods(contactMethods, {
-              type: "person",
-              id: t.bearerId,
-            }),
-          ),
-        })),
-      );
+      // ⚠️ `wish` only: an errand wants no call buttons. A couple's wish has
+      // one entry per partner, in the relationship's own order.
+      const contacts: ContactReminderTarget[] = [];
+      for (const t of targets.filter((w) => verbOf(w.action) === "wish"))
+        for (const personId of await wishRecipients(t.bearerType, t.bearerId))
+          contacts.push({
+            reminderId: t.id,
+            personId,
+            subject: (await entities.label("person", personId)) ?? "",
+            methods: reachableMethods(
+              await listContactMethods(contactMethods, {
+                type: "person",
+                id: personId,
+              }),
+            ),
+          });
 
       // Read from the data, not `targets`: these rows carry no engine target.
       const partnerships: PartnershipReminderTarget[] = (

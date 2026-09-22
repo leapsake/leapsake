@@ -29,9 +29,10 @@ import {
  * {@link ReminderEngineDeps.isSelf} so a relationship you are in can say "your
  * own".
  *
- * The gate is `prompt.onlyOwnPartnership`, which only `first-date` sets, and its
- * default matters as much as its behaviour: with no port wired it asks nobody,
- * because the failure it exists to prevent is asking about other people's.
+ * The gate is `prompt.onlyOwnPartnership`, which `first-date` and `wedding`
+ * set, and its default matters as much as its behaviour: with no port wired it
+ * asks nobody, because the failure it exists to prevent is asking about other
+ * people's.
  */
 
 const TODAY: CivilDate = { year: 2026, month: 6, day: 1 };

@@ -188,7 +188,10 @@ export default function ReminderDetailScreen() {
   // the buttons below and no CTA is offered; when they have none the view-model
   // turns it into the collect prompt. Either way the reminder stays completable
   // without it — a nudge, never a wall.
-  const contactTarget = targets.contacts.find((t) => t.reminderId === id);
+  // A couple's wish has one per partner, and asks for a way to reach the first
+  // only when neither can be reached.
+  const contactTargets = targets.contacts.filter((t) => t.reminderId === id);
+  const contactTarget = contactTargets[0];
   const actions = reminderActionsOf(reminder, {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
     isDuplicatesNudge: id === duplicatesNudgeId,
@@ -205,7 +208,7 @@ export default function ReminderDetailScreen() {
         ? undefined
         : {
             personId: contactTarget.personId,
-            hasMethods: contactTarget.methods.length > 0,
+            hasMethods: contactTargets.some((t) => t.methods.length > 0),
           },
   });
   // What actually draws as a button. On a prompt that is the escapes and any
@@ -327,12 +330,14 @@ export default function ReminderDetailScreen() {
           the offers below, so an empty strip here would say the same absence
           twice. Above Details deliberately: it is the thing to *do*, and Details
           is something to read. */}
-      {contactTarget !== undefined && (
+      {contactTargets.map((t) => (
         <ContactReachButtons
-          methods={contactTarget.methods}
-          subjectName={contactTarget.subject}
+          key={t.personId}
+          methods={t.methods}
+          subjectName={t.subject}
+          named={contactTargets.length > 1}
         />
-      )}
+      ))}
 
       {/* Only when there is a title as well: an untitled reminder's body *is* the
           heading above, and repeating it under a "Details" label would show the

@@ -28,11 +28,14 @@ import { styles } from "../lib/styles";
 export function ContactReachButtons({
   methods,
   subjectName,
+  named = false,
 }: {
   /** The person's reachable methods — postal already excluded by core. */
   methods: readonly ContactMethod[];
   /** Who the reminder is about, for the call confirmation. */
   subjectName: string;
+  /** Whether to head the strip with their name, when a reminder has several. */
+  named?: boolean;
 }) {
   const { schemes, perform } = useContactReach(subjectName);
   const offers = methods
@@ -51,7 +54,7 @@ export function ContactReachButtons({
 
   if (offers.length === 0) return null;
 
-  return (
+  const strip = (
     <View style={local.strip}>
       {offers.map(({ entry, action }) => (
         <Pressable
@@ -68,9 +71,17 @@ export function ContactReachButtons({
       ))}
     </View>
   );
+  if (!named) return strip;
+  return (
+    <View style={local.named}>
+      <Text style={styles.fieldLabel}>{subjectName}</Text>
+      {strip}
+    </View>
+  );
 }
 
 const local = StyleSheet.create({
+  named: { marginTop: 8 },
   /** Wraps rather than scrolls: a dozen methods is rare, and a strip that runs
    *  off the edge hides the ways to reach someone behind a gesture. */
   strip: {
