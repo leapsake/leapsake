@@ -18,9 +18,11 @@ production access, earned by the [14-day closed test](./android-pipeline.md).
 description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone + 13" iPad);
 `ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
 ③ `rc`, then `final` — from the tag-triggered pipeline in
-[`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 are done (the repo is
-public); **step 6, measuring the gate on hosted runners, is in flight** — its _Where step 6
-stands_ says what is open and how to read a run.
+[`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
+flight** (its _Where step 6 stands_ says what is open). **Blocked meanwhile: the gate is red on
+this machine only** — `apps/mobile/README.md` → _When the module is in the binary_ has the whole
+investigation and the next experiment. CI is green; `v0.1.0-beta.10` was abandoned unspent and
+the number is free again.
 
 **In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
 transfer that GA unlocks.
