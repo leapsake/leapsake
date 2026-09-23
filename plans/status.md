@@ -10,23 +10,21 @@
 **v0.1 is iOS alone**, in external TestFlight with a real tester on it. macOS follows **after**
 the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → _Part 2_).
 
-**Android ships the same rungs** from the personal Play account; `rc` and `final` there wait on
+**Android ships the same rungs** from the personal Play account; `rc` and `final` wait on
 production access, earned by the [14-day closed test](./android-pipeline.md).
 
 **Next, in order — [`shipping.md`](./shipping.md) → _Part 1_ has the acceptance for each.**
 ① **App Store Connect metadata** — privacy URL, a _published_ App Privacy questionnaire,
 description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone + 13" iPad);
 `ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
-③ `rc`, then `final` — from the tag-triggered pipeline in
+③ `rc`, then `final` — from the pipeline in
 [`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
-flight** (its _Where step 6 stands_ says what is open). **Blocked meanwhile: the gate is red on
-this machine only** — `apps/mobile/README.md` → _When the module is in the binary_ has the whole
-investigation and the next experiment. CI is green; `v0.1.0-beta.10` was abandoned unspent and
-the number is free again.
+flight**. **Blocked meanwhile: the gate is red on this machine only** (CI is green) —
+`apps/mobile/README.md` → _When the module is in the binary_ has it, and `v0.1.0-beta.10` was
+abandoned unspent.
 
-**In parallel, starting now:** incorporate and get a D-U-N-S number — up to 30 days, before the
-transfer that GA unlocks.
+**In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.
 
-**Not gating.** [`v0-2.md`](./v0-2.md) → _Export_ holds increment 6 and three device verifications;
-contact-import fidelity rests ([`v0-2.md`](./v0-2.md)); contact methods' URL templates are
+**Not gating.** [`v0-2.md`](./v0-2.md) → _Export_ holds increment 6 and three device
+verifications; contact-import fidelity rests there too; contact methods' URL templates are
 convention — confirm on real hardware while testing a build.
