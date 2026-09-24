@@ -290,10 +290,9 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
 **The measurement is done: `35558802346` (c0b7eb0) was 3/3 on both platforms, every flow
 green, no crash; `35595001195` repeated it at iOS 3/3, Android 2/3 — its one red the crash in
 open item 3.** That is step 6's own bar — three jobs per platform on one commit — met for
-the first time on 2026-09-21, after the shared-connection fix in open item 3. One clean run is
-not proof that the crash is gone (it was always intermittent), so **the next run to read is the
-one that confirms or refutes it**. Everything else here is history worth keeping only until the
-owner decides.
+the first time on 2026-09-21. It did not last: the Android native crash came back in the next
+three runs, and **open item 3 is what step 6 is waiting on**. Everything else here is history
+worth keeping only until the owner decides.
 
 **Reading a run:** `node scripts/ci/measure-results.mjs <run>`, then `<run> "<job>"` for one
 job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
@@ -381,47 +380,40 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **A store handle outlives its store — one clean run, not yet a cure.** Two rounds of
-   fixes have not stopped it: `close()` in `expo-sqlite-driver.ts` now drains in-flight work
-   (f6121a3) and `with-database.ts` serializes the per-call handles in `doors.ts` and
-   `roster-storage.ts` (d2dd420), both tested. 35554646445 crashed anyway, **on both
-   platforms, in the door flows**: iOS `EXC_BAD_ACCESS`/SIGSEGV on a poisoned pointer in Flow
-   7b, Android SIGSEGV on `mqt_v_js` in Flow 7c. Earlier sightings named the object —
-   `NativeStatement.getColumnNamesAsync` rejected — so it is a native handle used after it
-   was freed.
-   **What changed it:** expo-sqlite returns a **shared** connection
-   per path unless asked otherwise, so a `closeAsync` in one module closes the handle another
-   module is using — which no amount of guarding *inside* the driver can prevent. Every open
-   in the app now passes `useNewConnection: true` (`core-context.tsx`, `convert-store.ts`,
-   `with-database.ts`); `storeState` already did, which is the hint that led here. 35558802346
-   was 3/3 on both platforms — and then **35595001195 crashed again** (Android 2, Flow 7c,
-   `SIGSEGV code 128 SI_KERNEL, fault addr 0x0` on `mqt_v_js`), so `useNewConnection` was not
-   the cure either. Three hypotheses have now been tried and the crash has outlived all three;
-   it is rarer (1 of 6 jobs, and iOS has been clean for two runs) but not gone.
-   **Stop guessing.** The Android capture printed only the tombstone header because the frame
-   filter missed logcat's line prefix; fixed, so the next one names the library that died. If
-   that is not enough, the `.ips` and the full tombstone are in the job's artifacts, which need
-   a login — the owner's step, not the agent's.
-   **The Android rejections were not this crash** (2026-09-24). A rejected `NativeStatement`
-   call (`ERR_INVALID_SHARED_OBJECT_ID`, and very likely the earlier `getColumnNamesAsync` one)
-   is a race in expo-modules-core's registry, not a freed handle: an object that is still live
-   goes missing while the registry's map is rehashing. It is patched (`patches/README.md`) and
-   pinned by `shared-object-race-selftest.ts`. That race is in Kotlin and cannot cause a SIGSEGV,
-   so **the native crashes above are still unexplained** and are what item 3 is about now.
-   **The frames now name it:** 35682774667 and 35802875611 each crashed once on Android in
-   Flow 7c, both in `MountingCoordinator::pullTransaction` (`libreactnative.so`,
-   `MountingCoordinator.cpp:103`) on `mqt_v_js`, calling into freed memory. That is React
-   Native's Fabric renderer, not SQLite. iOS was clean in both.
-4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
-   answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
-   screen because the process died in `libreactnative.so`, in the job's crash buffer as a
-   tombstone. Seen three times now (35476256905 Android 2, 35483355076 iOS 2, this one), each
-   deep in the arc. **This is the first finding here that may be app code rather than
-   environment, and it outranks the rest once the taps are settled.** The crash capture now
-   prints the head of the tombstone (signal, abort message, top frames) rather than its tail,
-   so the next one should name a cause.
-   - **iOS Flow 5** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows Home
-     with the reminder's `@Mary Bailey #birthday` line present. Once only.
+3. **Android: the app dies natively on a cold boot into the locked state.** The one open
+   finding that is app-side rather than environment, and it outranks everything below it: a gate
+   cannot be trusted while a real bug fails it at random. About 1 Android job in 6.
+   - **What it is.** `SIGSEGV` on the JS thread (`mqt_v_js`) in React Native's Fabric renderer:
+     `MountingCoordinator::pullTransaction` (`MountingCoordinator.cpp:103` in RN 0.85.3), frame
+     #00 already in freed heap (`[anon:scudo:primary]`), so a call through a dangling pointer.
+   - **When.** Flow 7c, straight after `subflows/relaunch.yaml` (the `stopApp` + `launchApp` after
+     `dev-clear-dbkey`) and before `#recovery-gate` appears, so in a fresh process booting into
+     the recovery gate. Maestro then sees only the launcher.
+   - **Sightings.** Named by frame: 35682774667 (Android 1) and 35802875611 (Android 3). Before
+     the frame printer worked, the same signature (Flow 7c, `mqt_v_js`, `libreactnative.so`):
+     35518189593, 35554646445, 35595001195. **iOS crashed natively twice** (35483355076 iOS 2;
+     35554646445, Flow 7b, `EXC_BAD_ACCESS`) and has been clean since 2026-09-21. Nobody knows
+     whether that was the same bug.
+   - **Ruled out, do not retry:** SQLite handles. Draining `close()` (f6121a3), serializing
+     per-call handles (d2dd420) and `useNewConnection` everywhere (c0b7eb0) all landed and it
+     kept crashing. The rejected `NativeStatement` calls once read as evidence for a freed handle
+     were expo's shared-object registry race, a Kotlin exception that cannot segfault, now
+     patched (`patches/README.md`).
+   - **Reading a crash.** `node scripts/ci/measure-results.mjs <run> "android"` prints the
+     tombstone head, and each frame line carries a truncated symbol. For the full name and line,
+     symbolize the pc against the same library the dev client ships:
+     `$ANDROID_HOME/ndk/<ver>/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-symbolizer
+     --obj=<lib> <pc>`, with `<lib>` the `react-android-<rn>-debug` AAR's
+     `prefab/modules/reactnative/libs/android.x86_64/libreactnative.so` under
+     `~/.gradle/caches/*/transforms/` (runners are x86_64; debug, because E2E drives the dev
+     client). The full tombstone is in the job's artifacts, which need the owner's login.
+   - **Where to start.** Read `MountingCoordinator.cpp` around line 103 in RN 0.85.3 for what it
+     dereferences, and search React Native's issues for a `pullTransaction` crash. Then try to
+     reproduce locally: repeat 7c's clear-key → relaunch → gate on the emulator in a loop
+     (`apps/mobile/maestro/README.md` covers running one flow directly). The local gate has not
+     shown it yet, so a loop, not one run, is the test.
+4. **iOS Flow 5, once** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows
+   Home with the reminder's `@Mary Bailey #birthday` line present.
 5. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
    clean on the runner (only "Removing leading '/'"), so the archive is fine and what is left is
    the cache service, whose reason is in the job log behind a login. Every build being cold

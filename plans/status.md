@@ -19,8 +19,8 @@ description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone 
 `ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
 ③ `rc`, then `final` — from the pipeline in
 [`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
-flight**. **Meanwhile `v0.1.0-beta.10` is tagged at origin and unshipped**; the gate is green
-here again.
+flight**, blocked on an Android native crash (its open item 3). **Meanwhile `v0.1.0-beta.10`
+is tagged at origin and unshipped**; the gate is green here.
 
 **In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.
 
