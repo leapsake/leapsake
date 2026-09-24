@@ -55,6 +55,7 @@ import {
   pinnedConfig,
 } from "../mobile.mjs";
 import { commitOfBuild } from "../receipts.mjs";
+import { signingFilesProblem, stageSigningIdentity } from "./ios-signing.mjs";
 
 /**
  * Full Xcode, not just the Command Line Tools: `xcodebuild` ships inside Xcode.app, so a
@@ -118,6 +119,7 @@ const signing = [
     "IOS_PROVISIONING_PROFILE",
     "manual signing needs an explicit App Store distribution profile name",
   ),
+  { name: "runner signing files", check: () => signingFilesProblem() },
 ];
 
 /**
@@ -1130,39 +1132,44 @@ export default {
     const scheme = workspace.replace(/\.xcworkspace$/, "");
     const archivePath = join(buildDir, `${scheme}.xcarchive`);
 
-    must("xcodebuild archive", "xcodebuild", [
-      "-workspace",
-      join(mobile, "ios", workspace),
-      "-scheme",
-      scheme,
-      "-configuration",
-      "Release",
-      "-destination",
-      "generic/platform=iOS",
-      "-archivePath",
-      archivePath,
-      // Signing is supplied here and nowhere else: the native project is regenerated
-      // every build, so anything it claims about signing is discarded before this runs.
-      `DEVELOPMENT_TEAM=${teamId}`,
-      "CODE_SIGN_STYLE=Manual",
-      "CODE_SIGN_IDENTITY=Apple Distribution",
-      `PROVISIONING_PROFILE_SPECIFIER=${profile}`,
-      "archive",
-    ]);
-
     const optionsPath = join(buildDir, "ExportOptions.plist");
-    writeFileSync(optionsPath, exportOptions({ bundleId, teamId, profile }));
     const exportPath = join(buildDir, "export");
+    const unstageSigning = stageSigningIdentity();
+    try {
+      must("xcodebuild archive", "xcodebuild", [
+        "-workspace",
+        join(mobile, "ios", workspace),
+        "-scheme",
+        scheme,
+        "-configuration",
+        "Release",
+        "-destination",
+        "generic/platform=iOS",
+        "-archivePath",
+        archivePath,
+        // Signing is supplied here and nowhere else: the native project is regenerated
+        // every build, so anything it claims about signing is discarded before this runs.
+        `DEVELOPMENT_TEAM=${teamId}`,
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Apple Distribution",
+        `PROVISIONING_PROFILE_SPECIFIER=${profile}`,
+        "archive",
+      ]);
 
-    must("xcodebuild -exportArchive", "xcodebuild", [
-      "-exportArchive",
-      "-archivePath",
-      archivePath,
-      "-exportPath",
-      exportPath,
-      "-exportOptionsPlist",
-      optionsPath,
-    ]);
+      writeFileSync(optionsPath, exportOptions({ bundleId, teamId, profile }));
+
+      must("xcodebuild -exportArchive", "xcodebuild", [
+        "-exportArchive",
+        "-archivePath",
+        archivePath,
+        "-exportPath",
+        exportPath,
+        "-exportOptionsPlist",
+        optionsPath,
+      ]);
+    } finally {
+      unstageSigning();
+    }
 
     const ipa = readdirSync(exportPath).find((entry) => entry.endsWith(".ipa"));
     if (!ipa) throw new Error(`no .ipa in ${exportPath}`);
