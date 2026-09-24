@@ -352,6 +352,27 @@ export const styles = StyleSheet.create({
     // text would sit lower than the glyph beside it.
     paddingVertical: 0,
   },
+  // A password field with its Show/Hide toggle inside the box (`PasswordInput`),
+  // composed from the caller's box the same way as the search row above.
+  passwordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  passwordRowInput: {
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    padding: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    minHeight: 0,
+  },
+  passwordToggle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.accent,
+  },
 
   // --- Bottom sheets -------------------------------------------------------
   // A field whose value is chosen somewhere else — the row you tap to open the

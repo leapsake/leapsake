@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { useAccount } from "../lib/core-context";
+import { PasswordInput } from "../components/PasswordInput";
 import {
   CreateAccountForm,
   RecoveryKeyReveal,
@@ -212,12 +213,10 @@ function RecoveryPhraseSection({
             forgotten it — the phrase is what covers that.)
           </Text>
           <Text style={styles.fieldLabel}>Password</Text>
-          <TextInput
+          <PasswordInput
             style={styles.input}
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
             autoComplete="current-password"
           />
           <Pressable

@@ -58,6 +58,7 @@ import {
 } from "@leapsake/notifications";
 import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
+import { PasswordInput } from "../components/PasswordInput";
 import {
   createAccountRoster,
   UNAUTHENTICATED_STORE_SLOT,
@@ -1242,13 +1243,10 @@ function RecoveryGate({
           <>
             <Text style={styles.gateFieldLabel}>Password</Text>
             <View testID="recovery-secret">
-              <TextInput
+              <PasswordInput
                 value={secret}
                 onChangeText={setSecret}
                 editable={!submitting}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
                 style={styles.gateInput}
               />
             </View>

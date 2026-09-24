@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MIN_PASSWORD_LENGTH } from "@leapsake/core";
 import { CheckboxBox } from "./Checkbox";
+import { PasswordInput } from "./PasswordInput";
 import { useAccount } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
@@ -133,12 +134,11 @@ export function CreateAccountForm({
       </View>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Password</Text>
-        <TextInput
+        <PasswordInput
           testID="account-password"
           style={styles.input}
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
           autoComplete="new-password"
           textContentType="newPassword"
         />
@@ -146,12 +146,11 @@ export function CreateAccountForm({
       </View>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Confirm password</Text>
-        <TextInput
+        <PasswordInput
           testID="account-confirm-password"
           style={styles.input}
           value={confirm}
           onChangeText={setConfirm}
-          secureTextEntry
           autoComplete="new-password"
           textContentType="newPassword"
         />
