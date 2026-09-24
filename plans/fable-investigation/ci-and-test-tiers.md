@@ -146,9 +146,12 @@ Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to des
 of hosted-runner measurement is the strongest evidence this decision has, and it costs work to
 re-derive:
 
-- **The dev client caused four separate stoppers** that a release build would not have: the
-  dev-menu onboarding sheet opening over the app, the launcher's entry vanishing mid-tap, Metro
-  bundle waits, and a LogBox banner over the tab bar. Each cost a run to find.
+- **The dev client caused three separate stoppers** that a release build would not have: the
+  dev-menu onboarding sheet opening over the app, the launcher's entry vanishing mid-tap, and
+  Metro bundle waits. Each cost a run to find. **The fourth, a LogBox banner over the tab bar,
+  was a real bug** (expo's shared-object registry race, patched 2026-09-24) that a release build
+  would have hidden, because a failed reminder regeneration only logs. That counts *for* keeping
+  console errors visible: whichever build E2E drives, a `console.error` should fail the flow.
 - **Three `__DEV__` routes are load-bearing, not one.** `dev-selftest` (driver-contract tier)
   **and `dev-clear-dbkey` (Flows 07b and 07c)** both redirect home when `__DEV__` is false, so a
   release build breaks the custody flows too, silently. The build-time flag has to cover both.

@@ -402,6 +402,12 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    filter missed logcat's line prefix; fixed, so the next one names the library that died. If
    that is not enough, the `.ips` and the full tombstone are in the job's artifacts, which need
    a login — the owner's step, not the agent's.
+   **The Android rejections were not this crash** (2026-09-24). A rejected `NativeStatement`
+   call (`ERR_INVALID_SHARED_OBJECT_ID`, and very likely the earlier `getColumnNamesAsync` one)
+   is a race in expo-modules-core's registry, not a freed handle: an object that is still live
+   goes missing while the registry's map is rehashing. It is patched (`patches/README.md`) and
+   pinned by `shared-object-race-selftest.ts`. That race is in Kotlin and cannot cause a SIGSEGV,
+   so **the native crashes above are still unexplained** and are what item 3 is about now.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a
