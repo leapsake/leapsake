@@ -14,9 +14,8 @@
 //     "the developer's own" and is left alone — which is the whole point here.
 //
 // Order is inherited from `scripts/test-e2e.mjs` and is load-bearing: 01 resets to a
-// fresh accountless app, 02 puts Mary and George Bailey in it, 03 hangs a milestone on
-// Mary, 05 writes a reminder that @mentions her — which is what gives Home something to
-// show. Home is the lead screenshot, so 05 is not optional here.
+// fresh accountless app, and 02 fills it, including the reminder that gives Home, the
+// lead screenshot, something to show.
 import { join } from "node:path";
 
 import {
@@ -32,14 +31,6 @@ await runSuite({
   what: "screenshot staging",
   flows: [
     flow("01-first-run.yaml", "Flow 1 — reset to a fresh first run"),
-    flow(
-      "02-person-and-relationship.yaml",
-      "Flow 2 — Mary + George + a relationship",
-    ),
-    flow("03-milestone.yaml", "Flow 3 — a milestone on Mary"),
-    flow(
-      "05-reminder-mention-tag.yaml",
-      "Flow 5 — a reminder that mentions Mary",
-    ),
+    flow("02-smoke.yaml", "Flow 2 — Mary, George, a milestone and a reminder"),
   ],
 });

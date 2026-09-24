@@ -125,49 +125,40 @@ surface no lower tier reaches).
   _absence_ no lower tier can prove, because they all inject a fake key store. This is the flow
   that would catch a regression re-introducing first-launch key minting.
 
-### Flow 2 — Create a person and a relationship
+### Flow 2 — The everyday arc, across a relaunch (smoke)
 
-- **Intent:** the core write path a human drives.
+- **Intent:** the write paths a human drives every day, proven to survive a real restart.
 - **Preconditions:** Flow 1 state (or any booted app).
-- **Steps:** add a person "Mary Bailey"; add a second person "George Bailey"; from one person,
-  add a relationship linking them (pick a role).
-- **Assert:** both appear in **People & Pets**; opening Mary shows the relationship to George
-  with the chosen role rendered.
+- **Steps:** add "Mary Bailey" and "George Bailey"; from Mary, add a relationship to George
+  (pick a role); add a milestone to Mary with a year and a note ("Met at the Analytical Engine
+  talk"); create a reminder whose body `@`-mentions Mary through the picker and types a
+  `#birthday` tag; **relaunch the app**.
+- **Assert:** after the relaunch, the reminder is on Home and its detail renders the `@Mary
+  Bailey` mention and the `#birthday` tag; both people appear in **People & Pets**; Mary's page
+  shows the relationship to George with its role, and the milestone's year; the note reads back
+  out of the milestone's edit form (the person page never renders a note, and the edit form
+  proves more: the value came out of storage and back into a field).
 - **Devices:** single.
-- **Uniquely exercises:** the renderer form → IPC/core → repo → write → re-read → render loop
-  through the _real_ UI.
-
-### Flow 3 — Record a milestone
-
-- **Intent:** a rich write that must survive a real restart.
-- **Preconditions:** at least one person (Flow 2).
-- **Steps:** open a person; add a milestone with a date and a note ("Met at the Analytical
-  Engine talk").
-- **Assert:** the milestone renders on the person's timeline; relaunch and it still reads
-  correctly. The person page renders a milestone as icon + label + date and never its **note**
-  (the note reaches the screen only for an `other` milestone, as the label), so read the note
-  back out of the edit form, which proves more than the timeline could: the value came out of
-  storage and back into a field.
-- **Devices:** single.
-- **Uniquely exercises:** write → store → relaunch → read through real storage in the production
-  runtime.
-- **Note:** the note is an ordinary **plaintext column**; the per-item content-key path has no
-  domain-field consumer. Layer 3 returns with photos (v0.2) and gets its own flow then; do not
-  write this flow as if it proves content-key encryption.
+- **Uniquely exercises:** form → core → store → **relaunch** → read → render through the real
+  UI in the production runtime, and the native text input the `@` splice drives. The backlink
+  screens (Mary's mentions, the tag's page) are integration territory and are not re-proven here.
+- **Note:** the milestone note is an ordinary **plaintext column**; the per-item content-key
+  path has no domain-field consumer. Layer 3 returns with photos (v0.2) and gets its own flow
+  then; do not read this flow as proving content-key encryption.
 
 ### Flow 4 — Create an account: the act that turns encryption on
 
 - **Intent:** the custody keystone. An Unauthenticated store with real data becomes an
   Authenticated one, in place, without losing a row and without the app falling over as its own
   store is replaced underneath it.
-- **Preconditions:** an Unauthenticated store **with data** (Flows 1–3). Converting an empty
+- **Preconditions:** an Unauthenticated store **with data** (Flows 1–2). Converting an empty
   store proves nothing; the data is the point.
 - **Steps:** Settings → create an account → username + password (≥12 chars) → submit. The
   24-word phrase is shown once; tick **I've saved my recovery phrase** → **Done**.
 - **Assert (on screen):** the phrase renders as 24 numbered words; while it is up the app chrome
   is **not** reachable, so it cannot be dismissed by an accidental navigation; after **Done** the
   app **continues in place, no restart, no blank window**, and Mary plus her milestone from
-  Flows 2–3 are still on screen and still readable; Settings now reports the account; the phrase
+  Flow 2 are still on screen and still readable; Settings now reports the account; the phrase
   is **not** offered anywhere again.
 - **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the
   Unauthenticated store at `stores/local/` is **gone** (the file; the directory may remain); the
@@ -178,20 +169,6 @@ surface no lower tier reaches).
   driven through the real UI, plus the OS key store's transition from empty to populated. Both
   clients' converters are covered a tier down; what only E2E proves is that the **running app**
   survives its own store being swapped and remains usable immediately afterwards.
-
-### Flow 5 — Reminder with an `@mention` and a `#tag` (Home round-trip)
-
-- **Intent:** the most UI-dense surface: Home plus the mention/tag authoring pickers and their
-  two-way backlinks.
-- **Preconditions:** at least one person (Flow 2), e.g. Mary.
-- **Steps:** create a reminder; in the body, trigger the `@` picker and mention Mary, and type a
-  `#birthday` tag; save.
-- **Assert:** (a) the reminder shows on Home; (b) its `@Mary` renders as a link and opening it
-  lands on Mary's page; (c) Mary's page lists the reminder under its mentions/backlink section;
-  (d) the `#birthday` tag's page lists the reminder.
-- **Devices:** single.
-- **Uniquely exercises:** the mention/tag _compose_ interaction (typeahead pickers, token
-  insertion) and the backlink rendered on the entity page.
 
 ### Flow 7 — The doors back in (three variants)
 
@@ -288,10 +265,8 @@ small, and promoting is a scope decision made in [`../shipping.md`](../shipping.
 | Flow                                       | Gates at                            | macOS | Android | iOS  | Win/Linux | Devices | Harness notes                                                                          |
 | ------------------------------------------ | ----------------------------------- | ----- | ------- | ---- | --------- | ------- | -------------------------------------------------------------------------------------- |
 | 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | fresh profile per run                                                                  |
-| 2 Person + relationship                    | **beta**                            | gate  | gate    | gate | later     | 1       |                                                                                        |
-| 3 Milestone                                | **beta**                            | gate  | gate    | gate | later     | 1       | relaunch to prove persistence                                                          |
+| 2 Smoke, across a relaunch                 | **beta**                            | gate  | gate    | gate | later     | 1       | replaces Flows 2, 3 and 5 of the old arc                                               |
 | 4 Create an account                        | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | must run on a store **with** data                                                      |
-| 5 Reminder @/# round-trip                  | **beta**                            | gate  | gate    | gate | later     | 1       | drives the compose pickers                                                             |
 | 7a Cross-device recovery                   | with sync (v0.2)                    | gate  | gate    | gate | later     | 2       | includes the wrong-phrase negative                                                     |
 | 7b At-rest, phrase door                    | **rc**                              | gate  | gate    | gate | later     | 1       | **creates its own account**; runs last, since its reset destroys the arc's store       |
 | 7c At-rest, password door                  | **rc**                              | gate  | gate    | gate | later     | 1       | follows 4 directly; budget three Argon2id passes                                       |
@@ -321,8 +296,5 @@ on the platform that does. Windows/Linux run the identical list once a host exis
 - **The `rc` gate as a check, not a sentence:** the tag-triggered pipeline in
   [`../fable-investigation/remote-releases.md`](../fable-investigation/remote-releases.md)
   carries the catalog itself, which is what retires the `manual:` note on the iOS `rc` rung.
-- **The arc's shape:** [`../fable-investigation/ci-and-test-tiers.md`](../fable-investigation/ci-and-test-tiers.md)
-  step 4 folds Flows 2, 3 and 5 into one smoke with a real relaunch once the hook tier exists.
-  Update this catalog and the matrix when it lands.
 - **Flow 7a** with sync (v0.2). **macOS** when desktop ships:
   [`../desktop-packaging.md`](../desktop-packaging.md) → D.

@@ -10,7 +10,7 @@
 // **What separates this tier from `test:native`** is not the harness — that is shared,
 // in `lib/mobile-harness.mjs` — but the shape of what it runs. The self-test is one flow
 // reporting one token. This is an ordered **arc**: Flow 1 resets the app and asserts a
-// first run, Flow 2 fills it, Flow 3 writes onto what Flow 2 made. They share app state
+// first run, Flow 2 fills it, Flow 4 converts what Flow 2 made. They share app state
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
@@ -57,9 +57,9 @@ await runSuite({
   key: "test:e2e",
   title: "test:e2e — crucial-flow catalog (mobile)",
   what: "crucial-flow catalog",
-  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 puts Mary and George in
-  // it; 03 writes a milestone onto Mary; 05 writes a reminder that mentions her. Inserting
-  // a flow means deciding what state it inherits and what it leaves behind.
+  // Order is load-bearing: 01 leaves a fresh, accountless app; 02 fills it with Mary,
+  // George, a milestone and a reminder that mentions her. Inserting a flow means deciding
+  // what state it inherits and what it leaves behind.
   //
   // **04 runs last, out of catalog order, because it is the one that ends the
   // Unauthenticated state.** Every flow before it is about the ordinary accountless app a
@@ -85,11 +85,9 @@ await runSuite({
       "Flow 1 — first run reaches a usable state",
       custodyUnauthenticated,
     ),
-    flow("02-person-and-relationship.yaml", "Flow 2 — person + relationship"),
-    flow("03-milestone.yaml", "Flow 3 — milestone survives a relaunch"),
     flow(
-      "05-reminder-mention-tag.yaml",
-      "Flow 5 — reminder @mention + #tag round trip",
+      "02-smoke.yaml",
+      "Flow 2 — people, a milestone and a reminder survive a relaunch",
     ),
     flow(
       "04-create-account.yaml",

@@ -30,7 +30,7 @@ appId: com.leapsake.app
     timeout: 180000
 
 # --- 1. Home: what's coming up -------------------------------------------------------
-# The lead screenshot. Flow 5 left a reminder here, so this is not an empty state.
+# The lead screenshot. Flow 2 left a reminder here, so this is not an empty state.
 - takeScreenshot: shots/01-home
 
 # --- 2. People & Pets: the roster ----------------------------------------------------

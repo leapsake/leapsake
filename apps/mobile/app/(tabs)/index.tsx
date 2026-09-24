@@ -101,7 +101,7 @@ const SECTION_CHROME: Record<ReminderSection, SectionChrome> = {
  * or a *don't ask again* as often as it is an errand to finish, and a checkbox
  * can neither say that nor stand for it. It was also the one control on Home
  * that could destroy something — the mis-tap that silently completed a fixture
- * in an early draft of `maestro/e2e/05-reminder-mention-tag.yaml`, and the tap
+ * in an early draft of the reminder E2E flow, and the tap
  * that parked an onboarding nudge in *Completed* forever without spending a
  * snooze or recording a dismissal.
  *

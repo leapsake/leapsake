@@ -104,7 +104,12 @@ tested:
 The screens themselves stay untested below E2E. That is deliberate: once state is in hooks, a
 screen is a rendering of hook output and the smoke flow is the right test for it.
 
-### 3. Shrink the E2E arc
+### 3. Shrink the E2E arc ✅ landed 2026-09-24
+
+`e2e/02-smoke.yaml` replaces 02, 03 and 05, and relaunches before it asserts. The arc is
+01 → smoke → 04 → 07c → 07b, green on both platforms locally: the smoke took 197s on Android
+and 143s on iOS, against 223s and 167s for the three flows it replaced.
+
 
 With 1 and 2 in place, replace 02, 03 and 05 with one `02-smoke.yaml`: add a person, add a
 relationship, add a milestone, add a reminder with the `@` splice and a `#tag`, **relaunch the

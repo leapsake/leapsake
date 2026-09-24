@@ -364,7 +364,7 @@ in `scripts/lib/mobile-harness.mjs`, which owns device detection, provisioning, 
 dev-client install, Metro, and the per-platform bundle-load prepare.
 
 **These flows are an ordered arc, not a set.** `01` resets the app and asserts a first run,
-`02` fills it with Mary Bailey and George Bailey, `03` writes a milestone onto Mary.
+`02` fills it with Mary Bailey, George Bailey, a milestone and a reminder, and relaunches.
 They share app state on purpose (the catalog takes 1→4 as one arc), so the runner stops a
 platform at the first red flow rather than reporting three failures that are really one.
 **A consequence worth knowing before you debug one:** a flow run _standalone_ after a failed
@@ -372,7 +372,7 @@ run may not start, because the app is wherever the last failure left it — a mo
 open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
 rather than the flow.
 
-What is here covers the **`beta` rung** — Flows 1-5, on-screen assertions only — **plus both
+What is here covers the **`beta` rung** — Flows 1, 2 (the smoke) and 4, on-screen assertions only — **plus both
 of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), and **`rc`'s out-of-band
 custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
 keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
@@ -736,7 +736,7 @@ reach a control, check whether a user could.
 **On Android the subflow was blind, and the first Android run of 7c found it** (2026-09-10).
 Its keyboard probe was `id: Return` — the iOS keyboard's key — which Gboard never has. So the
 fallback tap never ran and the closing `assertNotVisible` passed with the keyboard still up.
-Flow 5 had been passing over the same hole because its next tap, **Save**, sits above the
+The reminder flow had been passing over the same hole because its next tap, **Save**, sits above the
 keyboard. On the phrase door, **Unlock** does not: the tap on `recovery-submit` resolved to the
 button's bounds from the hierarchy, landed on Gboard at the same point, and opened **Gboard's
 Settings**. The screenshot of that failure shows no app at all. The subflow now probes each

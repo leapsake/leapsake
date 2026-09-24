@@ -275,8 +275,8 @@ export function MilestoneFields({
         </Text>
         {/*
           Addressable for the same reason `milestone-year` above is: empty, it offers a
-          driver nothing to select it by, and Flow 3 of the crucial-flow catalog types a
-          note here and reads it back off the person's page.
+          driver nothing to select it by, and Flow 2 of the crucial-flow catalog types a
+          note here and reads it back from the edit form.
         */}
         <TextInput
           testID="milestone-note"

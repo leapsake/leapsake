@@ -1,0 +1,138 @@
+# Flow 2 — the everyday arc in one pass: two people, a relationship, a milestone and a
+# reminder with an @mention and a #tag, then a relaunch, then all of it still on screen.
+appId: com.leapsake.app
+---
+# --- Mary and George -----------------------------------------------------------------
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "Mary"
+      LAST: "Bailey"
+- runFlow: ../subflows/save-record.yaml
+- assertVisible: "Mary Bailey"
+- runFlow:
+    file: ../subflows/add-person.yaml
+    env:
+      FIRST: "George"
+      LAST: "Bailey"
+- runFlow: ../subflows/save-record.yaml
+- assertVisible: "George Bailey"
+
+# --- George is Mary's friend ---------------------------------------------------------
+- openLink: "leapsake://"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
+- tapOn:
+    id: "browse-tile-people"
+- tapOn: ".*Mary Bailey.*"
+- scrollUntilVisible:
+    element:
+      text: "Add relationship"
+    direction: DOWN
+- tapOn: "Add relationship"
+- tapOn:
+    id: "relationship-other-role"
+- tapOn:
+    id: "relationship-other-role-filter"
+- inputText: "Friend"
+- tapOn:
+    id: "relationship-other-role-option-friend"
+- extendedWaitUntil:
+    visible:
+      id: "relationship-other-name"
+    timeout: 10000
+- tapOn:
+    id: "relationship-other-name"
+- inputText: "George"
+- tapOn: ".*George Bailey.*"
+- tapOn: "Save"
+
+# --- Mary's birthday -----------------------------------------------------------------
+- scrollUntilVisible:
+    element:
+      text: "Add milestone"
+    direction: DOWN
+- tapOn: "Add milestone"
+- assertVisible: "Add milestone"
+- tapOn:
+    id: "milestone-year"
+- inputText: "1815"
+- tapOn:
+    id: "milestone-note"
+- inputText: "Met at the Analytical Engine talk"
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Year"
+- tapOn: "Save"
+- scrollUntilVisible:
+    element:
+      text: "Milestones"
+    direction: DOWN
+- assertVisible: ".*1815.*"
+
+# --- A reminder that mentions her ----------------------------------------------------
+# The @ splice is native text input, which only this tier drives.
+- openLink: "leapsake://reminders/new"
+- assertVisible: "Add reminder"
+- runFlow:
+    file: ../subflows/type-checked.yaml
+    env:
+      FIELD: "reminder-title"
+      VALUE: "Send a card"
+- tapOn:
+    id: "reminder-body"
+- inputText: "@Mary"
+- tapOn:
+    text: ".*Mary Bailey.*"
+    below:
+      id: "reminder-body"
+- inputText: " #birthday "
+- runFlow:
+    file: ../subflows/dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Details"
+- tapOn: "Save"
+- openLink: "leapsake://"
+- extendedWaitUntil:
+    visible: ".*Send a card.*"
+    timeout: 20000
+
+# --- Everything survives a relaunch --------------------------------------------------
+- runFlow: ../subflows/relaunch.yaml
+- extendedWaitUntil:
+    visible: ".*Send a card.*"
+    timeout: 120000
+- tapOn: ".*Send a card.*"
+- assertVisible: "@Mary Bailey"
+- assertVisible: ".*#birthday.*"
+
+- openLink: "leapsake://"
+- runFlow:
+    file: ../subflows/tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*George Bailey.*"
+- tapOn: ".*Mary Bailey.*"
+- scrollUntilVisible:
+    element:
+      text: "Relationships"
+    direction: DOWN
+- assertVisible: ".*George Bailey.*"
+- assertVisible: ".*Friend.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Birthday.*"
+    direction: DOWN
+- assertVisible: ".*1815.*"
+- tapOn:
+    text: "Edit"
+    below:
+      text: ".*Birthday.*"
+- assertVisible: ".*Met at the Analytical Engine talk.*"
