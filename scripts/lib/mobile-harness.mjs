@@ -699,10 +699,11 @@ const androidDriver = {
       };
     }
 
-    console.log(`  booting the Android emulator (${avd})…`);
+    // `-wipe-data` factory-resets the AVD, so every provisioned run starts as a CI runner's does.
+    console.log(`  wiping and booting the Android emulator (${avd})…`);
     const child = spawn(
       emulator,
-      ["-avd", avd, ...EMULATOR_SIZE, ...EMULATOR_HEADLESS],
+      ["-avd", avd, "-wipe-data", ...EMULATOR_SIZE, ...EMULATOR_HEADLESS],
       {
         detached: true,
         stdio: "ignore",
@@ -798,6 +799,8 @@ const androidDriver = {
 
   stop: (ctx) =>
     run(ctx.adb, ["-s", ctx.device, "shell", "am", "force-stop", APP_ID]),
+
+  isVirtual: (ctx) => ctx.device.startsWith("emulator-"),
 
   /** `emu kill` returns before the emulator is gone; wait, so the next tier boots its own. */
   async shutdown(ctx) {
@@ -1167,7 +1170,11 @@ const iosDriver = {
       );
     }
 
-    console.log(`  booting the iOS simulator (${name.trim()})…`);
+    // Every provisioned run starts on a factory-fresh simulator, as a CI runner's is.
+    console.log(`  erasing and booting the iOS simulator (${name.trim()})…`);
+    if (run("xcrun", ["simctl", "erase", udid]).status !== 0) {
+      return { ok: false, detail: `could not erase the simulator ${udid}` };
+    }
     if (run("xcrun", ["simctl", "boot", udid]).status !== 0) {
       return { ok: false, detail: `could not boot the simulator ${udid}` };
     }
@@ -1323,6 +1330,8 @@ const iosDriver = {
 
   shutdown: (ctx) => run("xcrun", ["simctl", "shutdown", ctx.device]),
 
+  isVirtual: () => true,
+
   /**
    * Load the JS bundle the same way Android does — by deep link — and then wait for home.
    *
@@ -1431,6 +1440,12 @@ async function runPlatform(driver, provision, suite) {
 
   // 1. toolchain present + a device booted (else blocked — not reachable here).
   let ctx = driver.detect(provision);
+  // Under --provision a virtual device left booted is shut down, so `boot()` starts it clean.
+  if (provision && !ctx.status && !devicePin && driver.isVirtual(ctx)) {
+    console.log(`  shutting down ${ctx.device} to start it clean`);
+    await driver.shutdown(ctx);
+    ctx = driver.detect(provision);
+  }
   if (ctx.status === BLOCKED) {
     if (!provision) return wrap(BLOCKED, ctx.detail);
     // Under --provision an un-booted device is a thing to fix, not a verdict. A missing

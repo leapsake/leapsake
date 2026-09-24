@@ -462,8 +462,9 @@ xcrun simctl shutdown <udid>; xcrun simctl erase <udid>
 pnpm release gate --platforms=ios
 ```
 
-`--provision` reinstalls the dev client on the blank device. Skip re-checking linkage,
-autolinking and `ExpoModulesProvider.swift` — all were verified correct while it failed.
+`--provision` (what `pnpm release` passes) now erases the simulator — and wipes the
+emulator — before every boot, so this should only recur in runs without it. Skip re-checking
+linkage, autolinking and `ExpoModulesProvider.swift`: all were verified correct while it failed.
 
 ### On a physical device
 
