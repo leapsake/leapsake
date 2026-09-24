@@ -62,7 +62,8 @@
     ],
     "patchedDependencies": {
       "expo-modules-core@56.0.16": "patches/expo-modules-core@56.0.16.patch",
-      "expo-contacts@56.0.13": "patches/expo-contacts@56.0.13.patch"
+      "expo-contacts@56.0.13": "patches/expo-contacts@56.0.13.patch",
+      "react-native-screens@4.25.2": "patches/react-native-screens@4.25.2.patch"
     }
   }
 }
