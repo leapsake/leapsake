@@ -380,38 +380,21 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **Android: the app dies natively on a cold boot into the locked state.** The one open
-   finding that is app-side rather than environment, and it outranks everything below it: a gate
-   cannot be trusted while a real bug fails it at random. About 1 Android job in 6.
-   - **What it is.** `SIGSEGV` on the JS thread (`mqt_v_js`) in React Native's Fabric renderer:
-     `MountingCoordinator::pullTransaction` (`MountingCoordinator.cpp:103` in RN 0.85.3), frame
-     #00 already in freed heap (`[anon:scudo:primary]`), so a call through a dangling pointer.
-   - **When.** Flow 7c, straight after `subflows/relaunch.yaml` (the `stopApp` + `launchApp` after
-     `dev-clear-dbkey`) and before `#recovery-gate` appears, so in a fresh process booting into
-     the recovery gate. Maestro then sees only the launcher.
-   - **Sightings.** Named by frame: 35682774667 (Android 1) and 35802875611 (Android 3). Before
-     the frame printer worked, the same signature (Flow 7c, `mqt_v_js`, `libreactnative.so`):
-     35518189593, 35554646445, 35595001195. **iOS crashed natively twice** (35483355076 iOS 2;
-     35554646445, Flow 7b, `EXC_BAD_ACCESS`) and has been clean since 2026-09-21. Nobody knows
-     whether that was the same bug.
-   - **Ruled out, do not retry:** SQLite handles. Draining `close()` (f6121a3), serializing
-     per-call handles (d2dd420) and `useNewConnection` everywhere (c0b7eb0) all landed and it
-     kept crashing. The rejected `NativeStatement` calls once read as evidence for a freed handle
-     were expo's shared-object registry race, a Kotlin exception that cannot segfault, now
-     patched (`patches/README.md`).
-   - **Reading a crash.** `node scripts/ci/measure-results.mjs <run> "android"` prints the
-     tombstone head, and each frame line carries a truncated symbol. For the full name and line,
-     symbolize the pc against the same library the dev client ships:
-     `$ANDROID_HOME/ndk/<ver>/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-symbolizer
-     --obj=<lib> <pc>`, with `<lib>` the `react-android-<rn>-debug` AAR's
-     `prefab/modules/reactnative/libs/android.x86_64/libreactnative.so` under
-     `~/.gradle/caches/*/transforms/` (runners are x86_64; debug, because E2E drives the dev
-     client). The full tombstone is in the job's artifacts, which need the owner's login.
-   - **Where to start.** Read `MountingCoordinator.cpp` around line 103 in RN 0.85.3 for what it
-     dereferences, and search React Native's issues for a `pullTransaction` crash. Then try to
-     reproduce locally: repeat 7c's clear-key → relaunch → gate on the emulator in a loop
-     (`apps/mobile/maestro/README.md` covers running one flow directly). The local gate has not
-     shown it yet, so a loop, not one run, is the test.
+3. **Android: the app dies natively on a cold boot — diagnosed and patched 2026-09-24, not
+   yet confirmed on a runner.** `SIGSEGV` on `mqt_v_js` at `MountingCoordinator.cpp:103`, the
+   virtual call on a mounting override delegate, with frame #00 in freed heap (`SEGV_ACCERR`).
+   On the stable release level React Native registers no override delegate of its own, so the
+   one it reached is react-native-screens' `RNSScreenRemovalListener`. `ScreensModule`
+   installs it twice on a cold start (`initialize()` on the JS thread, and the `onHostResume`
+   that `addLifecycleEventListener` posts to the UI thread), and `NativeProxy` assigns and
+   copies the `shared_ptr` with no lock, so a torn copy registers a freed listener. Upstream
+   fixed exactly this in #4413, released in 4.28.0; Expo SDK 56 pins 4.25.2, so it is
+   backported (`patches/README.md`). **What confirms it:** the next measure runs, with no
+   Android crash across at least six jobs (the old rate was about 1 in 6). **Ruled out before
+   this:** SQLite handles (f6121a3, d2dd420, c0b7eb0) and expo's registry race (a Kotlin
+   exception, patched separately). iOS crashed natively twice (35483355076, 35554646445) and
+   has been clean since 2026-09-21; the patch is Android-only, so an iOS recurrence is a
+   different bug. `node scripts/ci/measure-results.mjs <run> "android"` prints a tombstone.
 4. **iOS Flow 5, once** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows
    Home with the reminder's `@Mary Bailey #birthday` line present.
 5. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
@@ -489,7 +472,9 @@ rules keep it that way:
   own; that is `match`'s job if it is ever needed.
 - **Receipts are written from what `build()`/`publish()` return**, never from a tool's output.
 
-Script pieces first, each testable without a runner:
+Script pieces first, each testable without a runner. **Both landed 2026-09-24**
+(`targets/ios-signing.mjs`, `materialize.mjs`); the keychain import has not yet run against
+a real `.p12`.
 
 1. **Keychain import in the iOS target.** When `IOS_DIST_CERT_P12_PATH` and
    `IOS_DIST_CERT_PASSWORD_PATH` are set: create a temporary keychain, import the `.p12`, set the
