@@ -59,6 +59,7 @@ import {
 import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
 import { PasswordInput } from "../components/PasswordInput";
+import { useRecoveryGate } from "./use-recovery-gate";
 import {
   createAccountRoster,
   UNAUTHENTICATED_STORE_SLOT,
@@ -1099,67 +1100,8 @@ function RecoveryGate({
   doors: { password: boolean; phrase: boolean };
   onSubmit: (answer: UnlockAnswer) => void;
 }) {
-  // Which door is showing, and whether the *user* picked it. Prefer the password
-  // whenever this store has one; the phrase is the forgot-password fallback, so
-  // leading with it would be backwards.
-  const [door, setDoor] = useState<"password" | "phrase">("password");
-  const [chosen, setChosen] = useState(false);
-  const [secret, setSecret] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  // Whether `error` belongs to a door the user has since left. `error` is a prop —
-  // the last attempt's failure, held by the bootstrap — so switching doors does not
-  // retract it, and without this the **password** door renders "That recovery phrase
-  // doesn't open this database." above an empty password field. Found by Flow 7b on
-  // 2026-09-09, and it is worse than untidy: it names the wrong door, so someone who
-  // has just been locked out reads it as the password door itself being broken and
-  // stops trying the one thing that would have worked.
-  const [staleError, setStaleError] = useState(false);
-
-  useEffect(() => {
-    if (!chosen) setDoor(doors.password ? "password" : "phrase");
-  }, [chosen, doors.password]);
-
-  // A new prompt means the last attempt came back — let the user try again.
-  //
-  // Keyed on `onSubmit`, which is the awaiting bootstrap's `resolve` and is a new
-  // function for every attempt, **not** on `error`: two wrong passwords in a row
-  // produce the *same* error string, so an error-keyed effect never re-fires and
-  // the button stays on "Checking…" forever. Getting a password wrong twice is
-  // exactly when someone is trying hardest to get in, and force-quitting the app
-  // was the only way out.
-  //
-  // It clears `staleError` for the same reason and by the same key: a new prompt is a
-  // new failure, and it belongs to whichever door is on screen now.
-  useEffect(() => {
-    setSubmitting(false);
-    setStaleError(false);
-  }, [onSubmit]);
-
-  function submit() {
-    if (secret.trim() === "") return;
-    setSubmitting(true);
-    // **Let "Checking…" reach the screen before the derivation seizes the JS
-    // thread.** `onSubmit` is the awaiting bootstrap's `resolve`, and what it
-    // wakes runs a 19MiB Argon2id pass straight down this thread for the better
-    // part of a minute. Resolving inline hands that work a *microtask*, which
-    // runs before React has committed — so the button stays reading "Unlock",
-    // and someone who has just been locked out of their data taps it and watches
-    // a dead screen for fifty seconds. Two frames is the "after the next paint"
-    // idiom: the first schedules past the commit, the second runs once it has
-    // been delivered. Measured 2026-09-09 — Flow 7c's `Checking…` guard went red
-    // on exactly this, while the account form next door has always painted
-    // "Encrypting your data…" because its `await` yields for free.
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => onSubmit({ door, secret })),
-    );
-  }
-
-  function switchTo(next: "password" | "phrase") {
-    setChosen(true);
-    setDoor(next);
-    setSecret("");
-    setStaleError(true);
-  }
+  const { door, secret, setSecret, submitting, shownError, submit, switchTo } =
+    useRecoveryGate({ error, doors, onSubmit });
 
   return (
     <View testID="recovery-gate" style={styles.gate}>
@@ -1229,8 +1171,8 @@ function RecoveryGate({
             </View>
           </>
         )}
-        {error !== undefined && !staleError && (
-          <Text style={styles.error}>{error}</Text>
+        {shownError !== undefined && (
+          <Text style={styles.error}>{shownError}</Text>
         )}
         <Pressable
           testID="recovery-submit"

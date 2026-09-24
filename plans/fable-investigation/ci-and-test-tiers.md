@@ -85,7 +85,10 @@ never be mistaken for a real one, and it changes what the door files say. Worth 
 Only `ask` is injected (the real crypto is cheap under Vitest). Desktop's `open.test.ts` keeps
 its file-level door cases; the loop's own cases are `packages/key-custody/test/unlock.test.ts`.
 
-### 2. A mobile hook tier
+### 2. A mobile hook tier ✅ landed 2026-09-24 (the gate; form hooks follow `shared-form-logic.md`)
+
+`apps/mobile/lib/use-recovery-gate.ts` and its jsdom test beside it. `apps/mobile` now carries
+`@testing-library/react`, `jsdom` and `react-dom` (matching its `react`) as dev dependencies.
 
 `apps/mobile` gets `@testing-library/react` and a jsdom docblock, the same setup
 `packages/ui` uses, for **hooks only**: no React Native rendering, no `jest-expo`. What gets
