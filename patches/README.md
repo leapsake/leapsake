@@ -3,6 +3,10 @@
 Dependency patches applied by pnpm (`patchedDependencies` in the root `package.json`).
 Each one is a bug fix we could not wait on upstream for. Drop it when upstream ships the fix.
 
-| Patch | What it fixes | Proven by |
-|---|---|---|
-| `expo-modules-core@56.0.16` | Android's `SharedObjectRegistry` reads its map without the lock that guards writes, so an async call resolving an id on a background thread can miss a live object during a rehash (`ERR_INVALID_SHARED_OBJECT_ID` / `ERR_USING_RELEASED_SHARED_OBJECT`). iOS already locks every read. | `apps/mobile/test/shared-object-race-selftest.ts` |
+A module that ships a prebuilt Android AAR ignores a patch to its source unless it is also
+listed under `expo.autolinking.android.buildFromSource` in `apps/mobile/package.json`.
+
+| Patch                       | What it fixes                                                                                                                                                                                                                                                                                   | Proven by                                                                           |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `expo-modules-core@56.0.16` | Android's `SharedObjectRegistry` reads its map without the lock that guards writes, so an async call resolving an id on a background thread can miss a live object during a rehash (`ERR_INVALID_SHARED_OBJECT_ID` / `ERR_USING_RELEASED_SHARED_OBJECT`). iOS already locks every read.         | `apps/mobile/test/shared-object-race-selftest.ts`                                   |
+| `expo-contacts@56.0.13`     | Android's contact reader throws on any event date not stored as exactly `--MM-DD` or `YYYY-MM-DD` (Android keeps it as free text), which rejects `Contact.getAllDetails` for the whole address book. The patch keeps a leading date in either form and drops the rest. Still unfixed in 57.0.6. | By hand: an emulator contact whose birthday is `19900512` imports, without the date |

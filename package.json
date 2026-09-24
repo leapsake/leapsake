@@ -61,7 +61,8 @@
       "electron"
     ],
     "patchedDependencies": {
-      "expo-modules-core@56.0.16": "patches/expo-modules-core@56.0.16.patch"
+      "expo-modules-core@56.0.16": "patches/expo-modules-core@56.0.16.patch",
+      "expo-contacts@56.0.13": "patches/expo-contacts@56.0.13.patch"
     }
   }
 }

@@ -1,0 +1,22 @@
+diff --git a/android/src/main/java/expo/modules/contacts/next/domain/model/event/EventField.kt b/android/src/main/java/expo/modules/contacts/next/domain/model/event/EventField.kt
+index d4a97be6b1a2a6cd669ba0419bfd8ef55be403da..46b893dd253428980a65851d6b23499eb7e5c8fc 100644
+--- a/android/src/main/java/expo/modules/contacts/next/domain/model/event/EventField.kt
++++ b/android/src/main/java/expo/modules/contacts/next/domain/model/event/EventField.kt
+@@ -25,11 +25,16 @@ object EventField : ExtractableField.Data<ExistingEvent> {
+ 
+     return ExistingEvent(
+       dataId = DataId(getRequiredString(getColumnIndexOrThrow(DataId.COLUMN_IN_DATA_TABLE))),
+-      startDate = if (dateString != null) ContactDate(dateString) else null,
++      startDate = dateString?.let(::parseStartDate),
+       label = extractLabel()
+     )
+   }
+ 
++  // START_DATE is free text. Keep a leading '--MM-DD' or 'YYYY-MM-DD' (so an
++  // ISO timestamp still counts) and drop anything else, rather than throwing.
++  private fun parseStartDate(value: String): ContactDate? =
++    Regex("""^(--\d{2}-\d{2}|\d{4}-\d{2}-\d{2})""").find(value)?.let { ContactDate(it.value) }
++
+   private fun Cursor.extractLabel(): EventLabel =
+     when (getNullableInt(Event.TYPE)) {
+       Event.TYPE_ANNIVERSARY -> EventLabel.Anniversary
