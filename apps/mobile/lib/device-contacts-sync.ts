@@ -4,6 +4,7 @@ import {
   ContactsSortOrder,
   getPermissionsAsync,
 } from "expo-contacts";
+import { Platform } from "react-native";
 import type { CoreApi, ImportResult } from "@leapsake/core";
 import { deviceContactToParsed } from "./device-contacts";
 
@@ -47,11 +48,10 @@ const CONTACT_FIELDS: ContactField[] = [
   ContactField.EMAILS,
   ContactField.PHONES,
   ContactField.ADDRESSES,
-  // Both date sources. `BIRTHDAY` is iOS-only (Android's `ContactField` enum has
-  // no such member and its detail record no such property); `DATES` carries
-  // anniversaries on both platforms and, on Android, the birthday itself.
-  ContactField.BIRTHDAY,
+  // `DATES` carries anniversaries everywhere and, on Android, the birthday too.
   ContactField.DATES,
+  // Android's native enum has no `BIRTHDAY`; asking for it rejects the whole read.
+  ...(Platform.OS === "ios" ? [ContactField.BIRTHDAY] : []),
 ];
 
 const NOTHING_NEW: ImportResult = { created: 0, skipped: 0, errors: [] };
