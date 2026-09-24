@@ -79,19 +79,11 @@ gone. 4 is independent of them and now has step 6's evidence behind it.
 E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
 never be mistaken for a real one, and it changes what the door files say. Worth minutes per arc.
 
-### 1. Extract the unlock loop into `key-custody`
+### 1. Extract the unlock loop into `key-custody` ✅ landed 2026-09-24
 
-Desktop already has the right shape: `openAppDatabase` in `apps/desktop/src/main/db/open.ts`
-runs the `for (;;)` unlock loop with `requestUnlock` injected, and `apps/desktop/test/open.test.ts`
-drives it with a scripted answerer. Mobile has the same loop written a second time inside
-`CoreProvider` in `apps/mobile/lib/core-context.tsx`, where nothing but Maestro can reach it.
-
-Lift the loop out of both into `unlockStore(ports)` in `packages/key-custody/src/unlock.ts`,
-where `ports` is `{ doors, ask, openWithPassword, openWithPhrase }` and `ask` is the one thing
-each platform supplies. Move desktop's existing cases into `packages/key-custody/test` and add
-the mobile-only ones: wrong password then right password; wrong phrase rejected fast; a door
-the store does not have refused with the right message. These are exactly the cases 07b and
-07c step through at a minute each.
+`unlockStore(sidecars, ask)` in `packages/key-custody/src/unlock.ts`; both clients call it.
+Only `ask` is injected (the real crypto is cheap under Vitest). Desktop's `open.test.ts` keeps
+its file-level door cases; the loop's own cases are `packages/key-custody/test/unlock.test.ts`.
 
 ### 2. A mobile hook tier
 
@@ -150,12 +142,12 @@ re-derive:
   dev-menu onboarding sheet opening over the app, the launcher's entry vanishing mid-tap, and
   Metro bundle waits. Each cost a run to find. **The fourth, a LogBox banner over the tab bar,
   was a real bug** (expo's shared-object registry race, patched 2026-09-24) that a release build
-  would have hidden, because a failed reminder regeneration only logs. That counts *for* keeping
+  would have hidden, because a failed reminder regeneration only logs. That counts _for_ keeping
   console errors visible: whichever build E2E drives, a `console.error` should fail the flow.
 - **Three `__DEV__` routes are load-bearing, not one.** `dev-selftest` (driver-contract tier)
   **and `dev-clear-dbkey` (Flows 07b and 07c)** both redirect home when `__DEV__` is false, so a
   release build breaks the custody flows too, silently. The build-time flag has to cover both.
-- **Android is where the work is.** An iOS *simulator* Release build needs no signing. Android's
+- **Android is where the work is.** An iOS _simulator_ Release build needs no signing. Android's
   release build type deliberately has **no debug-key fallback**
   (`plugins/with-android-release-signing.js`; "a debug-signed release build is the failure that
   looks like success"), so an Android release-variant E2E build needs either the upload keystore
@@ -163,11 +155,11 @@ re-derive:
 - **It will not fix dropped input by itself.** React Native does a JS round trip per keystroke,
   so a busy JS thread still loses characters; the flows keep their read-back retries
   (`maestro/subflows/type-checked.yaml`). Dropping Metro frees the thread, it does not remove it.
-- **Two alternatives were checked and rejected.** *Pasting*: Maestro 2.8.0 has no
+- **Two alternatives were checked and rejected.** _Pasting_: Maestro 2.8.0 has no
   `setText`/`replaceText`; `pasteText` only pastes what `copyTextFrom` took from an element
   already on screen, so arbitrary text needs the device clipboard set from outside the flow
-  (`simctl pbcopy` on iOS; Android has no simple `adb` equivalent). *Seeding fixtures through a
-  dev route*: worth little here, because the arc already shares state — later flows inherit Mary
+  (`simctl pbcopy` on iOS; Android has no simple `adb` equivalent). _Seeding fixtures through a
+  dev route_: worth little here, because the arc already shares state — later flows inherit Mary
   rather than retyping her — and the typing that remains is what each flow exists to prove.
 
 ### 5. Desktop, when it ships
