@@ -3,6 +3,7 @@ import { generateKey, rawKeyLiteral } from "@leapsake/crypto";
 import { runDriverContract } from "@leapsake/data/testing";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 import { runCustodySelfTest } from "./custody-selftest";
+import { runSharedObjectRaceSelfTest } from "./shared-object-race-selftest";
 import { type CaseResult, createCollectingTestApi } from "./test-api";
 
 /**
@@ -58,5 +59,6 @@ export async function runDriverContractSelfTest(): Promise<CaseResult[]> {
   const { api, run } = createCollectingTestApi();
   runDriverContract(api, makeExpoTestDriver);
   runCustodySelfTest(api);
+  runSharedObjectRaceSelfTest(api);
   return run();
 }
