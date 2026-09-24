@@ -31,11 +31,9 @@ They are separate docs on purpose (different decisions, different lifetimes: 4 i
 its step 8 lands, 3 outlives it). But four couplings are real, and doing them out of order costs
 work:
 
-- **3's steps 1–3 make 4's step 6 and 7 cheaper, and less flaky.** The unlock loop moving into
-  `key-custody` (3.1) is what lets 07b and 07c stop stepping through every case in the UI —
-  they are the arc's two longest flows at 425–623s each — and 3.3 folds 02, 03 and 05 into one
-  smoke flow. That is roughly half the typing and tapping in the arc, and *every* hosted-runner
-  flake so far has been a dropped tap or dropped keystroke. A shorter arc is a steadier gate.
+- **3's steps 1–3 landed 2026-09-24**, which is what makes 4's step 7 gate cheaper: the arc is
+  01 → smoke → 04 → 07c → 07b, and the unlock loop and gate state are tested below it. 07b and
+  07c still step through their negative cases in the UI, as the catalog asks.
 - **3's step 4 should land before 4's step 7 wires the gate into `ci.yml`.** Step 7 runs the
   device tiers on every push to `main`; whatever the gate costs and however often it flakes,
   that is what the repo pays from then on. The release-configuration build deletes the dev
@@ -45,10 +43,9 @@ work:
 - **4's step 6 has already paid its debt to 3.4** — the evidence is written into that step. Do
   not re-derive it.
 
-**Not in either doc, and ahead of both:** the native crash in 4's step 6 open item 3 (Android
-Flow 7c, in React Native's `MountingCoordinator`). A gate cannot be trusted while a real bug
-fails it at random. Its SQLite half, the rejected statements, was expo's registry race and is
-patched.
+**Ahead of both:** the native crash in 4's step 6 open item 3 (Android Flow 7c). It is
+diagnosed as a react-native-screens race and patched (`patches/README.md`); the next measure
+runs are what confirm it.
 
 ## Rules that apply to every workstream
 
