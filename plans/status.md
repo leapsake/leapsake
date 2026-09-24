@@ -20,8 +20,7 @@ description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone 
 ③ `rc`, then `final` — from the pipeline in
 [`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
 flight**. **Meanwhile `v0.1.0-beta.10` is tagged at origin and unshipped**; the gate is green
-here again. Android Flow 7b fails intermittently on a reminders SQLite race after unlock
-(`ERR_INVALID_SHARED_OBJECT_ID`) — a real bug, not yet fixed.
+here again.
 
 **In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.
 
