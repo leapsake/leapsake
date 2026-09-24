@@ -59,6 +59,9 @@
     "onlyBuiltDependencies": [
       "better-sqlite3-multiple-ciphers",
       "electron"
-    ]
+    ],
+    "patchedDependencies": {
+      "expo-modules-core@56.0.16": "patches/expo-modules-core@56.0.16.patch"
+    }
   }
 }
