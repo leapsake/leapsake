@@ -12,6 +12,7 @@
 //   pnpm release record --tag=<tag> --from=<dir> [--push]
 //   pnpm release abandon --tag=<tag>
 //   pnpm release ship --tag=<tag> --here [--dry-run] [--no-provision]
+//   pnpm release materialize --into=<dir> [--env-out=<path>]
 //   pnpm release --help
 //
 // Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
@@ -20,7 +21,7 @@
 // and the tag typed back; `cut` and `abandon` need the tag typed back too. There is no `--yes`.
 // Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +53,7 @@ import {
   LOCAL_CHECKS,
   MARKER_CHECKS,
 } from "./preflight.mjs";
+import { materializeSecrets } from "./materialize.mjs";
 import { NOTES_REF } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
 import {
@@ -73,6 +75,7 @@ const COMMANDS = [
   "record",
   "abandon",
   "ship",
+  "materialize",
 ];
 const VALUE_FLAGS = new Set([
   "tag",
@@ -83,6 +86,8 @@ const VALUE_FLAGS = new Set([
   "from",
   "receipts-out",
   "platforms",
+  "into",
+  "env-out",
 ]);
 
 function parseArgs(argv) {
@@ -601,7 +606,30 @@ async function ship(opts) {
   return published || recorded;
 }
 
-const HANDLERS = { cut, plan, gate, build, publish, record, abandon, ship };
+/** Write the runner's base64 secrets to files, and say (or append) where they went. */
+function materialize({ values }) {
+  if (!values.into) fail("where to? pass --into=<dir>");
+  const lines = materializeSecrets(process.env, resolve(values.into));
+  if (lines.length === 0)
+    console.log("No LEAPSAKE_SECRET_*_B64 variables set.");
+  for (const line of lines) console.log(line);
+  if (values["env-out"] && lines.length > 0) {
+    appendFileSync(resolve(values["env-out"]), `\n${lines.join("\n")}\n`);
+  }
+  return 0;
+}
+
+const HANDLERS = {
+  cut,
+  plan,
+  gate,
+  build,
+  publish,
+  record,
+  abandon,
+  ship,
+  materialize,
+};
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
