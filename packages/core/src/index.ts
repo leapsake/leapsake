@@ -185,6 +185,7 @@ export {
   rotateRecoveryPhrase,
   establishKeySession,
   resyncAfterMasterKeyRepair,
+  unlockStore,
   type BootKeySession,
   type AdoptionDoor,
   type RecoveryDoorWriter,
@@ -194,6 +195,9 @@ export {
   type AccountBootstrap,
   type AccountBootstrapChannel,
   type RecoveryChannel,
+  type StoreDoorSidecars,
+  type UnlockAnswer,
+  type UnlockRequest,
 } from "@leapsake/key-custody";
 
 // The syncable allowlist plus a one-call cycle for an enabled account, so each

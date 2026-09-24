@@ -21,6 +21,8 @@ import {
   rotateRecoveryPhraseForAccount,
   runMigrations,
   seedHolidayCatalog,
+  type UnlockAnswer,
+  type UnlockRequest,
 } from "@leapsake/core";
 import type { KeyStore } from "@leapsake/crypto";
 import {
@@ -54,11 +56,7 @@ import { destroyStoreFiles } from "./db/convert-store.js";
 import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
-import {
-  type UnlockAnswer,
-  type UnlockRequest,
-  openAppDatabase,
-} from "./db/open.js";
+import { openAppDatabase } from "./db/open.js";
 import { jsonFileStorage } from "./db/roster-storage.js";
 import {
   passwordSidecarPath,

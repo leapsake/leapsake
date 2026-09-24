@@ -12,6 +12,12 @@ export {
   rotateRecoveryPhrase,
 } from "./rotate-recovery.js";
 export type { RecoveryDoorWriter } from "./rotate-recovery.js";
+export { unlockStore } from "./unlock.js";
+export type {
+  StoreDoorSidecars,
+  UnlockAnswer,
+  UnlockRequest,
+} from "./unlock.js";
 export {
   KEYSTORE_SECRET_IDS,
   MIN_PASSWORD_LENGTH,

@@ -5,14 +5,16 @@ import {
   DATABASE_KEY,
   type KeyStore,
   RECOVERY_KEY,
-  decodeRecoveryPhrase,
   ensureDatabaseKey,
-  openDbKeyFromRecovery,
-  openPasswordSidecar,
   readRecoveryKey,
   sealDbKeyForRecovery,
 } from "@leapsake/crypto";
-import type { AdoptionDoor } from "@leapsake/core";
+import {
+  type AdoptionDoor,
+  type UnlockAnswer,
+  type UnlockRequest,
+  unlockStore,
+} from "@leapsake/core";
 import type { SqliteDriver } from "@leapsake/data";
 import {
   encryptedSqliteDriver,
@@ -25,19 +27,6 @@ import {
   writeSidecar,
 } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
-
-/** What the gate should offer: the doors whose sidecars exist. */
-export interface UnlockRequest {
-  /** The previous attempt's failure, if any, so the gate can re-prompt. */
-  error?: string;
-  doors: { password: boolean; phrase: boolean };
-}
-
-/** The secret the user typed, and which door they typed it into. */
-export interface UnlockAnswer {
-  door: "password" | "phrase";
-  secret: string;
-}
 
 /**
  * Open the store in its custody state: plaintext and keyless, or encrypted
@@ -73,44 +62,14 @@ export async function openAppDatabase(opts: {
       );
     }
 
-    let error: string | undefined;
-    for (;;) {
-      const answer = await requestUnlock({
-        error,
-        doors: {
-          password: password !== undefined,
-          phrase: phrase !== undefined,
-        },
-      });
-      try {
-        if (answer.door === "password" && password !== undefined) {
-          const opened = openPasswordSidecar(password, answer.secret);
-          dbKey = opened.dbKey;
-          // The KEK that opened the db-key also unwraps the master key, which
-          // the caller must re-adopt: a door unlock means a lost keychain.
-          onUnlocked?.({
-            kind: "password",
-            kek: opened.kek,
-            authVerifier: opened.authVerifier,
-          });
-        } else if (answer.door === "phrase" && phrase !== undefined) {
-          // Hold the recovery key: it is also this device's enclave copy, which
-          // the refresh below restores. A password unlock cannot recover it.
-          recoveryKey = decodeRecoveryPhrase(answer.secret);
-          dbKey = openDbKeyFromRecovery(phrase, recoveryKey);
-          onUnlocked?.({ kind: "recovery", recoveryKey });
-        } else {
-          throw new Error("That door is not available on this device.");
-        }
-        break;
-      } catch {
-        recoveryKey = undefined;
-        error =
-          answer.door === "password"
-            ? "That password doesn't open this database."
-            : "That recovery phrase doesn't open this database.";
-      }
+    const unlocked = await unlockStore({ password, phrase }, requestUnlock);
+    dbKey = unlocked.dbKey;
+    // A door unlock means a lost keychain: the caller re-adopts the master key,
+    // and a phrase unlock also restores this device's recovery key below.
+    if (unlocked.door.kind === "recovery") {
+      recoveryKey = unlocked.door.recoveryKey;
     }
+    onUnlocked?.(unlocked.door);
     await keyStore.setSecret(DATABASE_KEY, dbKey);
   }
 

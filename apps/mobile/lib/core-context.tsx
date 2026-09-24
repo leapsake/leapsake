@@ -39,15 +39,15 @@ import {
   rotateRecoveryPhraseForAccount,
   runMigrations,
   seedHolidayCatalog,
+  type UnlockAnswer,
+  type UnlockRequest,
+  unlockStore,
   withSyncKick,
 } from "@leapsake/core";
 import {
   DATABASE_KEY,
   RECOVERY_KEY,
-  decodeRecoveryPhrase,
   ensureDatabaseKey,
-  openDbKeyFromRecovery,
-  openPasswordSidecar,
   rawKeyLiteral,
   readRecoveryKey,
   sealDbKeyForRecovery,
@@ -145,11 +145,6 @@ export interface AccountApi {
 // `useCore()` and calls it in-process — no IPC, unlike desktop.
 const CoreContext = createContext<CoreApi | null>(null);
 
-/** The secret the user typed at the unlock gate, and which door they used. */
-interface UnlockAnswer {
-  door: "password" | "phrase";
-  secret: string;
-}
 const AccountContext = createContext<AccountApi | null>(null);
 // A monotonically-increasing counter bumped whenever the provider changes rows
 // behind a screen's back. `useFocusedData` depends on it, so a bump re-runs the
@@ -412,12 +407,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     // Park the bootstrap on the unlock gate until the user submits a secret. The
     // gate is told which doors this store has, so it can lead with the password
     // and only offer the phrase as the forgot-password fallback (§7.5).
-    const requestUnlock = (
-      doors: { password: boolean; phrase: boolean },
-      attemptError?: string,
-    ) =>
+    const requestUnlock = (request: UnlockRequest) =>
       new Promise<UnlockAnswer>((resolve) =>
-        setRecoveryPrompt({ error: attemptError, doors, resolve }),
+        setRecoveryPrompt({ ...request, resolve }),
       );
 
     (async () => {
@@ -498,45 +490,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         dbKey === undefined &&
         (recoverySidecar !== undefined || passwordSidecar !== undefined)
       ) {
-        const doors = {
-          password: passwordSidecar !== undefined,
-          phrase: recoverySidecar !== undefined,
-        };
-        let attemptError: string | undefined;
-        for (;;) {
-          const answer = await requestUnlock(doors, attemptError);
-          try {
-            if (answer.door === "password" && passwordSidecar !== undefined) {
-              const opened = openPasswordSidecar(
-                passwordSidecar,
-                answer.secret,
-              );
-              dbKey = opened.dbKey;
-              unlockedBy = {
-                kind: "password",
-                kek: opened.kek,
-                authVerifier: opened.authVerifier,
-              };
-            } else if (
-              answer.door === "phrase" &&
-              recoverySidecar !== undefined
-            ) {
-              // Hold the recovery key: it is also this device's enclave copy,
-              // restored below. A password unlock cannot recover it.
-              recoverySecret = decodeRecoveryPhrase(answer.secret);
-              dbKey = openDbKeyFromRecovery(recoverySidecar, recoverySecret);
-              unlockedBy = { kind: "recovery", recoveryKey: recoverySecret };
-            } else {
-              throw new Error("That door is not available on this device.");
-            }
-            break;
-          } catch {
-            recoverySecret = undefined;
-            attemptError =
-              answer.door === "password"
-                ? "That password doesn't open this database."
-                : "That recovery phrase doesn't open this database.";
-          }
+        const unlocked = await unlockStore(
+          { password: passwordSidecar, phrase: recoverySidecar },
+          requestUnlock,
+        );
+        dbKey = unlocked.dbKey;
+        unlockedBy = unlocked.door;
+        // A phrase unlock also restores this device's recovery key, below.
+        if (unlocked.door.kind === "recovery") {
+          recoverySecret = unlocked.door.recoveryKey;
         }
         await keyStore.setSecret(DATABASE_KEY, dbKey);
         setRecoveryPrompt(null);
