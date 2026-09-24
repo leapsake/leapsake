@@ -28,10 +28,6 @@ import { deviceContactToParsed } from "./device-contacts";
  *
  * Under iOS's limited access the address book this sees is only what the user
  * chose to share, so a contact added to the phone arrives once it is shared.
- *
- * A value import of `expo-contacts`, so unlike `device-contacts.ts` this module
- * cannot load under node; the logic worth testing is in the ingest engine and
- * core, which are.
  */
 
 /**
