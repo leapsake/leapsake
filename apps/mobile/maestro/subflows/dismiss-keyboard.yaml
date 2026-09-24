@@ -36,11 +36,17 @@
 # the assert passed with the keyboard still open. Nothing noticed until Flow 7c's
 # first Android run (2026-09-10): on the phrase door, `Enter` put a newline in the
 # `multiline` field, Gboard stayed over **Unlock**, and the tap aimed at the button
-# opened Gboard's Settings instead. Flow 5 passes over the same blind spot only
-# because its next tap, **Save**, sits above the keyboard.
+# opened Gboard's Settings instead.
+#
+# Enter is iOS-only: on Android a key event leaves touch mode, and its key-up
+# clicks whichever view takes focus when the field blurs.
 appId: com.leapsake.app
 ---
-- pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: Enter
 - runFlow:
     when:
       visible:
