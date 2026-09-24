@@ -408,6 +408,10 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    goes missing while the registry's map is rehashing. It is patched (`patches/README.md`) and
    pinned by `shared-object-race-selftest.ts`. That race is in Kotlin and cannot cause a SIGSEGV,
    so **the native crashes above are still unexplained** and are what item 3 is about now.
+   **The frames now name it:** 35682774667 and 35802875611 each crashed once on Android in
+   Flow 7c, both in `MountingCoordinator::pullTransaction` (`libreactnative.so`,
+   `MountingCoordinator.cpp:103`) on `mqt_v_js`, calling into freed memory. That is React
+   Native's Fabric renderer, not SQLite. iOS was clean in both.
 4. **The app really does crash, natively** (35518189593 Android 3). The crash diagnostic
    answered the "app disappeared" question on its first outing: Flow 7c left the launcher on
    screen because the process died in `libreactnative.so`, in the job's crash buffer as a

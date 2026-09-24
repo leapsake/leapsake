@@ -45,9 +45,10 @@ work:
 - **4's step 6 has already paid its debt to 3.4** — the evidence is written into that step. Do
   not re-derive it.
 
-**Not in either doc, and ahead of both:** the store-handle bug in 4's step 6 open items
-(`NativeDatabase.prepareAsync` rejected; a native crash with it). It is app code, and a gate
-cannot be trusted while a real bug fails it at random.
+**Not in either doc, and ahead of both:** the native crash in 4's step 6 open item 3 (Android
+Flow 7c, in React Native's `MountingCoordinator`). A gate cannot be trusted while a real bug
+fails it at random. Its SQLite half, the rejected statements, was expo's registry race and is
+patched.
 
 ## Rules that apply to every workstream
 
