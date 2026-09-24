@@ -447,46 +447,23 @@ xcrun simctl spawn booted log show --last 3m --style compact \
 
 ### When the module is in the binary but the app says it cannot find it
 
-**Open, unresolved as of 2026-09-22.** `pnpm release gate --platforms=ios` goes red in the E2E
-tier with a LogBox over the app: `Cannot find native module 'ExpoPushTokenManager'`, thrown
-where `notification-scheduler.ts` imports `expo-notifications`. The harness reports it as _the
-app's home screen never appeared_, which is the symptom, not the cause.
+**Symptom:** the E2E tier goes red with a LogBox over the app, `Cannot find native module
+'ExpoPushTokenManager'`, thrown where `notification-scheduler.ts` imports `expo-notifications`.
+The harness reports it as _the app's home screen never appeared_. CI is green on the same
+commit, and the native tier can pass on the same simulator.
 
-**Verified, so do not re-derive any of it:**
-
-- The installed bundle is the current one (`xcrun simctl get_app_container <udid>
-com.leapsake.app`, then `stat`), and **it contains the module**: `nm -a
-Leapsake.app/Leapsake.debug.dylib | grep -ci pushtokenmodule` → 138, against
-  `securestoremodule` → 6 as a control. Static pods are not in `Frameworks` and not in the thin
-  `Leapsake` binary; the section above says so and it is the probe that matters.
-- `expo-notifications` is fully installed (20 Swift sources), its pod target builds alone, the
-  app links `-lExpoNotifications`, and the generated `ExpoModulesProvider.swift` registers
-  `PushTokenModule` — the list is inside `#if EXPO_CONFIGURATION_DEBUG`, so grep the whole file.
-- JS and native agree on the name: `requireNativeModule('ExpoPushTokenManager')` in
-  `build/PushTokenManager.native.js`, `Name("ExpoPushTokenManager")` in `PushTokenModule.swift`.
-- **The same commit is green on CI**, on an iPhone 17 Pro. This is local state, not the repo.
-
-**What was wrong with the earlier hypotheses:** the `Pods/` directory looking "incomplete" (Expo
-pods are path-based and are never copied there), and `nm`/`strings` over the thin binary showing
-no symbols for _any_ module, including ones that demonstrably work.
-
-**The next thing to try**, one variable at a time — the two tiers ran on different devices and
-different runtimes (iPhone 16 Pro / iOS 18.3 passed the native tier; iPhone 17 Pro / iOS 26.5
-failed the E2E tier):
+**Erase the simulator.** The cause is that one simulator's own state, not the build: the
+failing bundle contained the module (`nm -a Leapsake.app/Leapsake.debug.dylib | grep -ci
+pushtokenmodule`), the same build passed on another simulator, and after an erase the same
+simulator passed the whole gate.
 
 ```sh
-LEAPSAKE_IOS_SIMULATOR="iPhone 16 Pro" pnpm release gate --platforms=ios
+xcrun simctl shutdown <udid>; xcrun simctl erase <udid>
+pnpm release gate --platforms=ios
 ```
 
-Passing there points at the 17 Pro simulator (uninstall the app from it and rebuild for that
-device); failing there clears the device and implicates what the E2E tier does and the native
-tier does not — `wipe` deletes `Documents/SQLite` and runs a **device-wide**
-`simctl keychain reset` before the launch that fails.
-
-**A trap that cost hours on 2026-09-22 and is now fixed** (`scripts/lib/mobile-harness.mjs`):
-under `--provision` the harness only built the dev client when the app was **absent**, so a
-device holding a stale build was driven as it was, and every rebuild appeared to change nothing.
-It now always builds; `expo run` is incremental, so a current build costs seconds.
+`--provision` reinstalls the dev client on the blank device. Skip re-checking linkage,
+autolinking and `ExpoModulesProvider.swift` — all were verified correct while it failed.
 
 ### On a physical device
 
