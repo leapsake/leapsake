@@ -293,8 +293,10 @@ What was holding the bar back was the Android crash in open item 3, now patched:
 **`35990530595` (80cc189) was iOS 3/3 and Android 3/3 through the whole catalog, no crash** —
 its one red a self-test wait budget, since raised. **One more clean run** (the next push that
 touches `apps/mobile/**`) takes the crash to six clean jobs, and then step 6 is only the owner's
-decision below. The arc it measures is now 01 → smoke → 04 → 07c → 07b; the table's arc times
-are from the old seven-flow arc. Everything else here is history worth keeping only until then.
+decision below. The arc it measures is now 01 → smoke → 04, with the doors as 04's closing
+acts and a `console.error` check after each flow (`ci-and-test-tiers.md` steps 4b and 6); the
+table's arc times are from the old seven-flow arc. That arc cold-starts the app four times per
+job where the five-flow arc did about eight, so a clean job is weaker evidence against the crash. Everything else here is history worth keeping only until then.
 
 **Reading a run:** `node scripts/ci/measure-results.mjs <run>`, then `<run> "<job>"` for one
 job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
