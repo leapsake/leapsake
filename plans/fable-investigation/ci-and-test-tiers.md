@@ -68,12 +68,21 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order.** 4 is independent of 5 and 7; it and 6 share one subflow (see 4, _With step 6_). **6 depends on 5**: 6 removes the only
-test of the recovery-door rewrite, and 5 is what replaces it. 7's four parts are independent of
-each other and of 4–6; 7c waits on the `RelationshipFields` row of
-[`shared-form-logic.md`](./shared-form-logic.md). Ideally 5 and 6 land before
-`remote-releases.md` step 7 wires the gate into `ci.yml`, for the same reason 4 should: every
-push pays for whatever the gate costs from then on.
+**Order: 4a → 5 → 6 → 4b → 4c → 4d → 4e**, with 7's parts slotted in anywhere.
+
+- **4a first**: it changes no behaviour (the dev client still sets the flag), so it can land
+  while `remote-releases.md` step 6 is still measuring, and the release check it adds must exist
+  before any release build carries the flag. 5 is pure TypeScript and can run beside it.
+- **6 depends on 5**: 6 removes the only test of the recovery-door rewrite, and 5 replaces it.
+- **5 and 6 before 4c and 4d**, so each platform switch moves three flows, not five, and
+  builds the merged Flow 4 on `lose-keys.yaml` once, rather than porting 07b and 07c only to
+  delete them.
+- **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
+  and 4 pull on each other_): the switch invalidates that step's numbers.
+- **7's four parts** are independent of each other and of 4–6. 7c waits on the
+  `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
+- Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
+  every push pays for whatever the gate costs from then on.
 
 **Open decision, carried over from the KDF injection that landed:** whether to lower the cost in
 E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
@@ -153,7 +162,7 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
   harness asserts is absent after every flow. Keep it inside the flag, so store builds carry
   none of it.
 
-**Commits, in order:**
+**Commits** (interleaved with 5 and 6 per _Order_ above):
 
 - **4a. The flag and the release check.** Move the three routes from `__DEV__` to the flag
   (`dev-clear-dbkey` Android only). Add the preflight in `scripts/release/` and show it failing
