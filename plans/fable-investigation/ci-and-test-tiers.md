@@ -63,11 +63,11 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4c → 4d → 4e** (4a, 4b, 5 and 6 landed), with 6a and 7's parts slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5, 6 and 6a landed), with 7's parts slotted in anywhere.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **6a and 7's four parts** are independent of each other and of 4. 7c waits on the
+- **7's four parts** are independent of each other and of 4. 7c waits on the
   `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
@@ -227,29 +227,16 @@ iOS arc: 15m17s before (flows 57s, 143s, 99s, 171s, 293s), 9m00s after (57s, 144
 
 ### 6a. Forget account, below E2E
 
-Step 6 took away the only E2E run of **Forget account** (07b's opening reset hit it because it
-arrived with an account). No flow reaches it now, by decision (owner, 2026-09-24), so the
-proof moves down a tier. Most of it is already there:
-
-- `apps/mobile/lib/forget-account.test.ts`: `forgetAccountOnThisDevice` removes the roster
-  entry first, then the store and both doors, clears the keys, keeps the device identity, and
-  leaves other accounts alone.
-- `apps/mobile/test/custody-selftest.ts` (device tier): expo-sqlite really deletes a nested
-  per-account store, and `accountDoors(id).destroy()` takes one account's doors and no others.
-- `apps/desktop/test/integration/forget-account.test.ts` covers desktop's side, including
-  "leaves a device the Unauthenticated boot path opens, keyless and empty".
-
-**What is missing, both on mobile:**
-
-1. **The next boot after a forget.** Mobile has no counterpart to desktop's last case. Compose
-   `forgetAccountOnThisDevice` and `openActiveStore` over the same fakes in
-   `open-active-store.test.ts`, and assert a keyless open at `stores/local/` with zero
-   key-store writes. Sabotage: skip `roster.remove`.
-2. **The wiring in `CoreProvider`'s `forgetAccount()`** (`lib/core-context.tsx`): it chooses
-   the account id, the store path and the doors, and closes the driver first. Only the UI
-   reaches it. Lift it into a function beside `open-active-store.ts` that takes the active store
-   and the ports, the way step 5 did for boot, and test that it targets the active account's
-   slot. Sabotage: pass `stores/local`'s path as `storeName`.
+**✅ Landed 2026-09-24.** Step 6 took away the only E2E run of **Forget account**; no flow
+reaches it now, by decision (owner, 2026-09-24). `CoreProvider.forgetAccount()` calls
+`forgetActiveAccount` in `apps/mobile/lib/forget-active-account.ts`, which takes the booted
+store, its driver and the ports (the expo adapters in `CoreProvider`), refuses without an
+account, and hands the account's store path and doors to `forgetAccountOnThisDevice`.
+`apps/mobile/lib/open-active-store.test.ts` covers the boot after a forget (keyless at
+`stores/local/`, zero key-store writes), a forget that takes the active account's store and
+doors and leaves another account's doors, and the refusal. `forget-account.test.ts` still
+covers the order and what survives; `test/custody-selftest.ts` the expo-sqlite verbs on a
+device.
 
 Accepted residual risk: the Settings button and its DELETE confirmation. After a change there,
 check it once on the simulator with a scratch flow, and do not commit the flow.
