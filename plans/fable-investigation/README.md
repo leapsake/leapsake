@@ -44,8 +44,8 @@ work:
   not re-derive it.
 
 **Ahead of both:** the native crash in 4's step 6 open item 3 (Android Flow 7c). It is
-diagnosed as a react-native-screens race and patched (`patches/README.md`); the next measure
-runs are what confirm it.
+diagnosed as a react-native-screens race and patched (`patches/README.md`); 35990530595 ran
+three Android jobs clean, and one more clean run confirms it.
 
 ## Rules that apply to every workstream
 

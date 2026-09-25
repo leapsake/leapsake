@@ -19,7 +19,8 @@ description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone 
 `ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
 ③ `rc`, then `final` — from the pipeline in
 [`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
-flight**; its Android crash (open item 3) is patched locally and needs a measure run to confirm. **Meanwhile `v0.1.0-beta.10`
+flight**: runners carry the gate; the Android crash patch has 3 of 6 clean jobs and needs one
+more measure run, then the owner's call. Step 7's script pieces are done; its workflows are next. **Meanwhile `v0.1.0-beta.10`
 is tagged at origin and unshipped**; the gate is green here.
 
 **In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.

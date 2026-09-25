@@ -285,14 +285,16 @@ doc's _Facts_ list and then into `CONTRIBUTING.md`.
    and whether the harness's warning about an under-sized emulator fires.
 3. Both: three runs each, on the same commit. Anything that fails twice is a finding, not a flake.
 
-#### Where step 6 stands (2026-09-19, updated each run)
+#### Where step 6 stands (updated 2026-09-24)
 
-**The measurement is done: `35558802346` (c0b7eb0) was 3/3 on both platforms, every flow
-green, no crash; `35595001195` repeated it at iOS 3/3, Android 2/3 — its one red the crash in
-open item 3.** That is step 6's own bar — three jobs per platform on one commit — met for
-the first time on 2026-09-21. It did not last: the Android native crash came back in the next
-three runs, and **open item 3 is what step 6 is waiting on**. Everything else here is history
-worth keeping only until the owner decides.
+**Both of step 6's questions are answered: hosted runners can carry the gate.** Flow 4 is not
+bimodal on either platform, and the Android emulator runs accelerated on Linux (table below).
+What was holding the bar back was the Android crash in open item 3, now patched:
+**`35990530595` (80cc189) was iOS 3/3 and Android 3/3 through the whole catalog, no crash** —
+its one red a self-test wait budget, since raised. **One more clean run** (the next push that
+touches `apps/mobile/**`) takes the crash to six clean jobs, and then step 6 is only the owner's
+decision below. The arc it measures is now 01 → smoke → 04 → 07c → 07b; the table's arc times
+are from the old seven-flow arc. Everything else here is history worth keeping only until then.
 
 **Reading a run:** `node scripts/ci/measure-results.mjs <run>`, then `<run> "<job>"` for one
 job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
@@ -432,9 +434,9 @@ look; tests and formatting depended on the owner's global git identity and
 - **A push to `main` that touches `measure.yml`, `scripts/ci/**`, `scripts/lib/**` or
   `apps/mobile/**` starts a run.** (Neither the flows nor the app were in that list until
   2026-09-20, so a push that fixed either measured nothing. The app is in scope because the
-  gate is *about* the app — including the store-handle fix in open item 3.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
+  gate is *about* the app.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
   **in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
-  cache, which is worth nothing while the cache never saves (open item 4; put `max-parallel: 1`
+  cache, which is worth nothing while the cache never saves (open item 5; put `max-parallel: 1`
   back when it does). `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
 - **Read results with `node scripts/ci/measure-results.mjs`** (the latest runs) and
   `node scripts/ci/measure-results.mjs <run> [job]`. It reads check-run annotations, which the
@@ -508,6 +510,13 @@ release plan --tag=$TAG --json` as a job output. `gate-<platform>` and `build-<p
 cut $CHANNEL --push`. For `final` it needs the App Store Connect read credentials; the others
   need only a token that can push a tag. This is the one file whose loss on a host move costs
   nothing.
+
+**What only the owner can supply**, before `release.yml` can ship anything: the repo's Actions
+secrets, one `LEAPSAKE_SECRET_<NAME>_B64` per credential file (`.env.example` → _On a runner_
+lists them), plus `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_BETA_GROUP`, `APPLE_TEAM_ID`,
+`IOS_PROVISIONING_PROFILE` and `LEAPSAKE_ANDROID_KEY_ALIAS` as plain values. The iOS
+distribution identity has to be exported from the login keychain as a `.p12` with a password,
+and the profile downloaded as a `.mobileprovision`; neither exists as a file today.
 
 **Permissions the pipeline needs, and no more:** push a tag, push `refs/notes/releases`, delete
 a tag. It never writes to `main`. Write that sentence in `CONTRIBUTING.md`.
