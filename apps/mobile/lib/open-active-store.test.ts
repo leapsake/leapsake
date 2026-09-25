@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import Database from "better-sqlite3-multiple-ciphers";
@@ -18,11 +24,12 @@ import {
   rawKeyLiteral,
 } from "@leapsake/crypto";
 import {
-  type RosterEntry,
   UNAUTHENTICATED_STORE_SLOT,
+  createAccountRoster,
   storePath,
 } from "@leapsake/store-layout";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { forgetAccountOnThisDevice } from "./forget-account";
 import { type BootDoors, openActiveStore } from "./open-active-store";
 
 const PASSWORD = "correct horse battery staple";
@@ -82,7 +89,13 @@ const neverAsk = () => Promise.reject(new Error("unexpected unlock prompt"));
 /** One phone: its files in a temp dir, a roster, and per-account doors. */
 function makeDevice() {
   const dir = mkdtempSync(join(tmpdir(), "leapsake-mobile-boot-"));
-  const accounts: RosterEntry[] = [];
+  let rosterText: string | undefined;
+  const roster = createAccountRoster({
+    read: async () => rosterText,
+    write: async (text) => {
+      rosterText = text;
+    },
+  });
   const doors = new Map<
     string,
     { password?: Uint8Array; recovery?: Uint8Array }
@@ -91,7 +104,9 @@ function makeDevice() {
   let keyStore = recordingKeyStore();
 
   const fileOf = (path: string) => join(dir, path);
-  const doorsFor = (accountId: string): BootDoors => {
+  const doorsFor = (
+    accountId: string,
+  ): BootDoors & { destroy(): Promise<void> } => {
     if (!doors.has(accountId)) doors.set(accountId, {});
     const held = doors.get(accountId)!;
     return {
@@ -100,13 +115,16 @@ function makeDevice() {
       writeRecovery: async (bytes) => {
         held.recovery = bytes;
       },
+      destroy: async () => {
+        doors.delete(accountId);
+      },
     };
   };
 
   async function boot(ask: typeof neverAsk | ReturnType<typeof answerWith>) {
     const result = await openActiveStore({
       keyStore,
-      listAccounts: async () => accounts,
+      listAccounts: () => roster.list(),
       doorsFor,
       destroyStore: async (path) => rmSync(fileOf(path), { force: true }),
       async openStore(path, dbKey) {
@@ -158,7 +176,7 @@ function makeDevice() {
 
     doorsFor(created.accountId);
     doors.get(created.accountId)!.password = created.passwordSidecar;
-    accounts.push({
+    await roster.add({
       id: created.accountId,
       username: "george",
       createdAt: new Date().toISOString(),
@@ -175,8 +193,13 @@ function makeDevice() {
     loseEverything() {
       keyStore = recordingKeyStore();
     },
+    roster,
     boot,
     createAccount,
+    doorsFor,
+    hasDoors: (accountId: string) => doors.has(accountId),
+    storeExists: (path: string) => existsSync(fileOf(path)),
+    deleteStore: async (path: string) => rmSync(fileOf(path), { force: true }),
     recoveryDoor: (accountId: string) => doors.get(accountId)?.recovery,
     marker: async (driver: SqliteDriver) =>
       (await driver.get<{ x: number }>("SELECT x FROM marker"))?.x,
@@ -281,5 +304,35 @@ describe("openActiveStore", () => {
     );
     expect(device.keyStore.writes).toContain(`set ${RECOVERY_KEY}`);
     await opensWithPhrase(device.recoveryDoor(accountId), phrase);
+  });
+
+  it("opens keyless at stores/local/ on the boot after a forget, writing nothing to the key store", async () => {
+    const { accountId } = await device.createAccount();
+    const booted = await device.boot(neverAsk);
+    await booted.driver.close?.();
+    await forgetAccountOnThisDevice({
+      keyStore: device.keyStore,
+      roster: device.roster,
+      accountId,
+      storeName: storePath(accountId),
+      deleteStore: device.deleteStore,
+      deleteDoors: () => device.doorsFor(accountId).destroy(),
+    });
+    const writesBefore = device.keyStore.writes.length;
+
+    const { activeStore, driver, doors, established } =
+      await device.boot(neverAsk);
+
+    expect(activeStore).toEqual({
+      custody: "plaintext",
+      path: storePath(UNAUTHENTICATED_STORE_SLOT),
+    });
+    expect(doors).toBeUndefined();
+    expect(established).toEqual({ state: "ok", keySession: undefined });
+    expect(device.keyStore.writes.slice(writesBefore)).toEqual([]);
+    expect(
+      await driver.get("SELECT name FROM sqlite_master WHERE name = 'marker'"),
+    ).toBeUndefined();
+    expect(device.storeExists(storePath(accountId))).toBe(false);
   });
 });
