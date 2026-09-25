@@ -30,6 +30,7 @@ import {
 } from "@leapsake/store-layout";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { forgetAccountOnThisDevice } from "./forget-account";
+import { forgetActiveAccount } from "./forget-active-account";
 import { type BootDoors, openActiveStore } from "./open-active-store";
 
 const PASSWORD = "correct horse battery staple";
@@ -334,5 +335,65 @@ describe("openActiveStore", () => {
       await driver.get("SELECT name FROM sqlite_master WHERE name = 'marker'"),
     ).toBeUndefined();
     expect(device.storeExists(storePath(accountId))).toBe(false);
+  });
+});
+
+describe("forgetActiveAccount", () => {
+  const OTHER = "11111111-2222-3333-4444-555555555555";
+  let device: ReturnType<typeof makeDevice>;
+
+  beforeEach(() => {
+    device = makeDevice();
+  });
+
+  afterEach(async () => {
+    await device.cleanup();
+  });
+
+  const forget = (
+    booted: Awaited<ReturnType<typeof device.boot>>,
+    onClosing = () => {},
+  ) =>
+    forgetActiveAccount(booted.activeStore, booted.driver, {
+      keyStore: device.keyStore,
+      roster: device.roster,
+      deleteStore: device.deleteStore,
+      doorsFor: device.doorsFor,
+      onClosing,
+    });
+
+  it("deletes the active account's store and doors, and leaves another account's doors", async () => {
+    const { accountId } = await device.createAccount();
+    const booted = await device.boot(neverAsk);
+    await device.roster.add({
+      id: OTHER,
+      username: "mary",
+      createdAt: new Date().toISOString(),
+    });
+    await device.doorsFor(OTHER).writeRecovery(new Uint8Array([1]));
+
+    await forget(booted);
+
+    expect(device.storeExists(storePath(accountId))).toBe(false);
+    expect(device.hasDoors(accountId)).toBe(false);
+    expect(device.hasDoors(OTHER)).toBe(true);
+    expect((await device.roster.list()).map((a) => a.id)).toEqual([OTHER]);
+  });
+
+  it("refuses an Unauthenticated store and touches nothing", async () => {
+    const booted = await device.boot(neverAsk);
+    let closing = false;
+
+    await expect(
+      forget(booted, () => {
+        closing = true;
+      }),
+    ).rejects.toThrow(/no account on this device to forget/);
+
+    expect(closing).toBe(false);
+    expect(device.storeExists(storePath(UNAUTHENTICATED_STORE_SLOT))).toBe(
+      true,
+    );
+    expect(await booted.driver.get("SELECT 1 AS one")).toEqual({ one: 1 });
   });
 });

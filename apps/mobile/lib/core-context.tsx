@@ -58,7 +58,7 @@ import { accountDoors } from "../db/doors";
 import { openExpoStore } from "../db/open-store";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
-import { forgetAccountOnThisDevice } from "./forget-account";
+import { forgetActiveAccount } from "./forget-active-account";
 import {
   expoNotificationScheduler,
   PLATFORM_NOTIFICATION_BUDGET,
@@ -644,30 +644,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           const { durableBackup } = await fetchRelayCapabilities({});
           return { username, durableBackup };
         },
-        // **Forget account** (@leapsake/key-custody). The roster is the authority for
-        // *which* store — it names it, and it is what the next bootstrap reads —
-        // so with the entry gone the re-run resolves Unauthenticated and lands the device on
-        // a fresh plaintext store, the state a new install is in.
         async forgetAccount() {
-          const accountId =
-            activeStore.custody === "encrypted"
-              ? activeStore.accountId
-              : undefined;
-          if (accountId === undefined) {
-            throw new Error("There is no account on this device to forget.");
-          }
-          setCore(null);
-          setAccount(null);
-          await driver.close?.();
-          await forgetAccountOnThisDevice({
+          await forgetActiveAccount(activeStore, driver, {
             keyStore,
             roster: createAccountRoster(sqliteRosterStorage()),
-            accountId,
-            storeName: activeStore.path,
             deleteStore: (name) => SQLite.deleteDatabaseAsync(name),
-            // This account's doors only — they live in its own store directory, so
-            // a second account on this device keeps both of its own (slice 7b).
-            deleteDoors: () => accountDoors(accountId).destroy(),
+            doorsFor: accountDoors,
+            onClosing: () => {
+              setCore(null);
+              setAccount(null);
+            },
           });
           coreRef.current = null;
           setResetVersion((v) => v + 1);
