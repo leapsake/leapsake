@@ -41,12 +41,7 @@ export const SEARCH_FACETS: readonly SearchFacet[] = [
  * ones its 🔍 hands to the search screen, which the user can then take apart.
  */
 export interface SearchCategory {
-  /**
-   * Which catalog this is. Stable — it names the header links a catalog carries
-   * (`search-here-<key>`), which the E2E flows tap by id. It is no longer what
-   * `?type=` carries: the filter is a list of facets now, because a filter you
-   * can only drop whole is not a filter the user can steer.
-   */
+  /** Which catalog this is; also names its 🔍's testID, `search-here-<key>`. */
   key: string;
   label: string;
   glyph: string;
@@ -57,25 +52,8 @@ export interface SearchCategory {
 }
 
 /**
- * The browse grid, and the app's whole answer to "what kinds of thing are in
- * here?".
- *
- * One table, two readers: the tiles on Search's empty state, and the facets a
- * catalog's 🔍 starts a search with. Adding a kind of record should be one entry
- * here (and one in {@link SEARCH_FACETS}) rather than two edits that can
- * disagree.
- *
- * It had a third reader — a `createHref` that told the old New tab what to make
- * on a filtered search. Creating is a header action on the catalog itself now
- * (`app/(tabs)/_layout.tsx`), which is a screen rather than a category, so the
- * field went with the tab. Nothing here answers "what does ➕ make?" any more,
- * and nothing here should: two of these four hold nothing a user authors.
- *
- * People leads because it is what the app is mostly about; the rest follow in
- * the order they were built. It keeps its tile even though it now has a tab of
- * its own — the grid is this app's answer to "what kinds of thing are in here?",
- * and an answer missing the biggest one to avoid repeating a button is a worse
- * answer.
+ * The browse grid's tiles, in order, and the facets each catalog's 🔍 starts a
+ * search with. What a catalog's ➕ makes is `lib/tab-screens.ts`'s.
  */
 export const SEARCH_CATEGORIES: readonly SearchCategory[] = [
   {
