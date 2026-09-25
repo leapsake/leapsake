@@ -389,8 +389,11 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    that `addLifecycleEventListener` posts to the UI thread), and `NativeProxy` assigns and
    copies the `shared_ptr` with no lock, so a torn copy registers a freed listener. Upstream
    fixed exactly this in #4413, released in 4.28.0; Expo SDK 56 pins 4.25.2, so it is
-   backported (`patches/README.md`). **What confirms it:** the next measure runs, with no
-   Android crash across at least six jobs (the old rate was about 1 in 6). **Ruled out before
+   backported (`patches/README.md`). **What confirms it:** no Android crash across at least
+   six jobs (the old rate was about 1 in 6). **3 of 6 so far:** 35990530595 (80cc189) ran all
+   three Android jobs through 7c and 7b with no crash; iOS was 3/3. Its one red was the
+   driver self-test's 120s wait on a slow emulator (the run finished, 38/38, just after); the
+   budget is now 300s. One more clean run closes it. **Ruled out before
    this:** SQLite handles (f6121a3, d2dd420, c0b7eb0) and expo's registry race (a Kotlin
    exception, patched separately). iOS crashed natively twice (35483355076, 35554646445) and
    has been clean since 2026-09-21; the patch is Android-only, so an iOS recurrence is a

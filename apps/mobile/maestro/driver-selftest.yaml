@@ -31,11 +31,11 @@ appId: com.leapsake.app
 # ActivityIndicator under testID="driver-selftest" until the async run finishes. So
 # first WAIT (generously) for the status element to appear at all; keying on the id
 # alone tolerates any outcome (PASS/FAIL/ERROR), so this step means "the run finished",
-# distinct from the assertion below.
+# distinct from the assertion below. A starved hosted Android emulator has run past 120s.
 - extendedWaitUntil:
     visible:
       id: "driver-selftest-status"
-    timeout: 120000
+    timeout: 300000
 
 # Bind the assertion to that exact element AND its accessibilityLabel token.
 # testID -> Android resource-id / iOS accessibilityIdentifier (matched by `id`);
