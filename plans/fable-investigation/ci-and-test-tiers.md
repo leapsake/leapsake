@@ -68,11 +68,8 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4a → 5 → 6 → 4b → 4c → 4d → 4e**, with 7's parts slotted in anywhere.
+**Order: 5 → 6 → 4b → 4c → 4d → 4e** (4a landed), with 7's parts slotted in anywhere.
 
-- **4a first**: it changes no behaviour (the dev client still sets the flag), so it can land
-  while `remote-releases.md` step 6 is still measuring, and the release check it adds must exist
-  before any release build carries the flag. 5 is pure TypeScript and can run beside it.
 - **6 depends on 5**: 6 removes the only test of the recovery-door rewrite, and 5 replaces it.
 - **5 and 6 before 4c and 4d**, so each platform switch moves three flows, not five, and
   builds the merged Flow 4 on `lose-keys.yaml` once, rather than porting 07b and 07c only to
@@ -164,9 +161,15 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
 
 **Commits** (interleaved with 5 and 6 per _Order_ above):
 
-- **4a. The flag and the release check.** Move the three routes from `__DEV__` to the flag
-  (`dev-clear-dbkey` Android only). Add the preflight in `scripts/release/` and show it failing
-  on a flag-on bundle. The dev client still sets the flag, so nothing else changes yet.
+- **4a. The flag and the release check. ✅ Landed 2026-09-24.** Each test-only screen lives in
+  `apps/mobile/test/screens/` and carries `TEST_ONLY_MARKER`. Its route in `app/` loads it
+  only when `__DEV__ || process.env.EXPO_PUBLIC_E2E === "1"` (`dev-clear-dbkey` also needs
+  Android), decided at bundle time, so a store bundle leaves the module out.
+  `scripts/release/test-only.mjs` refuses an `.ipa` or `.aab` whose bundle contains the marker.
+  **Keep the condition written inline in each route:** it is only removed at build time while
+  Metro can fold it in place, and a shared constant imported from another module would not be.
+  To check a change to it in about ten seconds, run `pnpm exec expo export --platform <p>` with
+  and without `EXPO_PUBLIC_E2E=1`, and grep the `.hbc` for the marker.
 - **4b. `console.error` fails a flow**, under the flag.
 - **4c. iOS switches.** The harness builds a Release-configuration simulator app with the flag
   and drops Metro, the launcher and dev-menu handling on the iOS path (`ios-prepare.yaml` should

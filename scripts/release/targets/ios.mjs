@@ -55,6 +55,7 @@ import {
   pinnedConfig,
 } from "../mobile.mjs";
 import { commitOfBuild } from "../receipts.mjs";
+import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
 import { signingFilesProblem, stageSigningIdentity } from "./ios-signing.mjs";
 
 /**
@@ -1173,6 +1174,7 @@ export default {
 
     const ipa = readdirSync(exportPath).find((entry) => entry.endsWith(".ipa"));
     if (!ipa) throw new Error(`no .ipa in ${exportPath}`);
+    assertNoTestOnlyCode(join(exportPath, ipa), BUNDLE_IN.ipa);
     // `bundleId` travels with the artifact rather than being re-read in `publish()`: it is
     // what identifies the app to App Store Connect, and it must be the value Expo actually
     // resolved for *this* build, not what `app.json` says a second later.

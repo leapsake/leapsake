@@ -323,7 +323,7 @@ prod-faithful. (jest-expo remains fine for pure-JS mobile _unit_ tests — just 
 driver.) Using **better-sqlite3** "as mobile" is the same trap from the other side: that is
 desktop's engine.
 
-So the real `expoSqliteDriver` runs **inside the app on a simulator/emulator**: a `__DEV__`-gated
+So the real `expoSqliteDriver` runs **inside the app on a simulator/emulator**: a test-only
 route builds a real `openDatabaseAsync(...)` → `expoSqliteDriver` and runs the **shared
 `runDriverContract` spec** — the same one desktop runs — in-process against the real engine and
 real SQLCipher. A Maestro flow launches the app on a booted device, deep-links to it, and asserts
@@ -486,7 +486,12 @@ copy` can pull the app container; otherwise a human has to read the screen. On t
   (`$(xcrun simctl get_app_container booted com.leapsake.app data)/Documents/SQLite/…`) make a
   much faster loop — reproduce there first if you can.
 
-## `__DEV__` deep links
+## Test-only deep links
+
+These exist in the dev client and in a build made with `EXPO_PUBLIC_E2E=1`, where
+`dev-clear-dbkey` is Android-only. A store build contains none of them: the route decides at
+bundle time, so the screen's module (under `test/screens/`) is left out, and
+`scripts/release/test-only.mjs` refuses to upload a bundle that has one.
 
 ```sh
 leapsake://dev-selftest       # driver contract + the custody suite, on device

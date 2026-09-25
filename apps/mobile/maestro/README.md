@@ -151,7 +151,7 @@ One-time / per-session setup, Android:
    pnpm --filter @leapsake/mobile android   # builds, installs, and starts Metro
    ```
    (or `pnpm --filter @leapsake/mobile dev` to start Metro against an already-installed
-   build). The self-test screen is `__DEV__`-only, so this must be a **dev-client** build
+   build). The self-test screen exists only in test builds, so this must be a **dev-client** build
    (Expo dev-client + Metro), not a release binary. If you add or remove a native module,
    rebuild with `pnpm --filter @leapsake/mobile android`.
 
@@ -185,7 +185,7 @@ Per-session iOS setup:
    ```
    pnpm --filter @leapsake/mobile ios   # builds, installs, launches, starts Metro
    ```
-   The self-test screen is `__DEV__`-only, so this must be a dev-client build. If you
+   The self-test screen exists only in test builds, so this must be a dev-client build. If you
    add/remove a native module, rebuild with the same command (a stale build missing a new
    native module redboxes on launch).
 
@@ -354,7 +354,7 @@ reachable; these are the ones that come up:
 | `leapsake://add`                                            | the combined create form, on its Person half   |
 | `leapsake://about-you`                                      | the screen that sets the self-person           |
 | `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind           |
-| `leapsake://dev-selftest`                                   | the driver-contract self-test (`__DEV__` only) |
+| `leapsake://dev-selftest`                                   | the driver-contract self-test (test builds only) |
 
 When something behaves oddly, run `maestro test maestro/driver-selftest.yaml` early: it
 asserts **PASS** from the driver contract in a few seconds, which rules out the whole layer

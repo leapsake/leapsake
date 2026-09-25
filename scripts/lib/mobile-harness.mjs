@@ -221,9 +221,8 @@ const maestro = resolveMaestro();
 
 const maestroPresent = () => run(maestro, ["--version"]).status === 0;
 
-// Metro must be serving (the dev client loads its JS bundle from it). The dev-only routes
-// some flows use are __DEV__-only, so a release build won't have them — a running Metro
-// implies dev. Memoized: the same host Metro serves every platform, so we probe it once
+// Metro must be serving (the dev client loads its JS bundle from it). The test-only routes
+// some flows use are absent from a store build — a running Metro implies dev. Memoized: the same host Metro serves every platform, so we probe it once
 // per run.
 let metroCache;
 async function metroReachable() {

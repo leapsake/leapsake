@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { envSet, fileAt } from "../checks.mjs";
 import { MOBILE, appIcon, must, pinnedConfig } from "../mobile.mjs";
 import { playFromEnv } from "../play.mjs";
+import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
 
 // ⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's closed testing
 // track is called "Alpha" in the Console and `alpha` over the API; its `beta` is *open*
@@ -309,6 +310,7 @@ export default {
     const aab = AAB(root);
     if (!existsSync(aab)) throw new Error(`gradle produced no AAB at ${aab}`);
     assertSignedByUploadKey(aab);
+    assertNoTestOnlyCode(aab, BUNDLE_IN.aab);
 
     return { files: { aab }, buildNumber: versionCode, bundleId: packageName };
   },
