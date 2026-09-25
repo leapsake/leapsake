@@ -68,7 +68,7 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order.** 4 is independent of everything else here. **6 depends on 5**: 6 removes the only
+**Order.** 4 is independent of 5 and 7; it and 6 share one subflow (see 4, _With step 6_). **6 depends on 5**: 6 removes the only
 test of the recovery-door rewrite, and 5 is what replaces it. 7's four parts are independent of
 each other and of 4–6; 7c waits on the `RelationshipFields` row of
 [`shared-form-logic.md`](./shared-form-logic.md). Ideally 5 and 6 land before
@@ -79,55 +79,106 @@ push pays for whatever the gate costs from then on.
 E2E too. That needs a distinct `KDF_ALG` recorded in the account row so a cheap-recipe door can
 never be mistaken for a real one, and it changes what the door files say. Worth minutes per arc.
 
-### 4. Decide what binary E2E drives
+### 4. E2E drives a release-configuration build
 
-An open decision, recorded here so the fidelity gap is not forgotten. Options:
+**Decided (owner, 2026-09-24):** E2E drives a **release-configuration build** of the app, not
+the dev client. **iOS first, then Android, and Android is part of this step, not a follow-up.**
+**No build-time budget:** fidelity outranks run time; if the gate gets slow, pull other levers
+(the KDF question above, caching, fewer flows) rather than go back to the dev client.
 
-- **Keep the dev client.** Cheapest; the selftest tier needs it anyway for its `__DEV__`
-  route. The gate then proves a dev bundle, and the docs should say so honestly.
-- **Release-configuration simulator build for E2E** (`expo run:ios --configuration Release`).
-  Closer to what ships, no Metro in the harness, and the custody flows run against the real
-  bundle. Costs a second build per run unless the selftest moves off `__DEV__`.
+**Why.** The gate exists to protect data at `rc`, and today it proves a dev bundle served by
+Metro, which is not what `rc` uploads. Release-only failures (Hermes bytecode, minification,
+code behind `__DEV__`) are invisible to it. And the dev client is itself a source of flake:
+[`remote-releases.md`](./remote-releases.md) step 6 measured three stoppers that came only
+from it (the dev-menu onboarding sheet over the app, the launcher entry vanishing mid-tap,
+Metro bundle waits). About a third of `scripts/lib/mobile-harness.mjs` (1,713 lines, no tests)
+exists only to drive the dev client, and this step deletes it.
 
-Evidence from the dependency audit ([`dependency-balance.md`](./dependency-balance.md), which
-owns nothing else here — it looked at the harness, found **no library replaces it**, and left it
-to this step): `scripts/lib/mobile-harness.mjs` is the repo's largest bespoke file, about 1,500
-lines with no tests, and roughly a third of it exists only to drive the dev client — waiting on
-Metro, settling the dev menu, deep-linking past the launcher. The second option deletes that
-third; the first keeps it and its maintenance. The audit's recommendation is the second, with
-the selftest route gated on a build-time flag instead of `__DEV__` so one build serves both
-tiers.
+**The split, by activity:** the harness (`pnpm test:e2e`, `pnpm test:native`) always drives the
+release build. Driving the app by hand and scratch flows keep the dev client and Metro, where
+quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the app by hand_).
 
-Whichever is chosen, correct `CONTRIBUTING.md` → _The E2E release gate_ to describe it.
+**The three decisions this step rests on:**
 
-**What [`remote-releases.md`](./remote-releases.md) step 6 added to this, 2026-09-20.** Two days
-of hosted-runner measurement is the strongest evidence this decision has, and it costs work to
-re-derive:
+1. **Test-only screens are gated by a build-time flag, and a release check refuses any store
+   bundle that contains them.** The three `__DEV__` routes (`dev-selftest`, `dev-clear-dbkey`,
+   `dev-export`) currently redirect home in any release build, which would silently break
+   `test:native` and the door flows. They move to a build-time flag (for example
+   `EXPO_PUBLIC_E2E=1`) that only the E2E build sets. ⚠️ **`dev-clear-dbkey` deletes the
+   database key and is reachable by deep link from any app or website**, so the flag leaking into
+   a store build must be impossible, not merely unlikely: `scripts/release/` gains a preflight
+   that inspects the bundle about to be uploaded (for both platforms) and fails if any test-only
+   route is present. Prove it bites by building once with the flag on and watching it refuse.
+2. **On iOS, key loss comes from outside the app; the route is never in an iOS build.**
+   `xcrun simctl keychain <udid> reset` (already used by the harness's wipe) replaces
+   `dev-clear-dbkey` on iOS. That loses the **whole** keychain (db-key, recovery key, device
+   id, enclave), which is what a new phone or the transfer to the company account actually
+   costs someone, so it also exercises the device-identity repair no flow reaches today. Gate
+   `dev-clear-dbkey` so an iOS bundle cannot contain it at all (flag **and** Android only).
+   **Android keeps the route behind the flag**, because nothing outside an Android app can
+   delete its keystore entries on a non-debuggable build. There, the flows tap **Clear
+   everything**, not **Clear db-key**, so both platforms rehearse the same disaster. (Root on an
+   emulator image might allow an outside reset later. That is unverified, and not needed for
+   this step.)
+3. **Android E2E uses a new `e2e` build type, signed with the debug key.** It matches `release`
+   in everything that changes behaviour (minified, Hermes, JS bundled in, no dev tools) and
+   differs only in its signature. The upload key stays off CI runners. Play rejects a
+   debug-signed build, so an `e2e` build cannot be uploaded by accident, and
+   `plugins/with-android-release-signing.js`'s rule that `release` never falls back to the debug
+   key stays exactly as it is. Keep the same `applicationId`, so the Maestro `appId` and the
+   harness paths do not fork. The signature does not affect the Android Keystore or anything
+   else the flows exercise; that it is signed correctly for Play is the upload step's check.
 
-- **The dev client caused three separate stoppers** that a release build would not have: the
-  dev-menu onboarding sheet opening over the app, the launcher's entry vanishing mid-tap, and
-  Metro bundle waits. Each cost a run to find. **The fourth, a LogBox banner over the tab bar,
-  was a real bug** (expo's shared-object registry race, patched 2026-09-24) that a release build
-  would have hidden, because a failed reminder regeneration only logs. That counts _for_ keeping
-  console errors visible: whichever build E2E drives, a `console.error` should fail the flow.
-- **Three `__DEV__` routes are load-bearing, not one.** `dev-selftest` (driver-contract tier)
-  **and `dev-clear-dbkey` (Flows 07b and 07c)** both redirect home when `__DEV__` is false, so a
-  release build breaks the custody flows too, silently. The build-time flag has to cover both.
-- **Android is where the work is.** An iOS _simulator_ Release build needs no signing. Android's
-  release build type deliberately has **no debug-key fallback**
-  (`plugins/with-android-release-signing.js`; "a debug-signed release build is the failure that
-  looks like success"), so an Android release-variant E2E build needs either the upload keystore
-  on the runner or a new E2E variant signed with the debug key. That decision is this step's.
-- **It will not fix dropped input by itself.** React Native does a JS round trip per keystroke,
-  so a busy JS thread still loses characters; the flows keep their read-back retries
-  (`maestro/subflows/type-checked.yaml`). Dropping Metro frees the thread, it does not remove it.
-- **Two alternatives were checked and rejected.** _Pasting_: Maestro 2.8.0 has no
-  `setText`/`replaceText`; `pasteText` only pastes what `copyTextFrom` took from an element
-  already on screen, so arbitrary text needs the device clipboard set from outside the flow
-  (`simctl pbcopy` on iOS; Android has no simple `adb` equivalent). _Seeding fixtures through a
-  dev route_: worth little here, because the arc already shares state — later flows inherit Mary
-  rather than retyping her — and the typing that remains is what each flow exists to prove.
+**Two consequences to design for:**
 
+- **A flow cannot run a shell command.** The door acts need the key lost *mid-flow* (the phrase
+  cannot leave the `maestro test` process that captured it; step 6). The likely route is
+  Maestro's `runScript`, whose JS runs on the host and has an `http` client: the harness serves
+  a local endpoint that runs `simctl keychain reset`, and a `subflows/lose-keys.yaml` calls it on
+  iOS and opens the route on Android (`when: platform:`). Verify that `http` works in the Maestro
+  version pinned here before building on it. Confirm too that the app sees the reset after a
+  relaunch without the simulator rebooting.
+- **Release builds show no LogBox, so a `console.error` would stop failing anything.** That is
+  how the shared-object race was found (a failed reminder regeneration only logs). Under the E2E
+  flag, make any `console.error` fail the flow: for example, render a marker with a `testID` the
+  harness asserts is absent after every flow. Keep it inside the flag, so store builds carry
+  none of it.
+
+**Commits, in order:**
+
+- **4a. The flag and the release check.** Move the three routes from `__DEV__` to the flag
+  (`dev-clear-dbkey` Android only). Add the preflight in `scripts/release/` and show it failing
+  on a flag-on bundle. The dev client still sets the flag, so nothing else changes yet.
+- **4b. `console.error` fails a flow**, under the flag.
+- **4c. iOS switches.** The harness builds a Release-configuration simulator app with the flag
+  and drops Metro, the launcher and dev-menu handling on the iOS path (`ios-prepare.yaml` should
+  shrink to a readiness wait, or go). Key loss goes through `lose-keys.yaml`. The flows can use
+  `launchApp` again (`ios-prepare.yaml`'s warning about it is specific to the dev client). Arc
+  green, and **record the build time and the arc time in the commit message**, as numbers, not as
+  a gate.
+- **4d. The Android `e2e` build type**, the Android half of `lose-keys.yaml` (Clear everything),
+  and the Android path switched. The harness's `run-as` step for dev-menu prefs goes: `run-as`
+  needs a debuggable build, and there is no dev menu left to settle.
+- **4e. Delete what is left of dev-client handling in `mobile-harness.mjs`**, and correct the
+  docs: `CONTRIBUTING.md` → _The E2E release gate_ (its "production app binary" sentence becomes
+  true), `apps/mobile/maestro/README.md` (_Run it_ and the dev-client traps), and
+  `apps/mobile/README.md` where it says the self-test needs a dev-client build.
+
+**With step 6.** Either can land first. Whichever lands second uses `lose-keys.yaml`. Step 5's
+tests must cover both key-loss shapes: db-key only (the recovery key survives, so the recovery
+door is rewritten) and everything lost (no recovery key, so "read, never mint" leaves the door
+as it was).
+
+**It will not fix dropped input by itself.** React Native does a JS round trip per keystroke,
+so a busy JS thread still loses characters; the flows keep their read-back retries
+(`maestro/subflows/type-checked.yaml`). Dropping Metro frees the thread, it does not remove it.
+
+**Two alternatives were checked and rejected.** _Pasting_: Maestro 2.8.0 has no
+`setText`/`replaceText`; `pasteText` only pastes what `copyTextFrom` took from an element
+already on screen, so arbitrary text needs the device clipboard set from outside the flow
+(`simctl pbcopy` on iOS; Android has no simple `adb` equivalent). _Seeding fixtures through a
+dev route_: worth little here, because the arc already shares state (later flows inherit Mary
+rather than retyping her), and the typing that remains is what each flow exists to prove.
 
 ### 5. Extract mobile's boot sequence out of `CoreProvider`
 
