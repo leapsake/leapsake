@@ -110,8 +110,8 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
    that inspects the bundle about to be uploaded (for both platforms) and fails if any test-only
    route is present. Prove it bites by building once with the flag on and watching it refuse.
 2. **On iOS, key loss comes from outside the app; the route is never in an iOS build.**
-   `xcrun simctl keychain <udid> reset` (already used by the harness's wipe) replaces
-   `dev-clear-dbkey` on iOS. That loses the **whole** keychain (db-key, recovery key, device
+   `xcrun simctl keychain <udid> reset`, reached from a flow as Maestro's `clearKeychain` step,
+   replaces `dev-clear-dbkey` on iOS. That loses the **whole** keychain (db-key, recovery key, device
    id, enclave), which is what a new phone or the transfer to the company account actually
    costs someone, so it also exercises the device-identity repair no flow reaches today. Gate
    `dev-clear-dbkey` so an iOS bundle cannot contain it at all (flag **and** Android only).
@@ -131,13 +131,22 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
 
 **Two consequences to design for:**
 
-- **A flow cannot run a shell command.** The door acts need the key lost *mid-flow* (the phrase
-  cannot leave the `maestro test` process that captured it; step 6). The likely route is
-  Maestro's `runScript`, whose JS runs on the host and has an `http` client: the harness serves
-  a local endpoint that runs `simctl keychain reset`, and a `subflows/lose-keys.yaml` calls it on
-  iOS and opens the route on Android (`when: platform:`). Verify that `http` works in the Maestro
-  version pinned here before building on it. Confirm too that the app sees the reset after a
-  relaunch without the simulator rebooting.
+- **Key loss happens mid-flow, with no shell.** The door acts need the key lost partway
+  through one `maestro test` process, because the phrase it captured cannot leave that process
+  (step 6). A flow cannot run a shell command, and does not need to. Maestro 2.8.0's built-in
+  **`clearKeychain`** step (iOS only) runs `xcrun simctl keychain <udid> reset`, the same
+  command the harness's wipe uses. `subflows/lose-keys.yaml` branches with `when: platform:`:
+  - **iOS:** `stopApp` → `clearKeychain` → `launchApp`. Stop first, so the next launch reads an
+    empty keychain rather than a key still held in memory.
+  - **Android:** open `leapsake://dev-clear-dbkey` → **Clear everything** → relaunch.
+
+  Verify in 4c: the app sees a reset made mid-session without the simulator rebooting (the
+  wipe only ever resets before a first launch), and `launchApp` behaves in a release build
+  (`ios-prepare.yaml`'s warning against it is about the dev client discarding Metro's bundle).
+  **For any future host-side need,** check Maestro's built-in host steps first (`clearKeychain`,
+  `clearState`, `addMedia`, permissions, location). `runScript`'s `http` client calling an
+  endpoint the harness serves also works in 2.8.0, but it adds a server to the harness. Use it
+  only when no built-in fits, and say why in the commit.
 - **Release builds show no LogBox, so a `console.error` would stop failing anything.** That is
   how the shared-object race was found (a failed reminder regeneration only logs). Under the E2E
   flag, make any `console.error` fail the flow: for example, render a marker with a `testID` the
