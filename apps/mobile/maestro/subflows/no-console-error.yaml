@@ -1,0 +1,6 @@
+# Fails if the app has called `console.error` since it launched (`test/console-error-marker.tsx`).
+# The harness runs this after every flow; `relaunch.yaml` runs it before a relaunch resets it.
+appId: com.leapsake.app
+---
+- assertNotVisible:
+    id: "console-error"

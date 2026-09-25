@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -5,6 +6,12 @@ import { AppHeader } from "../components/AppHeader";
 import { CoreProvider } from "../lib/core-context";
 import { headerTitle } from "../lib/record-title";
 import { colors } from "../lib/styles";
+
+// Decided when the bundle is built, so a store bundle leaves the module out.
+const ConsoleErrorMarker: ComponentType | null =
+  __DEV__ || process.env.EXPO_PUBLIC_E2E === "1"
+    ? require("../test/console-error-marker").default
+    : null;
 
 // Root layout: build the core once (CoreProvider gates rendering on it being
 // ready) and host a native stack. The `(tabs)` group is a bottom-tab navigator
@@ -98,6 +105,7 @@ export default function RootLayout() {
         */}
         <StatusBar style="dark" />
       </CoreProvider>
+      {ConsoleErrorMarker && <ConsoleErrorMarker />}
     </SafeAreaProvider>
   );
 }

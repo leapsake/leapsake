@@ -63,7 +63,7 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4b → 4c → 4d → 4e** (4a, 5 and 6 landed), with 6a and 7's parts slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5 and 6 landed), with 6a and 7's parts slotted in anywhere.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
@@ -159,9 +159,17 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
   `scripts/release/test-only.mjs` refuses an `.ipa` or `.aab` whose bundle contains the marker.
   **Keep the condition written inline in each route:** it is only removed at build time while
   Metro can fold it in place, and a shared constant imported from another module would not be.
-  To check a change to it in about ten seconds, run `pnpm exec expo export --platform <p>` with
-  and without `EXPO_PUBLIC_E2E=1`, and grep the `.hbc` for the marker.
-- **4b. `console.error` fails a flow**, under the flag.
+  To check a change to it in about ten seconds, run `pnpm exec expo export --clear --platform
+  <p>` with and without `EXPO_PUBLIC_E2E=1`, and grep the `.hbc` for the marker. Without
+  `--clear`, Metro's cache returns the first bundle for both.
+- **4b. `console.error` fails a flow. ✅ Landed 2026-09-24.** Under the same inline condition,
+  `app/_layout.tsx` loads `test/console-error-marker.tsx`, which wraps `console.error` and, once
+  anything has logged, renders a `console-error` element labelled with the first message. It
+  carries `TEST_ONLY_MARKER`, so the release check refuses a store bundle with it. The harness
+  runs `maestro/subflows/no-console-error.yaml` after every green flow, and `relaunch.yaml` runs
+  it before each relaunch, since a relaunch resets it. Proven on the iOS dev client with two
+  sabotages (an error on a screen Flow 1 leaves by relaunching, and one on a screen it reaches
+  after): each went red at its own check, naming the message. It adds about 30s to the iOS arc.
 - **4c. iOS switches.** The harness builds a Release-configuration simulator app with the flag
   and drops Metro, the launcher and dev-menu handling on the iOS path (`ios-prepare.yaml` should
   shrink to a readiness wait, or go). Key loss goes through `lose-keys.yaml`. The flows can use

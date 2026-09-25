@@ -71,6 +71,11 @@ const DEV_CLIENT_LINK = `${SCHEME}://expo-development-client/?url=${encodeURICom
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const MAESTRO_DIR = join(ROOT, "apps", "mobile", "maestro");
 const IOS_PREPARE_FLOW = join(MAESTRO_DIR, "ios-prepare.yaml"); // iOS bundle-load helper
+const NO_CONSOLE_ERROR_FLOW = join(
+  MAESTRO_DIR,
+  "subflows",
+  "no-console-error.yaml",
+);
 const IOS_AUTOFILL_FLOW = join(MAESTRO_DIR, "ios-autofill.yaml"); // iOS AutoFill preflight
 
 // **What the emulator is given, rather than what its AVD happens to say.** Android Studio
@@ -1575,6 +1580,13 @@ async function runPlatform(driver, provision, suite) {
           `flow RED: ${flow.label} (${flow.file})\n` +
             `on screen: ${onScreen(ctx.device)}` +
             (crashed ? `\nthe app crashed:\n${crashed}` : ""),
+        );
+      }
+      // Release builds show no LogBox, so a logged error is asserted on instead.
+      if (runMaestroFlow(ctx.device, NO_CONSOLE_ERROR_FLOW) !== 0) {
+        return wrap(
+          FAIL,
+          `console.error during ${flow.label}\non screen: ${onScreen(ctx.device)}`,
         );
       }
       const custody = runCustody(driver, ctx, flow);

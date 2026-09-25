@@ -439,6 +439,19 @@ then `subflows/unlock-after-key-loss.yaml` runs twice in the same process: db-ke
 door; db-key lost again, phrase door. Password first means the phrase unlock also proves the
 recovery door the password unlock resealed.
 
+### A logged error fails the flow
+
+A `console.error` does not fail anything by itself: on the dev client it raises a LogBox banner,
+which fails a flow only when it happens to cover the next tap, and a release build shows
+nothing at all. So in dev and E2E bundles, `test/console-error-marker.tsx` renders a small
+element with the `console-error` testID once anything has logged an error, labelled with the
+first message. The harness runs `subflows/no-console-error.yaml` after every green flow, and
+`subflows/relaunch.yaml` runs it before each relaunch, which would otherwise reset it. The
+failure prints the message in its `on screen:` line.
+
+It sees `console.error` only. Crashes are the harness's own check (`on screen:` is followed by
+`the app crashed:`).
+
 ### What the app's own state looks like from here
 
 - **Every run starts from a wiped app, and the harness is what guarantees it.** Before the

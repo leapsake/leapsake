@@ -25,6 +25,7 @@
 # before the launcher has drawn.
 appId: com.leapsake.app
 ---
+- runFlow: no-console-error.yaml
 - stopApp
 - launchApp
 - waitForAnimationToEnd:
