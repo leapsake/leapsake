@@ -7,8 +7,8 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
 **Before adding a flow here**, read [`plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ _What earns a flow here_. The three top-level flows below that no runner invokes
-(`global-nav`, `unpublished-people`, `anniversary-partner`) fail that rule and
+→ _What earns a flow here_. The two top-level flows that no runner invokes
+(`global-nav`, `anniversary-partner`) fail that rule and
 are being retired: [`ci-and-test-tiers.md`](../../../plans/fable-investigation/ci-and-test-tiers.md)
 step 7.
 

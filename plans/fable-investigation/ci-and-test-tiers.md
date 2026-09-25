@@ -45,11 +45,10 @@ minutes on iOS. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the
 | `driver-selftest.yaml`                 | Keep. It is unit tests that need the real engine, not E2E                                                                       | —    |
 | `ios-prepare.yaml`, `ios-autofill.yaml` | Harness, not tests                                                                                                              | —    |
 | `store/`                               | Screenshot tooling, not tests                                                                                                   | —    |
-| `unpublished-people.yaml`              | Leave the tier. Its claims are query behaviour                                                                                  | 7b   |
 | `anniversary-partner.yaml`             | Leave the tier. Its claims are form state                                                                                       | 7c   |
 | `global-nav.yaml`                      | Leave the tier. Its claims are route and header configuration                                                                   | 7d   |
 
-None of the three remaining one-off flows is wired into any runner, so retiring them costs no gate
+Neither remaining one-off flow is wired into any runner, so retiring them costs no gate
 anything; what they hold is claims that deserve a test somewhere cheaper.
 
 **Nothing on mobile's boot path is reachable only through E2E any more** (step 5): which
@@ -62,11 +61,11 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a and 7a landed), with 7b–7d slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a, 7a and 7b landed), with 7c and 7d slotted in anywhere.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7b–7d** are independent of each other and of 4. 7c waits on the
+- **7c and 7d** are independent of each other and of 4. 7c waits on the
   `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
@@ -254,12 +253,13 @@ Accepted residual risk for the second, the row's tick: `GiftsSection`'s `setGive
 `core.gifts.recipients.update` call, whose writes `gifts.test.ts` covers, and no hook falls
 out of `shared-form-logic.md` for that row.
 
-**7b. `unpublished-people.yaml`.** `apps/desktop/test/integration/unpublished-people.test.ts`
-and `entity-repo.test.ts` already exist. Confirm the flow's four claims are there: an
-unpublished person is (1) created by a relationship save, (2) absent from `list()`, (3) absent
-from the relationship picker's query, (4) found by search as "matched on" through their
-subject (`search-service.ts`'s `attached` pass). Add whichever is missing, then delete the flow.
-Accepted residual risk: a screen calling the wrong query.
+**7b. `unpublished-people.yaml`. ✅ Landed 2026-09-24.** Deleted; nothing needed adding. In
+`apps/desktop/test/integration/`, `unpublished-people.test.ts` covers creation by a
+relationship save and absence from `people.list()`, `views.entityList()` and
+`views.candidates()`; `search-service.test.ts` covers search resolving her to her anchor with
+a `relationship` reason. Both sabotages bite (drop `listOnly` from `people-repo.ts`; skip the
+`attached` pass in `search-service.ts`). Accepted residual risk: a screen calling the wrong
+query, or rendering a reason wrongly.
 
 **7c. `anniversary-partner.yaml`.** Its claims are `PartyField`/`PartnerField` state (Edit
 appears only once a role is picked; Save after Edit revises that relationship rather than
