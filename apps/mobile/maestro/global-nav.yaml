@@ -52,8 +52,8 @@
 #
 #   maestro --udid <sim> test global-nav.yaml
 #
-# It creates nothing — every form it opens is left by Back — so unlike
-# `staged-gifts.yaml` it needs no per-run tag. It does need to **clear the search
+# It creates nothing — every form it opens is left by Back — so it needs no per-run
+# tag. It does need to **clear the search
 # filter it may have left behind**, and it does that on the way *in* rather than
 # only on the way out: a run that fails anywhere in case 4 leaves the tab narrowed,
 # and the next run then finds a chip where it expected tiles and fails for a reason

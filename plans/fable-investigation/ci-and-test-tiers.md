@@ -45,12 +45,11 @@ minutes on iOS. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the
 | `driver-selftest.yaml`                 | Keep. It is unit tests that need the real engine, not E2E                                                                       | —    |
 | `ios-prepare.yaml`, `ios-autofill.yaml` | Harness, not tests                                                                                                              | —    |
 | `store/`                               | Screenshot tooling, not tests                                                                                                   | —    |
-| `staged-gifts.yaml`                    | Leave the tier. **It has never been run**                                                                                       | 7a   |
 | `unpublished-people.yaml`              | Leave the tier. Its claims are query behaviour                                                                                  | 7b   |
 | `anniversary-partner.yaml`             | Leave the tier. Its claims are form state                                                                                       | 7c   |
 | `global-nav.yaml`                      | Leave the tier. Its claims are route and header configuration                                                                   | 7d   |
 
-None of the four one-off flows is wired into any runner, so retiring them costs no gate
+None of the three remaining one-off flows is wired into any runner, so retiring them costs no gate
 anything; what they hold is claims that deserve a test somewhere cheaper.
 
 **Nothing on mobile's boot path is reachable only through E2E any more** (step 5): which
@@ -63,11 +62,11 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4c → 4d → 4e** (4a, 4b, 5, 6 and 6a landed), with 7's parts slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a and 7a landed), with 7b–7d slotted in anywhere.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7's four parts** are independent of each other and of 4. 7c waits on the
+- **7b–7d** are independent of each other and of 4. 7c waits on the
   `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
@@ -248,12 +247,12 @@ confirm the lower-tier test, sabotage it once to prove it bites (the flow header
 sabotage), delete the flow, and delete its entry in `apps/mobile/maestro/README.md`'s opening
 list. When the last one goes, that list is the self-test and the two iOS helpers.
 
-**7a. `staged-gifts.yaml`: delete it.** It has never been run, so it provides no confidence
-today. Its two claims: "the create form's Save writes staged gifts" (sabotage:
-`applyEntityForm` skips `value.gifts`) and "the row's tick writes where it stands" (sabotage:
-`GiftsSection`'s `setGiven` a no-op). Check `apps/desktop/test/integration/gifts.test.ts` for
-the first. The second is a mobile component calling a core method: if a hook falls out of
-`shared-form-logic.md`'s gift row, test it there; otherwise, accept that the smoke is enough.
+**7a. `staged-gifts.yaml`. ✅ Landed 2026-09-24.** Deleted. Its first claim, that the create
+form's Save writes staged gifts, is `apps/mobile/lib/entity-form-apply.test.ts`, which runs
+`applyEntityForm` against a real core (sabotage: skip `value.gifts`, all three cases red).
+Accepted residual risk for the second, the row's tick: `GiftsSection`'s `setGiven` is one
+`core.gifts.recipients.update` call, whose writes `gifts.test.ts` covers, and no hook falls
+out of `shared-form-logic.md` for that row.
 
 **7b. `unpublished-people.yaml`.** `apps/desktop/test/integration/unpublished-people.test.ts`
 and `entity-repo.test.ts` already exist. Confirm the flow's four claims are there: an

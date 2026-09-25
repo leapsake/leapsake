@@ -31,7 +31,7 @@
 # it is used.
 appId: com.leapsake.app
 ---
-# The per-run stamp, as `staged-gifts.yaml` does it. Names are also
+# A per-run stamp on every name it creates. Names are also
 # chosen not to be substrings of each other or of the seeded simulator contacts,
 # since every assertion below is about one name being present while another is
 # absent.

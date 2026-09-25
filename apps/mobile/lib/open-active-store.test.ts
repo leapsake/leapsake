@@ -29,6 +29,7 @@ import {
   storePath,
 } from "@leapsake/store-layout";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sqliteDriver } from "../test/node-sqlite-driver";
 import { forgetAccountOnThisDevice } from "./forget-account";
 import { forgetActiveAccount } from "./forget-active-account";
 import { type BootDoors, openActiveStore } from "./open-active-store";
@@ -50,30 +51,6 @@ function recordingKeyStore(): KeyStore & { writes: string[] } {
       writes.push(`delete ${id}`);
       await inner.deleteSecret(id);
     },
-  };
-}
-
-/** The same engine desktop ships, keyed the way the mobile opener keys expo-sqlite. */
-function sqliteDriver(db: Database.Database): SqliteDriver {
-  return {
-    exec: async (sql) => void db.exec(sql),
-    run: async (sql, params = []) => void db.prepare(sql).run(...params),
-    all: async <T>(sql: string, params: unknown[] = []) =>
-      db.prepare(sql).all(...params) as T[],
-    get: async <T>(sql: string, params: unknown[] = []) =>
-      db.prepare(sql).get(...params) as T | undefined,
-    async transaction<T>(fn: () => Promise<T>) {
-      db.exec("BEGIN");
-      try {
-        const result = await fn();
-        db.exec("COMMIT");
-        return result;
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
-      }
-    },
-    close: async () => void db.close(),
   };
 }
 
