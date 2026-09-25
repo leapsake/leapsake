@@ -6,6 +6,12 @@ the in-app self-test on an emulator/simulator and asserts **PASS** from the comm
 so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
+**Before adding a flow here**, read [`plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
+→ _What earns a flow here_. The four top-level flows below that no runner invokes
+(`global-nav`, `staged-gifts`, `unpublished-people`, `anniversary-partner`) fail that rule and
+are being retired: [`ci-and-test-tiers.md`](../../../plans/fable-investigation/ci-and-test-tiers.md)
+step 7.
+
 - **`driver-selftest.yaml`** — the Maestro flow: deep-link to the self-test route, wait
   for the async contract run to finish, assert the `driver-selftest-status` element's
   accessibility label is `PASS`. Vendor-neutral: plain open-source Maestro YAML, no

@@ -18,11 +18,12 @@ ports).
 | --- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | 1   | [`comment-pass.md`](./comment-pass.md)           | Decision history living in source comments. What remains: `apps/mobile` (about 5,600 comment lines), then the other packages, apps and `scripts/`. | **Do it, and adopt the rule.** Behaviour comments only, under two lines; decisions go to `git log` and package READMEs. |
 | 2   | [`shared-form-logic.md`](./shared-form-logic.md) | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                         | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                   |
-| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E flows standing in for a missing mobile hook tier; an E2E arc that never relaunches the app.                                                                    | **Do it.** Extract the unlock loop, add a hook tier, shrink the arc to one smoke plus the custody flows.                 |
+| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E flows proving what a lower tier should: door negatives, form state, query behaviour, navigation config. Steps 1–3 landed; 5–7 cut the arc to three flows and retire the four one-off flows. | **Do it.** Admission rule in `testing/crucial-flows.md`; step 6 waits on 5, and has one policy question for the owner. |
 | 4   | [`remote-releases.md`](./remote-releases.md)     | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels. | **Do it.** Nine decisions recorded in the doc; steps 1–4 are script-only and can start now.                             |
 | 5   | [`dependency-balance.md`](./dependency-balance.md) | Bespoke code that a platform API or an already-present package covers (the relay's uncapped body reader, a hand-rolled base64, an ESLint plugin for one rule); the kept bespoke tooling gets a tripwire each. | **Do it.** Step 1 is a live vulnerability and goes first; the rest are independent. Kept items are not reopened until their tripwire fires. |
 
-2 and 3 can run in parallel with 1; 5 is independent of all of them. The repo is public, so
+2 and 3 can run in parallel with 1, except that 3's step 7c waits on 2's `RelationshipFields`
+hook. 5 is independent of all of them. The repo is public, so
 4 has no gate left outside itself.
 
 ### Where 3 and 4 pull on each other
@@ -32,8 +33,9 @@ its step 8 lands, 3 outlives it). But four couplings are real, and doing them ou
 work:
 
 - **3's steps 1–3 landed 2026-09-24**, which is what makes 4's step 7 gate cheaper: the arc is
-  01 → smoke → 04 → 07c → 07b, and the unlock loop and gate state are tested below it. 07b and
-  07c still step through their negative cases in the UI, as the catalog asks.
+  01 → smoke → 04 → 07c → 07b, and the unlock loop and gate state are tested below it. **3's
+  steps 5–6 shrink it again** to 01 → smoke → 04, with both doors as 04's closing acts; landing
+  them before 4's step 7 means `ci.yml` never pays for the longer arc.
 - **3's step 4 should land before 4's step 7 wires the gate into `ci.yml`.** Step 7 runs the
   device tiers on every push to `main`; whatever the gate costs and however often it flakes,
   that is what the repo pays from then on. The release-configuration build deletes the dev

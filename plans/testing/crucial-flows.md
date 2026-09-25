@@ -16,9 +16,33 @@
 Each flow asserts on **what's on screen** and drives the **built app** through its real
 boundary: never the app's internals, never a mocked engine. The catalog is **deliberately
 small**: the driver-contract keystone proves the engine seam and the desktop integration suites
-prove the shared repo/service logic, so E2E only needs to prove the journeys those tiers _can't_,
-the ones that only exist once real UI, real OS key storage, and (for sync) two real devices are
-wired together. A simulator/emulator/VM is the accepted approximation.
+prove the shared repo/service logic, so E2E proves only what the rule below admits. A
+simulator/emulator/VM is the accepted approximation.
+
+## What earns a flow here
+
+A flow is expensive: minutes per run, per platform, and a class of flake no lower tier has. So
+a journey is **crucial** only when both hold:
+
+1. **Its claim is about the seam between the app and the real runtime**: the OS key store, the
+   native SQLite engine, a process relaunch, the app surviving its own store being replaced,
+   the pre-database boot path, or (with sync) two real devices.
+2. **If it broke, someone would lose data or could not open the app.**
+
+And three rules for what a flow contains:
+
+- **One happy path per seam.** Negative cases and branches go one tier down, where they cost
+  milliseconds. A flow keeps a negative only when the rejection itself happens at the seam.
+- **"No lower tier can reach it" is a reason to make it reachable, not to write a flow.**
+  Extract the logic behind a port, test it there, and let the flow prove only the wiring.
+  Otherwise every line written somewhere hard to test becomes E2E's to carry.
+- **A flow that no runner runs is not a test.** Anything under `apps/mobile/maestro/` that
+  `pnpm test:e2e` or `pnpm test:native` does not invoke is a scratch flow, and scratch flows
+  are not committed.
+
+Screen behaviour that fails neither test (a form's state rules, which query a screen calls,
+navigation configuration) belongs in a hook test, an integration test, or a test over the
+configuration. Checking it on a simulator once, with a scratch flow, is fine.
 
 **This catalog is authored against the app as actually built.** Two consequences a harness
 author will otherwise get wrong:
@@ -172,6 +196,10 @@ surface no lower tier reaches).
 
 ### Flow 7 — The doors back in (three variants)
 
+> **Changing:** 7b and 7c are to fold into Flow 4 as its closing acts, with their negatives
+> moved below E2E: [`../fable-investigation/ci-and-test-tiers.md`](../fable-investigation/ci-and-test-tiers.md)
+> steps 5 and 6. Until step 6 lands, this section describes the harness as built.
+
 The phrase and the password are the two ways back into an Authenticated store; **all three
 variants gate**. Every variant carries its **negative case**: a wrong secret must be rejected
 visibly and must corrupt nothing. Leaving the negatives out is how a door that never actually
@@ -237,8 +265,10 @@ the app shows once_.
 
 ## Extended / candidate flows (not in the v0.1 gate unless promoted)
 
-Strong E2E value and untested at the UI level, but promote **deliberately**; the tier stays
+Each of these passes _What earns a flow here_, but promote **deliberately**. The tier stays
 small, and promoting is a scope decision made in [`../shipping.md`](../shipping.md), not here.
+Search and reminder completion do not belong here: a broken one loses no data, so they are
+integration-tier work.
 
 - **Contact import.** Desktop: drop a `.vcf` → review modal → import → people appear. Mobile:
   import from device contacts (`import.tsx`). Import is the one path that writes many records at
@@ -249,9 +279,6 @@ small, and promoting is a scope decision made in [`../shipping.md`](../shipping.
   app returns **in place** to a first-run Unauthenticated state, key store emptied, roster
   cleared. Covered incidentally today by the mobile arc's `factory-reset` subflow rather than as
   a flow of its own.
-- **Search.** Global search → type a person's name → result appears → navigate to them.
-- **Reminder completion / due date.** Complete a reminder (reversible) and set a due date;
-  assert the state change on Home.
 - **Sign out → sign back in.** Sign out closes the store; signing back in with the password
   reopens it. The deliberate half of locking; the automatic/idle half is v0.2.
 - **Rotate the recovery phrase** (once built). Re-auth → new phrase shown once → the old phrase
