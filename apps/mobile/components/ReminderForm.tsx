@@ -10,11 +10,6 @@ import { ChipTextField } from "./ChipTextField";
 
 const DUE_DATE = {
   label: "Due date (optional)",
-  accessibilityLabels: {
-    month: "Due month",
-    day: "Due day",
-    year: "Due year",
-  },
   invalid: "Enter a month, day and year that exist.",
   past: "Pick today or a later date.",
 } as const;
@@ -120,13 +115,9 @@ export function ReminderForm({
           label={DUE_DATE.label}
           value={due.parts}
           onChange={(parts) => setDue((draft) => editDueDate(draft, parts))}
-          accessibilityLabels={DUE_DATE.accessibilityLabels}
           testIDPrefix="reminder-due"
-          invalid={!dueCheck.ok}
+          error={dueCheck.ok ? null : DUE_DATE[dueCheck.problem]}
         />
-        {!dueCheck.ok ? (
-          <Text style={styles.muted}>{DUE_DATE[dueCheck.problem]}</Text>
-        ) : null}
       </ScrollView>
     </>
   );

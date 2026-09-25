@@ -15,11 +15,10 @@ import { SelectField } from "./SelectField";
 import { monthBlankOrValid } from "../lib/date-parts";
 import { styles } from "../lib/styles";
 
-const DATE_LABEL = "Date";
-const DATE_ACCESSIBILITY_LABELS = {
-  month: "Month",
-  day: "Day",
-  year: "Year",
+const DATE = {
+  label: "Date",
+  dayWithoutMonth: "Enter a month to go with the day, or clear the day.",
+  outOfRange: "Enter a month from 1 to 12 and a day from 1 to 31.",
 } as const;
 
 /** The structured value the write uses; the caller supplies bearer + call. */
@@ -116,6 +115,12 @@ function numberOrNull(raw: string): number | null {
 /** A day is only meaningful alongside the month it falls in. */
 function dayWithoutMonth(draft: MilestoneDraft): boolean {
   return draft.day.trim() !== "" && draft.month.trim() === "";
+}
+
+/** What is wrong with the typed date parts, by the schema's rules, or null. */
+function datePartsError(draft: MilestoneDraft): string | null {
+  if (dayWithoutMonth(draft)) return DATE.dayWithoutMonth;
+  return datePartsValid(draft) ? null : DATE.outOfRange;
 }
 
 /** Whether the typed date parts would pass the schema's rules for them. */
@@ -237,14 +242,13 @@ export function MilestoneFields({
 
       {/* `milestone-year` is load-bearing for the harness: see subflows/stage-birthday.yaml. */}
       <DatePartsFields
-        label={DATE_LABEL}
+        label={DATE.label}
         value={draft}
         onChange={({ month, day, year }) =>
           onChange({ ...draft, month, day, year })
         }
-        accessibilityLabels={DATE_ACCESSIBILITY_LABELS}
         testIDPrefix="milestone"
-        invalid={!datePartsValid(draft)}
+        error={datePartsError(draft)}
       />
 
       <View style={styles.field}>
@@ -263,12 +267,6 @@ export function MilestoneFields({
           onChangeText={(value) => set("note", value)}
         />
       </View>
-
-      {dayWithoutMonth(draft) ? (
-        <Text style={styles.muted}>
-          Enter a month to go with the day, or clear the day.
-        </Text>
-      ) : null}
 
       <Text style={styles.muted}>
         {def.icon ? `${def.icon} ` : ""}
