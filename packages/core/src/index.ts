@@ -185,6 +185,7 @@ export {
   rotateRecoveryPhrase,
   establishKeySession,
   resyncAfterMasterKeyRepair,
+  resealRecoveryDoor,
   unlockStore,
   type BootKeySession,
   type AdoptionDoor,

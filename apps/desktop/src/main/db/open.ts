@@ -4,15 +4,13 @@ import Database from "better-sqlite3-multiple-ciphers";
 import {
   DATABASE_KEY,
   type KeyStore,
-  RECOVERY_KEY,
   ensureDatabaseKey,
-  readRecoveryKey,
-  sealDbKeyForRecovery,
 } from "@leapsake/crypto";
 import {
   type AdoptionDoor,
   type UnlockAnswer,
   type UnlockRequest,
+  resealRecoveryDoor,
   unlockStore,
 } from "@leapsake/core";
 import type { SqliteDriver } from "@leapsake/data";
@@ -48,7 +46,7 @@ export async function openAppDatabase(opts: {
   const recoveryPath = recoverySidecarPath(dbPath);
 
   let dbKey = await keyStore.getSecret(DATABASE_KEY);
-  let recoveryKey: Uint8Array | undefined;
+  let door: AdoptionDoor | undefined;
 
   if (dbKey === undefined && storeFileState(dbPath) === "encrypted") {
     // The keychain is gone but the file survives: the sidecars are the only way
@@ -64,12 +62,8 @@ export async function openAppDatabase(opts: {
 
     const unlocked = await unlockStore({ password, phrase }, requestUnlock);
     dbKey = unlocked.dbKey;
-    // A door unlock means a lost keychain: the caller re-adopts the master key,
-    // and a phrase unlock also restores this device's recovery key below.
-    if (unlocked.door.kind === "recovery") {
-      recoveryKey = unlocked.door.recoveryKey;
-    }
-    onUnlocked?.(unlocked.door);
+    door = unlocked.door;
+    onUnlocked?.(door);
     await keyStore.setSecret(DATABASE_KEY, dbKey);
   }
 
@@ -84,13 +78,12 @@ export async function openAppDatabase(opts: {
   }
   const db = openEncryptedDatabase(dbPath, dbKey);
 
-  // Reseal the recovery sidecar every launch, so it opens under the phrase the
-  // user holds. Read, never mint: desktop README → *Invariants*.
-  if (recoveryKey === undefined) recoveryKey = await readRecoveryKey(keyStore);
-  else await keyStore.setSecret(RECOVERY_KEY, recoveryKey);
-  if (recoveryKey !== undefined) {
-    writeSidecar(recoveryPath, sealDbKeyForRecovery(dbKey, recoveryKey));
-  }
+  await resealRecoveryDoor({
+    keyStore,
+    dbKey,
+    door,
+    writeRecovery: (bytes) => writeSidecar(recoveryPath, bytes),
+  });
 
   return encryptedSqliteDriver(db);
 }

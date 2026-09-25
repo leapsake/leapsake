@@ -12,6 +12,7 @@ export {
   rotateRecoveryPhrase,
 } from "./rotate-recovery.js";
 export type { RecoveryDoorWriter } from "./rotate-recovery.js";
+export { resealRecoveryDoor } from "./recovery-door.js";
 export { unlockStore } from "./unlock.js";
 export type {
   StoreDoorSidecars,
