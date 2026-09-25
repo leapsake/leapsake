@@ -55,11 +55,8 @@ in `CONTRIBUTING.md` grades which flows must be green, not which run.
 None of the four one-off flows is wired into any runner, so retiring them costs no gate
 anything; what they hold is claims that deserve a test somewhere cheaper.
 
-**The one piece still reachable only through E2E** is the boot orchestration left in
-`CoreProvider` (`apps/mobile/lib/core-context.tsx`): choosing which store to open, the
-first-run path that must mint no keys, and the recovery-door rewrite after an unlock ("read,
-never mint"). Desktop's equivalent is `apps/desktop/src/main/db/open.ts`, tested by
-`apps/desktop/test/open.test.ts`. Step 5 gives mobile the same.
+**Nothing on mobile's boot path is reachable only through E2E any more** (step 5): which
+store opens, the keyless first run, and the recovery-door rewrite are tested in Vitest.
 
 **A fidelity note the docs overstate.** `CONTRIBUTING.md` says E2E drives "the production app
 binary on that OS image". It drives the dev client loading a dev-mode bundle from Metro
@@ -68,10 +65,10 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 5 → 6 → 4b → 4c → 4d → 4e** (4a landed), with 7's parts slotted in anywhere.
+**Order: 6 → 4b → 4c → 4d → 4e** (4a and 5 landed), with 7's parts slotted in anywhere.
 
-- **6 depends on 5**: 6 removes the only test of the recovery-door rewrite, and 5 replaces it.
-- **5 and 6 before 4c and 4d**, so each platform switch moves three flows, not five, and
+- **6 is unblocked**: 5 has replaced the recovery-door rewrite test that 6 removes.
+- **6 before 4c and 4d**, so each platform switch moves three flows, not five, and
   builds the merged Flow 4 on `lose-keys.yaml` once, rather than porting 07b and 07c only to
   delete them.
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
@@ -203,41 +200,17 @@ rather than retyping her), and the typing that remains is what each flow exists 
 
 ### 5. Extract mobile's boot sequence out of `CoreProvider`
 
-**Why:** it is the last thing only E2E can reach, and step 6 cannot drop 7c's and 7b's
-separate acts until the behaviour they guard is tested here.
-
-**What moves.** The part of the bootstrap effect in `CoreProvider` that decides _what opens and
-with what key_: read the roster and pick `stores/local/` or `stores/<accountId>/`, read the
-doors, ask for a secret through `unlockStore` when the enclave key is gone,
-`establishKeySession`, and the recovery-door rewrite after an unlock. It becomes a named
-function with its IO passed in (key store, store opener, doors, roster) and returns what the
-provider sets in state. The provider keeps React state, the `ask` bridge to `RecoveryGate`, and
-everything after the core is built (holiday seeding, reminders, notifications).
-
-**Where it goes.** Mirror desktop's split: whatever both clients do identically — the rewrite
-rule especially — goes in `packages/key-custody` beside `unlockStore` and is tested there, the
-way step 1 did it. Only expo-specific IO stays in `apps/mobile`. Compare with
-`apps/desktop/src/main/db/open.ts` before writing anything; if desktop has the same sequence
-inline, extracting it once for both is the preferred outcome.
-
-**The tests it must carry**, each a claim E2E holds today:
-
-- **A first run mints nothing.** Against a fake key store that records writes: no store, no
-  roster → a plaintext store at `stores/local/`, and **zero** key-store writes. This is the
-  Keychain row `crucial-flows.md` defers on device, so it is a real gain, not a move.
-- **A password unlock leaves the phrase door opening.** After a password unlock, the rewritten
-  recovery door still opens with the original phrase. This is the clause 07b exists for
-  (`e2e/07b-phrase-door.yaml`'s third act has the reasoning): a rewrite that sealed under a
-  freshly minted recovery key would pass every other check.
-- **A phrase unlock re-adopts the recovery key** and writes it to the key store.
-- **An Authenticated store with its enclave key present opens without asking.**
-
-**Also:** `e2e/07c-password-door.yaml`'s header says the unlock loop lives in
-`core-context.tsx`; that stopped being true with step 1. It is deleted in step 6, so do not
-fix it here.
-
-**Done when:** the four tests pass under `pnpm exec vitest run`, `CoreProvider` calls the new
-function, and the arc is green on one platform (it exercises the same path end to end).
+**✅ Landed 2026-09-24.** `openActiveStore` in `apps/mobile/lib/open-active-store.ts` takes
+its IO as ports (key store, roster, doors, store opener, the `ask` bridge) and decides what
+opens and with which key; `CoreProvider` calls it with the expo adapters
+(`apps/mobile/db/open-store.ts`). The "read, never mint" rewrite is `resealRecoveryDoor` in
+`packages/key-custody/src/recovery-door.ts`, which desktop's `open.ts` calls too.
+`apps/mobile/lib/open-active-store.test.ts` covers a keyless first run with zero key-store
+writes, an Authenticated open without asking, a password unlock after losing everything (door
+untouched) and after losing only the db-key (door resealed under the surviving key; both
+still open with the original phrase), and a phrase unlock re-adopting the recovery key.
+Desktop's unlock condition (the file is ciphertext) still differs from mobile's (a door
+exists); only the rewrite is shared.
 
 ### 6. Merge 07c and 07b into Flow 4
 
