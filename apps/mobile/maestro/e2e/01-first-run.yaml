@@ -65,7 +65,7 @@ appId: com.leapsake.app
 
 # --- the standing navigation offers the two things a first-run user needs ----------
 # Reachability, not tab labels: which tab holds what is the shell's own business and is
-# `global-nav.yaml`'s gate, not this flow's.
+# `apps/mobile/lib/tab-screens.test.ts`'s to prove, not this flow's.
 #
 # People & Pets is a tab again. It was demoted to a catalog behind Search's browse tiles
 # for a while (increment 09), which is why this used to hop through Search to assert a

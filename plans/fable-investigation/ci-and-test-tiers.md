@@ -46,10 +46,9 @@ minutes on iOS. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the
 | `ios-prepare.yaml`, `ios-autofill.yaml` | Harness, not tests                                                                                                              | —    |
 | `store/`                               | Screenshot tooling, not tests                                                                                                   | —    |
 | `anniversary-partner.yaml`             | Leave the tier. Its claims are form state                                                                                       | 7c   |
-| `global-nav.yaml`                      | Leave the tier. Its claims are route and header configuration                                                                   | 7d   |
 
-Neither remaining one-off flow is wired into any runner, so retiring them costs no gate
-anything; what they hold is claims that deserve a test somewhere cheaper.
+The remaining one-off flow is wired into no runner, so retiring it costs no gate
+anything; what it holds is claims that deserve a test somewhere cheaper.
 
 **Nothing on mobile's boot path is reachable only through E2E any more** (step 5): which
 store opens, the keyless first run, and the recovery-door rewrite are tested in Vitest.
@@ -61,11 +60,11 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a, 7a and 7b landed), with 7c and 7d slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a, 7a, 7b and 7d landed), with 7c slotted in anywhere.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7c and 7d** are independent of each other and of 4. 7c waits on the
+- **7c** is independent of 4. It waits on the
   `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
@@ -269,16 +268,19 @@ already `apps/desktop/test/integration/link-partner.test.ts`'s. **Waits on that 
 flow's vCard-seeding recipe (its header) as a few lines in `apps/mobile/README.md`'s hand-driving
 section: it is how you get a dated contact onto a simulator.
 
-**7d. `global-nav.yaml`.** Its claims are configuration: four tabs; each tab root's ➕ targets
-the create route for that tab's content; catalogs reached from browse tiles sit in the tab
-navigator (bar visible, no Back); each catalog's 🔍 narrows search to its kinds, People's to two.
-The header wiring is in `apps/mobile/app/(tabs)/_layout.tsx`; the chip kinds are in
-`lib/search-categories.ts` (already tested). If the ➕ targets are inline JSX, lift them to a
-table beside `search-categories.ts` and test the table. The Back claims hold up
-`components/AppHeader.tsx`'s single row: Back and the 🔍/➕ pair never share it, because the
-glyphs are declared only on tab-navigator screens. That is structural, so assert the structure
-(no route outside `(tabs)` declares header actions), not the rendered Back. After a navigation
-redesign, check it on the simulator with a scratch flow, and do not commit that flow.
+**7d. `global-nav.yaml`. ✅ Landed 2026-09-24.** Deleted. The tab navigator's screens are
+now a table, `apps/mobile/lib/tab-screens.ts`, which `app/(tabs)/_layout.tsx` maps over.
+`lib/tab-screens.test.ts` covers the four tabs, Home's and People's titles, each ➕'s target,
+the catalogs as hidden tab-navigator members, and each catalog's 🔍 naming its own category;
+`search-categories.test.ts` already covered the chips that 🔍 arrives with (People's two).
+`lib/header-glyphs.test.ts` holds up `AppHeader`'s single row: only the tab navigator's layout
+imports `NewLink` or `SearchHereLink` (routes outside `(tabs)` do declare `headerRight`, for a
+Save, so the rule is about the glyphs, not header actions), and `app/(tabs)/` holds exactly the
+table's screens. Sabotages bite: People's ➕ at `/gifts/new`; a `NewLink` import in
+`app/add.tsx`; `gifts.tsx` moved out of `(tabs)`. Accepted residual risk: react-navigation's
+Back (absent on tab roots, present on pushes, popping), the browse tile's `router.push`, and
+the chips' rendering. After a navigation redesign, check it on the simulator with a scratch
+flow, and do not commit that flow.
 
 ### 8. Desktop, when it ships
 

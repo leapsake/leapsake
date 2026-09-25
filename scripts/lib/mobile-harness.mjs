@@ -509,7 +509,7 @@ function resolveEmulator() {
 //
 //   - `showFab` — the floating "Tools" bubble. It is an overlay, so a `tapOn` under it
 //     reports COMPLETED while the dev menu opens instead, and the flow fails several steps
-//     later on an unrelated assertion. Confirmed on `global-nav.yaml` (case 3's
+//     later on an unrelated assertion. Confirmed on the retired `global-nav.yaml` (case 3's
 //     `search-here-people`) and suspected on the retired `staged-gift-occasions.yaml`.
 //   - `isOnboardingFinished` — the one-time "This is the developer menu" panel, which
 //     covers the app on first launch after an install.

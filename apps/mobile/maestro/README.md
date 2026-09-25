@@ -7,9 +7,9 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
 **Before adding a flow here**, read [`plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ _What earns a flow here_. The two top-level flows that no runner invokes
-(`global-nav`, `anniversary-partner`) fail that rule and
-are being retired: [`ci-and-test-tiers.md`](../../../plans/fable-investigation/ci-and-test-tiers.md)
+→ _What earns a flow here_. The one top-level flow that no runner invokes
+(`anniversary-partner`) fails that rule and
+is being retired: [`ci-and-test-tiers.md`](../../../plans/fable-investigation/ci-and-test-tiers.md)
 step 7.
 
 - **`driver-selftest.yaml`** — the Maestro flow: deep-link to the self-test route, wait
@@ -27,42 +27,6 @@ step 7.
   through the dev-launcher's last dev server (set by `pnpm --filter @leapsake/mobile
 ios`), clears any SpringBoard/dev-menu overlay, and waits for the Search tab. The
   runner invokes it; you don't run it directly. It does **not** touch `driver-selftest.yaml`.
-- **`global-nav.yaml`** — the navigation shell: that the bar holds Home, Search, People
-  and Settings; that **each screen's ➕ makes the thing that screen is about** (Home a
-  reminder, People a person or pet, Gifts a gift idea); that a browse tile opens a
-  tab-less catalog with the bar still under it and no back control; that such a catalog
-  carries **both** header glyphs, 🔍 and ➕, in its one right-hand slot; and that a back
-  control is absent inside the tab navigator and present one screen up. All of those are
-  claims no lower tier can check — nothing below E2E proves a header action is wired to
-  the route its tab entry names.
-
-  That last pair is also what holds up `components/AppHeader.tsx`'s single row, which puts
-  a screen's actions on the title's line: it is safe only because Back and the glyph pair
-  can never share that row, Back coming from the native stack and the glyphs being
-  declared only on tab-navigator screens.
-
-  It deliberately does **not** assert the selected-tab tint: that is a colour, and Maestro
-  reads the accessibility tree rather than pixels.
-
-  Taps use the tab buttons' `testID`s (`tab-home`, `tab-search`, `tab-people`,
-  `tab-settings`) rather than their labels. Text selectors are full-match, so a tab label
-  match has to be a loose `.*Search.*` — which would just as happily hit a reminder titled
-  "Search for a new camera" on the list behind the bar. The header glyphs are tapped by id
-  for a stronger reason: they render as a bare ➕ and 🔍, so their only text is the
-  `accessibilityLabel` each sets (`header-new-home`, `header-new-people`,
-  `header-new-gifts`, `search-here-<category>`).
-
-  Every assertion in it is about something either on screen or **not mounted at all**. A
-  bottom-tab navigator keeps previously-focused screens mounted but hidden, so their text
-  stays in the accessibility tree — arrival is therefore asserted on _pushed_ screens (a
-  pop unmounts them) and on the tab bar, never on "is Home's title still in the tree".
-
-  Creates nothing, so it needs no per-run tag and can be re-run indefinitely. Not wired
-  into `pnpm test:native`, which is built around one flow and a PASS token:
-
-  ```
-  maestro --udid <sim> test global-nav.yaml
-  ```
 
 Two traps the data-creating flows here encode, both of which cost a session each and
 neither of which looks like a harness problem when you hit it — see
@@ -623,7 +587,7 @@ opens instead, and the flow then fails somewhere unrelated, one or more steps la
 is the single most expensive trap in this directory: it cost two flows their whole run and
 looks nothing like its cause in either case.
 
-- **Android**, `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
+- **Android**, the retired `global-nav.yaml`: case 3's `tapOn: search-here-people` hit the bubble, and
   the run went red two lines on at the filter chip's `assertVisible`.
 - **iOS**, the retired `staged-gift-occasions.yaml`: the button's _stored position_ sat over
   the add screen's holiday row, so `stage-christmas`'s tap on the holiday field hit it and
