@@ -378,8 +378,8 @@ run may not start, because the app is wherever the last failure left it — a mo
 open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
 rather than the flow.
 
-What is here covers the **`beta` rung** — Flows 1, 2 (the smoke) and 4, on-screen assertions only — **plus both
-of `rc`'s at-rest doors**, `07c` (password) and `07b` (phrase), and **`rc`'s out-of-band
+What is here covers the **`beta` rung** — Flows 1, 2 (the smoke) and 4, and both at-rest doors,
+`07c` (password) and `07b` (phrase), on-screen assertions only — and **`rc`'s out-of-band
 custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
 keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
 the catalog becomes a release _check_ rather than a `manual:` sentence when the tag-triggered

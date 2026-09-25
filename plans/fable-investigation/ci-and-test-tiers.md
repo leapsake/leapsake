@@ -251,11 +251,10 @@ both doors); confirm it rather than assume it.
 - `apps/mobile/maestro/store/README.md` says `base.mjs` runs "flows 01, 02, 03, 05"; it runs 01
   and 02. Fix it while there.
 
-**⚠️ Open, ask the owner before committing:** the rung table grades Flow 4's _screen_ half at
-`beta` and the doors at `rc`. Since the runner already runs everything at every rung, merging
-does not change what runs. It does change whether the table can still name the doors
-separately. Either keep the grading as prose ("Flow 4's door acts gate at `rc`") or collapse
-it. It is a policy line dated 2026-08-28, so it is not this step's to decide.
+**Grading, decided (owner, 2026-09-24): collapsed.** The doors already gate from `beta` in
+`CONTRIBUTING.md`'s rung table and `crucial-flows.md`'s matrix, so after the merge Flow 4 gates
+at `beta` whole (on screen) and `rc` adds only the out-of-band custody assertions. The
+edits above only rename 7b and 7c into Flow 4's door acts; they do not re-grade anything.
 
 ### 7. Retire the one-off flows
 

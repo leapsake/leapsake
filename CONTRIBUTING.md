@@ -114,8 +114,8 @@ stranger installs does not have to carry the whole of it on day one.
 | Rung    | Who installs it                                           | What its worst failure costs them                        | What must be green                                                                                                                                                                                                                                                               |
 | ------- | --------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `alpha` | internal TestFlight — named App Store Connect users, ≤100 | nothing; they are us                                     | the suite under `--strict`, like every other rung — the catalog is green on both platforms, so the exemption it once needed has no premise left                                                                                                                                  |
-| `beta`  | external TestFlight — the first strangers                 | an evening of typing, and only if they ignored the notes | catalog Flows **1, 2 (the smoke) and 4**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict`                                                                                                                                                                  |
-| `rc`    | external TestFlight, ship-ready                           | records they have started to rely on                     | the above **plus** Flows **7b, 7c** and **every _reachable_ out-of-band custody assertion** — four of the catalog's five rows; the key store is a written-down deferral, not a gap ([`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md) → _Asserting on custody_) |
+| `beta`  | external TestFlight — the first strangers                 | an evening of typing, and only if they ignored the notes | catalog Flows **1, 2 (the smoke) and 4**, **both at-rest doors (7b, 7c)**, **on-screen assertions only**. The `e2e` tier is `ready` and **passes** under `--strict`                                                                                                                                     |
+| `rc`    | external TestFlight, ship-ready                           | records they have started to rely on                     | the above **plus every _reachable_ out-of-band custody assertion** — four of the catalog's five rows; the key store is a written-down deferral, not a gap ([`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md) → _Asserting on custody_) |
 | `final` | the store — the public                                    | the thing the product exists to hold                     | `rc`'s bar, unchanged                                                                                                                                                                                                                                                            |
 
 **What the rungs ratchet on is data loss, not defect count** _(owner, 2026-08-28)_. Alpha and
@@ -123,8 +123,9 @@ beta are allowed to be buggy — the aim is high, but a bug at those rungs costs
 annoyance and costs us a report, which is the entire point of putting a build in front of
 people. What may not survive into a **stable release** is anything that can lose someone's data,
 and at **v1.0** it is unacceptable outright. So the table is a one-way ratchet, steepest exactly
-where the catalog is about _getting data back_: 7b, 7c and the custody assertions land at `rc`,
-the last rung before anyone keeps real records here.
+where the catalog is about _getting data back_: the custody assertions land at `rc`, the last
+rung before anyone keeps real records here. The doors gate from `beta` _(owner, 2026-09-24)_:
+the runner runs the whole arc at every rung, so that is the bar it already enforced.
 
 That axis is what makes the trade legible rather than merely convenient: **the question at each
 rung is not "how good is this build" but "what does its worst failure cost the person holding

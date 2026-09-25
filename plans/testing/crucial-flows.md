@@ -295,14 +295,14 @@ integration-tier work.
 | 2 Smoke, across a relaunch                 | **beta**                            | gate  | gate    | gate | later     | 1       | replaces Flows 2, 3 and 5 of the old arc                                               |
 | 4 Create an account                        | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | must run on a store **with** data                                                      |
 | 7a Cross-device recovery                   | with sync (v0.2)                    | gate  | gate    | gate | later     | 2       | includes the wrong-phrase negative                                                     |
-| 7b At-rest, phrase door                    | **rc**                              | gate  | gate    | gate | later     | 1       | **creates its own account**; runs last, since its reset destroys the arc's store       |
-| 7c At-rest, password door                  | **rc**                              | gate  | gate    | gate | later     | 1       | follows 4 directly; budget three Argon2id passes                                       |
+| 7b At-rest, phrase door                    | **beta**                            | gate  | gate    | gate | later     | 1       | **creates its own account**; runs last, since its reset destroys the arc's store       |
+| 7c At-rest, password door                  | **beta**                            | gate  | gate    | gate | later     | 1       | follows 4 directly; budget three Argon2id passes                                       |
 
 **"Gates at"** is the rung by which a flow must be green, per CONTRIBUTING's rung table. It
 grades _when_, never _whether_: every core flow still gates v0.1, and `rc` is inside v0.1. The
-column reads as a ratchet on data loss: the _screen_ halves of 1 and 4 gate at `beta` (they
-prove the app does not drop data in ordinary use) while their out-of-band halves and both doors
-of 7 wait for `rc` (they prove data comes _back_, which only matters once someone relies on it).
+column reads as a ratchet on data loss: every on-screen flow, both doors of 7 included, gates
+at `beta`, since the runner runs the whole arc at every rung; the out-of-band halves of 1 and 4
+wait for `rc`.
 
 **"gate"** means green before **that platform's own first release**. ⚠️ **The platform column is
 not the release schedule.** v0.1 is iOS alone; every macOS and Android "gate" is still owed, but

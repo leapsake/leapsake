@@ -14,10 +14,9 @@
 // by design (the catalog takes 1→4 as one arc), so the harness stops the platform at the
 // first red flow rather than reporting three failures that are really one.
 //
-// **The bar this meets is the `beta` rung plus both at-rest doors and the reachable
-// custody assertions** — Flows 1–5 on-screen (the rung table's `beta` bar,
-// `CONTRIBUTING.md` → *The E2E release gate*), the password and phrase doors, and the
-// out-of-band half of Flows 1 and 4, all three of which are `rc`'s. What `rc` still owes is
+// **The bar this meets is the `beta` rung plus the reachable custody assertions** — every
+// flow on-screen, both doors included (the rung table's `beta` bar, `CONTRIBUTING.md` →
+// *The E2E release gate*), and the out-of-band half of Flows 1 and 4, which are `rc`'s. What `rc` still owes is
 // the **key-store row**, deferred for want of a read verb
 // (`lib/custody-assertions.mjs` → `KEY_STORE_NOTE`), and turning the catalog requirement in
 // `scripts/release/targets/ios.mjs` into a `requires:` check. Flows 6/7a ship with sync.
