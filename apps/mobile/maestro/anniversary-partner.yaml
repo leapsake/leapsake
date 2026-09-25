@@ -12,10 +12,9 @@
 #      picked, and a Save after Edit revises that relationship, not a second.
 #   5. A first date asks the same question, and records a new name as Partner.
 #
-# The dates cannot be typed in: Month and Day are wheels iOS does not expose to
-# automation. So two contacts carrying them are added to the simulator's
-# address book first, dated 20 days out, and the app's contact sync brings them
-# in (run the import once on a fresh store):
+# Two contacts carrying the dates are added to the simulator's address book
+# first, dated 20 days out, and the app's contact sync brings them in (run the
+# import once on a fresh store):
 #
 #   N:Wainwright<RUN>;Sam;;;               N:Bailey<RUN>;Harry;;;
 #   FN:Sam Wainwright<RUN>                 FN:Harry Bailey<RUN>

@@ -7,9 +7,8 @@
 # ## Decisions encoded here
 #
 #   - **Names are the house convention** — the cast of *It's a Wonderful Life*, full names.
-#   - **Birthdays are YEAR ONLY.** `MilestoneFields.tsx` passes no testID to the Month
-#     SelectField, so its options cannot be addressed on either platform. The year is the
-#     only date part a driver can set (see subflows/stage-birthday.yaml).
+#   - **Birthdays are YEAR ONLY**, staged by subflows/stage-birthday.yaml. Month and day
+#     are typed fields too (`milestone-month`, `milestone-day`) if a listing wants them.
 #   - **Harry Bailey is the hero record**, not Mary: Mary's birthday reads 1815 from the
 #     e2e arc, and the two ambiguous "Edit" links on a person page make correcting it
 #     riskier than giving a fresh person a sane year.

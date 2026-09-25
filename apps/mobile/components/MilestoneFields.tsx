@@ -9,9 +9,18 @@ import {
   kindsForBearerType,
   resolveReminderSchedule,
 } from "@leapsake/schema";
+import { DatePartsFields } from "./DatePartsFields";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
+import { monthBlankOrValid } from "../lib/date-parts";
 import { styles } from "../lib/styles";
+
+const DATE_LABEL = "Date";
+const DATE_ACCESSIBILITY_LABELS = {
+  month: "Month",
+  day: "Day",
+  year: "Year",
+} as const;
 
 /** The structured value the write uses; the caller supplies bearer + call. */
 export interface MilestoneFormValue {
@@ -32,7 +41,6 @@ export interface MilestoneFormValue {
  */
 export interface MilestoneDraft {
   kind: MilestoneKind;
-  /** "" or "1".."12" — the picker's own values. */
   month: string;
   day: string;
   year: string;
@@ -46,18 +54,6 @@ export interface MilestoneDraft {
    */
   scheduleCustomized: boolean;
 }
-
-/** Month options: a leading unset, then "1".."12" with the locale's long names. */
-const MONTH_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "—" },
-  ...Array.from({ length: 12 }, (_, i) => ({
-    value: String(i + 1),
-    label: new Date(Date.UTC(2001, i, 1)).toLocaleDateString(undefined, {
-      month: "long",
-      timeZone: "UTC",
-    }),
-  })),
-];
 
 export function emptyMilestoneDraft(
   bearerType: MilestoneBearerType,
@@ -119,7 +115,19 @@ function numberOrNull(raw: string): number | null {
 
 /** A day is only meaningful alongside the month it falls in. */
 function dayWithoutMonth(draft: MilestoneDraft): boolean {
-  return draft.day.trim() !== "" && draft.month === "";
+  return draft.day.trim() !== "" && draft.month.trim() === "";
+}
+
+/** Whether the typed date parts would pass the schema's rules for them. */
+function datePartsValid(draft: MilestoneDraft): boolean {
+  const day = numberOrNull(draft.day);
+  const year = numberOrNull(draft.year);
+  return (
+    !dayWithoutMonth(draft) &&
+    monthBlankOrValid(draft.month) &&
+    (day === null || (Number.isInteger(day) && day >= 1 && day <= 31)) &&
+    (year === null || Number.isInteger(year))
+  );
 }
 
 /**
@@ -127,12 +135,8 @@ function dayWithoutMonth(draft: MilestoneDraft): boolean {
  * so the form can refuse before the write does.
  */
 export function milestoneDraftValid(draft: MilestoneDraft): boolean {
-  const day = numberOrNull(draft.day);
-  const year = numberOrNull(draft.year);
   return (
-    !dayWithoutMonth(draft) &&
-    (day === null || (Number.isInteger(day) && day >= 1 && day <= 31)) &&
-    (year === null || Number.isInteger(year)) &&
+    datePartsValid(draft) &&
     // An `other` milestone is named by its note, and an `other` reminder by its
     // label; the schema re-checks both.
     (draft.kind !== "other" || draft.note.trim().length > 0) &&
@@ -150,7 +154,7 @@ export function milestoneDraftValid(draft: MilestoneDraft): boolean {
  */
 export function milestoneDraftEmpty(draft: MilestoneDraft): boolean {
   return (
-    draft.month === "" &&
+    draft.month.trim() === "" &&
     draft.day.trim() === "" &&
     draft.year.trim() === "" &&
     draft.note.trim() === ""
@@ -231,43 +235,17 @@ export function MilestoneFields({
         }
       />
 
-      <SelectField
-        label="Month"
-        value={draft.month}
-        options={MONTH_OPTIONS}
-        onChange={(month) =>
-          // A day is only meaningful alongside a month; clearing month clears it.
-          onChange({ ...draft, month, day: month === "" ? "" : draft.day })
+      {/* `milestone-year` is load-bearing for the harness: see subflows/stage-birthday.yaml. */}
+      <DatePartsFields
+        label={DATE_LABEL}
+        value={draft}
+        onChange={({ month, day, year }) =>
+          onChange({ ...draft, month, day, year })
         }
+        accessibilityLabels={DATE_ACCESSIBILITY_LABELS}
+        testIDPrefix="milestone"
+        invalid={!datePartsValid(draft)}
       />
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Day</Text>
-        <TextInput
-          style={[styles.input, draft.month === "" && { opacity: 0.5 }]}
-          value={draft.day}
-          onChangeText={(value) => set("day", value)}
-          editable={draft.month !== ""}
-          keyboardType="number-pad"
-        />
-      </View>
-
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Year</Text>
-        {/*
-          The harness's way to say *something* about a milestone: the Kind and
-          Month are `SelectField`s, whose options iOS doesn't expose, and a plain
-          `TextInput` carries no accessibility text of its own (see the note in
-          `PersonFields`). A year is the one date part a driver can just type.
-        */}
-        <TextInput
-          testID="milestone-year"
-          style={styles.input}
-          value={draft.year}
-          onChangeText={(value) => set("year", value)}
-          keyboardType="number-pad"
-        />
-      </View>
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>
@@ -288,7 +266,7 @@ export function MilestoneFields({
 
       {dayWithoutMonth(draft) ? (
         <Text style={styles.muted}>
-          Pick a month before a day, or clear the day.
+          Enter a month to go with the day, or clear the day.
         </Text>
       ) : null}
 

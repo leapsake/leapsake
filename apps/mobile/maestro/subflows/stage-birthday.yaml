@@ -8,8 +8,8 @@
 # **The year is not decoration.** A row nobody has typed into is treated as the
 # tap nobody followed through on and is never written (`milestoneRowPending`), so
 # a milestone that is only its default kind would silently not exist after Save.
-# The year is also the only date part a driver can set: Kind and Month are
-# `SelectField`s, whose options iOS does not expose to the accessibility tree.
+# Month and day are typed the same way (`milestone-month`, `milestone-day`); a
+# year alone is all this subflow needs.
 #
 # The kind is left alone, which makes this a Birthday — the first kind either
 # bearer type offers, and what the picker opens on.

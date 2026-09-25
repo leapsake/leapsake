@@ -90,10 +90,9 @@ text selectors beside unlabelled `TextInput`s — the fragility `subflows/` exis
 person page therefore shows "No contact methods yet" and "No gifts yet". Adding testIDs to
 those two components is the fix, and it is worth doing before the next listing refresh.
 
-**Real dates on birthdays.** `MilestoneFields.tsx` passes no testID to the Month `SelectField`,
-so its options cannot be addressed on either platform and a birthday can only be given a
-**year**. `SelectField` suppresses its testID on iOS only, so this is not an iOS-vs-Android
-thing — the id simply is not passed.
+**Real dates on birthdays.** The roster gives birthdays a **year** only. Month and day are
+typed fields with testIDs (`milestone-month`, `milestone-day`), so a full date is now a matter
+of extending `subflows/stage-birthday.yaml`.
 
 ## Reproducibility
 

@@ -1,15 +1,23 @@
 import { useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import {
-  type CreateReminderInput,
-  type Reminder,
-  dueMsFromIso,
-  isoFromDueMs,
-} from "@leapsake/schema";
-import { colors, styles } from "../lib/styles";
+import type { CreateReminderInput, Reminder } from "@leapsake/schema";
+import { checkDueDate, dueDateDraft, editDueDate } from "../lib/date-parts";
+import { styles } from "../lib/styles";
+import { DatePartsFields } from "./DatePartsFields";
 import { HeaderSave } from "./HeaderSave";
 import { ChipTextField } from "./ChipTextField";
+
+const DUE_DATE = {
+  label: "Due date (optional)",
+  accessibilityLabels: {
+    month: "Due month",
+    day: "Due day",
+    year: "Due year",
+  },
+  invalid: "Enter a month, day and year that exist.",
+  past: "Pick today or a later date.",
+} as const;
 
 /**
  * The shared create/edit form for a Reminder, mirroring the desktop `ReminderForm`.
@@ -36,21 +44,18 @@ export function ReminderForm({
 }) {
   const [title, setTitle] = useState(reminder?.title ?? "");
   const [body, setBody] = useState(reminder?.body ?? "");
-  const [due, setDue] = useState(
-    reminder?.dueDate != null ? isoFromDueMs(reminder.dueDate) : "",
-  );
+  const savedDueMs = reminder?.dueDate ?? null;
+  const [due, setDue] = useState(() => dueDateDraft(savedDueMs));
   const [submitting, setSubmitting] = useState(false);
 
-  // A due date is optional, but if typed it must parse as YYYY-MM-DD.
-  const dueTrimmed = due.trim();
-  const dueValid = dueTrimmed === "" || dueMsFromIso(dueTrimmed) !== null;
+  const dueCheck = checkDueDate(due.parts, savedDueMs);
   const canSubmit =
     (title.trim().length > 0 || body.trim().length > 0) &&
-    dueValid &&
+    dueCheck.ok &&
     !submitting;
 
   async function handleSubmit() {
-    if (!canSubmit) return;
+    if (!canSubmit || !dueCheck.ok) return;
     setSubmitting(true);
     try {
       const t = title.trim();
@@ -58,7 +63,7 @@ export function ReminderForm({
       await onSubmit({
         title: t === "" ? null : t,
         body: b === "" ? null : b,
-        dueDate: dueMsFromIso(dueTrimmed),
+        dueDate: dueCheck.dueMs,
       });
     } finally {
       setSubmitting(false);
@@ -111,22 +116,17 @@ export function ReminderForm({
           </Text>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Due date (YYYY-MM-DD)</Text>
-          <TextInput
-            style={[styles.input, !dueValid && { borderColor: colors.danger }]}
-            value={due}
-            onChangeText={setDue}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
-          />
-          {!dueValid ? (
-            <Text style={styles.muted}>
-              Use the format YYYY-MM-DD, e.g. 2026-08-01.
-            </Text>
-          ) : null}
-        </View>
+        <DatePartsFields
+          label={DUE_DATE.label}
+          value={due.parts}
+          onChange={(parts) => setDue((draft) => editDueDate(draft, parts))}
+          accessibilityLabels={DUE_DATE.accessibilityLabels}
+          testIDPrefix="reminder-due"
+          invalid={!dueCheck.ok}
+        />
+        {!dueCheck.ok ? (
+          <Text style={styles.muted}>{DUE_DATE[dueCheck.problem]}</Text>
+        ) : null}
       </ScrollView>
     </>
   );

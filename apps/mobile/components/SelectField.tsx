@@ -12,7 +12,7 @@ import { colors, radius, styles } from "../lib/styles";
 
 /**
  * The mobile stand-in for desktop's `<select>` over a short, fully-known list — a
- * milestone Kind or Month, a Gender. Replaces the old wrapping-pill control for
+ * milestone Kind, a Gender. Replaces the old wrapping-pill control for
  * these finite enums (pills only read well at a handful of options and gave no
  * affordance for longer ones). Long, possibly-unfamiliar lists (a relationship
  * Role, a Country) stay on the typeahead pattern instead.
