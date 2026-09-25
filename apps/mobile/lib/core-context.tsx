@@ -23,35 +23,22 @@ import {
 } from "react-native-safe-area-context";
 import * as SQLite from "expo-sqlite";
 import {
-  type AdoptionDoor,
   type CoreApi,
   type RecoveryDoorWriter,
   type SyncStatus,
   createCore,
   createLocalAccount,
   ensureLocalDeviceId,
-  establishKeySession,
   fetchRelayCapabilities,
   getSyncStatus,
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
   MIN_PASSWORD_LENGTH,
   rotateRecoveryPhraseForAccount,
-  runMigrations,
-  seedHolidayCatalog,
   type UnlockAnswer,
   type UnlockRequest,
-  unlockStore,
   withSyncKick,
 } from "@leapsake/core";
-import {
-  DATABASE_KEY,
-  RECOVERY_KEY,
-  ensureDatabaseKey,
-  rawKeyLiteral,
-  readRecoveryKey,
-  sealDbKeyForRecovery,
-} from "@leapsake/crypto";
 import {
   planNotifications,
   reconcile as reconcileNotificationSchedule,
@@ -59,20 +46,16 @@ import {
 import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
 import { PasswordInput } from "../components/PasswordInput";
+import { openActiveStore } from "./open-active-store";
 import { useRecoveryGate } from "./use-recovery-gate";
-import {
-  createAccountRoster,
-  UNAUTHENTICATED_STORE_SLOT,
-  resolveActiveStore,
-  storePath,
-} from "@leapsake/store-layout";
+import { createAccountRoster, storePath } from "@leapsake/store-layout";
 import {
   clearUnclaimedDestination,
   convertStoreToEncrypted,
   destroyStoreFiles,
 } from "../db/convert-store";
 import { accountDoors } from "../db/doors";
-import { expoSqliteDriver } from "../db/expo-sqlite-driver";
+import { openExpoStore } from "../db/open-store";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
 import { forgetAccountOnThisDevice } from "./forget-account";
@@ -425,140 +408,19 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       deviceId.current = await ensureLocalDeviceId(keyStore);
       setDeviceIdState(deviceId.current);
 
-      // Which store, and in which custody state (@leapsake/store-layout) — settled
-      // before anything is opened, because it decides whether a key is even
-      // involved. The roster is the whole answer, exactly as on desktop.
-      const activeStore = resolveActiveStore({
-        accounts: await createAccountRoster(sqliteRosterStorage()).list(),
-      });
-      const existingDbKey = await keyStore.getSecret(DATABASE_KEY);
-
-      // This store's two db-key doors, which live *in its own directory* (§7.5,
-      // `db/doors.ts`) — so they are as per-account as the store is, and forgetting
-      // one account cannot take another's doors with it. An **Unauthenticated** store has no
-      // db-key to seal and therefore no doors at all: naming them here would only
-      // create an empty database beside a store that needs none.
-      const doors =
-        activeStore.custody === "encrypted" &&
-        activeStore.accountId !== undefined
-          ? accountDoors(activeStore.accountId)
-          : undefined;
-      const recoverySidecar = await doors?.readRecovery();
-      const passwordSidecar = await doors?.readPassword();
-
-      // **The boot-time sweep** (desktop's `destroyStoreFiles` doc comment says
-      // the same of its own): an Authenticated launch that still finds an Unauthenticated store is
-      // one whose conversion could not delete the original — a plaintext copy of
-      // data the user has already asked to encrypt. Verified on device 2026-07-29:
-      // the delete at the end of account creation does *not* reliably take on
-      // iOS — the file was still there, full schema and all — so this is not a
-      // theoretical crash-recovery path, it is the one that actually runs.
-      //
-      // Safe by construction: an Unauthenticated store is only ever the pre-conversion one
-      // once the roster names an account, and this launch is opening a different
-      // file entirely.
-      if (activeStore.custody === "encrypted") {
-        try {
-          await destroyStoreFiles(storePath(UNAUTHENTICATED_STORE_SLOT));
-        } catch {
-          // Nothing to sweep — the ordinary case.
-        }
-      }
-
-      // At-rest encryption (Stage 2), now conditional on custody: an Authenticated
-      // store's whole-DB key is held only in the OS enclave and the file is
-      // ciphertext. Three cases (mirrors desktop's open.ts):
-      //  1. enclave holds it → use it;
-      //  2. no key + a sidecar survives → the enclave was wiped: recover the key
-      //     through one of the two doors (password first, phrase as the
-      //     forgot-password fallback — §7.5 Phase 0.5);
-      //  3. no key + no sidecar → mint one.
-      // An **Unauthenticated** store skips all of it: no account, so no key exists and none
-      // is made — the OS keychain is never touched.
-      let dbKey =
-        activeStore.custody === "encrypted" ? existingDbKey : undefined;
-      let recoverySecret: Uint8Array | undefined;
-      // Which door this launch came through, if any — the input to slice 9's
-      // master-key repair below. It carries the key material the unlock already
-      // derived, never the typed password: the sidecar is sealed under the
-      // account's own salt, so the KEK that opens the db-key is the same one that
-      // unwraps the master key, and a second Argon2id pass on Hermes runs for
-      // minutes.
-      let unlockedBy: AdoptionDoor | undefined;
-
-      if (
-        activeStore.custody === "encrypted" &&
-        dbKey === undefined &&
-        (recoverySidecar !== undefined || passwordSidecar !== undefined)
-      ) {
-        const unlocked = await unlockStore(
-          { password: passwordSidecar, phrase: recoverySidecar },
-          requestUnlock,
-        );
-        dbKey = unlocked.dbKey;
-        unlockedBy = unlocked.door;
-        // A phrase unlock also restores this device's recovery key, below.
-        if (unlocked.door.kind === "recovery") {
-          recoverySecret = unlocked.door.recoveryKey;
-        }
-        await keyStore.setSecret(DATABASE_KEY, dbKey);
-        setRecoveryPrompt(null);
-      }
-      if (activeStore.custody === "encrypted" && dbKey === undefined)
-        dbKey = await ensureDatabaseKey(keyStore);
-
-      // The path is derived (§7.4), never a fixed `leapsake.db`. expo-sqlite
-      // accepts the nested name and creates the directory — verified on device by
-      // the custody self-test.
-      const db = await SQLite.openDatabaseAsync(activeStore.path, {
-        useNewConnection: true,
-      });
-      const driver = expoSqliteDriver(db);
-      // SQLCipher requires `PRAGMA key` to precede all DB access, so supply it as
-      // the very first statement on the fresh connection, before migrations. An
-      // Unauthenticated store supplies none at all and opens as ordinary plaintext SQLite.
-      //
-      // Then force a read of page 1 to prove the key actually opens this file,
-      // matching desktop's `openEncryptedDatabase` and the check the converter
-      // already runs on its output. Applying a key never fails on its own — the
-      // first *read* does — so without this a wrong or stale key surfaces from
-      // somewhere inside `runMigrations` as SQLCipher's "file is not a database",
-      // which names neither the cause nor the key. Failing here says what is
-      // wrong, at the moment it becomes wrong.
-      if (dbKey !== undefined) {
-        await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
-        try {
-          await driver.get("PRAGMA user_version");
-        } catch (cause) {
-          throw new Error(
-            "Failed to open the encrypted database — wrong or missing key.",
-            { cause },
-          );
-        }
-      }
-      await runMigrations(driver);
-      // The bundled holiday catalog, applied only when this install hasn't seen
-      // this bundle yet. Cheap no-op on every launch after the first.
-      await seedHolidayCatalog({ driver });
-
-      // The key-custody half of the boot, in one call, exactly as desktop's
-      // `openActiveStore` does it (custody slices 9/10): repair a device that came
-      // back through an unlock door — a door unlock means the OS keychain was lost,
-      // which took this device's master key with it — finish a repair an earlier
-      // launch left half-done, and produce the key session. Ordering inside is
-      // load-bearing in both directions; that is why it is one shared function
-      // rather than a sequence each client writes out.
-      //
-      // It reports rather than throws. A device that cannot prove which master key
-      // is the account's is *Degraded*: the store opens and every screen works, and
-      // the banner stays up until the repair lands.
-      const established = await establishKeySession({
-        keyStore,
-        driver,
-        custody: activeStore.custody,
-        door: unlockedBy,
-        platform: Platform.OS,
-      });
+      const { activeStore, driver, doors, established } = await openActiveStore(
+        {
+          keyStore,
+          listAccounts: () => createAccountRoster(sqliteRosterStorage()).list(),
+          doorsFor: accountDoors,
+          destroyStore: destroyStoreFiles,
+          openStore: openExpoStore,
+          ask: requestUnlock,
+          onUnlocked: () => setRecoveryPrompt(null),
+          platform: Platform.OS,
+        },
+      );
+      // Degraded reports rather than throws: the store opens and a banner stays up.
       if (established.state === "degraded") {
         console.error(
           "this device's master key could not be re-adopted:",
@@ -570,27 +432,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           ? { detail: established.message }
           : null,
       );
-      // Refresh the recovery sidecar to the *current* enclave recovery key on
-      // every launch (not just when missing), so it stays in step if the key was
-      // later adopted — e.g. after recovering an account. An Unauthenticated store has no
-      // db-key to seal and so has no sidecar.
-      //
-      // **Read, never mint** (mirrors desktop's open.ts). A *password* unlock
-      // leaves this device without the recovery key — it stayed in the enclave
-      // that was wiped, and nothing local can recover it — so minting here would
-      // seal this door under a fresh key and silently invalidate the 24 words the
-      // user wrote down. Nothing needs minting at boot: account creation, join,
-      // and recovery each establish the recovery key before a store is opened.
-      if (dbKey !== undefined && doors !== undefined) {
-        if (recoverySecret === undefined)
-          recoverySecret = await readRecoveryKey(keyStore);
-        else await keyStore.setSecret(RECOVERY_KEY, recoverySecret);
-        if (recoverySecret !== undefined) {
-          await doors.writeRecovery(
-            sealDbKeyForRecovery(dbKey, recoverySecret),
-          );
-        }
-      }
 
       // Wrap a freshly created core so every mutating call reconciles this
       // device's local notifications (Inc 3 §6). `withSyncKick` is the
@@ -688,7 +529,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           try {
             await destroyStoreFiles(activeStore.path);
           } catch {
-            // Swept on the next launch, a few lines below where custody resolves.
+            // Swept on the next launch, by `openActiveStore`.
           }
         } finally {
           setResetVersion((v) => v + 1);

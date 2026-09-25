@@ -404,9 +404,10 @@ the sections above are the decisions it implements.
   [`@leapsake/store-layout`](../store-layout/README.md): the roster, the per-account paths,
   and the pure `resolveActiveStore` that answers _Unauthenticated or Authenticated_ before
   anything is opened.
-- **Opening it** — `apps/desktop/src/main/db/open.ts`, and the mirrored branch in
-  `apps/mobile/lib/core-context.tsx`. Both hand the two unlock doors to `unlockStore`
-  (`src/unlock.ts`), and supply only the prompt that asks for a secret.
+- **Opening it** — `apps/desktop/src/main/db/open.ts` and `apps/mobile/lib/open-active-store.ts`,
+  each tested beside it. Both hand the two unlock doors to `unlockStore` (`src/unlock.ts`),
+  supplying only the prompt that asks for a secret, and reseal the recovery door with
+  `resealRecoveryDoor` (`src/recovery-door.ts`), which reads the recovery key and never mints it.
 - **What the boot does about keys once the store is open** — `establishKeySession`
   (`src/boot.ts`): the master-key repair, the resume of a half-done repair, the key session,
   and the _Degraded_ verdict when this device cannot prove the account's master key. Both

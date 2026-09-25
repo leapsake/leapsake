@@ -16,7 +16,7 @@ app/          # expo-router routes; (tabs)/index.tsx is Home (the reminders list
 components/   # AppHeader.tsx draws the header for *both* navigators, so iOS and
               # Android get one design; screens still just set `title`.
 db/           # the expo-sqlite driver, store conversion, and the unlock doors
-lib/          # core-context.tsx — the boot path, custody branches, and core wiring
+lib/          # open-active-store.ts — the boot path; core-context.tsx — custody and core wiring
 test/         # the on-device self-tests (driver contract + custody)
 maestro/      # the E2E flows; see maestro/README.md
 ```
