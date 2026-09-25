@@ -1,0 +1,70 @@
+# Lose the db-key, relaunch into the boot gate, open it by one door, and read Mary back.
+#
+#   DOOR   — "password" or "phrase".
+#   SECRET — the password, or the 24 words separated by single spaces.
+#
+# Preconditions: an Authenticated app holding Mary Bailey with her 1815 birthday.
+appId: com.leapsake.app
+---
+# Deletes only the db-key: the store, both doors and the recovery key survive.
+- openLink: "leapsake://dev-clear-dbkey"
+- runFlow:
+    file: tap-checked-text.yaml
+    env:
+      TARGET: "dev-clear-dbkey-button"
+      EXPECT: "Keychain cleared"
+- runFlow: relaunch.yaml
+# A cold dev-client launch fetching the bundle from Metro, as the harness's `HOME_TIMEOUT_MS`.
+- extendedWaitUntil:
+    visible:
+      id: "recovery-gate"
+    timeout: 120000
+
+# The gate leads with the password door; the phrase door is behind its link.
+- assertVisible: ".*Enter your password to unlock it.*"
+- runFlow:
+    when:
+      true: ${DOOR == "phrase"}
+    file: tap-text-checked.yaml
+    env:
+      TARGET: "Forgot your password\\? Use your 24-word recovery phrase"
+      EXPECT: ".*Enter your recovery phrase to unlock it.*"
+
+- tapOn:
+    id: "recovery-secret"
+- inputText: "${SECRET}"
+- runFlow:
+    file: dismiss-keyboard.yaml
+    env:
+      ANCHOR: "Unlock your data"
+- tapOn:
+    id: "recovery-submit"
+# The password door's Argon2id pass shows "Checking…"; an untyped field never gets there.
+# The phrase door answers in a fraction of a second, too fast to see it.
+- runFlow:
+    when:
+      true: ${DOOR == "password"}
+    commands:
+      - extendedWaitUntil:
+          visible: "Checking…"
+          timeout: 15000
+# Past the worst Argon2id pass measured on a loaded host (04 → the conversion wait).
+- extendedWaitUntil:
+    visible:
+      id: "tab-search"
+    timeout: 480000
+
+- runFlow:
+    file: tap-checked.yaml
+    env:
+      TARGET: "tab-search"
+      EXPECT: "browse-tile-people"
+- tapOn:
+    id: "browse-tile-people"
+- assertVisible: ".*Mary Bailey.*"
+- tapOn: ".*Mary Bailey.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Birthday.*"
+    direction: DOWN
+- assertVisible: ".*1815.*"

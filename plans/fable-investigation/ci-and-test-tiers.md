@@ -31,9 +31,9 @@ constraint against its step 7.
   retraction on switch, and Unlock re-enabling after a failure are tested there.
 - `e2e/02-smoke.yaml` replaced the old flows 02, 03 and 05, and relaunches before asserting.
 
-**The arc today** is 01 → smoke → 04 → 07c → 07b, about 13 minutes on iOS, of which the two
-door flows are 7. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the rung table
-in `CONTRIBUTING.md` grades which flows must be green, not which run.
+**The arc today** is 01 → smoke → 04, with both doors as 04's closing acts (step 6): about 9
+minutes on iOS. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the rung table in
+`CONTRIBUTING.md` grades which flows must be green, not which run.
 
 **What each file in `apps/mobile/maestro/` is carrying, judged by the admission rule:**
 
@@ -41,9 +41,7 @@ in `CONTRIBUTING.md` grades which flows must be green, not which run.
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---- |
 | `e2e/01-first-run.yaml`                | Keep. Cheap, and it is the arc's reset                                                                                          | —    |
 | `e2e/02-smoke.yaml`                    | Keep. The one every-layer-at-once flow, across a relaunch                                                                       | —    |
-| `e2e/04-create-account.yaml`           | Keep, and absorb both doors                                                                                                     | 6    |
-| `e2e/07c-password-door.yaml`           | Merge into 04. Its happy path already runs inside 07b; its negatives are `unlock.test.ts`'s                                     | 6    |
-| `e2e/07b-phrase-door.yaml`             | Merge into 04. Most of its cost is re-creating an account only to see the phrase                                                | 6    |
+| `e2e/04-create-account.yaml`           | Keep. Absorbed both doors (landed)                                                                                              | 6    |
 | `driver-selftest.yaml`                 | Keep. It is unit tests that need the real engine, not E2E                                                                       | —    |
 | `ios-prepare.yaml`, `ios-autofill.yaml` | Harness, not tests                                                                                                              | —    |
 | `store/`                               | Screenshot tooling, not tests                                                                                                   | —    |
@@ -65,15 +63,11 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 6 → 4b → 4c → 4d → 4e** (4a and 5 landed), with 7's parts slotted in anywhere.
+**Order: 4b → 4c → 4d → 4e** (4a, 5 and 6 landed), with 6a and 7's parts slotted in anywhere.
 
-- **6 is unblocked**: 5 has replaced the recovery-door rewrite test that 6 removes.
-- **6 before 4c and 4d**, so each platform switch moves three flows, not five, and
-  builds the merged Flow 4 on `lose-keys.yaml` once, rather than porting 07b and 07c only to
-  delete them.
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7's four parts** are independent of each other and of 4–6. 7c waits on the
+- **6a and 7's four parts** are independent of each other and of 4. 7c waits on the
   `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
@@ -182,10 +176,11 @@ quick JS reloads actually help (`apps/mobile/maestro/README.md` → _Driving the
   true), `apps/mobile/maestro/README.md` (_Run it_ and the dev-client traps), and
   `apps/mobile/README.md` where it says the self-test needs a dev-client build.
 
-**With step 6.** Either can land first. Whichever lands second uses `lose-keys.yaml`. Step 5's
-tests must cover both key-loss shapes: db-key only (the recovery key survives, so the recovery
-door is rewritten) and everything lost (no recovery key, so "read, never mint" leaves the door
-as it was).
+**With step 6, which landed first.** 4c and 4d replace the key-loss lines at the top of
+`subflows/unlock-after-key-loss.yaml` with `lose-keys.yaml`; Flow 4 itself does not change. Once
+a door act loses **everything**, Flow 4's phrase act no longer reaches the reseal (no recovery
+key survives to reseal under), so that rule rests on step 5's tests alone, which cover both
+key-loss shapes.
 
 **It will not fix dropped input by itself.** React Native does a JS round trip per keystroke,
 so a busy JS thread still loses characters; the flows keep their read-back retries
@@ -214,47 +209,42 @@ exists); only the rewrite is shared.
 
 ### 6. Merge 07c and 07b into Flow 4
 
-**Depends on 5.** Once 5 lands, what the two door flows prove that nothing else does is one
-thing: **the boot gate opens a real store in the real runtime, by each door.** Negatives are
-`unlock.test.ts`'s and `use-recovery-gate.test.ts`'s; the rewrite is step 5's.
+**✅ Landed 2026-09-24.** `e2e/04-create-account.yaml` captures the phrase off the reveal into
+`output.phrase`, then runs `subflows/unlock-after-key-loss.yaml` twice in the same `maestro
+test` process: db-key lost (`dev-clear-dbkey`), password door; db-key lost again, phrase door.
+Each act reads Mary and her 1815 birthday back. No wrong secrets in the UI.
+`custodyAuthenticated` still holds after the two unlocks (checked on the first green run).
+`07b` and `07c` are deleted, along with 07b's second account and the arc's ordering rules.
+iOS arc: 15m17s before (flows 57s, 143s, 99s, 171s, 293s), 9m00s after (57s, 144s, 187s).
 
-**The shape.** Flow 4 already watches the phrase appear, so it captures it (07b's `repeat` +
-`copyTextFrom` + `output` pattern, `apps/mobile/maestro/README.md` → _Capturing a secret the app
-shows once_). The door acts then run **in the same `maestro test` process** — as subflows of
-Flow 4, so `output.phrase` survives — in this order:
+### 6a. Forget account, below E2E
 
-1. create the account and capture the phrase (today's 04, unchanged),
-2. `dev-clear-dbkey`, relaunch, unlock with the **password**, Mary is readable,
-3. `dev-clear-dbkey`, relaunch, unlock with the **phrase**, Mary is readable.
+Step 6 took away the only E2E run of **Forget account** (07b's opening reset hit it because it
+arrived with an account). No flow reaches it now, by decision (owner, 2026-09-24), so the
+proof moves down a tier. Most of it is already there:
 
-Password first, then phrase, is what makes act 3 also prove step 5's rewrite rule end to end.
-No UI negatives: wrong secrets are covered two tiers down, and each wrong password costs an
-Argon2id pass. What disappears: 07b's factory reset, its second account and second store
-conversion, and the arc's ordering constraints (`scripts/test-e2e.mjs`'s long comment about
-07c following 04 and 07b running last).
+- `apps/mobile/lib/forget-account.test.ts`: `forgetAccountOnThisDevice` removes the roster
+  entry first, then the store and both doors, clears the keys, keeps the device identity, and
+  leaves other accounts alone.
+- `apps/mobile/test/custody-selftest.ts` (device tier): expo-sqlite really deletes a nested
+  per-account store, and `accountDoors(id).destroy()` takes one account's doors and no others.
+- `apps/desktop/test/integration/forget-account.test.ts` covers desktop's side, including
+  "leaves a device the Unauthenticated boot path opens, keyless and empty".
 
-**Check:** `custodyAuthenticated` runs after the flow goes green, which is now after two
-unlocks rather than straight after creation. It should still hold (same store, same roster,
-both doors); confirm it rather than assume it.
+**What is missing, both on mobile:**
 
-**Measure** the arc before and after on iOS and record both numbers in the commit message.
+1. **The next boot after a forget.** Mobile has no counterpart to desktop's last case. Compose
+   `forgetAccountOnThisDevice` and `openActiveStore` over the same fakes in
+   `open-active-store.test.ts`, and assert a keyless open at `stores/local/` with zero
+   key-store writes. Sabotage: skip `roster.remove`.
+2. **The wiring in `CoreProvider`'s `forgetAccount()`** (`lib/core-context.tsx`): it chooses
+   the account id, the store path and the doors, and closes the driver first. Only the UI
+   reaches it. Lift it into a function beside `open-active-store.ts` that takes the active store
+   and the ports, the way step 5 did for boot, and test that it targets the active account's
+   slot. Sabotage: pass `stores/local`'s path as `storeName`.
 
-**Update in the same commit:**
-
-- `scripts/test-e2e.mjs`: the flow list and its ordering comment.
-- `plans/testing/crucial-flows.md`: Flow 4 gains the two door acts; 7b and 7c are folded into
-  it; 7a stays as the one Flow 7 variant; the matrix loses two rows.
-- `CONTRIBUTING.md` → _The E2E release gate_: the rung table and the paragraph after it both
-  name 7b and 7c.
-- `apps/mobile/maestro/README.md` → _`e2e/`_: "Two of the seven do not fit…" and every mention
-  of 07b and 07c.
-- `apps/mobile/maestro/store/README.md` says `base.mjs` runs "flows 01, 02, 03, 05"; it runs 01
-  and 02. Fix it while there.
-
-**Grading, decided (owner, 2026-09-24): collapsed.** The doors already gate from `beta` in
-`CONTRIBUTING.md`'s rung table and `crucial-flows.md`'s matrix, so after the merge Flow 4 gates
-at `beta` whole (on screen) and `rc` adds only the out-of-band custody assertions. The
-edits above only rename 7b and 7c into Flow 4's door acts; they do not re-grade anything.
+Accepted residual risk: the Settings button and its DELETE confirmation. After a change there,
+check it once on the simulator with a scratch flow, and do not commit the flow.
 
 ### 7. Retire the one-off flows
 

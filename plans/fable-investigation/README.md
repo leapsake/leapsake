@@ -18,7 +18,7 @@ ports).
 | --- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | 1   | [`comment-pass.md`](./comment-pass.md)           | Decision history living in source comments. What remains: `apps/mobile` (about 5,600 comment lines), then the other packages, apps and `scripts/`. | **Do it, and adopt the rule.** Behaviour comments only, under two lines; decisions go to `git log` and package READMEs. |
 | 2   | [`shared-form-logic.md`](./shared-form-logic.md) | Form and field components that exist twice, once in `packages/ui/src/web` and once in `apps/mobile/components`, each owning its own state.                         | **Do it.** Move state and validation into `@leapsake/ui/headless` hooks; keep rendering per platform.                   |
-| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E flows proving what a lower tier should: door negatives, form state, query behaviour, navigation config. Steps 1–3 and 5 landed; 6–7 cut the arc to three flows and retire the four one-off flows. | **Do it.** Admission rule in `testing/crucial-flows.md`; step 4 decided 2026-09-24 (release build, iOS then Android); step 5 landed 2026-09-24; step 6 is unblocked and its grading question is decided. |
+| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E flows proving what a lower tier should: door negatives, form state, query behaviour, navigation config. Steps 1–3, 5 and 6 landed (the arc is three flows); 6a moves Forget account below E2E; 7 retires the four one-off flows. | **Do it.** Admission rule in `testing/crucial-flows.md`; step 4 decided 2026-09-24 (release build, iOS then Android); steps 5 and 6 landed 2026-09-24. |
 | 4   | [`remote-releases.md`](./remote-releases.md)     | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels. | **Do it.** Nine decisions recorded in the doc; steps 1–4 are script-only and can start now.                             |
 | 5   | [`dependency-balance.md`](./dependency-balance.md) | Bespoke code that a platform API or an already-present package covers (the relay's uncapped body reader, a hand-rolled base64, an ESLint plugin for one rule); the kept bespoke tooling gets a tripwire each. | **Do it.** Step 1 is a live vulnerability and goes first; the rest are independent. Kept items are not reopened until their tripwire fires. |
 
@@ -32,10 +32,9 @@ They are separate docs on purpose (different decisions, different lifetimes: 4 i
 its step 8 lands, 3 outlives it). But four couplings are real, and doing them out of order costs
 work:
 
-- **3's steps 1–3 landed 2026-09-24**, which is what makes 4's step 7 gate cheaper: the arc is
-  01 → smoke → 04 → 07c → 07b, and the unlock loop and gate state are tested below it. **3's
-  step 6 shrinks it again** (5 landed) to 01 → smoke → 04, with both doors as 04's closing acts; landing
-  them before 4's step 7 means `ci.yml` never pays for the longer arc.
+- **3's steps 1–3 landed 2026-09-24**, which is what makes 4's step 7 gate cheaper: the
+  unlock loop and gate state are tested below it, and **3's step 6 (landed) shrank the arc** to
+  01 → smoke → 04, with both doors as 04's closing acts, so `ci.yml` never pays for a longer one.
 - **3's step 4 (decided: E2E drives a release build) should land before 4's step 7 wires the gate into `ci.yml`.** Step 7 runs the
   device tiers on every push to `main`; whatever the gate costs and however often it flakes,
   that is what the repo pays from then on. The release-configuration build deletes the dev
@@ -45,7 +44,7 @@ work:
 - **4's step 6 has already paid its debt to 3.4** — the evidence is written into that step. Do
   not re-derive it.
 
-**Ahead of both:** the native crash in 4's step 6 open item 3 (Android Flow 7c). It is
+**Ahead of both:** the native crash in 4's step 6 open item 3 (Android Flow 7c, now Flow 4's password act). It is
 diagnosed as a react-native-screens race and patched (`patches/README.md`); 35990530595 ran
 three Android jobs clean, and one more clean run confirms it.
 

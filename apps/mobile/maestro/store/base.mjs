@@ -7,8 +7,6 @@
 //
 //   - **04 is skipped.** Its account conversion is a 19MiB memory-hard Argon2id pass on
 //     unJITted Hermes — minutes of wall-clock buying nothing a screenshot shows.
-//   - ⚠️ **07b MUST NOT run.** It opens by resetting the device, which destroys exactly
-//     the store these screenshots are of. Same for 07c, which needs 04's end state.
 //   - **No `--provision`.** Under it the harness shuts the device down and stops Metro the
 //     moment flows finish, taking the staged state with it. Without it the device is
 //     "the developer's own" and is left alone — which is the whole point here.

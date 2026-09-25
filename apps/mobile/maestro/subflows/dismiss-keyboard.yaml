@@ -33,8 +33,8 @@
 # Android the keyboard is Gboard, whose nodes all carry its package in their
 # `resource-id`, so any of them means it is up. This subflow once probed for
 # `Return` alone, which on Android is never there: the fallback tap never ran and
-# the assert passed with the keyboard still open. Nothing noticed until Flow 7c's
-# first Android run (2026-09-10): on the phrase door, `Enter` put a newline in the
+# the assert passed with the keyboard still open. Nothing noticed until the door
+# flow's first Android run (2026-09-10): on the phrase door, `Enter` put a newline in the
 # `multiline` field, Gboard stayed over **Unlock**, and the tap aimed at the button
 # opened Gboard's Settings instead.
 #

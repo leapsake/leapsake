@@ -1,7 +1,7 @@
 # `tap-checked.yaml` for a control named by text rather than by id, and a destination named the
 # same way. Same reason: Maestro reports a swallowed tap as COMPLETED, so the tap has to prove
-# it landed — the "Forgot your password?" link went unnoticed on a hosted runner and Flow 7c
-# then failed on the phrase door's heading, one step later (2026-09-20).
+# it landed — the "Forgot your password?" link went unnoticed on a hosted runner and the password-door
+# flow then failed on the phrase door's heading, one step later (2026-09-20).
 appId: com.leapsake.app
 ---
 - retry:

@@ -1,16 +1,5 @@
 # Create an account: username + password, submitted, through to the one-time reveal.
-#
-# **Extracted from `../e2e/04-create-account.yaml` so that Flow 7b can use it too**, and
-# for one reason beyond tidiness: most of what is below is the iOS "Use Strong Password?"
-# workaround, and that is a mitigation for a system behaviour a runtime update can re-arm
-# at any time. Two copies of it would drift, and the copy that drifted would be the one
-# that was not being run that week.
-#
-# **This ends the moment the reveal is on screen, and asserts nothing about it.** The two
-# callers want different things from that moment — `04` asserts the phrase renders as 24
-# words and dismisses it, `07b` copies the words out — and a subflow that acknowledged the
-# phrase would be useless to the flow that needs to read it. So the boundary is "the
-# reveal is up", which is the last thing both callers agree on.
+# Ends with the reveal on screen and asserts nothing about it; the caller reads it.
 #
 #   USERNAME, PASSWORD — the account to create. PASSWORD must be ≥12 characters or the
 #   form refuses itself and the guard below fires.

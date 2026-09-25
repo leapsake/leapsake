@@ -170,7 +170,7 @@ export const TIERS = [
     status: "ready",
     device: true,
     platforms: ["ios", "android"],
-    // The whole `beta` bar, doors included (CONTRIBUTING.md → *The E2E release gate*, its
+    // The whole `beta` bar, Flow 4's door acts included (CONTRIBUTING.md → *The E2E release gate*, its
     // rung table), plus `rc`'s out-of-band custody assertions on Flows 1 and 4. What `rc` still owes is the key-store row, deferred (see
     // `lib/custody-assertions.mjs`); 6/7a ship with sync. Green and re-runnable on both
     // the iOS simulator and the Android emulator. An un-booted device reports BLOCKED via

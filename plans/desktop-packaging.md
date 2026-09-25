@@ -102,11 +102,11 @@ have — automated proof a real user can complete the crucial journeys on the bu
 
 - Commit to **Playwright** (`_electron.launch()`), per the vendor-neutrality rule in
   [`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *The E2E release gate*.
-- Implement catalog Flows **1–5, 7b, 7c**
+- Implement catalog Flows **1, 2 and 4**, Flow 4's door acts included
   ([`testing/crucial-flows.md`](./testing/crucial-flows.md)) — the single-instance set. Flows
-  1–4 are one arc (Flow 4 converts the store Flows 1–3 filled).
+  1, 2 and 4 are one arc (Flow 4 converts the store Flow 2 filled).
 - Add the minimal `data-testid` anchor set **as flows need them**, not upfront.
-- Per-flow profile isolation via `--user-data-dir`. **Simulate keystore loss for 7b/7c by
+- Per-flow profile isolation via `--user-data-dir`. **Simulate keystore loss for Flow 4's door acts by
   deleting `keystore.json`** from the test profile — no `dev-clear-dbkey` route is needed on
   desktop, and therefore no test-only surface in production main. *(This is the one place
   desktop is cheaper than mobile, and it is worth not giving away.)*

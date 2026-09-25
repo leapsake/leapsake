@@ -1,72 +1,51 @@
-# Flow 4 — Create an account: the act that turns encryption on.
-# plans/testing/crucial-flows.md → Flow 4. Runs at the `beta` rung, on-screen half only.
+# Flow 4 — create an account, then open the store again by each door.
+# plans/testing/crucial-flows.md → Flow 4.
 #
-# **What this proves that no lower tier can:** that the *running app* survives its own
-# store being replaced underneath it. Both clients' converters are covered a tier down;
-# what only E2E shows is that an Unauthenticated store full of real rows becomes an
-# encrypted one in place, and that everything the user typed is still there and still
-# readable immediately afterwards.
+# Act 1 converts Flow 2's plaintext store into an encrypted one in place and captures the
+# phrase. Acts 2 and 3 lose the db-key and unlock by the password, then by the phrase.
+# The phrase lives in `output`, which subflows share and a second `maestro test` would not.
 #
-# **Last in the arc, deliberately.** Everything before it runs against an Unauthenticated
-# store, and this is the step that ends that. It matters for re-runnability: once an
-# account exists the reset in `subflows/factory-reset.yaml` is a different act under a
-# different name, which that subflow handles — but there is no reason to make every other
-# flow run under encryption to find out.
-#
-# **The out-of-band half belongs to `rc`, and runs in the harness.** The catalog also asks
-# that the store be ciphertext under `stores/<accountId>/`, that the Unauthenticated store
-# be gone, and that the OS key store now hold four secrets. None of it is reachable from
-# Maestro — so it runs as `custodyAuthenticated` (`scripts/lib/custody-assertions.mjs`),
-# attached to this flow in `scripts/test-e2e.mjs` and checked the moment this flow goes
-# green. **That check is the one this whole flow exists to make honest:** everything below
-# is a screen reading "your account is set up", which a build that encrypted nothing would
-# also produce. The key-store row is deferred for want of a read verb
-# (`plans/testing/crucial-flows.md` → *Where these run on mobile*).
+# The out-of-band half is `custodyAuthenticated`, run by `scripts/test-e2e.mjs` after this
+# flow goes green.
 appId: com.leapsake.app
 ---
-# The form, its submit and the wait for the reveal are `../subflows/create-account.yaml`.
-# **Extracted for Flow 7b**, which has to create an account of its own — the recovery phrase
-# is shown once and cannot cross a flow boundary, so 7b cannot inherit this one's. What is
-# shared is mostly the iOS "Use Strong Password?" workaround, which is a mitigation for a
-# system behaviour a runtime update can re-arm; two copies would drift. The subflow carries
-# that whole explanation, and the 480s conversion budget with it.
-#
-# It ends with the reveal on screen and asserts nothing about it, because this flow and 7b
-# want different things from that moment. Everything below is this flow's own.
+# =========================================================================================
+# Act 1 — create the account, capture the phrase
+# =========================================================================================
 - runFlow:
     file: ../subflows/create-account.yaml
     env:
       USERNAME: "mary"
       PASSWORD: "correct-horse-battery-staple"
 
-# It has taken the screen over rather than appearing beneath the form — which is the
-# assertable half of the catalog's "the app chrome is not reachable while it is up". The
-# account screen is pushed over the tab navigator and never had a tab bar to hide, so
-# asserting the tab bar's absence here would pass whatever the reveal did.
+# The reveal replaces the form rather than sitting beneath it.
 - assertNotVisible: "Protect your data"
-
-# 24 words, and exactly 24. The grid numbers them, so the last one and the absence of a
-# twenty-fifth is a cheaper and more exact claim than counting elements.
 - assertVisible: '24\. .*'
 - assertNotVisible: '25\. .*'
 
-# The acknowledgement checkbox, by id: a `rightOf:` selector once picked something else
-# entirely — leaving it unticked, Done disabled, and the tap below doing nothing. "Done"
-# staying disabled until it is ticked is what turns that into a failure rather than an
-# unacknowledged phrase.
+# Reads the 24 numbered words (`N. word`) into `output.phrase`, space-separated.
+# apps/mobile/maestro/README.md → *Capturing a secret the app shows once*.
+- evalScript: ${output.n = 0}
+- evalScript: ${output.phrase = ""}
+- repeat:
+    times: 24
+    commands:
+      - evalScript: ${output.n = output.n + 1}
+      - copyTextFrom:
+          text: "${output.n}\\. .*"
+      - evalScript: '${output.phrase = output.phrase + " " + maestro.copiedText.replace(/^\d+\. /, "")}'
+- evalScript: ${output.phrase = output.phrase.trim()}
+- assertTrue: '${output.phrase.split(" ").length == 24 && output.phrase.indexOf(".") < 0}'
+
+# "Done" stays disabled until the box is ticked, so a missed tick fails here.
 - tapOn:
     id: "recovery-acknowledged"
 - tapOn: "Done"
 
-# --- the app continues in place ----------------------------------------------------------
 - assertVisible: "Your account is set up."
-# Shown once means once. A build that re-offered the phrase would be handing out a second
-# copy of the only thing that can open the store.
 - assertNotVisible: "Save your recovery phrase"
 
-# --- and the data survived being encrypted underneath it ----------------------------------
-# The point of the flow. Mary, her milestone and her relationship were all written into a
-# plaintext store; they must still be there, and still readable, out of an encrypted one.
+# Mary, her milestone and her relationship, read out of the encrypted store.
 - openLink: "leapsake://"
 - runFlow:
     file: ../subflows/tap-checked.yaml
@@ -83,3 +62,21 @@ appId: com.leapsake.app
     direction: DOWN
 - assertVisible: ".*1815.*"
 - assertVisible: ".*George Bailey.*"
+
+# =========================================================================================
+# Act 2 — the password door
+# =========================================================================================
+- runFlow:
+    file: ../subflows/unlock-after-key-loss.yaml
+    env:
+      DOOR: "password"
+      SECRET: "correct-horse-battery-staple"
+
+# =========================================================================================
+# Act 3 — the phrase door, after the password unlock has resealed it
+# =========================================================================================
+- runFlow:
+    file: ../subflows/unlock-after-key-loss.yaml
+    env:
+      DOOR: "phrase"
+      SECRET: "${output.phrase}"

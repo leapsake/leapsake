@@ -54,7 +54,7 @@ author will otherwise get wrong:
 > that turns encryption on**, converting the store as it goes and showing the 24-word recovery
 > phrase once. So the journey to exercise is not "set a passphrase, lock, unlock" but
 > **Unauthenticated → account → Authenticated** (Flow 4), plus the two doors that reopen an
-> Authenticated store when the OS key store is lost (Flow 7).
+> Authenticated store when the OS key store is lost (Flow 4's closing acts).
 
 > **The recovery phrase is shown once and is never re-viewable.** There is no "reveal my phrase"
 > surface; a holder who loses it rotates to a new one behind re-auth. **Every flow that needs
@@ -76,7 +76,7 @@ checks the UI would pass against an app that encrypted nothing. So the custody f
 | Key material   | count/keys of the profile's OS key store (desktop `keystore.json`; mobile the secure store)                                              | Unauthenticated holds **zero**; Authenticated holds the db-key, enclave secret, recovery key, device id     |
 | Store location | the store's path within the profile                                                                                                      | `stores/local/` when Unauthenticated, `stores/<accountId>/` when Authenticated                              |
 | Roster         | desktop a plain JSON file under `userData`; **mobile the `roster` table in `leapsake-roster.db`**                                        | zero accounts when Unauthenticated, exactly one after creation                                              |
-| Doors          | desktop the `<db>.recovery` **and** `<db>.password` files; **mobile the two `kind` rows (`password`, `recovery`) in `stores/<accountId>/doors.db`** | the two doors Flow 7 exercises exist                                                             |
+| Doors          | desktop the `<db>.recovery` **and** `<db>.password` files; **mobile the two `kind` rows (`password`, `recovery`) in `stores/<accountId>/doors.db`** | the two doors Flow 4's closing acts exercise exist                                               |
 
 The last two rows are shaped differently on each client. Both are right; they store the same
 facts differently, and a harness author who goes looking for mobile `.recovery` files finds
@@ -106,9 +106,9 @@ line targets both. Add them as flows need them, not upfront.
 
 | Anchor token      | Marks                                                            | Used by |
 | ----------------- | ---------------------------------------------------------------- | ------- |
-| `recovery-gate`   | the at-rest boot gate is up                                      | Flow 7  |
-| `recovery-secret` | the box around the gate's secret field, whichever door is showing | Flow 7  |
-| `recovery-submit` | the gate's **Unlock** button                                     | Flow 7  |
+| `recovery-gate`   | the at-rest boot gate is up                                      | Flow 4  |
+| `recovery-secret` | the box around the gate's secret field, whichever door is showing | Flow 4  |
+| `recovery-submit` | the gate's **Unlock** button                                     | Flow 4  |
 
 The gate hosts two doors (password, phrase); flows pick a door by its visible label and the
 switch links, and the three anchors cover only what labels cannot: a container with no text, a
@@ -124,7 +124,7 @@ reset", "Save your recovery phrase", the person's name, the milestone label).
 
 ## Core catalog — the v0.1 release gate
 
-Seven flows (Flow 7 has three variants). Each must run **automated and green** on a platform
+Four flows; Flow 7a waits on sync. Each must run **automated and green** on a platform
 before that platform's first release, at the rung CONTRIBUTING's rung table names. Columns:
 **Devices** (single vs. the two-instance sync pair), and **Uniquely exercises** (why E2E: the
 surface no lower tier reaches).
@@ -178,12 +178,20 @@ surface no lower tier reaches).
 - **Preconditions:** an Unauthenticated store **with data** (Flows 1–2). Converting an empty
   store proves nothing; the data is the point.
 - **Steps:** Settings → create an account → username + password (≥12 chars) → submit. The
-  24-word phrase is shown once; tick **I've saved my recovery phrase** → **Done**.
+  24-word phrase is shown once: capture it, then tick **I've saved my recovery phrase** →
+  **Done**. Then the two door acts, each starting from a simulated OS key-store reset that loses
+  the db-key alone (desktop: delete it from `keystore.json`; mobile: the `dev-clear-dbkey`
+  route) and a relaunch into the boot gate (`recovery-gate`, "Unlock your data"):
+  1. **The password door:** enter the account password → **Unlock**.
+  2. **The phrase door:** choose **Forgot your password?**, enter the captured phrase →
+     **Unlock**. It runs second because the password unlock reseals the recovery door, so
+     this act also proves the resealed door opens.
 - **Assert (on screen):** the phrase renders as 24 numbered words; while it is up the app chrome
   is **not** reachable, so it cannot be dismissed by an accidental navigation; after **Done** the
   app **continues in place, no restart, no blank window**, and Mary plus her milestone from
   Flow 2 are still on screen and still readable; Settings now reports the account; the phrase
-  is **not** offered anywhere again.
+  is **not** offered anywhere again. After each door act, the gate is gone and Mary with her
+  milestone is readable again.
 - **Assert (out of band):** the store is now **ciphertext** at `stores/<accountId>/`; the
   Unauthenticated store at `stores/local/` is **gone** (the file; the directory may remain); the
   roster holds exactly one account; the OS key store now holds the db-key, enclave secret,
@@ -192,21 +200,19 @@ surface no lower tier reaches).
 - **Uniquely exercises:** the plaintext→encrypted conversion of a _live_ store with real rows,
   driven through the real UI, plus the OS key store's transition from empty to populated. Both
   clients' converters are covered a tier down; what only E2E proves is that the **running app**
-  survives its own store being swapped and remains usable immediately afterwards.
+  survives its own store being swapped and remains usable immediately afterwards. The door acts
+  add the one thing no lower tier boots through: the pre-database gate opening a real store in
+  the real runtime, by each door. Their wrong-secret cases are one tier down
+  (`packages/key-custody/test/unlock.test.ts`, `apps/mobile/lib/use-recovery-gate.test.ts`), and
+  the recovery-door reseal rule is `apps/mobile/lib/open-active-store.test.ts`'s.
 
-### Flow 7 — The doors back in (three variants)
+### Flow 7 — Cross-device recovery (forgot password)
 
-> **Changing:** 7b and 7c are to fold into Flow 4 as its closing acts, with their negatives
-> moved below E2E: [`../fable-investigation/ci-and-test-tiers.md`](../fable-investigation/ci-and-test-tiers.md)
-> steps 5 and 6. Until step 6 lands, this section describes the harness as built.
+The at-rest doors, once variants 7b and 7c, are Flow 4's closing acts. What remains here is the
+door that needs a second device.
 
-The phrase and the password are the two ways back into an Authenticated store; **all three
-variants gate**. Every variant carries its **negative case**: a wrong secret must be rejected
-visibly and must corrupt nothing. Leaving the negatives out is how a door that never actually
-checks anything ships green.
-
-**7a — Cross-device recovery (forgot password).** Nothing in the build reaches this until the
-relay half of the clients returns in v0.2; its steps are written against those flows.
+**7a.** Nothing in the build reaches this until the relay half of the clients returns in v0.2;
+its steps are written against those flows.
 
 - **Steps:** on a synced account, take the phrase captured there to a **fresh** Device C;
   choose recover-by-phrase; enter the words; set a new password.
@@ -215,51 +221,16 @@ relay half of the clients returns in v0.2; its steps are written against those f
 - **Devices:** two (a synced account + a fresh device).
 - **Uniquely exercises:** the relay recovery/password-reset path in the real runtime.
 
-**7b — At-rest local recovery, phrase door.**
-
-- **Steps:** on an Authenticated device with data, simulate an OS key-store reset (desktop:
-  delete `keystore.json` from the profile; mobile: the `dev-clear-dbkey` route) and relaunch;
-  the boot gate appears (`recovery-gate`, "Unlock your data"); choose **Forgot your password?**;
-  enter the phrase → **Unlock**.
-- **Assert:** the app opens to the existing data; a wrong phrase re-enables the form with an
-  error and leaves the sidecar intact (a second attempt with the right phrase still works;
-  assert that, or the "corrupts nothing" claim is untested); **the right phrase still opens the
-  store after a password unlock has happened** (this clause is 7b's because it needs the words).
-- **Devices:** single. **Self-contained by necessity:** it resets, seeds a person, creates its own
-  account and captures the phrase from the reveal it just watched, because the words cannot
-  cross a flow boundary. That is a second store conversion, not a selector problem.
-- **Uniquely exercises:** the boot-time gate and the recovery sidecar unwrap, the local-only
-  backup story. No lower tier boots through this gate.
-
-**7c — At-rest local recovery, password door.**
-
-- **Steps:** the same key-store reset, answered with the **account password** instead of the
-  phrase.
-- **Assert:** the app opens to the existing data; a wrong password re-enables the form with an
-  error and consumes nothing; afterwards the _phrase_ door is still **offered** and its sidecar
-  still **reads**: a well-formed but wrong phrase must be rejected by the sidecar's own MAC, with
-  the phrase door's own error, not by the codec and not by "that door is not available". The
-  doors are independent and a shared-state bug here is invisible until someone needs the second
-  door, so it is asserted right after the act that would cause it: a password unlock is not
-  read-only on the phrase sidecar. (That the **right** phrase opens the store is 7b's clause.)
-- **Devices:** single. Inherits Flow 4's store, data and password directly.
-- **Uniquely exercises:** the password sidecar in the pre-database boot path. This is the door
-  that makes an org-move Team-ID change cost one password entry instead of a phrase hunt
-  ([`@leapsake/key-custody`](../../packages/key-custody/README.md) → _The signing identity owns
-  the enclave key_), and it is the most delicate code in the app: it runs before the database
-  opens, so a bug is not a failed query but an app that cannot start.
-
 ### The phrase-capture rule
 
-Every variant that opens the phrase door needs words shown exactly once, on the reveal. **A flow
+Every flow that opens the phrase door needs words shown exactly once, on the reveal. **A flow
 cannot hand them to another flow**: each flow is its own harness process, so captured text dies
 with it, and the reveal's own **Copy** button does not bridge it either, because the driver's
 paste replays its own captured text rather than reading the device pasteboard. **So the flow
-that needs the words must be the flow that watched them appear.** 7b therefore creates its own
-account; 7c escapes it because the password door is answered with the password Flow 4 typed. How
-the capture is done, and the driver quirks it depends on, is
-[`apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md) → _Capturing a secret
-the app shows once_.
+that needs the words must be the flow that watched them appear**, which is why the doors are
+Flow 4's acts rather than flows of their own. How the capture is done, and the driver quirks it
+depends on, is [`apps/mobile/maestro/README.md`](../../apps/mobile/maestro/README.md) →
+_Capturing a secret the app shows once_.
 
 ---
 
@@ -293,14 +264,12 @@ integration-tier work.
 | ------------------------------------------ | ----------------------------------- | ----- | ------- | ---- | --------- | ------- | -------------------------------------------------------------------------------------- |
 | 1 First run (Unauthenticated, mints nothing) | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | fresh profile per run                                                                  |
 | 2 Smoke, across a relaunch                 | **beta**                            | gate  | gate    | gate | later     | 1       | replaces Flows 2, 3 and 5 of the old arc                                               |
-| 4 Create an account                        | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | must run on a store **with** data                                                      |
+| 4 Create an account                        | **beta** (screen) · rc (out-of-band) | gate  | gate    | gate | later     | 1       | must run on a store **with** data; ends with both door acts                           |
 | 7a Cross-device recovery                   | with sync (v0.2)                    | gate  | gate    | gate | later     | 2       | includes the wrong-phrase negative                                                     |
-| 7b At-rest, phrase door                    | **beta**                            | gate  | gate    | gate | later     | 1       | **creates its own account**; runs last, since its reset destroys the arc's store       |
-| 7c At-rest, password door                  | **beta**                            | gate  | gate    | gate | later     | 1       | follows 4 directly; budget three Argon2id passes                                       |
 
 **"Gates at"** is the rung by which a flow must be green, per CONTRIBUTING's rung table. It
 grades _when_, never _whether_: every core flow still gates v0.1, and `rc` is inside v0.1. The
-column reads as a ratchet on data loss: every on-screen flow, both doors of 7 included, gates
+column reads as a ratchet on data loss: every on-screen flow, Flow 4's door acts included, gates
 at `beta`, since the runner runs the whole arc at every rung; the out-of-band halves of 1 and 4
 wait for `rc`.
 

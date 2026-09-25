@@ -906,8 +906,8 @@ function CustodyBanner({
  * the phrase sits behind a "forgot your password?" action. Only the doors this
  * store actually has are offered.
  *
- * **The three `testID`s are load-bearing for Flow 7c, not decoration**
- * (`plans/testing/crucial-flows.md` → Flow 7). Each is here because the visible
+ * **The three `testID`s are load-bearing for Flow 4's door acts, not decoration**
+ * (`plans/testing/crucial-flows.md` → Flow 4). Each is here because the visible
  * text cannot carry the assertion:
  *
  * - `recovery-gate` — this `View` has no text of its own, and it is what a flow
@@ -922,7 +922,7 @@ function CustodyBanner({
  * to.** A `multiline` `TextInput` is a `UITextView` on iOS, and the node XCUITest
  * surfaces for it carries **no accessibility identifier** — the driver sees a scroll
  * view with two scroll bars and nothing else. Measured 2026-09-09: with the id on
- * the inputs, Flow 7c found the password door's field and then could not find the
+ * the inputs, the door flow found the password door's field and then could not find the
  * phrase door's *at all*, while the screenshot showed it rendering perfectly. A
  * plain `View` does carry its id (`recovery-gate` above is one), it wraps the field
  * tightly, so a tap at its centre lands on the field and focuses it. Putting the id

@@ -378,8 +378,8 @@ run may not start, because the app is wherever the last failure left it — a mo
 open, a form still half-filled. `01`'s relaunch is what clears that, so re-run the arc
 rather than the flow.
 
-What is here covers the **`beta` rung** — Flows 1, 2 (the smoke) and 4, and both at-rest doors,
-`07c` (password) and `07b` (phrase), on-screen assertions only — and **`rc`'s out-of-band
+What is here covers the **`beta` rung** — Flows 1, 2 (the smoke) and 4, whose last two acts
+open the store by each door, on-screen assertions only — and **`rc`'s out-of-band
 custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
 keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
 the catalog becomes a release _check_ rather than a `manual:` sentence when the tag-triggered
@@ -433,12 +433,11 @@ Two shapes the checks must respect, each pinned by a unit test so nobody "fixes"
   `new DatabaseSync(path)` creates the file, so a check asking "does the roster exist?" could
   otherwise answer by planting one.
 
-**Two of the seven do not fit the "ordered arc" description above, and the exceptions are the
-point.** `07c` must _follow_ `04` — it needs the store, the data and the password `04` leaves
-behind. `07b` must run **last** and inherits nothing at all: the 24 words it needs cannot cross
-a flow boundary, so it resets the device and builds its own account, which destroys what `04`
-and `07c` were standing on. The whole iOS arc is **13 minutes**; the two door flows are 7 of
-them, and that is four Argon2id passes doing what they are designed to cost.
+**The doors are `04`'s last two acts, not flows of their own**, because the 24 words cannot
+cross a flow boundary (see _Flows do not share state_ below). `04` captures them off the reveal,
+then `subflows/unlock-after-key-loss.yaml` runs twice in the same process: db-key lost, password
+door; db-key lost again, phrase door. Password first means the phrase unlock also proves the
+recovery door the password unlock resealed.
 
 ### What the app's own state looks like from here
 
@@ -701,7 +700,7 @@ those and the form fills first try. **Add ids to any other form you need to driv
 the anchor set the crucial-flow catalog calls for, grown one flow at a time.
 
 The unlock gate is the second form to need them (`lib/core-context.tsx` → `RecoveryGate`, added
-for Flow 7c): `recovery-gate` on the container, `recovery-secret` on the field's **wrapper** (see
+for the door flows): `recovery-gate` on the container, `recovery-secret` on the field's **wrapper** (see
 the next section for why it is not on the input), and `recovery-submit` on the button, whose
 label `Unlock` is a prefix of the screen's own title `Unlock your data` and flips to `Checking…`
 mid-submit. One id serves both doors because only one field is mounted at a time; which door you
@@ -715,7 +714,7 @@ carries **no accessibility identifier whatsoever** — dump the hierarchy and yo
 view with two scroll bars where your field should be, while the screenshot shows the field
 rendering perfectly. `testID` on the input is simply lost.
 
-Flow 7c hit this on the gate: the password door's field (single-line, secure) resolved first try,
+The door flows hit this on the gate: the password door's field (single-line, secure) resolved first try,
 and the phrase door's, reached by switching, did not exist as far as the driver was concerned. A
 plain `View` **does** carry its id, so the fix is to wrap the input and put the anchor there — a
 tap at the wrapper's centre lands on the field and focuses it. Do it on both branches of a form
@@ -739,7 +738,7 @@ The gate is now a `ScrollView` with `keyboardShouldPersistTaps="handled"`, which
 and makes the subflow work anchored on `"Unlock your data"`. Worth the habit: when a flow cannot
 reach a control, check whether a user could.
 
-**On Android the subflow was blind, and the first Android run of 7c found it** (2026-09-10).
+**On Android the subflow was blind, and the first Android run of the doors found it** (2026-09-10).
 Its keyboard probe was `id: Return` — the iOS keyboard's key — which Gboard never has. So the
 fallback tap never ran and the closing `assertNotVisible` passed with the keyboard still up.
 The reminder flow had been passing over the same hole because its next tap, **Save**, sits above the
@@ -791,7 +790,7 @@ than guarded: it is drawn by a system process and absent from the hierarchy Maes
 
 Metro is watching. A source edit mid-run — even a comment-only one — pushes a Fast Refresh into
 the app under test, and the flow loses whatever transient state it was standing on. Hit while
-building Flow 7c: an edit landed during Flow 1 and the factory-reset confirmation it had just
+building the password door's flow: an edit landed during Flow 1 and the factory-reset confirmation it had just
 armed was gone, so the red read `Element not found: Erase everything` and named the app rather
 than the edit. There is no signal in the log that a refresh happened. Edit between runs.
 
@@ -809,14 +808,13 @@ recovery reveal's **Copy** button, say — is invisible to it (verified against
 `~/.maestro/lib/maestro-orchestra.jar`, Maestro 2.8.0).
 
 Together those two decide the shape of any flow that needs a secret the app shows **once**: it
-has to be the same flow that watched the secret appear. That is why Flow 7c inherits `04`'s
-password (a constant this repo already knows) while Flow 7b creates its own account rather than
-reusing the one `04` made — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
+has to be the same flow that watched the secret appear. That is why the door acts live inside
+`04`, which watches the reveal, rather than in flows of their own — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
 → _The phrase-capture rule_.
 
 ### Capturing a secret the app shows once: `repeat` + `copyTextFrom` + `output`
 
-This is how `e2e/07b-phrase-door.yaml` gets the 24 recovery words off the reveal, and it cost
+This is how `e2e/04-create-account.yaml` gets the 24 recovery words off the reveal, and it cost
 **4 seconds** for the whole grid on the first attempt — no scrolling, and no new app surface,
 which is why the catalog's proposed `recovery-phrase` anchor was never built and the phrase is
 still never exposed as a single string anywhere in the app.
@@ -864,7 +862,7 @@ caret where it taps, which is the element's **centre**. On a single-line field t
 the value and the distinction never shows. On the gate's four-line phrase field it is the middle
 of the text.
 
-Flow 7b lost two runs to this. Its negative case types a 210-character wrong phrase; a bare
+The phrase door's flow lost two runs to this. Its negative case typed a 210-character wrong phrase; a bare
 `eraseText` (50 backspaces) and then `eraseText: 250` both left a tail, `inputText` inserted the
 real phrase at the caret, and the field ended up holding `<24 real words> abandon … art`. The
 door rejected that correctly, so **the red landed several steps later on the unlock** and named
@@ -878,10 +876,10 @@ backspace count only on a field you know is single-line and short.
 ### A wrong password costs exactly what a right one costs
 
 The password door derives Argon2id from a salt carried **inside the sidecar**, so there is no
-cheap rejection path: a deliberately wrong password in Flow 7c pays the same 19MiB memory-hard
+cheap rejection path: a deliberately wrong password pays the same 19MiB memory-hard
 pass as the real one — 25s each on the iOS simulator, and `04`'s notes document how much worse a
-loaded machine gets. Budget every unlock wait like `04` budgets its conversion, and put the
-negative case first so a build that is broken anyway fails on the cheaper end of the flow.
+loaded machine gets. Budget every unlock wait like `04` budgets its conversion. It is one reason
+wrong secrets are tested in `packages/key-custody/test/unlock.test.ts` rather than here.
 
 The **phrase** door is the opposite: it unwraps raw key material and derives nothing, so a wrong
 phrase comes back in ~0.12s. Its waits do not need the big budget.

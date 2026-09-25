@@ -10,11 +10,10 @@ and the website; only the device driver differs.
 
 ## Why not just run the e2e arc
 
-Flows 2–3 leave **Mary and George Bailey, one relationship and one birthday** — correct for
+Flow 2 leaves **Mary and George Bailey, one relationship and one birthday** — correct for
 assertions, thin for a store listing: a relationship manager whose roster screenshot holds two
-people argues against the product. ⚠️ And the arc's tail is actively destructive here —
-`e2e/07b-phrase-door.yaml` **opens by resetting the device**, which would erase exactly the
-store you are photographing.
+people argues against the product. ⚠️ And the arc's tail is wrong for it: Flow 4 encrypts the store and
+ends with the db-key lost and recovered twice, minutes that buy nothing a screenshot shows.
 
 ## Prerequisites
 
@@ -32,7 +31,7 @@ Run in order; each builds on the last.
 
 ```sh
 # 1. Reset, then the base state: Mary + George, a relationship, a milestone, a reminder.
-#    Runs a SUBSET of the e2e arc through the harness — flows 01, 02, 03, 05 only.
+#    Runs a SUBSET of the e2e arc through the harness — flows 01 and 02 only.
 node apps/mobile/maestro/store/base.mjs --platform=android --device=emulator-5554
 
 cd apps/mobile/maestro/store

@@ -167,7 +167,7 @@ Five consequences, all actionable:
   data rather than explaining its loss.
 - **Rehearse it before you rely on it.** `apps/mobile/app/dev-clear-dbkey.tsx` reproduces exactly
   this scenario (keychain key gone, store and doors intact), and both doors of it are automated
-  (Flows 7b and 7c), so the rehearsal is a suite run rather than a ceremony.
+  (Flow 4's door acts), so the rehearsal is a suite run rather than a ceremony.
 - **macOS ships after the transfer** for the same reason. `safeStorage`'s keychain ACL is bound to
   the code signature, so shipping desktop under the personal Developer ID first would pay this
   cost a second time, on a second platform, for nothing.

@@ -115,10 +115,8 @@ appId: com.leapsake.app
                 visible:
                   id: "forget-account-confirm"
                 timeout: 20000
-            # As in the factory-reset branch above: asserted, never tapped. This
-            # branch was unreachable for as long as every green arc ended
-            # Unauthenticated; **Flow 7b reaches it** — it runs last and opens with a
-            # reset, so it arrives with an account and takes this side.
+            # As in the factory-reset branch above: asserted, never tapped. The arc
+            # never reaches this branch; it runs only when a flow is re-run after 04.
             - assertVisible: "Export my data first…"
 
 # Fill and fire whichever is now open. `eraseText` first, because a field still holding the
@@ -184,8 +182,7 @@ appId: com.leapsake.app
 # nothing leaves the previous arc's people in place, the step unmet, and this red.
 #
 # The relaunch itself — including the guarded tap that gets Android past its
-# dev-launcher — is `relaunch.yaml`, which carries the whole explanation and which Flow 7c
-# relaunches through twice. It deliberately waits for nothing: what "up" means differs per
+# dev-launcher — is `relaunch.yaml`, which carries the whole explanation. It deliberately waits for nothing: what "up" means differs per
 # caller, and here it is the tab bar.
 - runFlow: relaunch.yaml
 # 120s, matching the harness's own `HOME_TIMEOUT_MS` for the same act: this is a **cold**

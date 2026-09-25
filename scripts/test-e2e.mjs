@@ -15,7 +15,7 @@
 // first red flow rather than reporting three failures that are really one.
 //
 // **The bar this meets is the `beta` rung plus the reachable custody assertions** — every
-// flow on-screen, both doors included (the rung table's `beta` bar, `CONTRIBUTING.md` →
+// flow on-screen, Flow 4's two door acts included (the rung table's `beta` bar, `CONTRIBUTING.md` →
 // *The E2E release gate*), and the out-of-band half of Flows 1 and 4, which are `rc`'s. What `rc` still owes is
 // the **key-store row**, deferred for want of a read verb
 // (`lib/custody-assertions.mjs` → `KEY_STORE_NOTE`), and turning the catalog requirement in
@@ -25,11 +25,6 @@
 // assertion reads the screen, so a build that encrypted nothing would pass all of them;
 // those two functions read the bytes instead. They are iOS-only today — Android's `wipe` is
 // `pm clear`, which hands back no container path, so it prints that it did not assert.
-//
-// **The two door flows cost five Argon2id passes between them and live here anyway.** They
-// roughly triple the tier's wall-clock, and the alternative — a second `test:e2e:rc` entry
-// point — would have split the arc across two runners for flows that only make sense as its
-// continuation. They run last, so a red before them still fails fast.
 import { join } from "node:path";
 
 import {
@@ -57,27 +52,7 @@ await runSuite({
   title: "test:e2e — crucial-flow catalog (mobile)",
   what: "crucial-flow catalog",
   // Order is load-bearing: 01 leaves a fresh, accountless app; 02 fills it with Mary,
-  // George, a milestone and a reminder that mentions her. Inserting a flow means deciding
-  // what state it inherits and what it leaves behind.
-  //
-  // **04 runs last, out of catalog order, because it is the one that ends the
-  // Unauthenticated state.** Every flow before it is about the ordinary accountless app a
-  // v0.1 user starts in, and 04's whole subject is the conversion away from it — so it
-  // reads better as the arc's destination than as its middle, and nothing else has to run
-  // under encryption to prove what it proves. The arc stays re-runnable either way:
-  // `subflows/factory-reset.yaml` drives the reset under both of its names.
-  //
-  // **07c is the one flow that must follow 04 rather than merely come after it.** It
-  // needs an Authenticated store with data in it and the password that sealed it, which is
-  // precisely what 04 leaves behind — so it reads 04's end state as its preconditions and
-  // types no username of its own.
-  //
-  // **07b is the mirror image, and must run LAST.** It inherits nothing and cannot: the 24
-  // words it needs are shown once, and a capture dies with the `maestro test` process that
-  // made it (`lib/mobile-harness.mjs` runs one per flow), so 07b resets the device and
-  // builds its own account. That opening reset destroys the store 04 built and 07c
-  // inherited, which is why nothing may follow it. It also means it is the only flow here
-  // that drives the reset under its *Forget account* name.
+  // George, a milestone and a reminder; 04 converts that store and opens it by each door.
   flows: [
     flow(
       "01-first-run.yaml",
@@ -90,16 +65,8 @@ await runSuite({
     ),
     flow(
       "04-create-account.yaml",
-      "Flow 4 — an account turns encryption on",
+      "Flow 4 — an account turns encryption on, and both doors reopen it",
       custodyAuthenticated,
-    ),
-    flow(
-      "07c-password-door.yaml",
-      "Flow 7c — the password door reopens a locked store",
-    ),
-    flow(
-      "07b-phrase-door.yaml",
-      "Flow 7b — the phrase door reopens a locked store",
     ),
   ],
 });

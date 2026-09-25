@@ -2,7 +2,7 @@
 #
 # **Stops short of waiting for anything on purpose.** A relaunch is followed by a
 # wait for whatever the caller expects to see, and the callers do not agree:
-# `factory-reset.yaml` waits for `tab-search`, `../e2e/07c-password-door.yaml`
+# `factory-reset.yaml` waits for `tab-search`, `unlock-after-key-loss.yaml`
 # waits for `recovery-gate`. Baking either one in here would make the subflow lie
 # to the other, so this ends the moment the app is launched and the caller says
 # what "up" means.
