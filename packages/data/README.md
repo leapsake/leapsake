@@ -148,7 +148,7 @@ canonical "how to add a synced entity" recipe is below.
 ### How to make an entity sync-eligible
 
 Sync is **opt-in**: a table replicates only once its repo is registered. The device-local tables
-listed under *Migrations* must never leave the device, so sync-by-default is exactly the wrong
+listed under _Migrations_ must never leave the device, so sync-by-default is exactly the wrong
 default. The `repos` array passed to `createSyncEngine` is the allowlist, and a guard test pins it.
 
 1. **Migration.** The table carries the sync substrate: a UUID `id`, and epoch-ms `created_at`,
@@ -170,9 +170,9 @@ Steps 1 and 2 are work any entity needs; 3 and 4 are the whole sync cost. The sh
 `test/sync.test.ts` covers the round-trip.
 
 **`hasHistory` should stay rare.** It narrows the merge so an untouched row never beats one a
-user acted on, whatever `updated_at` says. It can only matter where two devices mint the *same*
+user acted on, whatever `updated_at` says. It can only matter where two devices mint the _same_
 id independently, a deterministic-id family, and today only `reminders` has a per-row decision
-worth protecting (`packages/reminders/README.md` → *Merge safety*). The holiday catalog depends
+worth protecting (`packages/reminders/README.md` → _Merge safety_). The holiday catalog depends
 on plain LWW over authored timestamps. It is also the seam a field-level merge would grow from.
 
 **A row every device must agree on gets a fixed primary key, not a unique column.**

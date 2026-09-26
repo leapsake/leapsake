@@ -1,9 +1,12 @@
 import { useCallback } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import type { EntityType, RelationshipRole } from "@leapsake/schema";
+import {
+  type EntityType,
+  type RelationshipRole,
+  relationshipDraftOf,
+} from "@leapsake/schema";
 import { RelationshipForm } from "../../../../components/RelationshipForm";
-import { emptyRelationshipDraft } from "../../../../components/RelationshipFields";
 import { useCore } from "../../../../lib/core-context";
 import { useFocusedData } from "../../../../lib/useFocusedData";
 import { styles } from "../../../../lib/styles";
@@ -78,7 +81,7 @@ export default function PetRelationshipNewScreen() {
               role: otherRole ?? null,
               note: "",
             }
-          : emptyRelationshipDraft()
+          : relationshipDraftOf()
       }
       // Edit on somebody new writes them with this relationship at once, so
       // Save then revises that relationship rather than adding a second.

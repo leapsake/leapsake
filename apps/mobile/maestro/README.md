@@ -279,12 +279,12 @@ Deep links skip the navigation entirely, which is what makes ad-hoc driving bear
 are ordinary expo-router paths under the `leapsake://` scheme, so anything in `app/` is
 reachable; these are the ones that come up:
 
-| Link                                                        | Lands on                                       |
-| ----------------------------------------------------------- | ---------------------------------------------- |
-| `leapsake://`                                               | Home, inside the tab navigator                 |
-| `leapsake://add`                                            | the combined create form, on its Person half   |
-| `leapsake://about-you`                                      | the screen that sets the self-person           |
-| `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind           |
+| Link                                                        | Lands on                                         |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| `leapsake://`                                               | Home, inside the tab navigator                   |
+| `leapsake://add`                                            | the combined create form, on its Person half     |
+| `leapsake://about-you`                                      | the screen that sets the self-person             |
+| `leapsake://relationships/<id>/milestones/new?kind=wedding` | the milestone form, opened on a kind             |
 | `leapsake://dev-selftest`                                   | the driver-contract self-test (test builds only) |
 
 When something behaves oddly, run `maestro test maestro/driver-selftest.yaml` early: it

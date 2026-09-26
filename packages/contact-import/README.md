@@ -17,14 +17,14 @@ format package a `@leapsake/data` dependency; leaving it in `@leapsake/core` wou
 230 lines of implementation in the composition root. So it is its own package, and `vcard`
 stays pure.
 
-The name is the one `vcard` used to carry, before it was renamed to say *format* rather than
-*direction*. It fits here, where the direction genuinely is the subject.
+The name is the one `vcard` used to carry, before it was renamed to say _format_ rather than
+_direction_. It fits here, where the direction genuinely is the subject.
 
 ## Two answers about an incoming card, kept apart
 
 `preview` returns both, and they are not the same question:
 
-- **`matches`** — what the card *resembles*, scored by `DuplicateService.matchContact` over
+- **`matches`** — what the card _resembles_, scored by `DuplicateService.matchContact` over
   names and contact methods.
 - **`alreadyStored`** — what the card **is**, established by id. Our own exporter writes each
   entity's `people.id`/`pets.id` as the card's `UID`, so a card carrying one we hold is that

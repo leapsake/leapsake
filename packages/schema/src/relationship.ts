@@ -608,3 +608,161 @@ export function isRomanticRole(role: RelationshipRole): boolean {
 export function relationshipPairLabel(a: string, b: string): string {
   return `${a} & ${b}`;
 }
+
+/** A person or pet the subject can be related to. */
+export interface RelationshipCandidateRef {
+  type: EntityType;
+  id: string;
+  label: string;
+}
+
+/**
+ * The other end as a form holds it: somebody already in the app, a name to add
+ * as somebody new, or text typed into a name field and not yet matched.
+ */
+export type RelationshipOther =
+  | {
+      kind: "existing";
+      type: EntityType;
+      id: string;
+      label: string;
+      relationshipId?: string;
+    }
+  | { kind: "new"; type: EntityType; name: string; label: string }
+  | { kind: "typed"; text: string };
+
+/**
+ * A relationship as a form holds it: who the other end is, what they are to the
+ * subject, and the note the `other` role needs. The subject's role is derived.
+ */
+export interface RelationshipDraft {
+  other: RelationshipOther | null;
+  role: RelationshipRole | null;
+  note: string;
+}
+
+/** Why a relationship draft cannot be saved; the catalog owns each sentence. */
+export interface RelationshipDraftErrors {
+  other?: "required" | "unknown" | "ambiguous" | "notHolder";
+  role?: "required";
+  note?: "required";
+}
+
+export type RelationshipDraftResult =
+  | {
+      ok: true;
+      input: {
+        otherType: EntityType;
+        otherRole: RelationshipRole;
+        otherRoleNote: string | null;
+      } & (
+        | { other: "existing"; otherId: string; relationshipId?: string }
+        | { other: "new"; otherName: string }
+      );
+    }
+  | { ok: false; errors: RelationshipDraftErrors };
+
+/** The draft a form starts from: a subject's neighbour, or blanks. */
+export function relationshipDraftOf(
+  neighbor?: Pick<
+    RelationshipNeighbor,
+    "otherType" | "otherId" | "otherLabel" | "otherRole" | "otherRoleNote"
+  >,
+): RelationshipDraft {
+  if (neighbor === undefined) return { other: null, role: null, note: "" };
+  return {
+    other: {
+      kind: "existing",
+      type: neighbor.otherType,
+      id: neighbor.otherId,
+      label: neighbor.otherLabel,
+    },
+    role: neighbor.otherRole,
+    note: neighbor.otherRoleNote ?? "",
+  };
+}
+
+/** The entity types the other end may be: all, until a role narrows them. */
+export function otherTypesFor(
+  role: RelationshipRole | null,
+): readonly EntityType[] {
+  return role === null ? entityTypeSchema.options : holderTypesFor(role);
+}
+
+/** A new role, dropping a chosen other end that cannot hold it. */
+export function relationshipDraftWithRole(
+  draft: RelationshipDraft,
+  role: RelationshipRole,
+): RelationshipDraft {
+  const other = draft.other;
+  const keeps =
+    other === null ||
+    other.kind === "typed" ||
+    holderTypesFor(role).includes(other.type);
+  return { ...draft, role, other: keeps ? other : null };
+}
+
+type ResolvedOther = Exclude<RelationshipOther, { kind: "typed" }>;
+
+/** The other end as a choice, matching typed text to exactly one candidate. */
+function resolveOther(
+  other: RelationshipOther | null,
+  candidates: readonly RelationshipCandidateRef[],
+): ResolvedOther | "required" | "unknown" | "ambiguous" {
+  if (other === null) return "required";
+  if (other.kind !== "typed") return other;
+  const text = other.text.trim();
+  if (text === "") return "required";
+  const matches = candidates.filter((c) => c.label === text);
+  if (matches.length === 0) return "unknown";
+  if (matches.length > 1) return "ambiguous";
+  const { type, id, label } = matches[0]!;
+  return { kind: "existing", type, id, label };
+}
+
+/**
+ * Needs both ends, a note for the `other` role, and an other end that can hold
+ * the role. Typed text resolves against `candidates`.
+ */
+export function relationshipInputOf(
+  draft: RelationshipDraft,
+  candidates: readonly RelationshipCandidateRef[] = [],
+): RelationshipDraftResult {
+  const other = resolveOther(draft.other, candidates);
+  const { role } = draft;
+  const note = draft.note.trim();
+  const errors: RelationshipDraftErrors = {};
+  if (typeof other === "string") errors.other = other;
+  if (role === null) errors.role = "required";
+  if (role === "other" && note === "") errors.note = "required";
+  if (
+    typeof other !== "string" &&
+    role !== null &&
+    !holderTypesFor(role).includes(other.type)
+  )
+    errors.other = "notHolder";
+  if (typeof other === "string" || role === null || errors.other || errors.note)
+    return { ok: false, errors };
+
+  const common = {
+    otherType: other.type,
+    otherRole: role,
+    otherRoleNote: role === "other" ? note : null,
+  };
+  if (other.kind === "new")
+    return {
+      ok: true,
+      input: { ...common, other: "new", otherName: other.name },
+    };
+  return {
+    ok: true,
+    input: {
+      ...common,
+      other: "existing",
+      otherId: other.id,
+      ...(other.relationshipId === undefined
+        ? {}
+        : { relationshipId: other.relationshipId }),
+    },
+  };
+}

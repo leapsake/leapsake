@@ -8,6 +8,9 @@ import {
   impliedGender,
   inverseRole,
   labelForRole,
+  relationshipDraftOf,
+  relationshipDraftWithRole,
+  relationshipInputOf,
   relationshipSchema,
   rolesForHolder,
   rolesForPair,
@@ -252,5 +255,99 @@ describe("gendered role system", () => {
       expect(composeRoles("friend", "friend")).toBeUndefined();
       expect(composeRoles("spouse", "spouse")).toBeUndefined();
     });
+  });
+});
+
+describe("a relationship draft", () => {
+  const mary = { type: "person" as const, id: "p-mary", label: "Mary Hatch" };
+  const jimmy = { type: "pet" as const, id: "a-jimmy", label: "Jimmy" };
+  const candidates = [mary, jimmy];
+  const blank = relationshipDraftOf();
+  const typed = (text: string) => ({ kind: "typed" as const, text });
+
+  it("resolves a typed name to the one candidate it matches", () => {
+    expect(
+      relationshipInputOf(
+        { other: typed(" Mary Hatch "), role: "spouse", note: "ignored" },
+        candidates,
+      ),
+    ).toEqual({
+      ok: true,
+      input: {
+        other: "existing",
+        otherType: "person",
+        otherId: "p-mary",
+        otherRole: "spouse",
+        otherRoleNote: null,
+      },
+    });
+  });
+
+  it("refuses a name that matches nobody, or more than one", () => {
+    const draft = { ...blank, role: "friend" as const };
+    expect(
+      relationshipInputOf({ ...draft, other: typed("Clarence") }, candidates),
+    ).toEqual({ ok: false, errors: { other: "unknown" } });
+    expect(
+      relationshipInputOf({ ...draft, other: typed("Mary Hatch") }, [
+        mary,
+        { ...mary, id: "p-mary-2" },
+      ]),
+    ).toEqual({ ok: false, errors: { other: "ambiguous" } });
+  });
+
+  it("needs both ends, and a note for the `other` role", () => {
+    expect(relationshipInputOf(blank)).toEqual({
+      ok: false,
+      errors: { other: "required", role: "required" },
+    });
+    expect(
+      relationshipInputOf(
+        { other: typed("Mary Hatch"), role: "other", note: " " },
+        candidates,
+      ),
+    ).toEqual({ ok: false, errors: { note: "required" } });
+  });
+
+  it("refuses an other end that cannot hold the role", () => {
+    expect(
+      relationshipInputOf(
+        { other: typed("Mary Hatch"), role: "pet", note: "" },
+        candidates,
+      ),
+    ).toEqual({ ok: false, errors: { other: "notHolder" } });
+  });
+
+  it("writes somebody new by name", () => {
+    const other = {
+      kind: "new" as const,
+      type: "person" as const,
+      name: "Harry Bailey",
+      label: "Harry Bailey",
+    };
+    expect(relationshipInputOf({ other, role: "sibling", note: "" })).toEqual({
+      ok: true,
+      input: {
+        other: "new",
+        otherType: "person",
+        otherName: "Harry Bailey",
+        otherRole: "sibling",
+        otherRoleNote: null,
+      },
+    });
+  });
+
+  it("drops a chosen other end the new role rules out", () => {
+    const withMary = relationshipDraftOf({
+      otherType: "person",
+      otherId: "p-mary",
+      otherLabel: "Mary Hatch",
+      otherRole: "friend",
+      otherRoleNote: null,
+    });
+    expect(relationshipDraftWithRole(withMary, "pet").other).toBeNull();
+    expect(relationshipDraftWithRole(withMary, "spouse").other).toEqual(
+      withMary.other,
+    );
   });
 });

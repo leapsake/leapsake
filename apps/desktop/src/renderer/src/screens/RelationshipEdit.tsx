@@ -1,14 +1,13 @@
 import {
   type EntityType,
   type RelationshipNeighbor,
-  type RelationshipRole,
-  rolesForPair,
+  relationshipDraftOf,
 } from "@leapsake/schema";
-import { Breadcrumbs, holdWhileSubmitting } from "@leapsake/ui/web";
+import { Breadcrumbs, RelationshipForm } from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
-import { useMemo, useState } from "react";
-import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
+import { useLoaderData } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
+import { useSubmitting } from "../lib/useSubmitting";
 
 /** The subject entity the edited relationship hangs off of. */
 interface Subject {
@@ -17,39 +16,13 @@ interface Subject {
   label: string;
 }
 
-/** Each pickable role's display label, mapped back to its slug. */
-function roleMap(
-  otherType: EntityType,
-  subjectType: EntityType,
-): Map<string, RelationshipRole> {
-  return new Map(
-    rolesForPair(otherType, subjectType).map((r) => [r.label, r.role]),
-  );
-}
-
-/**
- * Edit the other end's role; core re-derives the subject's. The label is
- * visible, and the resolved slug rides a hidden input.
- */
+/** Edit the other end's role, stored or derived; core derives the subject's. */
 export function RelationshipEdit() {
   const { subject, neighbor } = useLoaderData() as {
     subject: Subject;
     neighbor: RelationshipNeighbor;
   };
   const subjectPath = `${entityBasePath(subject.type)}/${subject.id}`;
-  const navigation = useNavigation();
-  const submitting = navigation.state === "submitting";
-
-  const roleByLabel = useMemo(
-    () => roleMap(neighbor.otherType, subject.type),
-    [neighbor.otherType, subject.type],
-  );
-
-  const [roleText, setRoleText] = useState(neighbor.otherRoleLabel);
-  const [note, setNote] = useState(neighbor.otherRoleNote ?? "");
-
-  const otherRole = roleByLabel.get(roleText);
-  const ready = otherRole !== undefined;
 
   return (
     <main>
@@ -60,47 +33,12 @@ export function RelationshipEdit() {
           { label: "Edit relationship" },
         ]}
       />
-      <Form method="post" onSubmit={holdWhileSubmitting(submitting)}>
-        <header>
-          <h1>Edit relationship</h1>
-          <button type="submit" aria-disabled={submitting} disabled={!ready}>
-            Save
-          </button>{" "}
-          <Link to={subjectPath}>Cancel</Link>
-        </header>
-
-        {/* Resolved machine value for the action. */}
-        <input type="hidden" name="otherRole" value={otherRole ?? ""} />
-
-        <fieldset>
-          <p>{neighbor.otherLabel}</p>
-          <label>
-            Role{" "}
-            <input
-              list="relationship-edit-role"
-              value={roleText}
-              onChange={(event) => setRoleText(event.target.value)}
-              placeholder="role"
-              required
-            />
-          </label>
-          <datalist id="relationship-edit-role">
-            {rolesForPair(neighbor.otherType, subject.type).map((role) => (
-              <option key={role.role} value={role.label} />
-            ))}
-          </datalist>
-          {otherRole === "other" && (
-            <label>
-              Note{" "}
-              <input
-                name="otherRoleNote"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </label>
-          )}
-        </fieldset>
-      </Form>
+      <RelationshipForm
+        subjectType={subject.type}
+        initial={relationshipDraftOf(neighbor)}
+        cancelTo={subjectPath}
+        submitting={useSubmitting()}
+      />
     </main>
   );
 }

@@ -257,6 +257,10 @@ export {
   isRomanticRole,
   relationshipPairLabel,
   spouseNeighbors,
+  otherTypesFor,
+  relationshipDraftOf,
+  relationshipDraftWithRole,
+  relationshipInputOf,
 } from "./relationship.js";
 export type {
   EntityType,
@@ -266,6 +270,11 @@ export type {
   CreateRelationshipInput,
   UpdateRelationshipInput,
   RelationshipNeighbor,
+  RelationshipCandidateRef,
+  RelationshipOther,
+  RelationshipDraft,
+  RelationshipDraftErrors,
+  RelationshipDraftResult,
 } from "./relationship.js";
 export {
   isMilestoneKind,

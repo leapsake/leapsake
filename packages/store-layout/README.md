@@ -17,7 +17,7 @@ and they are named apart because `plans/v0-2.md` expects that to change. See
 [`@leapsake/key-custody`](../key-custody/README.md) → _Three questions, three
 vocabularies_ for all three axes.
 
-## The layout *(direction, 2026-07-26)*
+## The layout _(direction, 2026-07-26)_
 
 A client holds **one Unauthenticated store or many Authenticated ones** — the same shape
 [`@leapsake/key-custody`](../key-custody/README.md) states for users. Each account gets its
@@ -35,7 +35,7 @@ clean rather than surgical:
 - **Creating an account** writes `stores/<accountId>/` and removes `stores/local/`.
 - **Logging out** deletes `stores/<accountId>/` and its roster entry. Nothing to sift.
 - **The roster must be readable before any store opens** — you cannot enumerate accounts from
-  inside files you cannot decrypt — so it is unencrypted. See *The rules worth knowing*.
+  inside files you cannot decrypt — so it is unencrypted. See _The rules worth knowing_.
 
 ## Why it is its own package
 

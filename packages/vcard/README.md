@@ -13,7 +13,7 @@ against `splitStructured`, the same label and platform maps read backwards — a
 that matters most, `parseVCards(writeVCards(x)) ≡ x`, only exists if both halves live together.**
 Split across two packages it would be an integration test nobody owns.
 
-`ParsedContact` is deliberately the *same type* in both directions for the same reason. A separate
+`ParsedContact` is deliberately the _same type_ in both directions for the same reason. A separate
 `ExportContact` shape would let the reader's vocabulary and the writer's drift, and the round-trip
 assertion would stop typechecking — which is exactly when it would stop being maintained.
 
@@ -36,7 +36,7 @@ fixtures are in [`test/fixtures/`](./test/fixtures/). Re-run them against a devi
 either again.
 
 **How to spell a date: the standard wins outright.** A year-less date is written `--0412`, never
-Apple's `X-APPLE-OMIT-YEAR=1604:1604-04-12`. Both round-trip through *us*, so our own fidelity
+Apple's `X-APPLE-OMIT-YEAR=1604:1604-04-12`. Both round-trip through _us_, so our own fidelity
 does not decide it — what decides it is that the two failure modes are not symmetric. A consumer
 that does not understand `--0412` loses the birthday, visibly. One that does not understand the
 parameter reads **a person born in 1604**: data invented silently and synced onward attached to a
@@ -48,7 +48,7 @@ well-meaning "improve Apple compatibility" change reintroduces later.
 `ANNIVERSARY` is **dead on arrival** — both probes failed, including one carrying an ordinary full
 date, so iOS does not read the property at all. Every dated milestone goes out as
 `itemN.X-ABDATE` + `itemN.X-ABLABEL` instead, which the same probes proved iOS files under a real
-*Anniversary* field with the label intact. `ANNIVERSARY` stays read-only vocabulary: accepted from
+_Anniversary_ field with the label intact. `ANNIVERSARY` stays read-only vocabulary: accepted from
 other people's files, never emitted.
 
 There is no "prefer the standard" rule that survives both.
@@ -61,7 +61,7 @@ on anything that reads both, so it stays one or the other).
 
 ## Apple's labels live in one file on purpose
 
-A card exported from Contacts and the same card read through `expo-contacts` carry the *same*
+A card exported from Contacts and the same card read through `expo-contacts` carry the _same_
 labels — the vCard is a serialisation of the very record the device API hands back — so a rule
 that lives in only one of the two importers is a bug waiting for whichever path the user happens
 to take. `apple-labels.ts` is that one file: the `_$!<Work>!$_` constant unwrapping, and the
@@ -75,24 +75,24 @@ dropped — "Date (Beach house closing)" — rather than guessed into `other`, s
 mints a milestone.
 
 The two exclusions are permanent and unrelated to each other: `birthday` fills the contact's
-birthday rather than minting a dated milestone, and `other`'s label *is* the user's note, which no
+birthday rather than minting a dated milestone, and `other`'s label _is_ the user's note, which no
 map can resolve. `FROM_A_LABEL` is exhaustive over `MilestoneKind`, so an eleventh kind fails the
 build until somebody decides which side it falls on — and that decision **pays twice**, since the
 iOS Contacts path gains the same kinds in the same change.
 
 **A grouped `X-ABLABEL` names a contact method as readily as it names a date**, and it was once
 read for dates and nothing else. Apple puts standard labels in `TYPE` and a user's own words
-*only* in `item1.X-ABLABEL`, so every custom label on a card
+_only_ in `item1.X-ABLABEL`, so every custom label on a card
 straight out of an iPhone — "Beach house", "Mum's place" — arrived as "Other", the label the user
 is least likely to have meant. `labelFrom` now takes the group label and lets it win outright,
 which is also what Contacts itself displays; that fix is what lets the writer emit the same form.
 
 ## Writing the graph: three rules worth knowing
 
-**Facts vCard has no vocabulary for ride *parameters*, not properties.** `X-LEAPSAKE-ROLE` and
+**Facts vCard has no vocabulary for ride _parameters_, not properties.** `X-LEAPSAKE-ROLE` and
 `-REL-ID` on a `RELATED`, `-MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL` on an `X-ABDATE`,
 `-EXT`/`-COUNTRY` on a `TEL`. Partly so a fact cannot be separated from what it qualifies — but
-mostly because an unknown *parameter* is invisible to any parser, while an unknown *property*
+mostly because an unknown _parameter_ is invisible to any parser, while an unknown _property_
 lands in this reader's own `dropped` list. Spelled as properties, a user re-importing their own
 file would be shown a list of their own fields that "could not be imported".
 `X-LEAPSAKE-SELF` and `X-LEAPSAKE-CREATED` are the only two facts with nothing to ride, so they
@@ -102,7 +102,7 @@ them (a `DEFERRED` set, now gone; see below).
 **A role is written as its base, with the exact role beside it.** Leapsake has 41 relationship
 roles and RFC 6350 gives seven words, so `mother` goes out as `TYPE=parent` — what a standards
 consumer can act on — plus `X-LEAPSAKE-ROLE=mother`. `TYPE=mother` would tell a third party
-nothing *and* lose the kinship through our own `RELATED_ROLES`, which has no entry for it. The one
+nothing _and_ lose the kinship through our own `RELATED_ROLES`, which has no entry for it. The one
 exception is role `other`, whose `TYPE` is the user's note **bare**: `relatedFrom` turns an
 unmapped type into exactly the word it read, so `muse` round-trips and `x-muse` would not.
 
@@ -131,7 +131,7 @@ so `mother` no longer comes back as `parent` nor `cousin` as `other`; a `RELATED
 another card by `urn:uuid:` resolves against that card, taking its name from the `FN` a reference
 cannot carry. **Resolution is a whole-file property**, which is why `parseVCards` indexes every
 card's UID before building any of them — the edge and the card it names arrive in either order.
-A reference to a card that is *not* in the file still lands in `dropped`, honestly.
+A reference to a card that is _not_ in the file still lands in `dropped`, honestly.
 
 **And the milestones survive, as of 5c.** `X-LEAPSAKE-MILESTONE-KIND` is what carries all ten
 kinds through a format with vocabulary for one — so **our own file needs no label guessing at
@@ -148,7 +148,7 @@ name rather than guessed at all.
 
 **Two things the ids are not.** They are matching keys, not row ids: an imported card always gets
 a fresh id, and `X-LEAPSAKE-CREATED` is parsed but not applied, because writing the file's ids and
-timestamps back verbatim is a *restore* — increment 6, and a different promise.
+timestamps back verbatim is a _restore_ — increment 6, and a different promise.
 
 `write.test.ts`'s `asParsedToday` helper was where the remaining gap was written down, and it
 shrank as each increment landed. **It has now reached the end state it was always going to**, and

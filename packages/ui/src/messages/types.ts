@@ -152,12 +152,26 @@ export interface Messages {
 
   relationshipForm: {
     heading: string;
+    editHeading: string;
     submit: string;
     name: string;
     namePlaceholder: string;
     role: string;
-    rolePlaceholder: string;
+    /** The role picker's empty choice. */
+    rolePick: string;
     note: string;
+    /** Shown when Save is pressed before naming the other end. */
+    otherRequired: string;
+    /** Shown when Save is pressed on a name that matches nobody. */
+    otherUnknown: string;
+    /** Shown when Save is pressed on a name more than one entity has. */
+    otherAmbiguous: string;
+    /** Shown when Save is pressed on a role the other end can’t hold. */
+    otherNotHolder: string;
+    /** Shown when Save is pressed before picking a role. */
+    roleRequired: string;
+    /** Shown when Save is pressed on an “Other” role with no note. */
+    noteRequired: string;
     /** Legend for the rows embedded in a create form. */
     groupLegend: string;
     /** Adds another blank row to that group. */

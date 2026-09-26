@@ -66,16 +66,16 @@ Why LWW rather than a CRDT: this is a **single-user, few-device personal CRM**, 
 true concurrent edits to the same record are rare. At that workload row-level LWW is
 usually indistinguishable from a CRDT in practice, adds **zero dependencies**, and needs
 no columns the schema does not already carry. Automerge is the strongest escalation
-candidate if that stops being true — but it is a *document* model, so adopting it means
+candidate if that stops being true — but it is a _document_ model, so adopting it means
 encrypting Automerge updates as `EncryptedRecord` blobs and reconciling that with the
 row/repository model. A real fork, worth taking only once justified.
 
-**The cost, accepted knowingly:** two devices that edit *different fields of the same
-row* inside one sync gap keep only the higher-`updatedAt` row — the other field change
+**The cost, accepted knowingly:** two devices that edit _different fields of the same
+row_ inside one sync gap keep only the higher-`updatedAt` row — the other field change
 is lost. This is characterized and asserted in `merge.test.ts` rather than left to
 discovery. Per-field LWW was considered and deferred: it needs a per-field clock store,
 write-path stamping in every repo, and trickier resurrection rules, all to shrink an
-already-rare window. It stays available as an *additive, per-entity* escalation, because
+already-rare window. It stays available as an _additive, per-entity_ escalation, because
 the whole-row `updatedAt` is a valid field-clock floor — a missing field clock falls
 back to it and old rows keep working.
 
@@ -96,7 +96,7 @@ account up (prelogin → public salt), derives the same KEK from the password, f
 wrapped MK and unwraps it locally. The relay holds only the public salt,
 `sha256(verifier)` and ciphertext, so it stays blind throughout. The scheme's rationale
 and its accepted costs are [`apps/server/README.md`](../../apps/server/README.md) →
-*Why username + password*.
+_Why username + password_.
 
 No new key material is minted on that path — the account, its password door and its
 recovery key all exist before a relay is ever bound. A joining device **keeps** its local
@@ -113,7 +113,7 @@ free to add, and code in this package is where three of them are won or lost:
    ciphertext.
 2. **Merge stays client-side and order-independent.** The thing that would quietly weld
    the door shut is depending on a **server-authoritative sequence number or clock** for
-   ordering. `Cursor` is the transport's own *delivery* order and must never be read as
+   ordering. `Cursor` is the transport's own _delivery_ order and must never be read as
    a content clock.
 3. **Everything goes through the `SyncTransport` port**, so a new transport is an
    adapter, not a rewrite.

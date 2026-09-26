@@ -11,14 +11,14 @@ link** pairs that idea with a person or a pet and carries whether the thing has 
 That last part was once a separate dated row — a "giving" — and is now a boolean on the link.
 The scope cut is recorded in `git log` (branch `gift-scope-cut`, 2026-08-20) and what was
 removed with it is in [`plans/v0-2.md`](../../plans/v0-2.md). The consequence worth knowing
-here: **`given` is a stamp, not a date.** Nothing records *when* something was given, so no
+here: **`given` is a stamp, not a date.** Nothing records _when_ something was given, so no
 screen can offer a gift history over time without a migration.
 
 ## Three things that look like duplication and are not
 
 - **`ideas.create` takes recipients, and `capture` exists anyway.** `create` is the form: one
   idea, its tags, and whatever links the user filled in. `capture` is the add surface — it can
-  name an *existing* idea, so it resolves-or-mints once and updates a party already on that
+  name an _existing_ idea, so it resolves-or-mints once and updates a party already on that
   idea instead of doubling it. Ticking is one-way in `capture`: it says "and I gave them this",
   never "and I did not", which is the checkbox's job on a row that already exists.
 - **`recipients.update` rather than a `setGiven`.** Ticking the box is the only edit a link

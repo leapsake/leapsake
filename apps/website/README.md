@@ -33,12 +33,12 @@ excludes it by name, with the reasoning at the exclusion.
 Cloudflare Pages, connected to this repository. It builds from a **private** repo,
 which is why the site could go live before the repo went public.
 
-| Setting | Value |
-| --- | --- |
-| Build command | `pnpm --filter @leapsake/website build` |
-| Output directory | `apps/website/dist` |
-| Root directory | repository root |
-| `NODE_VERSION` | `24.16.0` — set explicitly rather than relying on `.tool-versions` |
+| Setting          | Value                                                              |
+| ---------------- | ------------------------------------------------------------------ |
+| Build command    | `pnpm --filter @leapsake/website build`                            |
+| Output directory | `apps/website/dist`                                                |
+| Root directory   | repository root                                                    |
+| `NODE_VERSION`   | `24.16.0` — set explicitly rather than relying on `.tool-versions` |
 
 Root directory is the **repository root**, not this folder: the site depends on
 `@leapsake/ui` through `workspace:*`, and an install scoped to `apps/website` cannot
@@ -53,7 +53,7 @@ next one is `plans/v0-2.md` → _The website's edge is untested_.
 
 **Every push to `main` builds — deliberately no path filter.** Scoping the build to
 `apps/website/**` looks obviously right and is wrong here: a `slug` publishes a
-markdown file from *anywhere* in the repository, so a doc added beside the feature it
+markdown file from _anywhere_ in the repository, so a doc added beside the feature it
 describes would never trigger a deploy. The build takes about a second, which is far
 cheaper than that failure would be to find.
 
@@ -66,7 +66,7 @@ pnpm install --ignore-scripts --filter @leapsake/website... && pnpm --filter @le
 ```
 
 DNS is Cloudflare's; the registrar is unchanged. The apex serves the site and `www`
-redirects to it with a 301 redirect rule — `www` is deliberately *not* a second custom
+redirects to it with a 301 redirect rule — `www` is deliberately _not_ a second custom
 domain on the Pages project, which would serve the same pages at two URLs and
 contradict the canonical tag.
 
@@ -94,7 +94,7 @@ since: "0.4"
 Nothing about a file's location makes it a doc, so a guide can sit beside the code it
 describes — the arrangement the rest of the repo already uses for its stable "why".
 A markdown file with no `slug` is technical documentation and is passed over. There is
-no second flag to forget, because the slug *is* the URL: a doc without one has nowhere
+no second flag to forget, because the slug _is_ the URL: a doc without one has nowhere
 to be published to.
 
 The slug is explicit rather than derived from the filename so that a doc keeps its
@@ -110,11 +110,11 @@ URL appears in a pull request diff rather than only in a deploy.
 
 ### Versioned URLs
 
-| Path | Serves |
-| --- | --- |
+| Path                            | Serves                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
 | `/docs/v0.4/contacts/importing` | a released snapshot — permanent, and **what the app links to**, using its own version |
-| `/docs/contacts/importing` | alias to the newest version, for humans and search |
-| `/docs/next/contacts/importing` | the unreleased working copy, `noindex` |
+| `/docs/contacts/importing`      | alias to the newest version, for humans and search                                    |
+| `/docs/next/contacts/importing` | the unreleased working copy, `noindex`                                                |
 
 The app linking versioned while humans get the alias is what makes version-specific
 docs work: someone still on 0.3 reaches 0.3's pages from inside the app, while a

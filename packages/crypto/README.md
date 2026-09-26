@@ -48,19 +48,19 @@ the pure-JS implementation stays acceptable on mobile (Hermes) while resisting
 GPU/ASIC cracking.
 
 > ⚠️ **Be honest about what that parameter is holding up.** OWASP's figure is a
-> floor for *sub-second interactive login*, where a failed guess costs the
+> floor for _sub-second interactive login_, where a failed guess costs the
 > attacker a round trip. Here the same pass is the **sole stretch protecting
 > at-rest and relay confidentiality against a fully offline attacker** who holds
 > the salt and an observed verifier — a much harder job, and 19 MiB is cheap to
 > attack at scale on GPU/ASIC. The parameter is defensible (pure-JS on Hermes is
-> the real constraint) but it is justified by *mobile UX*, not by that adversary.
+> the real constraint) but it is justified by _mobile UX_, not by that adversary.
 >
 > Raising it is deliberately cheap: `KDF_ALG` is versioned per account, so a bump
 > re-derives nothing and locks nobody out. Measure Hermes headroom and take as
 > much as mobile tolerates — many RN apps bear 46–64 MiB. This stays load-bearing
-> even after OPAQUE, which removes the *passive* observation of a verifier but
+> even after OPAQUE, which removes the _passive_ observation of a verifier but
 > not a malicious operator's active grind ([`plans/v0-2.md`](../../plans/v0-2.md)
-> → *Hosted-relay gate*).
+> → _Hosted-relay gate_).
 
 ### The test cost
 
@@ -86,7 +86,7 @@ The design review that pinned the table above (2026-07-05, before the password d
 was written) argued each choice against what the model promises. The arguments are
 here because they are the reason a future change is safe or unsafe — not history.
 
-- **The password never derives MK.** It derives a **KEK**, which only *wraps* the
+- **The password never derives MK.** It derives a **KEK**, which only _wraps_ the
   master key. So changing a password re-wraps MK and re-encrypts **nothing**, and MK
   can have several independent unlock doors — enclave, password, recovery — each just
   one more `key_wrap` row. Any change that makes MK a function of the password
@@ -99,14 +99,14 @@ here because they are the reason a future change is safe or unsafe — not histo
   relay authenticate a device it can never decrypt for. Keep the labels distinct and
   keep the split; collapsing them would hand the relay a KEK oracle.
 - **A stored verifier is not a password oracle.** The relay persists only
-  `SHA-256(verifier)` and compares constant-time. A fast hash is sufficient *because
-  the verifier is already a high-entropy Argon2id→HKDF output*, not a low-entropy
-  password — so a relay DB leak yields nothing cheap to grind. (What a *live* relay
+  `SHA-256(verifier)` and compares constant-time. A fast hash is sufficient _because
+  the verifier is already a high-entropy Argon2id→HKDF output_, not a low-entropy
+  password — so a relay DB leak yields nothing cheap to grind. (What a _live_ relay
   can do is a different and harsher question — threat H1 in
   [`apps/server/README.md`](../../apps/server/README.md).)
 - **AEAD failure is closed.** XChaCha20-Poly1305 authenticates on open, so a wrong
   KEK or recovery key, or any tampered byte, **throws** rather than returning
-  garbage. `unlockWithRecoveryKey` leans on exactly this: the unwrap failing *is* the
+  garbage. `unlockWithRecoveryKey` leans on exactly this: the unwrap failing _is_ the
   wrong-key signal. A wrong password is caught earlier still, as a verifier mismatch
   before any unwrap is attempted.
 - **Nonce safety by size, not bookkeeping.** 24-byte random nonces (XChaCha) make
@@ -126,6 +126,6 @@ here because they are the reason a future change is safe or unsafe — not histo
   plainly there is no reset. A user may still choose something long and weak; accepted.
 - **The asymmetric scheme (X25519/Ed25519) is deferred to Stage 3** and is not in this
   package. Nothing in the symmetric Stage-1 core needs it.
-- **Not externally audited.** The review behind this section is an *internal design
-  audit*; it unblocked development rather than certifying it. A third-party
+- **Not externally audited.** The review behind this section is an _internal design
+  audit_; it unblocked development rather than certifying it. A third-party
   cryptographic audit is still worth commissioning before a public, at-scale launch.

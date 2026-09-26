@@ -136,12 +136,22 @@ export const en: Messages = {
 
   relationshipForm: {
     heading: "Add relationship",
+    editHeading: "Edit relationship",
     submit: "Add",
     name: "Name",
     namePlaceholder: "Start typing a name",
     role: "Role",
-    rolePlaceholder: "role",
+    rolePick: "Pick one",
     note: "Note",
+    otherRequired: "Say who the relationship is with before saving.",
+    otherUnknown:
+      "Nobody in Leapsake has that name. Pick someone from the list, or add them first.",
+    otherAmbiguous:
+      "More than one person or pet has that name, so Leapsake can’t tell which you mean. Rename one of them first.",
+    otherNotHolder:
+      "That role doesn’t fit who you picked. Choose another role or another name.",
+    roleRequired: "Pick a role before saving.",
+    noteRequired: "Add a note saying what the relationship is before saving.",
     groupLegend: "Relationships",
     addRow: "Add relationship",
   },

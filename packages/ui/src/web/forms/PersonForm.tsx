@@ -3,7 +3,7 @@ import { type ReactNode, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import { ChipTextField } from "../fields/ChipTextField.js";
 import {
-  RelationshipFields,
+  StagedRelationshipsFields,
   type RelationshipCandidate,
 } from "../fields/RelationshipFields.js";
 import { FormShell } from "../patterns/FormShell.js";
@@ -79,7 +79,10 @@ export function PersonForm({
         </Field>
       </fieldset>
       {candidates && (
-        <RelationshipFields subjectType="person" candidates={candidates} />
+        <StagedRelationshipsFields
+          subjectType="person"
+          candidates={candidates}
+        />
       )}
     </FormShell>
   );

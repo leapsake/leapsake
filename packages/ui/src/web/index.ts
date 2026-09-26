@@ -36,6 +36,7 @@ export {
 export { ChipTextField } from "./fields/ChipTextField.js";
 export {
   RelationshipFields,
+  StagedRelationshipsFields,
   type RelationshipCandidate,
 } from "./fields/RelationshipFields.js";
 export { ReminderPromptFields } from "./fields/ReminderPromptFields.js";

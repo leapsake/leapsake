@@ -9,9 +9,10 @@ import {
   type MilestoneDraft,
   type MilestoneKind,
   type MilestoneBearerType,
+  type RelationshipDraft,
+  type RelationshipNeighbor,
   type RelationshipRole,
   type ReminderRuleInput,
-  createRelationshipInputSchema,
   fullName,
   giftIdeaInputOf,
   milestoneInputOf,
@@ -19,6 +20,9 @@ import {
   isReminderEditable,
   parseTagNames,
   preferredBearerType,
+  relationshipDraftOf,
+  relationshipInputOf,
+  relationshipRoleSchema,
   reminderInputOf,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
@@ -143,7 +147,7 @@ function readMilestoneDraft(formData: FormData): MilestoneDraft {
 }
 
 /** The resolved b-side of one relationship row submitted by a create form. */
-interface RelationshipDraft {
+interface StagedRelationship {
   bType: EntityType;
   bId: string;
   bRole: RelationshipRole;
@@ -151,17 +155,17 @@ interface RelationshipDraft {
 }
 
 /** Parse the create form's relationship rows — each row is one JSON blob. */
-function readRelationships(formData: FormData): RelationshipDraft[] {
+function readRelationships(formData: FormData): StagedRelationship[] {
   return formData
     .getAll("relationships")
-    .map((value) => JSON.parse(String(value)) as RelationshipDraft);
+    .map((value) => JSON.parse(String(value)) as StagedRelationship);
 }
 
 /** Core implies the subject's own role from each picked b-side role. */
 async function createRelationships(
   subjectType: EntityType,
   subjectId: string,
-  drafts: RelationshipDraft[],
+  drafts: StagedRelationship[],
 ) {
   for (const draft of drafts) {
     await window.api.relationships.createFromSubject({
@@ -282,22 +286,45 @@ function relationshipNewLoader(subjectType: EntityType) {
   };
 }
 
+/**
+ * The relationship draft as posted: the other end as the typed name unless it
+ * is fixed, the role as picked.
+ */
+function readRelationshipDraft(
+  formData: FormData,
+  fixedOther?: RelationshipNeighbor,
+): RelationshipDraft {
+  const role = relationshipRoleSchema.safeParse(formData.get("otherRole"));
+  return {
+    other:
+      fixedOther === undefined
+        ? { kind: "typed", text: String(formData.get("otherName") ?? "") }
+        : relationshipDraftOf(fixedOther).other,
+    role: role.success ? role.data : null,
+    note: String(formData.get("otherRoleNote") ?? ""),
+  };
+}
+
+/** Resolves the typed name against the candidates the form was offered. */
 function relationshipCreateAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
-    const formData = await request.formData();
-    const input = createRelationshipInputSchema.parse({
-      aType: subjectType,
-      aId: id,
-      aRole: String(formData.get("aRole")),
-      aRoleNote: readNote(formData, "aRoleNote"),
-      bType: String(formData.get("bType")),
-      bId: String(formData.get("bId")),
-      bRole: String(formData.get("bRole")),
-      bRoleNote: readNote(formData, "bRoleNote"),
+    const back = redirect(`${entityBasePath(subjectType)}/${id}`);
+    const view = await window.api.views.relationshipNew(subjectType, id);
+    if (!view) return back;
+    const draft = readRelationshipDraft(await request.formData());
+    const shaped = relationshipInputOf(draft, view.candidates);
+    if (!shaped.ok || shaped.input.other !== "existing") return back;
+    const { otherType, otherId, otherRole, otherRoleNote } = shaped.input;
+    await window.api.relationships.createFromSubject({
+      subjectType,
+      subjectId: id,
+      otherType,
+      otherId,
+      otherRole,
+      otherRoleNote,
     });
-    await window.api.relationships.create(input);
-    return redirect(`${entityBasePath(subjectType)}/${id}`);
+    return back;
   };
 }
 
@@ -317,15 +344,24 @@ function relationshipForSubjectLoader(subjectType: EntityType) {
 function relationshipEditAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
-    const formData = await request.formData();
-    // Only the other end's role is edited; core re-derives the subject's own.
-    await window.api.relationships.editFromSubject({
+    const view = await window.api.views.relationshipForSubject(
       subjectType,
-      subjectId: id,
-      relId: params.relId as string,
-      otherRole: String(formData.get("otherRole")) as RelationshipRole,
-      otherRoleNote: readNote(formData, "otherRoleNote"),
-    });
+      id,
+      params.relId as string,
+    );
+    const formData = await request.formData();
+    const shaped =
+      view &&
+      relationshipInputOf(readRelationshipDraft(formData, view.neighbor));
+    // Only the other end's role is edited; core re-derives the subject's own.
+    if (shaped?.ok)
+      await window.api.relationships.editFromSubject({
+        subjectType,
+        subjectId: id,
+        relId: params.relId as string,
+        otherRole: shaped.input.otherRole,
+        otherRoleNote: shaped.input.otherRoleNote,
+      });
     return redirect(`${entityBasePath(subjectType)}/${id}`);
   };
 }
@@ -343,24 +379,32 @@ function relationshipDeleteAction(subjectType: EntityType) {
  */
 function relationshipDerivedLoader(subjectType: EntityType) {
   return async ({ params, request }: LoaderFunctionArgs) => {
-    const url = new URL(request.url);
-    const otherType = url.searchParams.get("otherType") as EntityType | null;
-    const otherId = url.searchParams.get("otherId");
-    const role = url.searchParams.get("role") as RelationshipRole | null;
-    if (!otherType || !otherId || !role)
-      throw new Response("Bad derived-relationship request", { status: 400 });
-
-    const view = await window.api.views.derivedRelationship(
-      subjectType,
-      params.id as string,
-      otherType,
-      otherId,
-      role,
-    );
+    const view = await loadDerivedRelationship(subjectType, params, request);
     if (!view)
       throw new Response("Derived relationship not found", { status: 404 });
     return view;
   };
+}
+
+/** The derived relationship the query string names, or null if gone. */
+async function loadDerivedRelationship(
+  subjectType: EntityType,
+  params: LoaderFunctionArgs["params"],
+  request: Request,
+) {
+  const url = new URL(request.url);
+  const otherType = url.searchParams.get("otherType") as EntityType | null;
+  const otherId = url.searchParams.get("otherId");
+  const role = url.searchParams.get("role") as RelationshipRole | null;
+  if (!otherType || !otherId || !role)
+    throw new Response("Bad derived-relationship request", { status: 400 });
+  return window.api.views.derivedRelationship(
+    subjectType,
+    params.id as string,
+    otherType,
+    otherId,
+    role,
+  );
 }
 
 /**
@@ -370,21 +414,20 @@ function relationshipDerivedLoader(subjectType: EntityType) {
 function relationshipDerivedEditAction(subjectType: EntityType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
-    const url = new URL(request.url);
-    const otherType = url.searchParams.get("otherType") as EntityType | null;
-    const otherId = url.searchParams.get("otherId");
-    if (!otherType || !otherId)
-      throw new Response("Bad derived-relationship request", { status: 400 });
-
+    const view = await loadDerivedRelationship(subjectType, params, request);
     const formData = await request.formData();
-    await window.api.relationships.createFromSubject({
-      subjectType,
-      subjectId: id,
-      otherType,
-      otherId,
-      otherRole: String(formData.get("otherRole")) as RelationshipRole,
-      otherRoleNote: readNote(formData, "otherRoleNote"),
-    });
+    const shaped =
+      view &&
+      relationshipInputOf(readRelationshipDraft(formData, view.neighbor));
+    if (shaped?.ok && shaped.input.other === "existing")
+      await window.api.relationships.createFromSubject({
+        subjectType,
+        subjectId: id,
+        otherType: shaped.input.otherType,
+        otherId: shaped.input.otherId,
+        otherRole: shaped.input.otherRole,
+        otherRoleNote: shaped.input.otherRoleNote,
+      });
     return redirect(`${entityBasePath(subjectType)}/${id}`);
   };
 }

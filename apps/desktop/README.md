@@ -37,7 +37,7 @@ pnpm --filter @leapsake/desktop start   # preview the built app
 
 `dev` and `start` are unpackaged, so they run as **Leapsake Dev** and put this device's
 userData at `~/Library/Application Support/Leapsake Dev` — deliberately not the packaged
-`…/Leapsake`. See *The app's name, and why it is a data boundary* below; it is a boundary
+`…/Leapsake`. See _The app's name, and why it is a data boundary_ below; it is a boundary
 worth understanding before changing either name.
 
 Both also run two `node_modules` chores first: the SQLite ABI flip below, and
@@ -45,8 +45,8 @@ Both also run two `node_modules` chores first: the SQLite ABI flip below, and
 idempotent, and both re-apply themselves after an install wipes them.
 
 > ⚠️ Any of these flips the native SQLite binary to the Electron ABI, which breaks the next
-> Vitest run in a misleading way. See [`../../AGENTS.md`](../../AGENTS.md) → *The native SQLite
-> ABI, and how it bites*.
+> Vitest run in a misleading way. See [`../../AGENTS.md`](../../AGENTS.md) → _The native SQLite
+> ABI, and how it bites_.
 
 ## The app's face on macOS
 
@@ -56,20 +56,20 @@ someone else's name. Packaging will supply a real one (plans/v0-2.md); until it 
 small pieces stand in, and they are in different places because macOS reads the name at
 several different moments from several different sources:
 
-| Surface | Set by | Where |
-| --- | --- | --- |
-| Dock icon | `app.dock.setIcon(resources/icon-macos.png)` | `src/main/index.ts`, after `whenReady` |
-| Dock tile name | the bundle's **directory name** on disk | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
-| Menu-bar title | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
-| Menu wording (About…, Quit…) | `productName`, plus a dev suffix | `package.json`; `src/main/index.ts` |
-| Window title | the renderer's own `<title>` | `src/renderer/index.html` |
+| Surface                      | Set by                                          | Where                                               |
+| ---------------------------- | ----------------------------------------------- | --------------------------------------------------- |
+| Dock icon                    | `app.dock.setIcon(resources/icon-macos.png)`    | `src/main/index.ts`, after `whenReady`              |
+| Dock tile name               | the bundle's **directory name** on disk         | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
+| Menu-bar title               | `CFBundleName` in the dev bundle's `Info.plist` | `scripts/name-dev-bundle.mjs`, run by `dev`/`start` |
+| Menu wording (About…, Quit…) | `productName`, plus a dev suffix                | `package.json`; `src/main/index.ts`                 |
+| Window title                 | the renderer's own `<title>`                    | `src/renderer/index.html`                           |
 
 The two bundle rows are the awkward ones, and they are two rows because **the Dock does not
 read the plist.** macOS resolves an app's display name from its filename and disregards
 `CFBundleDisplayName` when the two disagree, so a bundle called `Electron.app` shows
 “Electron” under the icon no matter what is stamped inside it — while `NSRunningApplication`
 and LaunchServices, which the menu bar and ⌘-Tab follow, happily report the stamped name. Both
-therefore have to change: `dev` renames the bundle directory to `Leapsake Dev.app` *and*
+therefore have to change: `dev` renames the bundle directory to `Leapsake Dev.app` _and_
 stamps the plist on its way past.
 
 Renaming the directory is not renaming the **executable**, which must not happen — see the
@@ -91,6 +91,7 @@ guarded line:
 // package.json — read by Electron before any app code runs
 "productName": "Leapsake"
 ```
+
 ```ts
 // src/main/index.ts, at module scope
 if (!app.isPackaged) app.setName(`${app.getName()} Dev`);
@@ -102,16 +103,16 @@ configure. `app.isPackaged` is the only distinction that matters here.
 **`app.name` is not a label.** Electron derives three things from it, and only the first is
 cosmetic:
 
-1. the wording *inside* the macOS app menu — "About Leapsake Dev", "Quit …";
+1. the wording _inside_ the macOS app menu — "About Leapsake Dev", "Quit …";
 2. `app.getPath("userData")` — where this device's whole store lives;
 3. on macOS, the **Keychain item safeStorage wraps keys with**: the service is
    `<app.name> Safe Storage`, so the name decides which key `keystore.json` is sealed under.
 
 The third has no lever. `app.setPath` can put `userData` back where it was, which makes a late
-rename *look* survivable while the enclave has quietly moved to a key that decrypts none of the
+rename _look_ survivable while the enclave has quietly moved to a key that decrypts none of the
 existing wraps. There is no equivalent API for the Keychain service.
 
-What makes the dev rename safe is that it is not a *change* of name. It runs at module scope,
+What makes the dev rename safe is that it is not a _change_ of name. It runs at module scope,
 before anything has read `app.name`, and identically on every launch — so a dev device is only
 ever "Leapsake Dev", with store, Keychain item and menu agreeing from its first launch.
 
@@ -134,7 +135,7 @@ Two things move with a name, and only one of them can be carried:
   encrypted device comes back through its password or recovery-phrase door and re-wraps on the
   way in. A device with no account (plaintext store) just moves.
 
-`keystore.json` does not travel between machines anyway — see *Backing up and restoring* — so
+`keystore.json` does not travel between machines anyway — see _Backing up and restoring_ — so
 this is the same path a restore onto a new machine already takes.
 
 ### More than one device at once
@@ -148,7 +149,7 @@ ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" \
 ```
 
 Point them at a local relay to exercise sync — see
-[`@leapsake/server`](../server/README.md) → *Running*.
+[`@leapsake/server`](../server/README.md) → _Running_.
 
 ### Driving the app without a harness
 
@@ -172,9 +173,9 @@ Things that will otherwise cost you an hour each:
   `out/main/index.js`.
 - Deleting `keystore.json` between launches simulates keychain loss — but it takes this
   device's **master key** as well as its db-key, which the boot path repairs from whichever
-  door you then unlock with. Such a profile exercises the *repair*, not merely the gate.
+  door you then unlock with. Such a profile exercises the _repair_, not merely the gate.
 - Deleting **only** `device-id` and `enclave` from that file leaves the db-key alive, which is
-  the one route to the *Degraded* state: no gate is raised, so nothing can repair it.
+  the one route to the _Degraded_ state: no gate is raised, so nothing can repair it.
 - A `pkill -9` of the Electron child can take `out/` with it and leave the dev server serving
   nothing. If a launch produces no output at all, restart the dev server.
 
@@ -239,14 +240,14 @@ backup.
 
 **`keystore.json` is deliberately worthless off the machine.** It is a map of
 `id → base64(ciphertext)` sealed by Electron's `safeStorage`, which derives its key
-from *this* OS account's keychain (`main/keystore/safe-storage-keystore.ts`). Copying
+from _this_ OS account's keychain (`main/keystore/safe-storage-keystore.ts`). Copying
 it to another machine restores nothing. That is not a gap — it is why the two
 sidecar doors exist, and the restore path below goes through them.
 
 **`accounts.json` is small and load-bearing.** It is the only file whose loss is
 silent: the roster degrades to empty rather than throwing
 ([`@leapsake/store-layout`](../../packages/store-layout/README.md)), so a restore
-missing it boots into a *fresh Unauthenticated store* with the real data sitting
+missing it boots into a _fresh Unauthenticated store_ with the real data sitting
 unopened in `stores/<accountId>/`. Nothing is lost — the fix is to restore the file,
 or hand-write it (`{"version":1,"accounts":[{"id":…,"username":…,"createdAt":…}]}`,
 where `id` is the store's directory name) — but the app will not tell you that is
@@ -254,13 +255,13 @@ what happened.
 
 ### Restoring, per custody state
 
-| State | What to copy | What happens on first boot |
-|---|---|---|
-| **Unauthenticated** (no account) | `stores/local/leapsake.db` | Opens straight into the data. No keys, no ceremony — there is nothing to unlock |
-| **Authenticated, password door** | `accounts.json` + the whole `stores/<accountId>/` directory | The gate asks for the account password; it unwraps the db-key from `.password`, restores it to this machine's keychain, and re-adopts the master key |
-| **Authenticated, phrase door** | same | Same gate, answered with the 24 words; `.recovery` yields the same db-key, and the phrase also restores this device's recovery key |
-| **Either door, wrong secret** | — | Rejected with a per-door message and re-prompted, in a loop. Nothing is written and nothing is corrupted — a wrong answer costs an attempt, not the store |
-| **Encrypted store, no sidecars** | — | Refused outright: *"the database is encrypted but this device's key is missing."* Correct, and unrecoverable — the db-key lives nowhere inside the store it opens |
+| State                            | What to copy                                                | What happens on first boot                                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unauthenticated** (no account) | `stores/local/leapsake.db`                                  | Opens straight into the data. No keys, no ceremony — there is nothing to unlock                                                                                   |
+| **Authenticated, password door** | `accounts.json` + the whole `stores/<accountId>/` directory | The gate asks for the account password; it unwraps the db-key from `.password`, restores it to this machine's keychain, and re-adopts the master key              |
+| **Authenticated, phrase door**   | same                                                        | Same gate, answered with the 24 words; `.recovery` yields the same db-key, and the phrase also restores this device's recovery key                                |
+| **Either door, wrong secret**    | —                                                           | Rejected with a per-door message and re-prompted, in a loop. Nothing is written and nothing is corrupted — a wrong answer costs an attempt, not the store         |
+| **Encrypted store, no sidecars** | —                                                           | Refused outright: _"the database is encrypted but this device's key is missing."_ Correct, and unrecoverable — the db-key lives nowhere inside the store it opens |
 
 The gate offers only the doors whose sidecars are present, so a backup that carries
 one of them is a complete restore. Both are 100-odd opaque bytes; there is no reason
@@ -269,12 +270,12 @@ not to carry both.
 The unlock is `openAppDatabase` (`main/db/open.ts`, case 3) and the repair that
 follows it is `establishKeySession`
 ([`@leapsake/key-custody`](../../packages/key-custody/README.md)). A door unlock
-means the keychain was lost, which took this device's *master* key with it, so the
+means the keychain was lost, which took this device's _master_ key with it, so the
 boot path re-adopts the account's before anything reads it; if that fails the app
 still opens, in the **Degraded** state, rather than refusing to start.
 
 **A phrase unlock does not force a new password**, and does not need to: the password
-door is an independent file and still opens. (Account-level recovery *does* demand
+door is an independent file and still opens. (Account-level recovery _does_ demand
 one — `sync:recover` unwraps the master key from the relay's escrow onto a device that
 never had it. That is a different flow with a different threat model.)
 
@@ -350,7 +351,7 @@ handler can trigger while the recovery phrase is showing.
   the keystore is only as strong as the keyring actually behind it. An accepted limit; Linux is
   out of scope for v0.1.
 - **Deleting a store unlinks it; it does not scrub it.** Deleted bytes can linger in SSD free
-  space (see `@leapsake/key-custody` → *Creating an account*).
+  space (see `@leapsake/key-custody` → _Creating an account_).
 
 ## React lives at this app's version, not the workspace's
 
@@ -360,7 +361,7 @@ separate bundles that share **no** React-consuming runtime code — mobile uses 
 desktop `react-router-dom` — so there is no cross-app React instance to keep aligned.
 
 React's "single copy" rule is **per-bundle, not per-monorepo**. Within one app, everything
-that calls hooks must import the *same physical* React, because the hook dispatcher is a
+that calls hooks must import the _same physical_ React, because the hook dispatcher is a
 module-level singleton; two instances in one bundle produce "Invalid hook call" and null
 `useContext` crashes — a white screen, from a clean build.
 
@@ -375,7 +376,7 @@ that same version needs nothing. An app on a **different** version forces a seco
 copy that a React library like `react-router-dom` can latch onto — so that app must dedupe.
 
 - **Desktop** runs a newer React than the hoisted root, so it dedupes.
-- **Mobile** *is* the hoisted root version, so no second copy exists and Metro needs no
+- **Mobile** _is_ the hoisted root version, so no second copy exists and Metro needs no
   equivalent. If mobile ever diverges, add one (force `react`/`react-dom` to a single path
   via `resolver.resolveRequest` or `extraNodeModules` in `metro.config.js`).
 - **Never** add a global `pnpm.overrides` forcing one React across the repo — that recouples
@@ -385,7 +386,7 @@ copy that a React library like `react-router-dom` can latch onto — so that app
   failure the dedupe prevents.
 - **The workspace root pins a matching `react`/`react-dom` pair** (mobile's version) purely
   so `packages/ui`'s component tests render against one. Before that, hoisting produced a
-  *mismatched* pair — mobile's `react` beside desktop's `react-dom`, its only consumer —
+  _mismatched_ pair — mobile's `react` beside desktop's `react-dom`, its only consumer —
   which renders nothing and reports a bogus `act(…)` warning, because React 19's `act` queue
   lives in `react` while the work lives in `react-dom`. Root stays on mobile's version
   deliberately: moving it would push mobile off the hoisted copy into the nested case Metro

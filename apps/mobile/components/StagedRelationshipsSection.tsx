@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
-import type { EntityType } from "@leapsake/schema";
 import {
+  type EntityType,
   type RelationshipDraft,
-  RelationshipFields,
-  emptyRelationshipDraft,
-  otherLabelOf,
-  relationshipDraftValid,
-} from "./RelationshipFields";
+  otherTypesFor,
+  relationshipDraftOf,
+  relationshipDraftWithRole,
+  relationshipInputOf,
+  rolesForSubject,
+} from "@leapsake/schema";
+import { RelationshipFields, otherLabelOf } from "./RelationshipFields";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -38,7 +40,7 @@ export function relationshipRowPending(row: StagedRelationship): boolean {
 
 /** Whether a row would either write cleanly or be skipped — the Save gate. */
 export function relationshipRowValid(row: StagedRelationship): boolean {
-  return relationshipRowPending(row) || relationshipDraftValid(row.draft);
+  return relationshipRowPending(row) || relationshipInputOf(row.draft).ok;
 }
 
 /**
@@ -88,6 +90,7 @@ export function StagedRelationshipsSection({
       active = false;
     };
   }, [core]);
+  const roleOptions = rolesForSubject(subjectType);
 
   return (
     <View style={styles.section}>
@@ -97,6 +100,10 @@ export function StagedRelationshipsSection({
 
       {entries.map((entry) => {
         const label = otherLabelOf(entry.draft);
+        const setDraft = (draft: RelationshipDraft) =>
+          onChange(
+            entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
+          );
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
             <View style={styles.sectionHeader}>
@@ -114,16 +121,14 @@ export function StagedRelationshipsSection({
               </Pressable>
             </View>
             <RelationshipFields
-              subjectType={subjectType}
               candidates={candidates ?? []}
               draft={entry.draft}
-              onChange={(draft) =>
-                onChange(
-                  entries.map((e) =>
-                    e.key === entry.key ? { ...e, draft } : e,
-                  ),
-                )
+              onChange={setDraft}
+              setRole={(role) =>
+                setDraft(relationshipDraftWithRole(entry.draft, role))
               }
+              roleOptions={roleOptions}
+              otherTypes={otherTypesFor(entry.draft.role)}
             />
           </View>
         );
@@ -143,7 +148,7 @@ export function StagedRelationshipsSection({
           onPress={() =>
             onChange([
               ...entries,
-              { key: crypto.randomUUID(), draft: emptyRelationshipDraft() },
+              { key: crypto.randomUUID(), draft: relationshipDraftOf() },
             ])
           }
         >

@@ -1,115 +1,77 @@
-import { type EntityType, inverseRole, rolesForPair } from "@leapsake/schema";
-import { useId, useMemo, useState } from "react";
-import { useMessages } from "../../messages/index.js";
+import type {
+  EntityType,
+  RelationshipDraft,
+  RelationshipDraftErrors,
+} from "@leapsake/schema";
+import { useRelationshipForm } from "../../headless/index.js";
+import { type Messages, useMessages } from "../../messages/index.js";
 import {
   type RelationshipCandidate,
-  roleMap,
+  RelationshipFields,
 } from "../fields/RelationshipFields.js";
 import { FormShell } from "../patterns/FormShell.js";
-import { Field } from "../primitives/Field.js";
 
 /**
- * Add-relationship form, rendered on a subject entity's page. The user picks the
- * *other* entity and that entity's role relative to the subject; the subject's
- * own role is the gender-neutral inverse and is submitted as a hidden value
- * rather than shown. Visible inputs hold display labels; hidden inputs carry the
- * resolved machine values (`bType`/`bId`/`bRole`/`aRole`) the write path
- * consumes — which supplies the subject endpoint from the route itself.
- *
- * Submit stays closed until both ends resolve, because a half-typed name is a
- * relationship to nobody.
+ * Add or edit a relationship from a subject's page: {@link useRelationshipForm}'s
+ * draft rendered by {@link RelationshipFields}. With `initial` the other end is
+ * fixed and only its role is edited; core derives the subject's own.
  */
 export function RelationshipForm({
   subjectType,
-  candidates,
+  candidates = [],
+  initial,
   cancelTo,
   submitting,
 }: {
   subjectType: EntityType;
-  candidates: readonly RelationshipCandidate[];
+  candidates?: readonly RelationshipCandidate[];
+  /** The relationship being edited, its other end fixed. */
+  initial?: RelationshipDraft;
   cancelTo: string;
   submitting: boolean;
 }) {
   const m = useMessages();
-  const ids = useId();
-  const entityListId = `${ids}-entities`;
-  const roleListId = `${ids}-roles`;
-
-  const [entityText, setEntityText] = useState("");
-  const [roleText, setRoleText] = useState("");
-  const [note, setNote] = useState("");
-
-  const selected = useMemo(
-    () => candidates.find((c) => c.label === entityText),
-    [candidates, entityText],
-  );
-  const otherType: EntityType = selected?.type ?? "person";
-
-  const roleByLabel = useMemo(
-    () => roleMap(otherType, subjectType),
-    [otherType, subjectType],
-  );
-  const bRole = roleByLabel.get(roleText);
-  const aRole = bRole ? inverseRole(bRole) : undefined;
+  const editing = initial !== undefined;
+  const form = useRelationshipForm({
+    subjectType,
+    initial,
+    otherFixed: editing,
+    candidates,
+  });
 
   return (
     <FormShell
-      title={m.relationshipForm.heading}
-      submitLabel={m.relationshipForm.submit}
+      title={
+        editing ? m.relationshipForm.editHeading : m.relationshipForm.heading
+      }
+      submitLabel={editing ? m.common.save : m.relationshipForm.submit}
       cancelTo={cancelTo}
       submitting={submitting}
-      canSubmit={selected !== undefined && bRole !== undefined}
-      beforeFields={
-        // Resolved machine values for the write path. Outside the fieldset so a
-        // disabled form still posts them.
-        <>
-          <input type="hidden" name="bType" value={selected?.type ?? ""} />
-          <input type="hidden" name="bId" value={selected?.id ?? ""} />
-          <input type="hidden" name="bRole" value={bRole ?? ""} />
-          <input type="hidden" name="aRole" value={aRole ?? ""} />
-        </>
-      }
+      problem={relationshipProblem(form.errors, m)}
     >
-      <Field label={m.relationshipForm.name}>
-        <input
-          list={entityListId}
-          value={entityText}
-          onChange={(event) => setEntityText(event.target.value)}
-          placeholder={m.relationshipForm.namePlaceholder}
-          required
-        />
-      </Field>
-      <datalist id={entityListId}>
-        {candidates.map((candidate) => (
-          <option
-            key={`${candidate.type}:${candidate.id}`}
-            value={candidate.label}
-          />
-        ))}
-      </datalist>{" "}
-      <Field label={m.relationshipForm.role}>
-        <input
-          list={roleListId}
-          value={roleText}
-          onChange={(event) => setRoleText(event.target.value)}
-          placeholder={m.relationshipForm.rolePlaceholder}
-          required
-        />
-      </Field>
-      <datalist id={roleListId}>
-        {rolesForPair(otherType, subjectType).map((role) => (
-          <option key={role.role} value={role.label} />
-        ))}
-      </datalist>
-      {bRole === "other" && (
-        <Field label={m.relationshipForm.note}>
-          <input
-            name="bRoleNote"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </Field>
-      )}
+      <RelationshipFields
+        fields={form.fields}
+        set={form.set}
+        setRole={form.setRole}
+        roleOptions={form.roleOptions}
+        otherTypes={form.otherTypes}
+        candidates={candidates}
+        otherFixed={editing}
+      />
     </FormShell>
   );
+}
+
+function relationshipProblem(
+  errors: RelationshipDraftErrors,
+  m: Messages,
+): string | undefined {
+  const t = m.relationshipForm;
+  if (errors.role === "required") return t.roleRequired;
+  if (errors.other === "required") return t.otherRequired;
+  if (errors.other === "unknown") return t.otherUnknown;
+  if (errors.other === "ambiguous") return t.otherAmbiguous;
+  if (errors.other === "notHolder") return t.otherNotHolder;
+  if (errors.note === "required") return t.noteRequired;
+  return undefined;
 }

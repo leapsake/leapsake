@@ -48,11 +48,10 @@ supports the newer level. `apps/*` are not capped — they target one runtime ea
 to use what it has.
 
 **Host capabilities are established at each app's entry, not wrapped in here.** Shared code
-assumes the `crypto.randomUUID` Web Standard exists. Hermes ships *no* global `crypto`, so
+assumes the `crypto.randomUUID` Web Standard exists. Hermes ships _no_ global `crypto`, so
 `apps/mobile/index.ts` builds one from `expo-crypto` — native v4, canonical lowercase, so it
 is format-identical to Node/desktop and browser/web and primary keys stay
 platform-indistinguishable for sync. A shared package should be able to call the standard
 thing; making the platform provide it is the app's job.
 
 > Adding or removing a native module needs a Metro `--clear` restart.
-

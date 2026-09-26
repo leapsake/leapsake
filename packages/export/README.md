@@ -5,7 +5,7 @@
 v0.1 is single-device by construction, so the app container is the only place a user's data
 exists. That is what makes this the difference between "delete and reinstall" being an ordinary
 act and being data loss — and why it gates GA rather than being a nicety. What is still ahead of
-it (restore, desktop parity, CardDAV) is [`plans/v0-2.md`](../../plans/v0-2.md) → *Export*; this
+it (restore, desktop parity, CardDAV) is [`plans/v0-2.md`](../../plans/v0-2.md) → _Export_; this
 file is why the package is shaped the way it is.
 
 ## ⚠️ It must never use iCloud
@@ -21,7 +21,7 @@ it cannot violate the rule on its own — **a caller that reaches for a cloud AP
 can.** Two things follow, and both live in the client:
 
 - `expo-sharing` is in `apps/mobile` **without its config plugin**. That plugin is for the
-  *inbound* share extension and adds an App Group entitlement; the outbound `Sharing.shareAsync`
+  _inbound_ share extension and adds an App Group entitlement; the outbound `Sharing.shareAsync`
   we use needs no plugin at all.
 - The archive is written to **`Library/Caches`, never the documents directory**. Caches is
   excluded from device backup, so a plaintext dump of somebody's whole address book cannot ride
@@ -55,7 +55,7 @@ The third is the interesting one, and today it needs no code here: `@leapsake/da
 `deleted_at IS NULL` into `createEntityRepo`'s `listWhere` and `get`, and into
 `tags.listForEntity`'s join, so **every read the current ports make is already live-rows-only**.
 An `includeDeleted` parameter was considered and is deliberately absent: adding one would be the
-thing that lets a future caller opt *into* the surprise.
+thing that lets a future caller opt _into_ the surprise.
 
 ⚠️ **That was a property of `createEntityRepo`, not of the data layer** — and `data.json` is where
 it nearly broke. `mentions`, `not_a_duplicate` and `relationship_dismissals` have no entity repo,
@@ -65,14 +65,14 @@ and their one enumerating method was `listChangedSince(since)`: `WHERE updated_a
 rows in the one artifact that leaves the device.
 
 They got a filtered read of their own instead: **`listActive()` on `defineSyncable`**, so it is
-now true of *every* synced table rather than only the ones with an entity repo, and a new port has
+now true of _every_ synced table rather than only the ones with an entity repo, and a new port has
 something correct to reach for. Its doc-comment sits beside `listChangedSince`'s, which is where
 somebody about to make this mistake is already reading. `apps/desktop/test/integration/entity-repo.test.ts`
 asserts the two answer differently on the same table at the same moment.
 
 `listPeople` and `listPets` likewise answer only **published** entities (`PUBLISHED_SQL`).
 Somebody who exists only as a fact about another person belongs on that person's card as a
-`RELATED`, not on a card of their own — see *The graph walk* below.
+`RELATED`, not on a card of their own — see _The graph walk_ below.
 
 ## The archive
 
@@ -97,7 +97,7 @@ turns out to be unreadable.
 nothing else. Increment 1 already shipped the file onto users' disks: adding fields to an
 identified file later is ordinary, retrofitting a version onto one already in the wild is not.
 Filling it did not bump the version — every table is its own optional key, so a file written by an
-older app still parses, and the version is left for a change of *shape*.
+older app still parses, and the version is left for a change of _shape_.
 
 `fflate` rather than `jszip`: ~8KB, pure JS, no native module, and it runs on the Hermes floor.
 Deflate rather than store, because vCard is extremely compressible text and a large address book
@@ -115,7 +115,7 @@ card — that is what their standing means, so the file says exactly what the st
 the card of the one person they are a fact about. `listPeople` cannot see them, which is not a
 limitation to route around but the invariant itself.
 
-**A milestone borne by a *relationship* is written on both partners' cards, with one id.** A
+**A milestone borne by a _relationship_ is written on both partners' cards, with one id.** A
 wedding belongs to the marriage, not to either partner. Writing it once, on whichever card sorted
 first, would show a third-party importer the anniversary on one of the two people and make which
 one look arbitrary. Writing it twice needs the shared `X-LEAPSAKE-MILESTONE-ID`, or an importer
@@ -129,7 +129,7 @@ bites, the fix is bulk reads behind `ExportPorts`, not caching in whichever clie
 
 **Derived edges are excluded twice over.** The kinship engine computes some neighbors live — your
 parent's sibling is your pibling — and those have no stored row. Exporting one would write an
-inference into the file as if the user had recorded it, and a re-import would then *store* it, at
+inference into the file as if the user had recorded it, and a re-import would then _store_ it, at
 which point it stops being live and starts being stale. `ExportPorts` says the implementation must
 not return them, core wires `orientedNeighbors` (explicit by construction) rather than the kinship
 service, and the builder filters again. Belt and braces on purpose: the failure is silent and
@@ -153,7 +153,7 @@ what a human reads, and a restore re-creates them through the same
 carry the `tags` and `taggings` tables and their ids at all.
 
 **The holiday catalog does not travel.** It is read-only and the app reseeds it, so shipping it
-would bloat every archive with data that regenerates itself. A holiday the *user* authored has no
+would bloat every archive with data that regenerates itself. A holiday the _user_ authored has no
 other copy anywhere, so that goes out whole.
 
 **A holiday choice travels by slug.** An observance's `holidayId` is
@@ -161,7 +161,7 @@ other copy anywhere, so that goes out whole.
 is legible, and it is the key `ux_holidays_slug_active` makes stable. Null where the holiday row
 itself is gone: honest, rather than dropping the observance and losing the user's answer with it.
 
-**A device's own facts do not travel.** Notification *preferences* do — mode, delivery time, the
+**A device's own facts do not travel.** Notification _preferences_ do — mode, delivery time, the
 label the user typed. `permissionState` and `platform` do not: they are what one phone's OS last
 answered, and restoring "notifications allowed" onto a new device would be a lie the app then acts
 on.
@@ -182,10 +182,10 @@ another card by `urn:uuid:` becomes one real edge between two published entities
 even though the writer puts it on both cards. **And the milestones**: `X-LEAPSAKE-MILESTONE-KIND`
 brings all ten kinds home rather than the one a label map could name, `-NOTE` its free text, and
 `-REL` puts a wedding back on the marriage — once, which is what the shared `-ID` is for. A
-*foreign* card's date label is read too: eight of the ten kinds are recoverable from a label
+_foreign_ card's date label is read too: eight of the ten kinds are recoverable from a label
 alone, which is the only thing `DATE_KINDS` is about.
 
 Note what the ids are **for**: matching, not identity. An imported card always gets a fresh row
 id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and
-timestamps back is a *restore*, and that door is deliberately still closed
-([`plans/v0-2.md`](../../plans/v0-2.md) → *Export*).
+timestamps back is a _restore_, and that door is deliberately still closed
+([`plans/v0-2.md`](../../plans/v0-2.md) → _Export_).

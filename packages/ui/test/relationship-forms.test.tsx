@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PersonForm,
   PetForm,
-  RelationshipFields,
   RelationshipForm,
+  StagedRelationshipsFields,
   type RelationshipCandidate,
 } from "../src/web/index.js";
-import { renderWithUi } from "./support.js";
+import { recordSubmits, renderWithUi } from "./support.js";
 
 afterEach(cleanup);
 
@@ -20,110 +20,160 @@ const candidates: RelationshipCandidate[] = [
   { type: "pet", id: "x-1", label: "Jimmy" },
 ];
 
-/** The hidden values the write path actually reads. */
-const hidden = (container: HTMLElement) =>
-  Object.fromEntries(
-    [...container.querySelectorAll("input[type=hidden]")].map((i) => [
-      i.getAttribute("name"),
-      (i as HTMLInputElement).value,
-    ]),
-  );
-
 const type = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-const submitButton = () => screen.getByRole("button", { name: "Add" });
+const submitButton = () => screen.getByRole("button", { name: /^(Add|Save)$/ });
+
+/** Everything the form would post, read the way the route action reads it. */
+const posted = (container: HTMLElement) =>
+  Object.fromEntries(
+    new FormData(container.querySelector("form") as HTMLFormElement),
+  );
 
 describe("RelationshipForm", () => {
-  function render() {
+  function render(over: Partial<Parameters<typeof RelationshipForm>[0]> = {}) {
     return renderWithUi(
       <RelationshipForm
         subjectType="person"
         candidates={candidates}
         cancelTo="/people/p-1"
         submitting={false}
+        {...over}
       />,
     );
   }
 
-  it("holds the submit closed until both ends resolve", () => {
-    // A half-typed name is a relationship to nobody.
+  it("posts the typed name and the picked role, for the action to resolve", () => {
+    const stopped = recordSubmits();
+    const { container } = render();
+
+    type("Role", "mother");
+    type("Name", "Mary Bailey");
+    fireEvent.click(submitButton());
+
+    expect(stopped()).toEqual([false]);
+    expect(posted(container)).toEqual({
+      otherRole: "mother",
+      otherName: "Mary Bailey",
+    });
+  });
+
+  it("never disables Save, and explains a press on a name that matches nobody", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
     render();
 
-    expect(submitButton().matches(":disabled")).toBe(true);
-    type("Name", "Mary Bailey");
-    expect(submitButton().matches(":disabled")).toBe(true);
-    type("Role", "Mother");
+    type("Role", "friend");
+    type("Name", "Clarence Odbody");
     expect(submitButton().matches(":disabled")).toBe(false);
-  });
-
-  it("resolves the typed labels into the machine values the write path reads", () => {
-    const { container } = render();
-
-    type("Name", "Mary Bailey");
-    type("Role", "Mother");
-
-    expect(hidden(container)).toEqual({
-      bType: "person",
-      bId: "p-2",
-      bRole: "mother",
-      // The subject's own role is the inverse, submitted rather than shown.
-      aRole: expect.any(String) as unknown as string,
-    });
-    expect(hidden(container).aRole).not.toBe("");
-  });
-
-  it("posts empty machine values while the name is unmatched", () => {
-    const { container } = render();
-    type("Name", "Nobody At All");
-    expect(hidden(container).bId).toBe("");
-  });
-
-  it("suggests candidates by name and roles by label", () => {
-    // Both inputs are free text backed by a datalist — a typed value that
-    // matches nothing is allowed to sit there, it just doesn't resolve.
-    const { container } = render();
-    const lists = [...container.querySelectorAll("datalist")].map((d) =>
-      [...d.querySelectorAll("option")].map((o) => o.getAttribute("value")),
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledWith(
+      "Nobody in Leapsake has that name. Pick someone from the list, or add them first.",
     );
+    expect(stopped()).toEqual([true]);
+    alert.mockRestore();
+  });
 
-    expect(lists[0]).toEqual(["Mary Bailey", "Jimmy"]);
-    expect(lists[1]).toContain("Mother");
+  it("ignores a second press while saving, without disabling Save", () => {
+    const stopped = recordSubmits();
+    render({ submitting: true });
+    type("Role", "mother");
+    type("Name", "Mary Bailey");
+
+    expect(submitButton().matches(":disabled")).toBe(false);
+    expect(submitButton().getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(submitButton());
+    expect(stopped()).toEqual([true]);
+  });
+
+  it("keeps both fields required, so the browser asks first", () => {
+    render();
+    expect(screen.getByLabelText("Role")).toHaveProperty("required", true);
+    expect(screen.getByLabelText("Name")).toHaveProperty("required", true);
+  });
+
+  it("offers every role up front, and narrows the names to who can hold one", () => {
+    const { container } = render();
+    const names = () =>
+      [...container.querySelectorAll("datalist option")].map((o) =>
+        o.getAttribute("value"),
+      );
+
+    expect(names()).toEqual(["Mary Bailey", "Jimmy"]);
+    const roles = [
+      ...screen.getByLabelText("Role").querySelectorAll("option"),
+    ].map((o) => o.getAttribute("value"));
+    expect(roles).toContain("mother");
+    expect(roles).toContain("pet");
+
+    type("Role", "pet");
+    expect(names()).toEqual(["Jimmy"]);
   });
 
   it("asks for a note only when the role is the catch-all", () => {
     render();
-    type("Name", "Mary Bailey");
     expect(screen.queryByLabelText("Note")).toBeNull();
+    type("Role", "other");
+    expect(screen.getByLabelText("Note")).toHaveProperty(
+      "name",
+      "otherRoleNote",
+    );
+  });
 
-    type("Role", "Other");
-    expect(screen.getByLabelText("Note")).toHaveProperty("name", "bRoleNote");
+  it("edits only the role when the other end is fixed", () => {
+    const { container } = render({
+      candidates: [],
+      initial: {
+        other: {
+          kind: "existing",
+          type: "person",
+          id: "p-2",
+          label: "Mary Bailey",
+        },
+        role: "friend",
+        note: "",
+      },
+    });
+
+    expect(screen.queryByRole("combobox", { name: "Name" })).toBeNull();
+    expect(screen.getByText("Mary Bailey")).toBeTruthy();
+    // Only roles a person can hold opposite a person: never a pet.
+    const roles = [
+      ...screen.getByLabelText("Role").querySelectorAll("option"),
+    ].map((o) => o.getAttribute("value"));
+    expect(roles).not.toContain("pet");
+    expect(posted(container)).toEqual({ otherRole: "friend" });
   });
 });
 
-describe("RelationshipFields", () => {
+describe("StagedRelationshipsFields", () => {
   it("starts with no rows unless the form asks for one", () => {
     renderWithUi(
-      <RelationshipFields subjectType="person" candidates={candidates} />,
+      <StagedRelationshipsFields
+        subjectType="person"
+        candidates={candidates}
+      />,
     );
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
 
-  it("opens with a row when the form nudges for one", () => {
+  it("opens with a row that requires nothing, so an empty one never blocks", () => {
     // The pet form does this, so a pet's name and owner can be set together.
     renderWithUi(
-      <RelationshipFields
+      <StagedRelationshipsFields
         subjectType="pet"
         candidates={candidates}
         initialRows={1}
       />,
     );
-    expect(screen.getByLabelText("Name")).toBeTruthy();
+    expect(screen.getByLabelText("Name")).toHaveProperty("required", false);
+    expect(screen.getByLabelText("Role")).toHaveProperty("required", false);
   });
 
   it("emits one hidden row per fully-resolved relationship, and none before", () => {
     const { container } = renderWithUi(
-      <RelationshipFields
+      <StagedRelationshipsFields
         subjectType="person"
         candidates={candidates}
         initialRows={1}
@@ -133,7 +183,7 @@ describe("RelationshipFields", () => {
     type("Name", "Mary Bailey");
     expect(container.querySelectorAll("input[type=hidden]")).toHaveLength(0);
 
-    type("Role", "Mother");
+    type("Role", "mother");
     const rows = [...container.querySelectorAll("input[name=relationships]")];
     expect(rows).toHaveLength(1);
     expect(JSON.parse((rows[0] as HTMLInputElement).value)).toEqual({
@@ -146,7 +196,7 @@ describe("RelationshipFields", () => {
 
   it("drops a row on Remove", () => {
     renderWithUi(
-      <RelationshipFields
+      <StagedRelationshipsFields
         subjectType="person"
         candidates={candidates}
         initialRows={1}

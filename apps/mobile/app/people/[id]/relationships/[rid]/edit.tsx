@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { relationshipDraftOf } from "@leapsake/schema";
 import { RelationshipForm } from "../../../../../components/RelationshipForm";
-import { relationshipDraftFrom } from "../../../../../components/RelationshipFields";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
@@ -47,7 +47,7 @@ export default function PersonRelationshipEditScreen() {
       title={TITLE}
       subjectType="person"
       canChangeOther={false}
-      initialDraft={relationshipDraftFrom(view.neighbor)}
+      initialDraft={relationshipDraftOf(view.neighbor)}
       onSubmit={async (value) => {
         await core.relationships.editFromSubject({
           subjectType: "person",

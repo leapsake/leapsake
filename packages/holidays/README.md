@@ -11,7 +11,7 @@ design behind them. Shipped on both clients 2026-07-20; what remains is sequence
 | --------------- | ------------------------------------------------------------------------------ |
 | `catalog.ts`    | the bundled reference data and its classification axes                         |
 | `recurrence.ts` | a recurrence rule → the concrete days it falls on; no I/O                      |
-| `resolver.ts`   | a resolver built over holiday *rows*, so user-defined entries resolve the same |
+| `resolver.ts`   | a resolver built over holiday _rows_, so user-defined entries resolve the same |
 | `seed.ts`       | the bundled catalog into the synced `holidays` table, once per bundle version  |
 | `api.ts`        | `createHolidaysApi(deps)` — browse, observe, hide, schedule — over repo ports  |
 
@@ -109,7 +109,7 @@ Two edges between catalog entries, not to be conflated: **family** (`us-mothers-
 per entry; variants are separate entries.
 
 Three v1 slugs predate the rule being applied consistently — `christmas`, `hanukkah`,
-`lunar-new-year`. **They cannot be renamed**: the slug *is* the identity a row's UUID derives
+`lunar-new-year`. **They cannot be renamed**: the slug _is_ the identity a row's UUID derives
 from, so a rename orphans every observance pointing at it. `orthodox-christmas` therefore sits
 beside a bare `christmas`. Leave the asymmetry; it is cheaper than the migration that removes it.
 
@@ -122,7 +122,7 @@ nothing to what every device stores and syncs; callers join them back on by slug
 
 The group key is **derived, not authored**: `tradition === "secular" ? region : tradition`.
 National days group as "United States" and "France", religious ones as "Jewish" and "Hindu" —
-which is how someone picking holidays *for a particular person* reasons about them, rather than by
+which is how someone picking holidays _for a particular person_ reasons about them, rather than by
 the calendar mechanism underneath. Two rules keep it honest:
 
 - **Every religious holiday is `region: "global"`.** A tradition travels with its diaspora, so
@@ -155,11 +155,11 @@ from the source calendars' own rules and cross-checked against a second, indepen
 implementation; they run to **2056**. Extend them before ~2050 by **re-deriving, never
 extrapolating** — see the note in `src/catalog.ts`.
 
-The Hebrew set is *exact* (that calendar is arithmetic), and the implementation behind it
+The Hebrew set is _exact_ (that calendar is arithmetic), and the implementation behind it
 reproduces the originally-authored Hanukkah table entry for entry. The Chinese set rests on Meeus'
 new-moon series in UTC+8, gated on reproducing all 30 Lunar New Year dates — including the two
 borderline years where ICU alone disagrees, which is precisely why ICU is trusted for leap-month
-*structure* and never for a boundary. Neither set rests on a single source, and neither should.
+_structure_ and never for a boundary. Neither set rests on a single source, and neither should.
 
 > **Why catalog breadth is load-bearing, and the escape hatch is not a substitute.** A
 > user-defined holiday can realistically only express simple recurrence. Nobody will hand-author

@@ -3,14 +3,12 @@ import {
   type EntityType,
   milestoneInputOf,
   milestoneLabel,
+  relationshipInputOf,
 } from "@leapsake/schema";
 import { captureRecipientOf, giftIdeaOf } from "@leapsake/ui/headless";
 import { contactDraftToValue } from "../components/ContactMethodFields";
 import { giftDraftEmpty } from "../components/GiftFields";
-import {
-  otherLabelOf,
-  relationshipDraftToValue,
-} from "../components/RelationshipFields";
+import { otherLabelOf } from "../components/RelationshipFields";
 import { contactRowPending } from "../components/StagedContactsSection";
 import { milestoneRowPending } from "../components/StagedMilestonesSection";
 import { relationshipRowPending } from "../components/StagedRelationshipsSection";
@@ -106,8 +104,9 @@ export async function applyEntityForm(
     // a half-filled one the Save gate already refused, so `rel` is what the core
     // calls below accept and nothing else reaches them.
     if (relationshipRowPending(row)) continue;
-    const rel = relationshipDraftToValue(row.draft);
-    if (rel === null) continue;
+    const shaped = relationshipInputOf(row.draft);
+    if (!shaped.ok) continue;
+    const rel = shaped.input;
     await attempt(otherLabelOf(row.draft), () =>
       rel.other === "existing"
         ? core.relationships.createFromSubject({ ...subject, ...rel })

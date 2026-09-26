@@ -8,11 +8,11 @@ the assembled **`CoreApi`**. Free of any transport or UI concern.
 
 Composition, and three things that are genuinely core's:
 
-| In `src/`    | What                                                                                |
-| ------------ | ------------------------------------------------------------------------------------ |
-| `index.ts`   | the wiring, plus the thin sections that are one repo call each (tags, search, kinship) |
-| `views.ts`   | read-and-compose view-model builders — the one place that reads everything for display |
-| `sync.ts`    | `syncableRepos`, the allowlist of what may leave the device                           |
+| In `src/`  | What                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------- |
+| `index.ts` | the wiring, plus the thin sections that are one repo call each (tags, search, kinship) |
+| `views.ts` | read-and-compose view-model builders — the one place that reads everything for display |
+| `sync.ts`  | `syncableRepos`, the allowlist of what may leave the device                            |
 
 Everything with domain logic of its own lives in its own package and arrives through
 `deps`: [`holidays`](../holidays/README.md), [`reminders`](../reminders/README.md),

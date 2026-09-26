@@ -13,7 +13,7 @@ cleartext sync metadata (UUIDs, `updated_at`, `deleted_at`) in a per-account
 append log whose autoincrement `seq` **is** the opaque delivery cursor. The relay
 store is its own schema, independent of the clients' `packages/data` migrations.
 
-## Who is expected to run this, and when *(decided 2026-07-05)*
+## Who is expected to run this, and when _(decided 2026-07-05)_
 
 The hosting strategy is **incremental and reversible**, and this package is step one:
 
@@ -26,7 +26,7 @@ The hosting strategy is **incremental and reversible**, and this package is step
    cross-process rate-limit counter.
 3. **User-customizable / BYO storage**, as the endgame.
 
-*Mantra: simplicity and security first, followed closely by total customizability.*
+_Mantra: simplicity and security first, followed closely by total customizability._
 
 The design already optimizes the layperson flow, so **nothing needs reworking when the hosted
 relay arrives** — it is a deployment change, not an architecture change.
@@ -56,7 +56,7 @@ Argon2id→HKDF output, not a password). The compare is constant-time
 (`crypto.timingSafeEqual`), and records are namespaced by the **authenticated** account
 id, never one supplied in the request body — so a device can only ever reach its own
 namespace. The reasoning behind the primitives is
-[`packages/crypto`](../../packages/crypto/README.md) → *Why these hold*.
+[`packages/crypto`](../../packages/crypto/README.md) → _Why these hold_.
 
 **Username enumeration is accepted, mitigated, not eliminated.** A username rendezvous is
 inherently an existence oracle: prelogin must hand back the public salt, so
@@ -66,7 +66,7 @@ is the mitigation. Metadata — record counts, sync timing, who shares with whom
 likewise out of scope, and stays a thing to revisit before any at-scale privacy claim
 (`plans/encryption/model.md` §12).
 
-### Why username + password *(decided 2026-06-20)*
+### Why username + password _(decided 2026-06-20)_
 
 Weighed against a **high-entropy sync code** (one code, QR-or-paste, doubling as the
 recovery key) and a rigorous **aPAKE (OPAQUE)**. Recorded so it is not relitigated:
@@ -75,26 +75,26 @@ recovery key) and a rigorous **aPAKE (OPAQUE)**. Recorded so it is not relitigat
   future paid email/password tier a continuum rather than a jump, and it is "something you
   know" — no device co-location, unlike a QR scan. The Bitwarden / 1Password / Standard
   Notes point on the privacy/usability curve, not the maximally-private one.
-- **Accepted, mitigated costs.** *Enumeration* — a username rendezvous is inherently an
+- **Accepted, mitigated costs.** _Enumeration_ — a username rendezvous is inherently an
   existence oracle (the unauthenticated `lookup`, and registration's 409); throttled, and
-  intrinsic to user-chosen handles. *Offline brute-force* — a human password is a weaker
+  intrinsic to user-chosen handles. _Offline brute-force_ — a human password is a weaker
   KEK; floored at 12 characters, backstopped by the recovery key, and the relay stores only
-  `sha256(verifier)`. *No reset* — the familiar flow wrongly implies one exists; in a
+  `sha256(verifier)`. _No reset_ — the familiar flow wrongly implies one exists; in a
   zero-knowledge store it does not, and the UI says so plainly.
 - **Rejected — sync code only.** Strictly stronger on privacy and simpler in total
   secrets, but trades away familiarity and the paid on-ramp. Deferred as a future additive
   door.
-- **Rejected for now — OPAQUE.** The only design giving usernames *and*
-  enumeration-resistance *and* no offline precomputation, but a vetted-dependency and
+- **Rejected for now — OPAQUE.** The only design giving usernames _and_
+  enumeration-resistance _and_ no offline precomputation, but a vetted-dependency and
   complexity cost that did not fit a dependency-minimal Stage 1. It returns as a
   requirement at the hosted-relay gate — see threat H1 below.
 - **Not a one-way door.** MK has multiple independent unlock doors, each one `key_wrap`
   row added with no re-encryption. A later high-entropy-code or paid email/password door is
-  purely additive. The caveat is asymmetric: you can stop *offering* a scheme to new
-  accounts, but you cannot *remove* an existing account's door without locking it out.
+  purely additive. The caveat is asymmetric: you can stop _offering_ a scheme to new
+  accounts, but you cannot _remove_ an existing account's door without locking it out.
 
-**Access control is orthogonal to zero-knowledge.** *Who may read* the bytes is settled by
-the envelope; *who may store* bytes on a given relay is a separate, content-blind concern.
+**Access control is orthogonal to zero-knowledge.** _Who may read_ the bytes is settled by
+the envelope; _who may store_ bytes on a given relay is a separate, content-blind concern.
 A host-issued **registration token** at account creation (cf. Matrix registration tokens,
 Tailscale auth keys) lets an operator gate usage without ever seeing plaintext —
 `RELAY_REGISTRATION_TOKEN` is that seam, public when unset.
@@ -106,12 +106,12 @@ Four attacks found by an adversarial review of the shipped relay + client on
 place to look them up. Three are closed; the open one is scoped to a tier that does
 not exist yet.
 
-| Id     | The attack                                                                                                                                                                                             | Where it stands                                                                                                                                              |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **H1** | The relay observes the raw auth verifier and stores `kdfSalt` + `wrap(MK, KEK)`, so an operator can crack passwords **entirely offline** and decrypt the account. Zero-knowledge reduces to password strength. | **Open, gated.** Sessions (H3) cut the observation window to once per login; OPAQUE closes it and is required before any hosted tier — [`plans/v0-2.md`](../../plans/v0-2.md) → *Hosted-relay gate*. |
-| **H2** | `GET /accounts/bootstrap` is the de-facto login endpoint, so unlimited 401s let an attacker with a username grind passwords online. A hit yields the verifier **and** the KEK.                              | **Closed.** A third per-IP throttle charges only *failed* logins, on its own counter (`RELAY_BOOTSTRAP_RATE_LIMIT_MAX`); `relay.test.ts` asserts 401→401→429 and budget independence. |
-| **H3** | The verifier was a forever-valid bearer on every request — replayable, non-expiring, one per account — and nothing in the repo terminated TLS.                                                          | **Closed for transit.** Session tokens (`POST /accounts/session`) plus both TLS options above. **Still open:** per-device tokens + revocation, and a shared session store for multi-node. |
-| **M3** | A hostile or buggy relay can serve a too-short ciphertext; `open()` had no length guard and `pull()` no per-record try/catch, so one bad row aborted every batch forever — a denial of *convergence*.      | **Closed, client-side.** `open()` length-guards before the `subarray` (`packages/crypto`) and `pull()` skips-and-logs a poison record while the cursor still advances (`packages/sync`). |
+| Id     | The attack                                                                                                                                                                                                     | Where it stands                                                                                                                                                                                      |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **H1** | The relay observes the raw auth verifier and stores `kdfSalt` + `wrap(MK, KEK)`, so an operator can crack passwords **entirely offline** and decrypt the account. Zero-knowledge reduces to password strength. | **Open, gated.** Sessions (H3) cut the observation window to once per login; OPAQUE closes it and is required before any hosted tier — [`plans/v0-2.md`](../../plans/v0-2.md) → _Hosted-relay gate_. |
+| **H2** | `GET /accounts/bootstrap` is the de-facto login endpoint, so unlimited 401s let an attacker with a username grind passwords online. A hit yields the verifier **and** the KEK.                                 | **Closed.** A third per-IP throttle charges only _failed_ logins, on its own counter (`RELAY_BOOTSTRAP_RATE_LIMIT_MAX`); `relay.test.ts` asserts 401→401→429 and budget independence.                |
+| **H3** | The verifier was a forever-valid bearer on every request — replayable, non-expiring, one per account — and nothing in the repo terminated TLS.                                                                 | **Closed for transit.** Session tokens (`POST /accounts/session`) plus both TLS options above. **Still open:** per-device tokens + revocation, and a shared session store for multi-node.            |
+| **M3** | A hostile or buggy relay can serve a too-short ciphertext; `open()` had no length guard and `pull()` no per-record try/catch, so one bad row aborted every batch forever — a denial of _convergence_.          | **Closed, client-side.** `open()` length-guards before the `subarray` (`packages/crypto`) and `pull()` skips-and-logs a poison record while the cursor still advances (`packages/sync`).             |
 
 Findings that are not about the relay live with the code they constrain: the
 Argon2id cost in [`packages/crypto`](../../packages/crypto/README.md), master-key
