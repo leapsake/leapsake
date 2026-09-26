@@ -4,7 +4,7 @@ import {
   type RelationshipRole,
   rolesForPair,
 } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, holdWhileSubmitting } from "@leapsake/ui/web";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { useMemo, useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
@@ -60,10 +60,10 @@ export function RelationshipEdit() {
           { label: "Edit relationship" },
         ]}
       />
-      <Form method="post">
+      <Form method="post" onSubmit={holdWhileSubmitting(submitting)}>
         <header>
           <h1>Edit relationship</h1>
-          <button type="submit" disabled={submitting || !ready}>
+          <button type="submit" aria-disabled={submitting} disabled={!ready}>
             Save
           </button>{" "}
           <Link to={subjectPath}>Cancel</Link>
@@ -72,7 +72,7 @@ export function RelationshipEdit() {
         {/* Resolved machine value for the action. */}
         <input type="hidden" name="otherRole" value={otherRole ?? ""} />
 
-        <fieldset disabled={submitting}>
+        <fieldset>
           <p>{neighbor.otherLabel}</p>
           <label>
             Role{" "}

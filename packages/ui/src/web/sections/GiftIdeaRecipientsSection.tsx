@@ -75,8 +75,9 @@ export function GiftIdeaRecipientsSection({
                 <input
                   type="checkbox"
                   checked={isGiven(row)}
-                  disabled={busy}
+                  aria-disabled={busy}
                   onChange={(e) => {
+                    if (busy) return;
                     // Read the box *now* — see the note in `GiftsSection`.
                     const next = e.target.checked;
                     run(() => setGiven(row.id, next));
@@ -86,8 +87,10 @@ export function GiftIdeaRecipientsSection({
               </label>{" "}
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => run(() => detachRecipient(row.id))}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (!busy) run(() => detachRecipient(row.id));
+                }}
               >
                 {m.common.remove}
               </button>

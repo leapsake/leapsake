@@ -143,6 +143,7 @@ export function PartyField({
   }
 
   const run = (work: () => Promise<void>, failure: string) => {
+    if (busy) return;
     setBusy(true);
     work()
       .catch((e: unknown) => Alert.alert(failure, String(e)))
@@ -158,7 +159,7 @@ export function PartyField({
           {canEdit && (
             <Pressable
               accessibilityRole="button"
-              disabled={busy}
+              accessibilityState={{ busy }}
               onPress={() => run(edit, COPY.editFailed)}
             >
               <Text style={styles.link}>{COPY.edit}</Text>
@@ -166,7 +167,7 @@ export function PartyField({
           )}
           <Pressable
             accessibilityRole="button"
-            disabled={busy}
+            accessibilityState={{ busy }}
             onPress={() => run(remove, COPY.removeFailed)}
           >
             <Text style={styles.link}>{COPY.remove}</Text>

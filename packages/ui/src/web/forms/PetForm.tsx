@@ -71,7 +71,6 @@ export function PetForm({
         <RelationshipFields
           subjectType="pet"
           candidates={candidates}
-          submitting={submitting}
           initialRows={1}
         />
       )}

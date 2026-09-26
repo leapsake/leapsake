@@ -36,7 +36,7 @@ export function RecoveryGate({
   }, [error]);
 
   function submit() {
-    if (secret.trim() === "") return;
+    if (submitting || secret.trim() === "") return;
     setSubmitting(true);
     void window.boot.submitUnlock({ door, secret });
   }
@@ -68,7 +68,7 @@ export function RecoveryGate({
           onChange={(e) => setSecret(e.target.value)}
           placeholder="Your password"
           autoComplete="current-password"
-          disabled={submitting}
+          readOnly={submitting}
           style={{ width: "100%", padding: "0.5rem" }}
         />
       ) : (
@@ -77,7 +77,7 @@ export function RecoveryGate({
           onChange={(e) => setSecret(e.target.value)}
           rows={4}
           placeholder="Enter your 24-word recovery phrase…"
-          disabled={submitting}
+          readOnly={submitting}
           style={{ width: "100%", fontFamily: "monospace", padding: "0.5rem" }}
         />
       )}
@@ -89,7 +89,7 @@ export function RecoveryGate({
       )}
 
       <p>
-        <button type="button" onClick={submit} disabled={submitting}>
+        <button type="button" onClick={submit} aria-disabled={submitting}>
           {submitting ? "Checking…" : "Unlock"}
         </button>
       </p>

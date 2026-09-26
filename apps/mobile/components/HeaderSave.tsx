@@ -35,9 +35,13 @@ export function HeaderSave({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !canSave || saving }}
-      disabled={!canSave || saving}
-      onPress={problem === undefined ? onPress : () => showFormProblem(problem)}
+      accessibilityState={{ disabled: !canSave, busy: saving }}
+      disabled={!canSave}
+      onPress={() => {
+        if (saving) return;
+        if (problem === undefined) onPress();
+        else showFormProblem(problem);
+      }}
     >
       <Text style={[styles.link, faded && { opacity: 0.4 }]}>
         {saving ? "Saving…" : "Save"}

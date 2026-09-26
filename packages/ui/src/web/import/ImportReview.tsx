@@ -255,13 +255,22 @@ export function ImportReview({
           ))}
         </ul>
         <div className={styles.actions}>
-          <button type="button" onClick={onClose} disabled={committing}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!committing) onClose();
+            }}
+            aria-disabled={committing}
+          >
             {m.common.cancel}
           </button>
           <button
             type="button"
-            onClick={() => void confirm()}
-            disabled={committing || chosen === 0}
+            onClick={() => {
+              if (!committing) void confirm();
+            }}
+            aria-disabled={committing}
+            disabled={chosen === 0}
           >
             {committing ? m.import.importing : m.import.importCount(chosen)}
           </button>

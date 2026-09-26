@@ -172,7 +172,7 @@ function RecoveryPhraseSection({
   const [error, setError] = useState<string | null>(null);
 
   async function rotate() {
-    if (password === "") return;
+    if (working || password === "") return;
     setError(null);
     setWorking(true);
     try {
@@ -226,7 +226,8 @@ function RecoveryPhraseSection({
                 backgroundColor: colors.border,
               },
             ]}
-            disabled={password === "" || working}
+            accessibilityState={{ busy: working }}
+            disabled={password === ""}
             onPress={() => void rotate()}
           >
             <Text style={styles.buttonText}>
@@ -235,8 +236,9 @@ function RecoveryPhraseSection({
           </Pressable>
           <Pressable
             style={[styles.button, { backgroundColor: colors.border }]}
-            disabled={working}
+            accessibilityState={{ busy: working }}
             onPress={() => {
+              if (working) return;
               setConfirming(false);
               setPassword("");
               setError(null);

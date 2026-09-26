@@ -63,8 +63,9 @@ export function GiftsSection({
                 <input
                   type="checkbox"
                   checked={isGiven(row)}
-                  disabled={busy}
+                  aria-disabled={busy}
                   onChange={(e) => {
+                    if (busy) return;
                     // Read the box *now*: `run` defers the write, and by the
                     // time it fires React has restored this controlled input to
                     // the value the props still say, so a deferred read would
@@ -88,8 +89,10 @@ export function GiftsSection({
               )}{" "}
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => run(() => detachRecipient(row.id))}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (!busy) run(() => detachRecipient(row.id));
+                }}
               >
                 {m.common.remove}
               </button>

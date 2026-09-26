@@ -122,7 +122,7 @@ function ForgetAccountSection() {
     !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
 
   async function forget() {
-    if (!armed) return;
+    if (working || !armed) return;
     setError(null);
     setWorking(true);
     try {
@@ -173,7 +173,7 @@ function ForgetAccountSection() {
               on this device. This account is only on this device, so there is
               no other copy.
             </Text>
-            <ExportFirstOffer disabled={working} />
+            <ExportFirstOffer busy={working} />
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>
                 Type {FORGET_ACCOUNT_PHRASE} to confirm
@@ -205,14 +205,15 @@ function ForgetAccountSection() {
             user is entitled to their own file whether or not somebody else is
             holding one, and `durableBackup` is a claim this device cannot
             verify. Only the wording above branches. */}
-        {!lastCopy && <ExportFirstOffer disabled={working} />}
+        {!lastCopy && <ExportFirstOffer busy={working} />}
         <Pressable
           style={[
             styles.button,
             lastCopy && { backgroundColor: colors.danger },
             (!armed || working) && { opacity: 0.5 },
           ]}
-          disabled={!armed || working}
+          accessibilityState={{ busy: working }}
+          disabled={!armed}
           onPress={forget}
         >
           <Text style={styles.buttonText}>
@@ -225,8 +226,10 @@ function ForgetAccountSection() {
         </Pressable>
         <Pressable
           style={[styles.button, { backgroundColor: colors.border }]}
-          disabled={working}
-          onPress={cancel}
+          accessibilityState={{ busy: working }}
+          onPress={() => {
+            if (!working) cancel();
+          }}
         >
           <Text style={styles.buttonText}>Cancel</Text>
         </Pressable>
@@ -268,7 +271,7 @@ function FactoryResetSection() {
   const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
 
   async function reset() {
-    if (!armed) return;
+    if (working || !armed) return;
     setError(null);
     setWorking(true);
     try {
@@ -308,7 +311,7 @@ function FactoryResetSection() {
           </Text>
           {/* The accountless wipe is by definition destroying the only copy, so
               it needs the offer at least as much as Forget account does. */}
-          <ExportFirstOffer disabled={working} />
+          <ExportFirstOffer busy={working} />
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>
               Type {FACTORY_RESET_PHRASE} to confirm
@@ -334,7 +337,8 @@ function FactoryResetSection() {
               { backgroundColor: colors.danger },
               (!armed || working) && { opacity: 0.5 },
             ]}
-            disabled={!armed || working}
+            accessibilityState={{ busy: working }}
+            disabled={!armed}
             onPress={reset}
           >
             <Text style={styles.buttonText}>
@@ -343,8 +347,10 @@ function FactoryResetSection() {
           </Pressable>
           <Pressable
             style={[styles.button, { backgroundColor: colors.border }]}
-            disabled={working}
-            onPress={cancel}
+            accessibilityState={{ busy: working }}
+            onPress={() => {
+              if (!working) cancel();
+            }}
           >
             <Text style={styles.buttonText}>Cancel</Text>
           </Pressable>
@@ -386,6 +392,7 @@ function useExportShare() {
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
+    if (working) return;
     setError(null);
     setResult(null);
     setWorking(true);
@@ -452,7 +459,7 @@ function ExportSection() {
       <Pressable
         testID="export-start"
         style={[styles.button, working && { opacity: 0.5 }]}
-        disabled={working}
+        accessibilityState={{ busy: working }}
         onPress={run}
       >
         <Text style={styles.buttonText}>
@@ -493,19 +500,21 @@ function ExportSection() {
  * backs out. Its own testIDs, not the Export section's, because both can be
  * showing a result at the same time.
  *
- * `disabled` is the destructive action already running — there is nothing left to
+ * `busy` is the destructive action already running — there is nothing left to
  * export by then, and the screen is about to unmount.
  */
-function ExportFirstOffer({ disabled = false }: { disabled?: boolean }) {
+function ExportFirstOffer({ busy = false }: { busy?: boolean }) {
   const { working, result, error, run } = useExportShare();
 
   return (
     <>
       <Pressable
         testID="export-first-start"
-        style={[styles.button, (working || disabled) && { opacity: 0.5 }]}
-        disabled={working || disabled}
-        onPress={run}
+        style={[styles.button, (working || busy) && { opacity: 0.5 }]}
+        accessibilityState={{ busy: working || busy }}
+        onPress={() => {
+          if (!busy) run();
+        }}
       >
         <Text style={styles.buttonText}>
           {working ? "Preparing…" : "Export my data first…"}

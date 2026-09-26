@@ -58,21 +58,23 @@ export function FormShell({
   const blocked = problem === undefined && !canSubmit;
   const saveClass = problem === undefined ? undefined : styles.notReady;
 
-  function refuseIfNotReady(event: FormEvent<HTMLFormElement>) {
+  function holdOrRefuse(event: FormEvent<HTMLFormElement>) {
+    if (submitting) return event.preventDefault();
     if (problem === undefined) return;
     event.preventDefault();
     showFormProblem(problem);
   }
 
   return (
-    <Form method="post" onSubmit={refuseIfNotReady}>
+    <Form method="post" onSubmit={holdOrRefuse}>
       {title !== undefined && (
         <header>
           <h1>{title}</h1>
           <button
             type="submit"
             className={saveClass}
-            disabled={submitting || blocked}
+            aria-disabled={submitting}
+            disabled={blocked}
           >
             {submitLabel}
           </button>{" "}
@@ -80,11 +82,16 @@ export function FormShell({
         </header>
       )}
       {beforeFields}
-      <fieldset disabled={submitting}>
+      <fieldset>
         {children}
         {title === undefined && (
           <p>
-            <button type="submit" className={saveClass} disabled={blocked}>
+            <button
+              type="submit"
+              className={saveClass}
+              aria-disabled={submitting}
+              disabled={blocked}
+            >
               {submitLabel}
             </button>{" "}
             {cancel}

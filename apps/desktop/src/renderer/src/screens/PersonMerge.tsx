@@ -1,6 +1,6 @@
 import type { Person } from "@leapsake/schema";
 import { fullName } from "@leapsake/schema";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, holdWhileSubmitting } from "@leapsake/ui/web";
 import { homeCrumb } from "../lib/crumbs";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
 
@@ -38,8 +38,8 @@ export function PersonMerge() {
             and that duplicate is then deleted.{" "}
             <strong>This can't be undone.</strong>
           </p>
-          <Form method="post">
-            <fieldset disabled={merging}>
+          <Form method="post" onSubmit={holdWhileSubmitting(merging)}>
+            <fieldset>
               <label>
                 Duplicate to merge in{" "}
                 <select
@@ -57,7 +57,9 @@ export function PersonMerge() {
                   ))}
                 </select>
               </label>{" "}
-              <button type="submit">Merge</button>{" "}
+              <button type="submit" aria-disabled={merging}>
+                Merge
+              </button>{" "}
               <Link to={`/people/${person.id}`}>Cancel</Link>
             </fieldset>
           </Form>

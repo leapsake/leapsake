@@ -134,8 +134,10 @@ export function HolidayView() {
               {observer.bearerType === "pet" && " (pet)"}{" "}
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => setObserves(observer, false)}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (!busy) setObserves(observer, false);
+                }}
               >
                 Remove
               </button>

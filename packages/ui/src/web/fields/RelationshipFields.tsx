@@ -55,12 +55,10 @@ export function roleMap(
 export function RelationshipFields({
   subjectType,
   candidates,
-  submitting,
   initialRows = 0,
 }: {
   subjectType: EntityType;
   candidates: readonly RelationshipCandidate[];
-  submitting: boolean;
   /** How many empty rows to show up front (1 nudges owner entry on the Pet form). */
   initialRows?: number;
 }) {
@@ -85,7 +83,7 @@ export function RelationshipFields({
   }
 
   return (
-    <fieldset disabled={submitting}>
+    <fieldset>
       <legend>{m.relationshipForm.groupLegend}</legend>
 
       <datalist id={entityListId}>

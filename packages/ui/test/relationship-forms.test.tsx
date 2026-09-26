@@ -104,11 +104,7 @@ describe("RelationshipForm", () => {
 describe("RelationshipFields", () => {
   it("starts with no rows unless the form asks for one", () => {
     renderWithUi(
-      <RelationshipFields
-        subjectType="person"
-        candidates={candidates}
-        submitting={false}
-      />,
+      <RelationshipFields subjectType="person" candidates={candidates} />,
     );
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
@@ -119,7 +115,6 @@ describe("RelationshipFields", () => {
       <RelationshipFields
         subjectType="pet"
         candidates={candidates}
-        submitting={false}
         initialRows={1}
       />,
     );
@@ -131,7 +126,6 @@ describe("RelationshipFields", () => {
       <RelationshipFields
         subjectType="person"
         candidates={candidates}
-        submitting={false}
         initialRows={1}
       />,
     );
@@ -155,7 +149,6 @@ describe("RelationshipFields", () => {
       <RelationshipFields
         subjectType="person"
         candidates={candidates}
-        submitting={false}
         initialRows={1}
       />,
     );

@@ -79,11 +79,7 @@ export function PersonForm({
         </Field>
       </fieldset>
       {candidates && (
-        <RelationshipFields
-          subjectType="person"
-          candidates={candidates}
-          submitting={submitting}
-        />
+        <RelationshipFields subjectType="person" candidates={candidates} />
       )}
     </FormShell>
   );

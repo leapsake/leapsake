@@ -100,8 +100,10 @@ export function HolidaysSection({
                   </Link>{" "}
                   <button
                     type="button"
-                    disabled={busy}
-                    onClick={() => run(() => onSetObserves(holiday.id, false))}
+                    aria-disabled={busy}
+                    onClick={() => {
+                      if (!busy) run(() => onSetObserves(holiday.id, false));
+                    }}
                   >
                     {m.common.remove}
                   </button>

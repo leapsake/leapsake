@@ -9,7 +9,7 @@ import {
   ReminderForm,
   StackedField,
 } from "../src/web/index.js";
-import { renderWithUi } from "./support.js";
+import { recordSubmits, renderWithUi } from "./support.js";
 
 afterEach(cleanup);
 
@@ -62,7 +62,8 @@ describe("FormShell", () => {
     ).not.toBeNull();
   });
 
-  it("disables the fields and the submit while a submission is in flight", () => {
+  it("ignores a second submit while one is in flight, without disabling", () => {
+    const stopped = recordSubmits();
     renderWithUi(
       <FormShell
         title="Add a person"
@@ -74,10 +75,13 @@ describe("FormShell", () => {
       </FormShell>,
     );
 
-    expect(screen.getByLabelText("x").matches(":disabled")).toBe(true);
-    expect(
-      screen.getByRole("button", { name: "Add" }).matches(":disabled"),
-    ).toBe(true);
+    const add = screen.getByRole("button", { name: "Add" });
+
+    expect(screen.getByLabelText("x").matches(":disabled")).toBe(false);
+    expect(add.matches(":disabled")).toBe(false);
+    expect(add.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(add);
+    expect(stopped()).toEqual([true]);
   });
 
   it("holds the submit closed while the form says it isn't ready", () => {
@@ -168,13 +172,7 @@ describe("GiftIdeaForm", () => {
 
   it("never disables Save, and explains a press before there is a title", () => {
     const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
-    // Below the React root, so it records whether the form stopped the post.
-    const stopped: boolean[] = [];
-    const record = (e: Event) => {
-      stopped.push(e.defaultPrevented);
-      e.preventDefault();
-    };
-    document.addEventListener("submit", record);
+    const stopped = recordSubmits();
     renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
     const save = screen.getByRole("button", { name: "Save" });
 
@@ -192,8 +190,7 @@ describe("GiftIdeaForm", () => {
     });
     fireEvent.click(save);
     expect(alert).toHaveBeenCalledTimes(1);
-    expect(stopped).toEqual([true, false]);
-    document.removeEventListener("submit", record);
+    expect(stopped()).toEqual([true, false]);
     alert.mockRestore();
   });
 

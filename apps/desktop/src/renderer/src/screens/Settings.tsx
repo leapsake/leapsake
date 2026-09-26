@@ -149,7 +149,7 @@ function ForgetAccount() {
     !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
 
   async function forget() {
-    if (!armed) return;
+    if (working || !armed) return;
     setError(null);
     setWorking(true);
     try {
@@ -233,14 +233,20 @@ function ForgetAccount() {
           </p>
         )}
         <p>
-          <button type="submit" disabled={!armed || working}>
+          <button type="submit" disabled={!armed} aria-disabled={working}>
             {working
               ? "Removing…"
               : lastCopy
                 ? "Delete all data on this device"
                 : "Forget account"}
           </button>{" "}
-          <button type="button" onClick={cancel} disabled={working}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!working) cancel();
+            }}
+            aria-disabled={working}
+          >
             Cancel
           </button>
         </p>
@@ -286,6 +292,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setError(null);
     if (username.trim() === "") {
       setError("Choose a username.");
@@ -358,7 +365,7 @@ function CreateAccount({ onCreated }: { onCreated: (phrase: string) => void }) {
           </label>
         </p>
         {error !== null && <p role="alert">{error}</p>}
-        <button type="submit" disabled={busy}>
+        <button type="submit" aria-disabled={busy}>
           {busy ? "Encrypting your data…" : "Protect my data"}
         </button>
       </form>
@@ -465,7 +472,7 @@ function FactoryReset() {
   const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
 
   async function reset() {
-    if (!armed) return;
+    if (working || !armed) return;
     setError(null);
     setWorking(true);
     try {
@@ -530,10 +537,16 @@ function FactoryReset() {
           </label>
         </p>
         <p>
-          <button type="submit" disabled={!armed || working}>
+          <button type="submit" disabled={!armed} aria-disabled={working}>
             {working ? "Erasing…" : "Erase everything"}
           </button>{" "}
-          <button type="button" onClick={cancel} disabled={working}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!working) cancel();
+            }}
+            aria-disabled={working}
+          >
             Cancel
           </button>
         </p>
@@ -558,7 +571,7 @@ function RecoveryPhraseSection({
   const [error, setError] = useState<string | null>(null);
 
   async function rotate() {
-    if (password === "") return;
+    if (working || password === "") return;
     setError(null);
     setWorking(true);
     try {
@@ -619,13 +632,18 @@ function RecoveryPhraseSection({
             </label>
           </p>
           <p>
-            <button type="submit" disabled={password === "" || working}>
+            <button
+              type="submit"
+              disabled={password === ""}
+              aria-disabled={working}
+            >
               {working ? "Replacing…" : "Replace phrase"}
             </button>{" "}
             <button
               type="button"
-              disabled={working}
+              aria-disabled={working}
               onClick={() => {
+                if (working) return;
                 setConfirming(false);
                 setPassword("");
                 setError(null);

@@ -1,5 +1,5 @@
 import type { DuplicateCandidate } from "@leapsake/core";
-import { Breadcrumbs } from "@leapsake/ui/web";
+import { Breadcrumbs, holdWhileSubmitting } from "@leapsake/ui/web";
 import { homeCrumb } from "../lib/crumbs";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
 
@@ -98,10 +98,14 @@ function DuplicateRow({ candidate }: { candidate: DuplicateCandidate }) {
         ))}
       </ul>
       <Link to={`/people/${a.id}/merge?loser=${b.id}`}>Merge…</Link>{" "}
-      <fetcher.Form method="post" style={{ display: "inline" }}>
+      <fetcher.Form
+        method="post"
+        style={{ display: "inline" }}
+        onSubmit={holdWhileSubmitting(busy)}
+      >
         <input type="hidden" name="idA" value={a.id} />
         <input type="hidden" name="idB" value={b.id} />
-        <button type="submit" disabled={busy}>
+        <button type="submit" aria-disabled={busy}>
           Not the same
         </button>
       </fetcher.Form>

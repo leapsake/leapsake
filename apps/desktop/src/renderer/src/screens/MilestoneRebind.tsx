@@ -8,6 +8,7 @@ import {
   Breadcrumbs,
   WithWhomFields,
   type RelationshipCandidate,
+  holdWhileSubmitting,
 } from "@leapsake/ui/web";
 import { useState } from "react";
 import { Form, Link, useLoaderData, useNavigation } from "react-router-dom";
@@ -42,16 +43,16 @@ export function MilestoneRebind() {
           { label: "Set spouse" },
         ]}
       />
-      <Form method="post">
+      <Form method="post" onSubmit={holdWhileSubmitting(submitting)}>
         <header>
           <h1>Set spouse</h1>
-          <button type="submit" disabled={submitting || !ready}>
+          <button type="submit" aria-disabled={submitting} disabled={!ready}>
             Link
           </button>{" "}
           <Link to={bearerPath}>Cancel</Link>
         </header>
         <p>Link {milestoneLabel(milestone).toLowerCase()} to a relationship.</p>
-        <fieldset disabled={submitting}>
+        <fieldset>
           <WithWhomFields
             kind={milestone.kind}
             candidates={candidates}

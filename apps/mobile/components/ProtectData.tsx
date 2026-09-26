@@ -75,6 +75,7 @@ export function CreateAccountForm({
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit() {
+    if (busy) return;
     setError(null);
     if (username.trim() === "") {
       setError("Choose a username.");
@@ -163,7 +164,7 @@ export function CreateAccountForm({
       <Pressable
         testID="account-submit"
         style={[styles.button, busy && { opacity: 0.5 }]}
-        disabled={busy}
+        accessibilityState={{ busy }}
         onPress={() => void onSubmit()}
       >
         <Text style={styles.buttonText}>

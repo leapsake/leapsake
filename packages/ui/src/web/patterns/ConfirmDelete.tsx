@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
+import { holdWhileSubmitting } from "./hold-while-submitting.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 
 /**
@@ -36,8 +37,7 @@ export function ConfirmDelete({
   /**
    * Extra values the action needs, posted as hidden inputs. Used by the
    * inferred-relationship dismiss, whose edge has no stored id and must carry
-   * its identity (other endpoint + base role) in the submission. They sit
-   * *outside* the `<fieldset>` so disabling it can never drop them.
+   * its identity (other endpoint + base role) in the submission.
    */
   hiddenFields?: Record<string, string>;
   /** The prose explaining what is about to happen. */
@@ -52,13 +52,15 @@ export function ConfirmDelete({
       <h1>{heading}</h1>
       <p>{children}</p>
 
-      <Form method="post">
+      <Form method="post" onSubmit={holdWhileSubmitting(submitting)}>
         {hiddenFields &&
           Object.entries(hiddenFields).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
-        <fieldset disabled={submitting}>
-          <button type="submit">{confirmLabel}</button>{" "}
+        <fieldset>
+          <button type="submit" aria-disabled={submitting}>
+            {confirmLabel}
+          </button>{" "}
           <Link href={cancelTo}>{m.common.cancel}</Link>
         </fieldset>
       </Form>

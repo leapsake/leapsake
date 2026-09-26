@@ -79,6 +79,7 @@ export function GiftCaptureForm({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (busy) return;
     if (trimmedTitle === "") {
       setError(m.giftCapture.missingTitle);
       return;
@@ -106,7 +107,7 @@ export function GiftCaptureForm({
 
   return (
     <form onSubmit={submit}>
-      <fieldset disabled={busy}>
+      <fieldset>
         <p>
           <label htmlFor={`${listId}-title`}>{m.giftCapture.giftLabel}</label>
           <br />
@@ -193,7 +194,9 @@ export function GiftCaptureForm({
         {error !== null && <p>{m.common.saveFailed(error)}</p>}
 
         <p>
-          <button type="submit">{m.giftCapture.submit}</button>
+          <button type="submit" aria-disabled={busy}>
+            {m.giftCapture.submit}
+          </button>
         </p>
       </fieldset>
     </form>

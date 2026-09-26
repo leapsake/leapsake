@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfirmDelete } from "../src/web/index.js";
-import { renderWithUi } from "./support.js";
+import { recordSubmits, renderWithUi } from "./support.js";
 
 afterEach(cleanup);
 
@@ -50,16 +50,15 @@ describe("ConfirmDelete", () => {
     expect(form?.hasAttribute("action")).toBe(false);
   });
 
-  it("disables the confirm button while submitting", () => {
-    // The guard against a double-click posting a destructive action twice.
-    // Asserted with `:disabled` rather than the `disabled` IDL property, which
-    // reflects only the element's own attribute — the button here is disabled by
-    // its ancestor <fieldset>, which is what the browser actually acts on.
+  it("ignores a second press while submitting, without disabling", () => {
+    const stopped = recordSubmits();
     renderScreen({ submitting: true });
+    const confirm = screen.getByRole("button", { name: "Delete" });
 
-    expect(
-      screen.getByRole("button", { name: "Delete" }).matches(":disabled"),
-    ).toBe(true);
+    expect(confirm.matches(":disabled")).toBe(false);
+    expect(confirm.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(confirm);
+    expect(stopped()).toEqual([true]);
   });
 
   it("leaves the button live before submission starts", () => {
@@ -70,9 +69,9 @@ describe("ConfirmDelete", () => {
     ).toBe(false);
   });
 
-  it("submits hidden fields even once the fieldset is disabled", () => {
-    // The inferred-relationship dismiss has no stored id: losing these to a
-    // disabled fieldset would post an unidentifiable edge.
+  it("submits its hidden fields", () => {
+    // The inferred-relationship dismiss has no stored id: without these it
+    // would post an unidentifiable edge.
     const { container } = renderScreen({
       submitting: true,
       hiddenFields: { otherType: "person", otherId: "42", role: "parent" },

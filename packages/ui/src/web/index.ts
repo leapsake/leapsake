@@ -50,6 +50,7 @@ export { GiftIdeaFields, GiftIdeaForm } from "./forms/GiftIdeaForm.js";
 export { ReminderForm } from "./forms/ReminderForm.js";
 export { ConfirmDelete } from "./patterns/ConfirmDelete.js";
 export { FormShell } from "./patterns/FormShell.js";
+export { holdWhileSubmitting } from "./patterns/hold-while-submitting.js";
 export { Field, StackedField } from "./primitives/Field.js";
 export { Breadcrumbs, type Crumb } from "./primitives/Breadcrumbs.js";
 export {

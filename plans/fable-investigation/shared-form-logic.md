@@ -69,10 +69,11 @@ runs first and the alert covers only what HTML cannot express. As each form migr
 these forms (`MilestoneForm`'s month-dependent day picker on web, `ImportReview`'s commit)
 are a separate commit.
 
-**Open: disabling while a save is in flight.** Kept for now. The guidance found leans
-against `disabled` there too (it drops focus, which strands keyboard and screen-reader
-users) in favour of a focusable button that shows progress and ignores repeat presses, as
-GOV.UK's `preventDoubleClick` does. Decide before the last form migrates.
+**Nothing is disabled while a write is in flight either** (owner, 2026-09-26). The control
+stays focusable, says so (`aria-disabled` on web, `accessibilityState.busy` on mobile), and
+its handler ignores the repeat press; a web form does it in `onSubmit`, with
+`holdWhileSubmitting` or `FormShell`'s own guard. Inputs that must not change mid-write are
+`readOnly`, not `disabled`.
 
 Desktop's router action keeps reading `FormData` (every `FormData` parse stays with the app,
 per `packages/ui/README.md`), but only to rebuild the draft it hands the shaping function.

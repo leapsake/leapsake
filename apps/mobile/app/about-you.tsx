@@ -159,7 +159,8 @@ export default function AboutYouScreen() {
       <PersonFields draft={draft} onChange={setDraft} />
       <Pressable
         accessibilityRole="button"
-        disabled={!personDraftValid(draft) || saving}
+        accessibilityState={{ busy: saving }}
+        disabled={!personDraftValid(draft)}
         style={styles.button}
         onPress={() => void save()}
       >

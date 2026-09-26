@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { onTestFinished } from "vitest";
 import { MessagesProvider, en } from "../src/messages/index.js";
 import { UiProvider, type UiAdapter } from "../src/web/index.js";
 
@@ -33,4 +34,19 @@ export function renderWithUi(ui: ReactElement) {
       <UiProvider adapter={testAdapter}>{ui}</UiProvider>
     </MessagesProvider>,
   );
+}
+
+/**
+ * Records, per submit, whether the form stopped it. Listens below the React root,
+ * so it sees the form's own handling; then stops the post itself, as jsdom can't.
+ */
+export function recordSubmits(): () => boolean[] {
+  const stopped: boolean[] = [];
+  const record = (event: Event) => {
+    stopped.push(event.defaultPrevented);
+    event.preventDefault();
+  };
+  document.addEventListener("submit", record);
+  onTestFinished(() => document.removeEventListener("submit", record));
+  return () => stopped;
 }
