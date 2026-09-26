@@ -168,8 +168,8 @@ pnpm release --help
 ### Keeping the version visible (decision 2's condition)
 
 `git tag` / `git describe` on any checkout; the pipeline run named after the tag; the receipts and
-the Play release name (already the full version); and the app's own About screen showing
-`0.1.0-beta.10`, not `0.1.0`. If all four hold, nothing is more hidden than today.
+the Play release name (already the full version); and mobile's Settings tab showing
+`v0.1.0-beta.10`, not `v0.1.0`. If all four hold, nothing is more hidden than today.
 
 ### The pipeline on a tag
 
@@ -212,12 +212,9 @@ spend build numbers, reach real stores, or touch the remote.
 ### Step 1 — The version comes from the tag; channels replace the ladder ✅ landed 2026-09-18
 
 Manifests are at `0.1.0`; `pnpm release beta --dry-run` names `v0.1.0-beta.10` and `alpha`
-names `v0.1.0-alpha.4`. See `git log -- scripts/set-version.mjs scripts/release`. Two things
+names `v0.1.0-alpha.4`. See `git log -- scripts/set-version.mjs scripts/release`. One thing
 it left for later steps:
 
-- **Nothing in the mobile UI shows the version.** `extra.release` is stamped into exports
-  only; condition 4 of _Keeping the version visible_ still needs a visible line (step 8, or
-  sooner).
 - **Tags cut before this step can't be re-shipped with `--from-tag`.** Their commits' manifests
   carry a suffix, which `test:versions` and `tagMatchesManifests` now refuse. That's harmless
   because they are never rebuilt, but step 2's `plan --tag=v0.1.0-beta.9` must only read.
