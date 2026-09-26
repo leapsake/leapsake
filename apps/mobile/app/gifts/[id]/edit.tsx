@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { parseTagNames, tagLabel } from "@leapsake/schema";
+import { tagLabel } from "@leapsake/schema";
 import { GiftIdeaForm } from "../../../components/GiftIdeaForm";
 import {
   GiftIdeaRecipientsSection,
@@ -107,10 +107,10 @@ export default function GiftIdeaEditScreen() {
       <GiftIdeaForm
         title="Edit gift idea"
         idea={idea}
-        // Same round-trip as a Person's tags: labels in, parseTagNames out.
+        // Labels in; the form hands them back parsed.
         tagNames={tags.map((tag) => tagLabel(tag.name)).join(" ")}
-        onSubmit={async (value, tagsRaw) => {
-          await core.gifts.ideas.update(id, value, parseTagNames(tagsRaw));
+        onSubmit={async (input, tagNames) => {
+          await core.gifts.ideas.update(id, input, tagNames);
           router.back();
         }}
       />

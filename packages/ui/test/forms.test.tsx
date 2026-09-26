@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { GiftIdea, Reminder } from "@leapsake/schema";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Field,
@@ -164,6 +164,21 @@ describe("GiftIdeaForm", () => {
       "https://example.test",
     );
     expect(screen.getByLabelText("Tags")).toHaveProperty("value", "#books");
+  });
+
+  it("holds Save until the title has more than blanks", () => {
+    renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
+    const save = screen.getByRole("button", { name: "Save" });
+
+    expect(save).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "  " },
+    });
+    expect(save).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Kite" },
+    });
+    expect(save).toHaveProperty("disabled", false);
   });
 
   it("returns to the gift list unless told otherwise", () => {

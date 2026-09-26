@@ -7,6 +7,8 @@
  * a React context is neutral and belongs here.
  */
 export { type Acknowledgement, ACKNOWLEDGEMENTS } from "./acknowledgements.js";
+export { useGiftIdeaForm } from "./forms/gift-idea.js";
+export { type Shaped, useDraftForm } from "./forms/use-draft-form.js";
 export {
   type RecipientEntry,
   captureRecipientOf,

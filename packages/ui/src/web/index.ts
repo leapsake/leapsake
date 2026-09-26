@@ -46,7 +46,7 @@ export { MilestoneForm } from "./forms/MilestoneForm.js";
 export { PersonForm } from "./forms/PersonForm.js";
 export { PetForm } from "./forms/PetForm.js";
 export { RelationshipForm } from "./forms/RelationshipForm.js";
-export { GiftIdeaForm } from "./forms/GiftIdeaForm.js";
+export { GiftIdeaFields, GiftIdeaForm } from "./forms/GiftIdeaForm.js";
 export { ReminderForm } from "./forms/ReminderForm.js";
 export { ConfirmDelete } from "./patterns/ConfirmDelete.js";
 export { FormShell } from "./patterns/FormShell.js";

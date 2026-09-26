@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseTagNames } from "./tag.js";
 
 /**
  * A thing that could be given, saying nothing about who wants it; a
@@ -37,3 +38,54 @@ export const updateGiftIdeaInputSchema = z.object({
 });
 
 export type UpdateGiftIdeaInput = z.infer<typeof updateGiftIdeaInputSchema>;
+
+/** A gift idea as a form holds it: every field the text the user typed. */
+export interface GiftIdeaDraft {
+  title: string;
+  url: string;
+  notes: string;
+  /** Raw tag text, parsed by {@link parseTagNames}. */
+  tags: string;
+}
+
+/** Why a draft field cannot be saved; the catalog owns the sentence. */
+export type GiftIdeaDraftError = "required";
+
+export type GiftIdeaDraftResult =
+  | {
+      ok: true;
+      input: { title: string; url: string | null; notes: string | null };
+      tags: string[];
+    }
+  | {
+      ok: false;
+      errors: Partial<Record<keyof GiftIdeaDraft, GiftIdeaDraftError>>;
+    };
+
+/** The draft a form starts from: the idea being edited, or blanks. */
+export function giftIdeaDraftOf(
+  idea?: Pick<GiftIdea, "title" | "url" | "notes">,
+  tags = "",
+): GiftIdeaDraft {
+  return {
+    title: idea?.title ?? "",
+    url: idea?.url ?? "",
+    notes: idea?.notes ?? "",
+    tags,
+  };
+}
+
+const blankToNull = (text: string) => (text.trim() === "" ? null : text.trim());
+
+/** Trims the draft and turns blanks into null; only a title is required. */
+export function giftIdeaInputOf(draft: GiftIdeaDraft): GiftIdeaDraftResult {
+  const input = {
+    title: draft.title.trim(),
+    url: blankToNull(draft.url),
+    notes: blankToNull(draft.notes),
+  };
+  if (!createGiftIdeaInputSchema.safeParse(input).success) {
+    return { ok: false, errors: { title: "required" } };
+  }
+  return { ok: true, input, tags: parseTagNames(draft.tags) };
+}

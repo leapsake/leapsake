@@ -1,15 +1,13 @@
-import type { GiftIdea, SearchHit } from "@leapsake/schema";
-import { useState } from "react";
+import type { GiftIdea, GiftIdeaDraft, SearchHit } from "@leapsake/schema";
+import { useGiftIdeaForm } from "../../headless/index.js";
 import { useMessages } from "../../messages/index.js";
 import { ChipTextField } from "../fields/ChipTextField.js";
 import { FormShell } from "../patterns/FormShell.js";
 import { StackedField } from "../primitives/Field.js";
 
 /**
- * The shared create/edit form for a GiftIdea. Title is required; URL and Notes
- * are optional (the write path drops blanks to null). Title, URL and Notes are
- * uncontrolled — read straight from `FormData`, with no typeahead to manage —
- * while Tags is a {@link ChipTextField}, which chips each tag as it is typed.
+ * The create/edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
+ * {@link GiftIdeaFields}. With JS, Save waits for a title; without it, `required` does.
  */
 export function GiftIdeaForm({
   idea,
@@ -28,19 +26,39 @@ export function GiftIdeaForm({
   submitting: boolean;
 }) {
   const m = useMessages();
-  // Controlled, because the Tags field chips what it holds — see ChipTextField.
-  const [tags, setTags] = useState(tagNames);
+  const form = useGiftIdeaForm(idea, tagNames);
 
   return (
     <FormShell
       submitLabel={m.common.save}
       cancelTo={cancelTo}
       submitting={submitting}
+      canSubmit={form.canSubmit}
     >
+      <GiftIdeaFields fields={form.fields} set={form.set} search={search} />
+    </FormShell>
+  );
+}
+
+/** A gift idea's fields, posted under the names the write path reads. */
+export function GiftIdeaFields({
+  fields,
+  set,
+  search,
+}: {
+  fields: GiftIdeaDraft;
+  set: <K extends keyof GiftIdeaDraft>(key: K, value: GiftIdeaDraft[K]) => void;
+  search: (query: string) => Promise<SearchHit[]>;
+}) {
+  const m = useMessages();
+
+  return (
+    <>
       <StackedField label={m.giftIdeaForm.title}>
         <input
           name="title"
-          defaultValue={idea?.title ?? ""}
+          value={fields.title}
+          onChange={(e) => set("title", e.target.value)}
           placeholder={m.giftIdeaForm.titlePlaceholder}
           required
         />
@@ -49,7 +67,8 @@ export function GiftIdeaForm({
         <input
           name="url"
           type="url"
-          defaultValue={idea?.url ?? ""}
+          value={fields.url}
+          onChange={(e) => set("url", e.target.value)}
           placeholder={m.giftIdeaForm.urlPlaceholder}
         />
       </StackedField>
@@ -57,7 +76,8 @@ export function GiftIdeaForm({
         <textarea
           name="notes"
           rows={4}
-          defaultValue={idea?.notes ?? ""}
+          value={fields.notes}
+          onChange={(e) => set("notes", e.target.value)}
           placeholder={m.giftIdeaForm.notesPlaceholder}
         />
       </StackedField>
@@ -65,12 +85,12 @@ export function GiftIdeaForm({
         <ChipTextField
           name="tags"
           grammar="tags"
-          value={tags}
-          onChange={setTags}
+          value={fields.tags}
+          onChange={(tags) => set("tags", tags)}
           search={search}
           placeholder={m.giftIdeaForm.tagsPlaceholder}
         />
       </StackedField>
-    </FormShell>
+    </>
   );
 }

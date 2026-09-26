@@ -5,6 +5,7 @@ import {
   type CreatePetInput,
   type EntityType,
   type Gender,
+  type GiftIdeaDraft,
   type MilestoneKind,
   type MilestoneBearerType,
   type RelationshipRole,
@@ -14,6 +15,7 @@ import {
   createRelationshipInputSchema,
   dueMsFromIso,
   fullName,
+  giftIdeaInputOf,
   isReminderEditable,
   parseTagNames,
   preferredBearerType,
@@ -807,18 +809,14 @@ async function reminderDeleteAction({ params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
-/** The editable gift-idea fields; blank url and notes become null. */
-function readGiftIdeaInput(formData: FormData): {
-  title: string;
-  url: string | null;
-  notes: string | null;
-} {
-  const url = String(formData.get("url") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
+/** The gift-idea draft as posted, every field its raw text. */
+function readGiftIdeaDraft(formData: FormData): GiftIdeaDraft {
+  const text = (key: string) => String(formData.get(key) ?? "");
   return {
-    title: String(formData.get("title") ?? "").trim(),
-    url: url.length > 0 ? url : null,
-    notes: notes.length > 0 ? notes : null,
+    title: text("title"),
+    url: text("url"),
+    notes: text("notes"),
+    tags: text("tags"),
   };
 }
 
@@ -912,13 +910,12 @@ async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
 
 /** A blank title is a no-op; the tags field always carries the whole set. */
 async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const input = readGiftIdeaInput(formData);
-  if (input.title === "") return redirect("/gifts");
+  const shaped = giftIdeaInputOf(readGiftIdeaDraft(await request.formData()));
+  if (!shaped.ok) return redirect("/gifts");
   await window.api.gifts.ideas.update(
     params.id as string,
-    input,
-    readTags(formData),
+    shaped.input,
+    shaped.tags,
   );
   return redirect("/gifts");
 }

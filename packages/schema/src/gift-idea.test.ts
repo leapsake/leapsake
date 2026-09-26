@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createGiftIdeaInputSchema,
+  giftIdeaDraftOf,
+  giftIdeaInputOf,
   giftIdeaSchema,
   updateGiftIdeaInputSchema,
 } from "./gift-idea.js";
@@ -89,5 +91,53 @@ describe("updateGiftIdeaInputSchema", () => {
 
   it("rejects an empty title when present", () => {
     expect(() => updateGiftIdeaInputSchema.parse({ title: "" })).toThrow();
+  });
+});
+
+describe("giftIdeaInputOf", () => {
+  const draft = giftIdeaDraftOf();
+
+  it("trims the draft and turns blank optional fields into null", () => {
+    expect(
+      giftIdeaInputOf({ ...draft, title: "  Tom Sawyer ", notes: "  " }),
+    ).toEqual({
+      ok: true,
+      input: { title: "Tom Sawyer", url: null, notes: null },
+      tags: [],
+    });
+  });
+
+  it("keeps a link and notes, and parses the tags", () => {
+    expect(
+      giftIdeaInputOf({
+        title: "Kite",
+        url: " https://example.test ",
+        notes: "the big one",
+        tags: "#outdoors #toys",
+      }),
+    ).toEqual({
+      ok: true,
+      input: {
+        title: "Kite",
+        url: "https://example.test",
+        notes: "the big one",
+      },
+      tags: ["outdoors", "toys"],
+    });
+  });
+
+  it("refuses a blank title", () => {
+    expect(giftIdeaInputOf({ ...draft, title: "   " })).toEqual({
+      ok: false,
+      errors: { title: "required" },
+    });
+  });
+});
+
+describe("giftIdeaDraftOf", () => {
+  it("starts from the idea being edited, nulls as empty text", () => {
+    expect(
+      giftIdeaDraftOf({ title: "Kite", url: null, notes: "big" }, "#toys"),
+    ).toEqual({ title: "Kite", url: "", notes: "big", tags: "#toys" });
   });
 });

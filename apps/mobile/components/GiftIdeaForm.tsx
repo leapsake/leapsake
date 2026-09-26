@@ -1,39 +1,24 @@
 import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
-import type { GiftIdea } from "@leapsake/schema";
+import type {
+  GiftIdea,
+  GiftIdeaDraft,
+  GiftIdeaDraftResult,
+} from "@leapsake/schema";
+import { useGiftIdeaForm } from "@leapsake/ui/headless";
 import { ChipTextField } from "./ChipTextField";
 import { HeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
 
-/** The structured value the form hands back; the screen owns the core call. */
-export interface GiftIdeaFormValue {
-  title: string;
-  url: string | null;
-  notes: string | null;
-}
+type GiftIdeaSubmit = Extract<GiftIdeaDraftResult, { ok: true }>;
 
 /**
- * The edit form for a GiftIdea, ported from the desktop `GiftIdeaForm`. Title is
- * required; Link and Notes are optional (blanks become null). Tags ride the same
- * write, as a Person's do — the raw text goes back to the screen, which parses it
- * with `parseTagNames`.
- *
- * It used to carry a "What it's for" section too — occasions the idea itself
- * suits, with nobody named. Occasions are out of v0.1 scope; who it is for lives
- * in the section below this one.
- *
- * There is no *create* screen behind this form on either client: a new idea is
- * captured by the `GiftCaptureForm`, which is the single-payload surface.
- *
- * It is only one section of its screen — the recipients manager and the remove
- * link sit below it — but it is that screen's only *form*, so it declares the
- * native header (title plus a right-aligned {@link HeaderSave}) the way the
- * whole-screen forms do. `expo-router` honours a `Stack.Screen` anywhere in the
- * screen's subtree.
+ * The edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
+ * {@link GiftIdeaFields}, with Save in the native header. The screen owns the core call.
  */
 export function GiftIdeaForm({
-  title: headerTitle,
+  title,
   idea,
   tagNames = "",
   onSubmit,
@@ -43,61 +28,69 @@ export function GiftIdeaForm({
   idea?: GiftIdea;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  onSubmit: (value: GiftIdeaFormValue, tagsRaw: string) => Promise<void>;
+  onSubmit: (
+    input: GiftIdeaSubmit["input"],
+    tags: GiftIdeaSubmit["tags"],
+  ) => Promise<void>;
 }) {
-  const [title, setTitle] = useState(idea?.title ?? "");
-  const [url, setUrl] = useState(idea?.url ?? "");
-  const [notes, setNotes] = useState(idea?.notes ?? "");
-  const [tags, setTags] = useState(tagNames);
+  const form = useGiftIdeaForm(idea, tagNames);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = title.trim().length > 0 && !submitting;
-
   async function handleSubmit() {
-    if (!canSubmit) return;
+    const shaped = form.submit();
+    if (shaped === null || submitting) return;
     setSubmitting(true);
     try {
-      const trimmedUrl = url.trim();
-      const trimmedNotes = notes.trim();
-      await onSubmit(
-        {
-          title: title.trim(),
-          url: trimmedUrl === "" ? null : trimmedUrl,
-          notes: trimmedNotes === "" ? null : trimmedNotes,
-        },
-        tags,
-      );
+      await onSubmit(shaped.input, shaped.tags);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <View style={styles.section}>
+    <>
       <Stack.Screen
         options={{
-          title: headerTitle,
+          title,
           headerRight: () => (
             <HeaderSave
-              canSave={canSubmit}
+              canSave={form.canSubmit && !submitting}
               saving={submitting}
               onPress={() => void handleSubmit()}
             />
           ),
         }}
       />
+      <GiftIdeaFields fields={form.fields} set={form.set} />
+    </>
+  );
+}
 
+/** A gift idea's fields: title, link, notes and tags. */
+export function GiftIdeaFields({
+  fields,
+  set,
+}: {
+  fields: GiftIdeaDraft;
+  set: <K extends keyof GiftIdeaDraft>(key: K, value: GiftIdeaDraft[K]) => void;
+}) {
+  return (
+    <View style={styles.section}>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Title</Text>
-        <TextInput style={styles.input} value={title} onChangeText={setTitle} />
+        <TextInput
+          style={styles.input}
+          value={fields.title}
+          onChangeText={(text) => set("title", text)}
+        />
       </View>
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Link</Text>
         <TextInput
           style={styles.input}
-          value={url}
-          onChangeText={setUrl}
+          value={fields.url}
+          onChangeText={(text) => set("url", text)}
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
@@ -108,8 +101,8 @@ export function GiftIdeaForm({
         <Text style={styles.fieldLabel}>Notes</Text>
         <TextInput
           style={[styles.input, { minHeight: 88, textAlignVertical: "top" }]}
-          value={notes}
-          onChangeText={setNotes}
+          value={fields.notes}
+          onChangeText={(text) => set("notes", text)}
           multiline
         />
       </View>
@@ -119,8 +112,8 @@ export function GiftIdeaForm({
         <ChipTextField
           grammar="tags"
           style={styles.input}
-          value={tags}
-          onChangeText={setTags}
+          value={fields.tags}
+          onChangeText={(text) => set("tags", text)}
         />
         <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
       </View>

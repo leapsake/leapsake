@@ -88,11 +88,16 @@ export {
   giftIdeaSchema,
   createGiftIdeaInputSchema,
   updateGiftIdeaInputSchema,
+  giftIdeaDraftOf,
+  giftIdeaInputOf,
 } from "./gift-idea.js";
 export type {
   GiftIdea,
   CreateGiftIdeaInput,
   UpdateGiftIdeaInput,
+  GiftIdeaDraft,
+  GiftIdeaDraftError,
+  GiftIdeaDraftResult,
 } from "./gift-idea.js";
 export {
   giftPartyTypeSchema,
