@@ -16,8 +16,8 @@ production access, earned by the [14-day closed test](./android-pipeline.md).
 **Next, in order — [`shipping.md`](./shipping.md) → _Part 1_ has the acceptance for each.**
 ① **App Store Connect metadata** — privacy URL, a _published_ App Privacy questionnaire,
 description, age rating, support URL, screenshots at **two** sizes (6.9" iPhone + 13" iPad);
-`ascSetup` reads none of it. ② Verify the app on an iPad simulator before submitting.
-③ `rc`, then `final` — from the pipeline in
+`appleAppStoreConnectSetup` reads none of it. ② Verify the app on an iPad simulator before
+submitting. ③ `rc`, then `final` — from the pipeline in
 [`remote-releases.md`](./fable-investigation/remote-releases.md): steps 1–5 done, **step 6 in
 flight**: runners carry the gate; the Android crash patch has 3 of 6 clean jobs and needs one
 more measure run, then the owner's call. Step 7's script pieces are done; its workflows are next. **Meanwhile `v0.1.0-beta.10`

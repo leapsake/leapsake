@@ -64,10 +64,10 @@ step 1 depends on. Before GA because going public first makes desktop auto-updat
 
 ## 3 — The App Store Connect fields nothing in the repo can check
 
-`ascSetup` reads the beta group, Test Information and Beta App Review Information, and stops
-there, because nothing more is required to distribute a _beta_. It does **not** read
-`privacyPolicyUrl` or the App Privacy answers, so a green `pnpm release plan` for a beta says
-nothing about either and both are required here.
+`appleAppStoreConnectSetup` reads the beta group, Test Information and Beta App Review
+Information, and stops there, because nothing more is required to distribute a _beta_. It
+does **not** read `privacyPolicyUrl` or the App Privacy answers, so a green `pnpm release
+plan` for a beta says nothing about either and both are required here.
 
 **These have to be in place before the `rc` release, not before `final`**: `rc` is the rung
 that submits to review, so the metadata is what Apple reads on the day.

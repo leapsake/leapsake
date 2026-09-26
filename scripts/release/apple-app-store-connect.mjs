@@ -53,10 +53,10 @@ const MAX_RETRY_AFTER_MS = 60_000;
  * them: submitting a build that App Store Connect already submitted implicitly is an error
  * to *tolerate*, not to fail on, and the code is how it is recognized.
  */
-export class AscError extends Error {
+export class AppleAppStoreConnectError extends Error {
   constructor(message, { status, errors = [], retryAfterMs }) {
     super(message);
-    this.name = "AscError";
+    this.name = "AppleAppStoreConnectError";
     this.status = status;
     this.errors = errors;
     this.codes = errors.map((error) => error.code).filter(Boolean);
@@ -77,17 +77,22 @@ const base64url = (input) => Buffer.from(input).toString("base64url");
  *
  * Deliberately not a fourth credential: the key that uploads is the key that distributes,
  * so there is one thing to rotate and one place a wrong role shows up. (The *role* is the
- * catch — see `ascSetup` in `targets/ios.mjs`.)
+ * catch — see `appleAppStoreConnectSetup` in `targets/ios.mjs`.)
  */
-export function ascFromEnv() {
-  return createAsc({
-    keyId: process.env.ASC_KEY_ID.trim(),
-    issuerId: process.env.ASC_ISSUER_ID.trim(),
-    keyPath: resolve(process.env.ASC_KEY_PATH.trim()),
+export function appleAppStoreConnectFromEnv() {
+  return createAppleAppStoreConnect({
+    keyId: process.env.APPLE_APP_STORE_CONNECT_KEY_ID.trim(),
+    issuerId: process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID.trim(),
+    keyPath: resolve(process.env.APPLE_APP_STORE_CONNECT_KEY_PATH.trim()),
   });
 }
 
-export function createAsc({ keyId, issuerId, keyPath, onRetry = warn }) {
+export function createAppleAppStoreConnect({
+  keyId,
+  issuerId,
+  keyPath,
+  onRetry = warn,
+}) {
   // Read and parse the key once, at construction: a malformed `.p8` should fail where the
   // client is created, not twenty minutes into a poll.
   const privateKey = createPrivateKey(readFileSync(keyPath, "utf8"));
@@ -160,7 +165,7 @@ export function createAsc({ keyId, issuerId, keyPath, onRetry = warn }) {
             )
             .join("; ")
         : text.slice(0, 500) || response.statusText;
-      throw new AscError(
+      throw new AppleAppStoreConnectError(
         `App Store Connect ${method} ${path} → ${response.status}: ${detail}`,
         {
           status: response.status,
@@ -178,7 +183,8 @@ export function createAsc({ keyId, issuerId, keyPath, onRetry = warn }) {
    * call site.
    *
    * Returns the parsed body, or `undefined` for the 204s that relationship writes answer
-   * with. Anything non-2xx throws an `AscError` carrying Apple's own explanation.
+   * with. Anything non-2xx throws an `AppleAppStoreConnectError` carrying Apple's own
+   * explanation.
    *
    * **Retries are not method-aware, on purpose.** The textbook rule is to retry only reads,
    * because a write that reached Apple before the connection died would be applied twice.
@@ -238,7 +244,7 @@ function retryDelay(error, attemptNo) {
   if (attemptNo >= MAX_ATTEMPTS) return undefined;
   const backoff = BACKOFF_MS[attemptNo - 1];
 
-  if (error instanceof AscError) {
+  if (error instanceof AppleAppStoreConnectError) {
     if (error.status === 429) return error.retryAfterMs ?? backoff;
     return error.status >= 500 ? backoff : undefined;
   }
@@ -265,7 +271,7 @@ function retryAfterOf(response) {
 
 /** What to call this failure in the retry notice — Apple's words, or the transport's. */
 function reason(error) {
-  if (error instanceof AscError) return `HTTP ${error.status}`;
+  if (error instanceof AppleAppStoreConnectError) return `HTTP ${error.status}`;
   return error?.name === "TimeoutError" || error?.name === "AbortError"
     ? "timed out"
     : (error?.message ?? "request failed");

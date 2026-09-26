@@ -49,7 +49,7 @@ describe("materializeSecrets", () => {
     expect(() =>
       materializeSecrets(
         {
-          LEAPSAKE_SECRET_ASC_KEY_B64: b64("key"),
+          LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64: b64("key"),
           LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64: "{not base64}",
         },
         dir,
@@ -60,7 +60,10 @@ describe("materializeSecrets", () => {
 
   it("writes nothing when no secret is set", () => {
     expect(
-      materializeSecrets({ LEAPSAKE_SECRET_ASC_KEY_B64: " " }, dir),
+      materializeSecrets(
+        { LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64: " " },
+        dir,
+      ),
     ).toEqual([]);
   });
 });

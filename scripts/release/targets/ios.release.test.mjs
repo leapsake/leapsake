@@ -76,12 +76,15 @@ const approved = (state = "PENDING_DEVELOPER_RELEASE") => ({
 
 const realFetch = globalThis.fetch;
 beforeEach(() => {
-  process.env.ASC_KEY_ID = "K";
-  process.env.ASC_ISSUER_ID = "I";
+  process.env.APPLE_APP_STORE_CONNECT_KEY_ID = "K";
+  process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID = "I";
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-  const path = join(mkdtempSync(join(tmpdir(), "asc-")), "AuthKey_TEST.p8");
+  const path = join(
+    mkdtempSync(join(tmpdir(), "apple-app-store-connect-")),
+    "AuthKey_TEST.p8",
+  );
   writeFileSync(path, privateKey.export({ type: "pkcs8", format: "pem" }));
-  process.env.ASC_KEY_PATH = path;
+  process.env.APPLE_APP_STORE_CONNECT_KEY_PATH = path;
 });
 afterEach(() => {
   globalThis.fetch = realFetch;

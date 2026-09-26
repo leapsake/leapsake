@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createAsc } from "../asc.mjs";
+import { createAppleAppStoreConnect } from "../apple-app-store-connect.mjs";
 import { submitToAppStore } from "./ios.mjs";
 
 /** A repo root carrying just the one file `submitToAppStore` reads. */
@@ -27,9 +27,16 @@ function rootWithNotes(text = "The first release.") {
 
 function client() {
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-  const path = join(mkdtempSync(join(tmpdir(), "asc-")), "AuthKey_TEST.p8");
+  const path = join(
+    mkdtempSync(join(tmpdir(), "apple-app-store-connect-")),
+    "AuthKey_TEST.p8",
+  );
   writeFileSync(path, privateKey.export({ type: "pkcs8", format: "pem" }));
-  return createAsc({ keyId: "K", issuerId: "I", keyPath: path });
+  return createAppleAppStoreConnect({
+    keyId: "K",
+    issuerId: "I",
+    keyPath: path,
+  });
 }
 
 const answer = (status, body) => ({
@@ -89,11 +96,11 @@ const freshRoutes = () => ({
 });
 
 const realFetch = globalThis.fetch;
-let asc;
+let appleAppStoreConnect;
 let root;
 
 beforeEach(() => {
-  asc = client();
+  appleAppStoreConnect = client();
   root = rootWithNotes();
 });
 afterEach(() => {
@@ -102,7 +109,7 @@ afterEach(() => {
 
 const submit = () =>
   submitToAppStore({
-    asc,
+    appleAppStoreConnect,
     app: APP,
     build: BUILD,
     root,

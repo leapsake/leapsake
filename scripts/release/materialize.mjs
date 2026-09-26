@@ -6,9 +6,9 @@ import { join } from "node:path";
 /** Every secret the release reads as a file: its variable, its file name, the path it fills. */
 export const SECRETS = [
   {
-    name: "ASC_KEY",
+    name: "APPLE_APP_STORE_CONNECT_KEY",
     file: "app-store-connect.p8",
-    pathVar: "ASC_KEY_PATH",
+    pathVar: "APPLE_APP_STORE_CONNECT_KEY_PATH",
   },
   {
     name: "IOS_DIST_CERT_P12",

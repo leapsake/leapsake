@@ -45,7 +45,10 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { AscError, ascFromEnv } from "../asc.mjs";
+import {
+  AppleAppStoreConnectError,
+  appleAppStoreConnectFromEnv,
+} from "../apple-app-store-connect.mjs";
 import { envSet, fileAt } from "../checks.mjs";
 import {
   MOBILE,
@@ -140,14 +143,24 @@ const cocoapods = {
 
 // One App Store Connect API key covers the upload here and macOS notarization later, and
 // unlike an Apple ID session it runs unattended.
-const ascKey = [
+const appleAppStoreConnectKey = [
   // The key is handed to altool by path (`--p8-file-path`), so only its existence
   // matters — not its name, and not which directory it sits in. Keeping the downloaded
   // `AuthKey_<key id>.p8` filename is still wise: `.gitignore` excludes that shape at any
   // depth, and a key named anything else is one `git add` away from being published.
-  fileAt("ASC_KEY_PATH", "the upload authenticates with it", { suffix: ".p8" }),
-  envSet("ASC_KEY_ID", "it identifies which App Store Connect key is in use"),
-  envSet("ASC_ISSUER_ID", "App Store Connect keys are scoped to an issuer"),
+  fileAt(
+    "APPLE_APP_STORE_CONNECT_KEY_PATH",
+    "the upload authenticates with it",
+    { suffix: ".p8" },
+  ),
+  envSet(
+    "APPLE_APP_STORE_CONNECT_KEY_ID",
+    "it identifies which App Store Connect key is in use",
+  ),
+  envSet(
+    "APPLE_APP_STORE_CONNECT_ISSUER_ID",
+    "App Store Connect keys are scoped to an issuer",
+  ),
 ];
 
 /**
@@ -212,7 +225,7 @@ const whatsNew = {
 };
 
 const betaGroup = envSet(
-  "ASC_BETA_GROUP",
+  "APPLE_APP_STORE_CONNECT_BETA_GROUP",
   "the external tester group's name is how the release finds it; create the group in App Store Connect → TestFlight",
 );
 
@@ -228,10 +241,10 @@ const betaGroup = envSet(
  *     beta groups, attach a build localization, or submit for review. It passes every
  *     offline check. The `.p8` downloads exactly once, so the repair is minting a new key —
  *     not something to discover at the end of a release.
- *   - **The group.** `ASC_BETA_GROUP` is matched by name, so a typo or a group renamed in
- *     App Store Connect is a plain string mismatch. An *internal* group is the worse case:
- *     it would be accepted, skip beta review, and quietly deliver `beta` to the alpha
- *     audience.
+ *   - **The group.** `APPLE_APP_STORE_CONNECT_BETA_GROUP` is matched by name, so a typo or a
+ *     group renamed in App Store Connect is a plain string mismatch. An *internal* group is
+ *     the worse case: it would be accepted, skip beta review, and quietly deliver `beta` to
+ *     the alpha audience.
  *   - **The app record's own beta setup.** Test Information and Beta App Review Information
  *     are filled in by hand, once, and until they are the submission is refused. Read from
  *     the record rather than assumed, because "someone did it in the console last month" is
@@ -248,30 +261,30 @@ const betaGroup = envSet(
  * sign-in — it does not, and works fully local with no account — fails the build for a
  * login that does not exist.
  */
-const ascSetup = {
+const appleAppStoreConnectSetup = {
   name: "App Store Connect setup",
   check: async ({ root }) => {
     // The credentials have their own checks; if they are missing, say so once, there.
     if (
-      !process.env.ASC_KEY_ID?.trim() ||
-      !process.env.ASC_ISSUER_ID?.trim() ||
-      !process.env.ASC_KEY_PATH?.trim()
+      !process.env.APPLE_APP_STORE_CONNECT_KEY_ID?.trim() ||
+      !process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID?.trim() ||
+      !process.env.APPLE_APP_STORE_CONNECT_KEY_PATH?.trim()
     ) {
       return undefined;
     }
-    const groupName = process.env.ASC_BETA_GROUP?.trim();
+    const groupName = process.env.APPLE_APP_STORE_CONNECT_BETA_GROUP?.trim();
     const bundleId = readAppJson(root).expo?.ios?.bundleIdentifier;
-    const asc = ascFromEnv();
+    const appleAppStoreConnect = appleAppStoreConnectFromEnv();
 
     let app;
     try {
-      const apps = await asc.get("/v1/apps", {
+      const apps = await appleAppStoreConnect.get("/v1/apps", {
         query: { "filter[bundleId]": bundleId, limit: 1 },
       });
       app = apps?.data?.[0];
     } catch (error) {
       if (
-        error instanceof AscError &&
+        error instanceof AppleAppStoreConnectError &&
         (error.status === 401 || error.status === 403)
       ) {
         return (
@@ -292,7 +305,7 @@ const ascSetup = {
     try {
       // The group named by .env: it must exist on this app, and it must be external.
       if (groupName) {
-        const groups = await asc.get("/v1/betaGroups", {
+        const groups = await appleAppStoreConnect.get("/v1/betaGroups", {
           query: {
             "filter[app]": app.id,
             "filter[name]": groupName,
@@ -304,7 +317,7 @@ const ascSetup = {
         );
         if (!group) {
           missing.push(
-            `no beta group named "${groupName}" on this app (ASC_BETA_GROUP) — create it in App Store Connect → TestFlight`,
+            `no beta group named "${groupName}" on this app (APPLE_APP_STORE_CONNECT_BETA_GROUP) — create it in App Store Connect → TestFlight`,
           );
         } else if (group.attributes?.isInternalGroup) {
           missing.push(
@@ -314,7 +327,7 @@ const ascSetup = {
       }
 
       // Test Information: the feedback address and description a tester sees.
-      const localizations = await asc.get(
+      const localizations = await appleAppStoreConnect.get(
         `/v1/apps/${app.id}/betaAppLocalizations`,
         { query: { limit: 10 } },
       );
@@ -329,7 +342,9 @@ const ascSetup = {
       }
 
       // Beta App Review Information: who Apple contacts, and what they are told.
-      const detail = await asc.get(`/v1/apps/${app.id}/betaAppReviewDetail`);
+      const detail = await appleAppStoreConnect.get(
+        `/v1/apps/${app.id}/betaAppReviewDetail`,
+      );
       const review = detail?.data?.attributes ?? {};
       if (!review.contactEmail || !review.contactPhone) {
         missing.push(
@@ -407,8 +422,8 @@ const say = (message) => console.log(`   ${message}`);
 const minutes = (ms) => `${Math.round(ms / 60000)}m`;
 
 /** The app record, found by the bundle id the archive was signed for. */
-async function findApp(asc, bundleId) {
-  const found = await asc.get("/v1/apps", {
+async function findApp(appleAppStoreConnect, bundleId) {
+  const found = await appleAppStoreConnect.get("/v1/apps", {
     query: { "filter[bundleId]": bundleId, limit: 1 },
   });
   const app = found?.data?.[0];
@@ -422,7 +437,7 @@ async function findApp(asc, bundleId) {
 }
 
 /**
- * The external tester group named by `ASC_BETA_GROUP`.
+ * The external tester group named by `APPLE_APP_STORE_CONNECT_BETA_GROUP`.
  *
  * The `isInternalGroup` guard is the one worth having: adding a build to an *internal*
  * group is accepted, skips beta review entirely, and reaches nobody outside the App Store
@@ -430,8 +445,8 @@ async function findApp(asc, bundleId) {
  * `beta` to another alpha while reporting success. That is precisely the failure the rung
  * exists to prevent.
  */
-async function findExternalGroup(asc, appId, name) {
-  const found = await asc.get("/v1/betaGroups", {
+async function findExternalGroup(appleAppStoreConnect, appId, name) {
+  const found = await appleAppStoreConnect.get("/v1/betaGroups", {
     query: { "filter[app]": appId, "filter[name]": name, limit: 10 },
   });
   const group = found?.data?.find((each) => each.attributes?.name === name);
@@ -442,14 +457,14 @@ async function findExternalGroup(asc, appId, name) {
     throw new Error(
       `no beta group named "${name}" on this app` +
         (known.length ? ` (found: ${known.join(", ")})` : "") +
-        " — create it in App Store Connect → TestFlight, or fix ASC_BETA_GROUP",
+        " — create it in App Store Connect → TestFlight, or fix APPLE_APP_STORE_CONNECT_BETA_GROUP",
     );
   }
   if (group.attributes?.isInternalGroup) {
     throw new Error(
       `"${name}" is an *internal* TestFlight group — a build added to it skips beta ` +
         "review and reaches only App Store Connect users, which is the alpha rung. " +
-        "ASC_BETA_GROUP must name an external group",
+        "APPLE_APP_STORE_CONNECT_BETA_GROUP must name an external group",
     );
   }
   return group;
@@ -466,13 +481,13 @@ async function findExternalGroup(asc, appId, name) {
  * `INVALID` is fatal and thrown on, never waited out — it is Apple's verdict on the binary
  * (a missing icon size, a disallowed API), and no amount of polling changes it.
  */
-async function waitForProcessing(asc, appId, buildNumber) {
+async function waitForProcessing(appleAppStoreConnect, appId, buildNumber) {
   const started = Date.now();
   let lastProgress = 0;
   let seen = false;
 
   for (;;) {
-    const found = await asc.get("/v1/builds", {
+    const found = await appleAppStoreConnect.get("/v1/builds", {
       query: {
         "filter[app]": appId,
         "filter[version]": buildNumber,
@@ -527,8 +542,8 @@ async function waitForProcessing(asc, appId, buildNumber) {
  * empty `en-US` localization with the build, and sometimes does not, so both paths are
  * ordinary rather than one being an error to swallow.
  */
-async function attachWhatToTest(asc, buildId, notes) {
-  const existing = await asc.get(
+async function attachWhatToTest(appleAppStoreConnect, buildId, notes) {
+  const existing = await appleAppStoreConnect.get(
     `/v1/builds/${buildId}/betaBuildLocalizations`,
     {
       query: { limit: 50 },
@@ -539,7 +554,7 @@ async function attachWhatToTest(asc, buildId, notes) {
   );
 
   if (mine) {
-    await asc.patch(`/v1/betaBuildLocalizations/${mine.id}`, {
+    await appleAppStoreConnect.patch(`/v1/betaBuildLocalizations/${mine.id}`, {
       body: {
         data: {
           type: "betaBuildLocalizations",
@@ -549,7 +564,7 @@ async function attachWhatToTest(asc, buildId, notes) {
       },
     });
   } else {
-    await asc.post("/v1/betaBuildLocalizations", {
+    await appleAppStoreConnect.post("/v1/betaBuildLocalizations", {
       body: {
         data: {
           type: "betaBuildLocalizations",
@@ -569,13 +584,17 @@ async function attachWhatToTest(asc, buildId, notes) {
  * connection dropped, and a write that reached Apple before the socket died would come
  * back a conflict on the second try. Tolerating it is what makes that retry safe.
  */
-async function addToGroup(asc, groupId, buildId, groupName) {
+async function addToGroup(appleAppStoreConnect, groupId, buildId, groupName) {
   try {
-    await asc.post(`/v1/betaGroups/${groupId}/relationships/builds`, {
-      body: { data: [{ type: "builds", id: buildId }] },
-    });
+    await appleAppStoreConnect.post(
+      `/v1/betaGroups/${groupId}/relationships/builds`,
+      {
+        body: { data: [{ type: "builds", id: buildId }] },
+      },
+    );
   } catch (error) {
-    if (!(error instanceof AscError) || error.status !== 409) throw error;
+    if (!(error instanceof AppleAppStoreConnectError) || error.status !== 409)
+      throw error;
     say(`already in "${groupName}"`);
     return;
   }
@@ -591,9 +610,9 @@ async function addToGroup(asc, groupId, buildId, groupName) {
  * assumed either, because the implicit submission is undocumented behaviour that has come
  * and gone. So: ask, and treat "already submitted" as success.
  */
-async function submitForBetaReview(asc, buildId) {
+async function submitForBetaReview(appleAppStoreConnect, buildId) {
   try {
-    await asc.post("/v1/betaAppReviewSubmissions", {
+    await appleAppStoreConnect.post("/v1/betaAppReviewSubmissions", {
       body: {
         data: {
           type: "betaAppReviewSubmissions",
@@ -603,7 +622,7 @@ async function submitForBetaReview(asc, buildId) {
     });
     say("submitted for beta review");
   } catch (error) {
-    if (error instanceof AscError && error.status === 409) {
+    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
       say(
         `already submitted for beta review (${error.errors[0]?.detail ?? "409"})`,
       );
@@ -614,15 +633,24 @@ async function submitForBetaReview(asc, buildId) {
 }
 
 /** Upload → *in beta review*, with its notes and its group attached. */
-async function distributeExternally({ asc, app, build, root }) {
-  const groupName = process.env.ASC_BETA_GROUP.trim();
+async function distributeExternally({
+  appleAppStoreConnect,
+  app,
+  build,
+  root,
+}) {
+  const groupName = process.env.APPLE_APP_STORE_CONNECT_BETA_GROUP.trim();
   const notes = readFileSync(WHAT_TO_TEST(root), "utf8").trim();
 
-  const group = await findExternalGroup(asc, app.id, groupName);
+  const group = await findExternalGroup(
+    appleAppStoreConnect,
+    app.id,
+    groupName,
+  );
 
-  await attachWhatToTest(asc, build.id, notes);
-  await addToGroup(asc, group.id, build.id, groupName);
-  await submitForBetaReview(asc, build.id);
+  await attachWhatToTest(appleAppStoreConnect, build.id, notes);
+  await addToGroup(appleAppStoreConnect, group.id, build.id, groupName);
+  await submitForBetaReview(appleAppStoreConnect, build.id);
 
   say(
     `https://appstoreconnect.apple.com/apps/${app.id}/testflight/ios — the build is in ` +
@@ -667,14 +695,17 @@ const EDITABLE_STATES = new Set([
  * Developer Release* instead of publishing it the moment review passes, which keeps a human
  * at the one irreversible, outward step — the same principle `index.mjs` applies to pushing.
  */
-async function findOrCreateVersion(asc, appId, storeVersion) {
-  const found = await asc.get(`/v1/apps/${appId}/appStoreVersions`, {
-    query: {
-      "filter[versionString]": storeVersion,
-      "filter[platform]": "IOS",
-      limit: 1,
+async function findOrCreateVersion(appleAppStoreConnect, appId, storeVersion) {
+  const found = await appleAppStoreConnect.get(
+    `/v1/apps/${appId}/appStoreVersions`,
+    {
+      query: {
+        "filter[versionString]": storeVersion,
+        "filter[platform]": "IOS",
+        limit: 1,
+      },
     },
-  });
+  );
   const existing = found?.data?.[0];
   if (existing) {
     const state = existing.attributes?.appStoreState;
@@ -688,7 +719,7 @@ async function findOrCreateVersion(asc, appId, storeVersion) {
     return existing;
   }
 
-  const created = await asc.post("/v1/appStoreVersions", {
+  const created = await appleAppStoreConnect.post("/v1/appStoreVersions", {
     body: {
       data: {
         type: "appStoreVersions",
@@ -716,8 +747,8 @@ async function findOrCreateVersion(asc, appId, storeVersion) {
  * the app's history rather than a mistake in the notes, so it is reported and stepped over —
  * the submission is still correct without it.
  */
-async function attachWhatsNew(asc, versionId, notes) {
-  const existing = await asc.get(
+async function attachWhatsNew(appleAppStoreConnect, versionId, notes) {
+  const existing = await appleAppStoreConnect.get(
     `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations`,
     { query: { limit: 50 } },
   );
@@ -727,17 +758,20 @@ async function attachWhatsNew(asc, versionId, notes) {
 
   try {
     if (mine) {
-      await asc.patch(`/v1/appStoreVersionLocalizations/${mine.id}`, {
-        body: {
-          data: {
-            type: "appStoreVersionLocalizations",
-            id: mine.id,
-            attributes: { whatsNew: notes },
+      await appleAppStoreConnect.patch(
+        `/v1/appStoreVersionLocalizations/${mine.id}`,
+        {
+          body: {
+            data: {
+              type: "appStoreVersionLocalizations",
+              id: mine.id,
+              attributes: { whatsNew: notes },
+            },
           },
         },
-      });
+      );
     } else {
-      await asc.post("/v1/appStoreVersionLocalizations", {
+      await appleAppStoreConnect.post("/v1/appStoreVersionLocalizations", {
         body: {
           data: {
             type: "appStoreVersionLocalizations",
@@ -754,7 +788,7 @@ async function attachWhatsNew(asc, versionId, notes) {
     say(`release notes attached (${notes.length} characters)`);
   } catch (error) {
     if (
-      error instanceof AscError &&
+      error instanceof AppleAppStoreConnectError &&
       (error.status === 409 || error.status === 422)
     ) {
       say(
@@ -768,10 +802,18 @@ async function attachWhatsNew(asc, versionId, notes) {
 }
 
 /** Point the version at the build. A 204, and idempotent — the same build twice is fine. */
-async function attachBuild(asc, versionId, buildId, buildNumber) {
-  await asc.patch(`/v1/appStoreVersions/${versionId}/relationships/build`, {
-    body: { data: { type: "builds", id: buildId } },
-  });
+async function attachBuild(
+  appleAppStoreConnect,
+  versionId,
+  buildId,
+  buildNumber,
+) {
+  await appleAppStoreConnect.patch(
+    `/v1/appStoreVersions/${versionId}/relationships/build`,
+    {
+      body: { data: { type: "builds", id: buildId } },
+    },
+  );
   say(`build ${buildNumber} attached to the version`);
 }
 
@@ -782,10 +824,13 @@ async function attachBuild(asc, versionId, buildId, buildNumber) {
  * if a previous attempt got this far and stopped. Creating a second while one is open is
  * refused, so this looks first.
  */
-async function findOrCreateSubmission(asc, appId) {
-  const found = await asc.get(`/v1/apps/${appId}/reviewSubmissions`, {
-    query: { "filter[platform]": "IOS", limit: 20 },
-  });
+async function findOrCreateSubmission(appleAppStoreConnect, appId) {
+  const found = await appleAppStoreConnect.get(
+    `/v1/apps/${appId}/reviewSubmissions`,
+    {
+      query: { "filter[platform]": "IOS", limit: 20 },
+    },
+  );
   const open = found?.data?.find(
     (each) => each.attributes?.state === "READY_FOR_REVIEW",
   );
@@ -794,7 +839,7 @@ async function findOrCreateSubmission(asc, appId) {
     return open;
   }
 
-  const created = await asc.post("/v1/reviewSubmissions", {
+  const created = await appleAppStoreConnect.post("/v1/reviewSubmissions", {
     body: {
       data: {
         type: "reviewSubmissions",
@@ -807,9 +852,13 @@ async function findOrCreateSubmission(asc, appId) {
 }
 
 /** Put the version in the submission, tolerating its already being there. */
-async function addVersionToSubmission(asc, submissionId, versionId) {
+async function addVersionToSubmission(
+  appleAppStoreConnect,
+  submissionId,
+  versionId,
+) {
   try {
-    await asc.post("/v1/reviewSubmissionItems", {
+    await appleAppStoreConnect.post("/v1/reviewSubmissionItems", {
       body: {
         data: {
           type: "reviewSubmissionItems",
@@ -825,7 +874,7 @@ async function addVersionToSubmission(asc, submissionId, versionId) {
       },
     });
   } catch (error) {
-    if (error instanceof AscError && error.status === 409) {
+    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
       say("the version is already in this submission");
       return;
     }
@@ -834,9 +883,9 @@ async function addVersionToSubmission(asc, submissionId, versionId) {
 }
 
 /** Hand the submission to Apple. Tolerates a submission already sent, as beta review does. */
-async function submitForReview(asc, submissionId) {
+async function submitForReview(appleAppStoreConnect, submissionId) {
   try {
-    await asc.patch(`/v1/reviewSubmissions/${submissionId}`, {
+    await appleAppStoreConnect.patch(`/v1/reviewSubmissions/${submissionId}`, {
       body: {
         data: {
           type: "reviewSubmissions",
@@ -847,7 +896,7 @@ async function submitForReview(asc, submissionId) {
     });
     say("submitted for App Store review");
   } catch (error) {
-    if (error instanceof AscError && error.status === 409) {
+    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
       say(
         `already submitted for App Store review (${error.errors[0]?.detail ?? "409"})`,
       );
@@ -870,17 +919,20 @@ async function submitForReview(asc, submissionId) {
  * This is the whole reason receipts exist: Apple answers with a build *number* and nothing
  * that names a commit, so the number is the only key back into the repository.
  */
-async function attachedBuild(asc, versionId) {
-  const found = await asc.get(`/v1/appStoreVersions/${versionId}/build`, {
-    query: { "fields[builds]": "version" },
-  });
+async function attachedBuild(appleAppStoreConnect, versionId) {
+  const found = await appleAppStoreConnect.get(
+    `/v1/appStoreVersions/${versionId}/build`,
+    {
+      query: { "fields[builds]": "version" },
+    },
+  );
   return found?.data ?? null;
 }
 
 /** Make an approved version public. Tolerates a release already requested. */
-async function requestRelease(asc, versionId) {
+async function requestRelease(appleAppStoreConnect, versionId) {
   try {
-    await asc.post("/v1/appStoreVersionReleaseRequests", {
+    await appleAppStoreConnect.post("/v1/appStoreVersionReleaseRequests", {
       body: {
         data: {
           type: "appStoreVersionReleaseRequests",
@@ -894,7 +946,7 @@ async function requestRelease(asc, versionId) {
     });
     say("released — the App Store is publishing it now");
   } catch (error) {
-    if (error instanceof AscError && error.status === 409) {
+    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
       say(`already released (${error.errors[0]?.detail ?? "409"})`);
       return;
     }
@@ -907,17 +959,20 @@ async function requestRelease(asc, versionId) {
  * Refuses rather than guesses; `--commit=` names the commit by hand.
  */
 export async function approvedRelease({ root, storeVersion, commit }) {
-  const asc = ascFromEnv();
+  const appleAppStoreConnect = appleAppStoreConnectFromEnv();
   const bundleId = readAppJson(root).expo?.ios?.bundleIdentifier;
-  const app = await findApp(asc, bundleId);
+  const app = await findApp(appleAppStoreConnect, bundleId);
 
-  const found = await asc.get(`/v1/apps/${app.id}/appStoreVersions`, {
-    query: {
-      "filter[versionString]": storeVersion,
-      "filter[platform]": "IOS",
-      limit: 1,
+  const found = await appleAppStoreConnect.get(
+    `/v1/apps/${app.id}/appStoreVersions`,
+    {
+      query: {
+        "filter[versionString]": storeVersion,
+        "filter[platform]": "IOS",
+        limit: 1,
+      },
     },
-  });
+  );
   const version = found?.data?.[0];
   if (!version) {
     throw new Error(
@@ -934,7 +989,7 @@ export async function approvedRelease({ root, storeVersion, commit }) {
     );
   }
 
-  const build = await attachedBuild(asc, version.id);
+  const build = await attachedBuild(appleAppStoreConnect, version.id);
   const buildNumber = build?.attributes?.version;
   if (!buildNumber) {
     throw new Error(
@@ -952,24 +1007,30 @@ export async function approvedRelease({ root, storeVersion, commit }) {
         "it, or name the commit with --commit=<sha>",
     );
   }
-  return { asc, version, state, buildNumber, commit: resolved };
+  return {
+    appleAppStoreConnect,
+    version,
+    state,
+    buildNumber,
+    commit: resolved,
+  };
 }
 
 /** Make the approved version public, and report which commit went with it. */
 export async function releaseToPublic(ctx) {
-  const { asc, version, state, buildNumber, commit } =
+  const { appleAppStoreConnect, version, state, buildNumber, commit } =
     await approvedRelease(ctx);
   if (state === "READY_FOR_SALE") {
     say(`${ctx.storeVersion} is already on the App Store`);
   } else {
-    await requestRelease(asc, version.id);
+    await requestRelease(appleAppStoreConnect, version.id);
   }
   say(`build ${buildNumber} came from ${commit.slice(0, 12)}`);
   return { commit, buildNumber };
 }
 
 export async function submitToAppStore({
-  asc,
+  appleAppStoreConnect,
   app,
   build,
   root,
@@ -977,12 +1038,21 @@ export async function submitToAppStore({
 }) {
   const notes = readFileSync(WHATS_NEW(root), "utf8").trim();
 
-  const version = await findOrCreateVersion(asc, app.id, storeVersion);
-  await attachWhatsNew(asc, version.id, notes);
-  await attachBuild(asc, version.id, build.id, build.attributes?.version);
-  const submission = await findOrCreateSubmission(asc, app.id);
-  await addVersionToSubmission(asc, submission.id, version.id);
-  await submitForReview(asc, submission.id);
+  const version = await findOrCreateVersion(
+    appleAppStoreConnect,
+    app.id,
+    storeVersion,
+  );
+  await attachWhatsNew(appleAppStoreConnect, version.id, notes);
+  await attachBuild(
+    appleAppStoreConnect,
+    version.id,
+    build.id,
+    build.attributes?.version,
+  );
+  const submission = await findOrCreateSubmission(appleAppStoreConnect, app.id);
+  await addVersionToSubmission(appleAppStoreConnect, submission.id, version.id);
+  await submitForReview(appleAppStoreConnect, submission.id);
 
   say(
     `https://appstoreconnect.apple.com/apps/${app.id}/appstore — ${storeVersion} is with ` +
@@ -1013,7 +1083,13 @@ const TIERS = {
   beta: {
     name: "external TestFlight",
     external: true,
-    requires: [appIcon, exportCompliance, whatToTest, betaGroup, ascSetup],
+    requires: [
+      appIcon,
+      exportCompliance,
+      whatToTest,
+      betaGroup,
+      appleAppStoreConnectSetup,
+    ],
     // What is left is the wait itself. The beta description and "What to Test" used to
     // be here: the notes are now a repo file this attaches, and the description is set
     // once on the app record rather than per build.
@@ -1034,7 +1110,7 @@ const TIERS = {
       whatToTest,
       whatsNew,
       betaGroup,
-      ascSetup,
+      appleAppStoreConnectSetup,
     ],
     manual: [
       "the crucial-flow catalog green on a real device",
@@ -1061,7 +1137,7 @@ export default {
   host: "macos",
   status: "ready",
 
-  preflight: [xcodeSelected, cocoapods, ...signing, ...ascKey],
+  preflight: [xcodeSelected, cocoapods, ...signing, ...appleAppStoreConnectKey],
 
   /**
    * The `marker` rung's whole implementation: no archive, no upload, no artifact.
@@ -1198,11 +1274,11 @@ export default {
     // *filename* load-bearing, and would fail at the upload, after the archive.
     const credentials = [
       "--api-key",
-      process.env.ASC_KEY_ID.trim(),
+      process.env.APPLE_APP_STORE_CONNECT_KEY_ID.trim(),
       "--api-issuer",
-      process.env.ASC_ISSUER_ID.trim(),
+      process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID.trim(),
       "--p8-file-path",
-      resolve(process.env.ASC_KEY_PATH.trim()),
+      resolve(process.env.APPLE_APP_STORE_CONNECT_KEY_PATH.trim()),
     ];
 
     must("altool --validate-app", "xcrun", [
@@ -1238,13 +1314,24 @@ export default {
 
     // Resolved once and shared by both halves. Waiting out processing is the slow step —
     // 5–20 minutes — and an `rc` that did it twice would pay for it twice for no reason.
-    const asc = ascFromEnv();
-    const app = await findApp(asc, artifact.bundleId);
-    const build = await waitForProcessing(asc, app.id, artifact.buildNumber);
+    const appleAppStoreConnect = appleAppStoreConnectFromEnv();
+    const app = await findApp(appleAppStoreConnect, artifact.bundleId);
+    const build = await waitForProcessing(
+      appleAppStoreConnect,
+      app.id,
+      artifact.buildNumber,
+    );
 
-    if (tier.external) await distributeExternally({ asc, app, build, root });
+    if (tier.external)
+      await distributeExternally({ appleAppStoreConnect, app, build, root });
     if (tier.storeSubmission) {
-      await submitToAppStore({ asc, app, build, root, storeVersion });
+      await submitToAppStore({
+        appleAppStoreConnect,
+        app,
+        build,
+        root,
+        storeVersion,
+      });
     }
   },
 };

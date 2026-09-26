@@ -18,14 +18,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AscError, createAsc } from "./asc.mjs";
+import {
+  AppleAppStoreConnectError,
+  createAppleAppStoreConnect,
+} from "./apple-app-store-connect.mjs";
 
 /** A throwaway P-256 key on disk, in the PKCS#8 PEM shape Apple's `.p8` files use. */
 function testKey() {
   const { privateKey, publicKey } = generateKeyPairSync("ec", {
     namedCurve: "P-256",
   });
-  const path = join(mkdtempSync(join(tmpdir(), "asc-")), "AuthKey_TEST.p8");
+  const path = join(
+    mkdtempSync(join(tmpdir(), "apple-app-store-connect-")),
+    "AuthKey_TEST.p8",
+  );
   writeFileSync(path, privateKey.export({ type: "pkcs8", format: "pem" }));
   return { path, publicKey };
 }
@@ -98,13 +104,18 @@ const fetchFailed = () =>
 /** A client whose retries neither sleep nor print, so the tests stay fast and quiet. */
 function retryingClient(onRetry = () => {}) {
   const { path } = testKey();
-  return createAsc({ keyId: "K", issuerId: "I", keyPath: path, onRetry });
+  return createAppleAppStoreConnect({
+    keyId: "K",
+    issuerId: "I",
+    keyPath: path,
+    onRetry,
+  });
 }
 
 describe("the token", () => {
   it("is an ES256 JWT Apple's own rules accept", () => {
     const { path, publicKey } = testKey();
-    const jwt = createAsc({
+    const jwt = createAppleAppStoreConnect({
       keyId: "KEY123",
       issuerId: "issuer-uuid",
       keyPath: path,
@@ -139,18 +150,26 @@ describe("the token", () => {
 
   it("is reused rather than re-signed on every call", () => {
     const { path } = testKey();
-    const asc = createAsc({ keyId: "K", issuerId: "I", keyPath: path });
-    expect(asc.token()).toBe(asc.token());
+    const appleAppStoreConnect = createAppleAppStoreConnect({
+      keyId: "K",
+      issuerId: "I",
+      keyPath: path,
+    });
+    expect(appleAppStoreConnect.token()).toBe(appleAppStoreConnect.token());
   });
 });
 
 describe("request", () => {
   it("carries the token and spells out Apple's bracketed filters", async () => {
     const { path } = testKey();
-    const asc = createAsc({ keyId: "K", issuerId: "I", keyPath: path });
+    const appleAppStoreConnect = createAppleAppStoreConnect({
+      keyId: "K",
+      issuerId: "I",
+      keyPath: path,
+    });
     const calls = stubFetch(answer(200, { data: [] }));
 
-    await asc.get("/v1/builds", {
+    await appleAppStoreConnect.get("/v1/builds", {
       query: { "filter[app]": "6001", limit: 1, "filter[skip]": undefined },
     });
 
@@ -162,15 +181,21 @@ describe("request", () => {
     // An undefined value is omitted, not sent as the string "undefined" — which Apple
     // would answer with a filter error rather than the unfiltered list.
     expect(url.searchParams.has("filter[skip]")).toBe(false);
-    expect(init.headers.authorization).toBe(`Bearer ${asc.token()}`);
+    expect(init.headers.authorization).toBe(
+      `Bearer ${appleAppStoreConnect.token()}`,
+    );
   });
 
   it("sends a JSON body only when there is one", async () => {
     const { path } = testKey();
-    const asc = createAsc({ keyId: "K", issuerId: "I", keyPath: path });
+    const appleAppStoreConnect = createAppleAppStoreConnect({
+      keyId: "K",
+      issuerId: "I",
+      keyPath: path,
+    });
     const calls = stubFetch(answer(201, { data: { id: "1" } }));
 
-    await asc.post("/v1/betaAppReviewSubmissions", {
+    await appleAppStoreConnect.post("/v1/betaAppReviewSubmissions", {
       body: { data: { type: "betaAppReviewSubmissions" } },
     });
 
@@ -182,12 +207,16 @@ describe("request", () => {
 
   it("answers a 204 with nothing rather than throwing on an empty body", async () => {
     const { path } = testKey();
-    const asc = createAsc({ keyId: "K", issuerId: "I", keyPath: path });
+    const appleAppStoreConnect = createAppleAppStoreConnect({
+      keyId: "K",
+      issuerId: "I",
+      keyPath: path,
+    });
     stubFetch(answer(204, undefined));
 
     // Adding a build to a group answers this way, and it is the success case.
     await expect(
-      asc.post("/v1/betaGroups/1/relationships/builds", {
+      appleAppStoreConnect.post("/v1/betaGroups/1/relationships/builds", {
         body: { data: [] },
       }),
     ).resolves.toBeUndefined();
@@ -195,7 +224,11 @@ describe("request", () => {
 
   it("surfaces what Apple said, with the status and codes intact", async () => {
     const { path } = testKey();
-    const asc = createAsc({ keyId: "K", issuerId: "I", keyPath: path });
+    const appleAppStoreConnect = createAppleAppStoreConnect({
+      keyId: "K",
+      issuerId: "I",
+      keyPath: path,
+    });
     stubFetch(
       answer(409, {
         errors: [
@@ -208,11 +241,11 @@ describe("request", () => {
       }),
     );
 
-    const error = await asc
+    const error = await appleAppStoreConnect
       .post("/v1/betaAppReviewSubmissions", { body: {} })
       .catch((caught) => caught);
 
-    expect(error).toBeInstanceOf(AscError);
+    expect(error).toBeInstanceOf(AppleAppStoreConnectError);
     expect(error.status).toBe(409);
     expect(error.message).toContain("already been submitted for beta review");
     // `hasCode` is how the already-submitted case is told apart from a real conflict.
@@ -221,7 +254,7 @@ describe("request", () => {
   });
 
   it("still reports something when the body is not Apple's JSON at all", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     // An edge/proxy layer answering with HTML is the case this guards: `JSON.parse` would
     // throw and replace a 503 with a parse error, hiding what actually happened. A 503 is
     // also retried, so this runs on the fake clock and asserts what survives to the end.
@@ -233,10 +266,10 @@ describe("request", () => {
       text: async () => "<html>upstream unavailable</html>",
     });
 
-    const error = await withoutWaiting(() => asc.get("/v1/apps")).catch(
-      (caught) => caught,
-    );
-    expect(error).toBeInstanceOf(AscError);
+    const error = await withoutWaiting(() =>
+      appleAppStoreConnect.get("/v1/apps"),
+    ).catch((caught) => caught);
+    expect(error).toBeInstanceOf(AppleAppStoreConnectError);
     expect(error.status).toBe(503);
     expect(error.message).toContain("upstream unavailable");
   });
@@ -250,14 +283,14 @@ describe("request", () => {
 // another try, and what is a verdict to be reported rather than repeated.
 describe("retrying", () => {
   it("survives a dropped connection and returns the answer that follows", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     const calls = stubSequence([
       fetchFailed(),
       answer(200, { data: [{ id: "1" }] }),
     ]);
 
     const body = await withoutWaiting(() =>
-      asc.get("/v1/apps", {
+      appleAppStoreConnect.get("/v1/apps", {
         query: { "filter[bundleId]": "com.leapsake.app" },
       }),
     );
@@ -271,11 +304,11 @@ describe("retrying", () => {
   });
 
   it("retries a write, because every write here is safe to repeat", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     const calls = stubSequence([fetchFailed(), answer(204, undefined)]);
 
     await withoutWaiting(() =>
-      asc.post("/v1/betaGroups/g1/relationships/builds", {
+      appleAppStoreConnect.post("/v1/betaGroups/g1/relationships/builds", {
         body: { data: [{ type: "builds", id: "b1" }] },
       }),
     );
@@ -286,25 +319,25 @@ describe("retrying", () => {
   });
 
   it("waits out a 503, which is Apple saying 'not now'", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     const calls = stubSequence([
       answer(503, undefined),
       answer(200, { data: [] }),
     ]);
 
-    await withoutWaiting(() => asc.get("/v1/builds"));
+    await withoutWaiting(() => appleAppStoreConnect.get("/v1/builds"));
     expect(calls).toHaveLength(2);
   });
 
   it("obeys Retry-After when Apple throttles, over its own backoff", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     const calls = stubSequence([
       answer(429, { errors: [{ code: "RATE_LIMIT" }] }, { "retry-after": "3" }),
       answer(200, { data: [] }),
     ]);
 
     vi.useFakeTimers();
-    const pending = asc.get("/v1/builds").then(
+    const pending = appleAppStoreConnect.get("/v1/builds").then(
       (value) => ({ value }),
       (error) => ({ error }),
     );
@@ -320,12 +353,12 @@ describe("retrying", () => {
   });
 
   it("gives up rather than hammering, and reports what actually failed", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     const calls = stubSequence([fetchFailed()]);
 
-    const error = await withoutWaiting(() => asc.get("/v1/apps")).catch(
-      (caught) => caught,
-    );
+    const error = await withoutWaiting(() =>
+      appleAppStoreConnect.get("/v1/apps"),
+    ).catch((caught) => caught);
 
     // Four attempts total — the first plus one per backoff step.
     expect(calls).toHaveLength(4);
@@ -334,7 +367,7 @@ describe("retrying", () => {
   });
 
   it("does not repeat a verdict", async () => {
-    const asc = retryingClient();
+    const appleAppStoreConnect = retryingClient();
     // A wrong key role is a 403 forever; trying it four times only wastes a release.
     const calls = stubSequence([
       answer(403, {
@@ -347,21 +380,23 @@ describe("retrying", () => {
       }),
     ]);
 
-    const error = await withoutWaiting(() => asc.get("/v1/apps")).catch(
-      (caught) => caught,
-    );
+    const error = await withoutWaiting(() =>
+      appleAppStoreConnect.get("/v1/apps"),
+    ).catch((caught) => caught);
 
     expect(calls).toHaveLength(1);
-    expect(error).toBeInstanceOf(AscError);
+    expect(error).toBeInstanceOf(AppleAppStoreConnectError);
     expect(error.status).toBe(403);
   });
 
   it("says so out loud, so a paused release does not read as a hang", async () => {
     const said = [];
-    const asc = retryingClient((message) => said.push(message));
+    const appleAppStoreConnect = retryingClient((message) =>
+      said.push(message),
+    );
     stubSequence([fetchFailed(), answer(200, { data: [] })]);
 
-    await withoutWaiting(() => asc.get("/v1/apps"));
+    await withoutWaiting(() => appleAppStoreConnect.get("/v1/apps"));
 
     expect(said).toHaveLength(1);
     expect(said[0]).toContain("GET /v1/apps");
