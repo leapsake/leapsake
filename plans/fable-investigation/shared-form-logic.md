@@ -33,24 +33,36 @@ is where the shared half of this belongs.
 
 ## The pattern
 
-One hook per form in `packages/ui/src/headless/forms/`, returning `{ fields, errors, set,
-submit, canSubmit }` over plain values. It owns:
+**Decided (owner, 2026-09-26): progressive enhancement, and presentational components apart
+from stateful ones.** A web form must work in a client with no JavaScript, even though
+Electron and React Native always have it: that is what lets `packages/ui/src/web` serve a
+future web client and desktop alike, and lets every platform share the hooks. So a web form
+posts named fields to its route through the adapter's real `<form>` (never JSON), and the
+route's action validates on its own, because without JS nothing else has checked.
 
-- initial state from the entity being edited (or the create defaults),
-- every `useState` the two components currently split,
-- validation, using the `schema` Zod inputs so the form and the repo agree,
-- the shape handed to `CoreApi` on submit.
+Four pieces per form:
 
-It must not own: any string a user reads (the catalog in `@leapsake/ui/messages` does),
-anything that imports `react-native` or the DOM, or any `CoreApi` call. Submit returns the
-input; the platform component calls core. That keeps the hook testable with
-`@testing-library/react`'s `renderHook` in the existing `ui` test setup, once, with no
-platform.
+1. **A pure shaping function** in `schema`, next to the entity: a draft of plain strings in,
+   `{ ok: true, input, … }` or `{ ok: false, errors }` out, where `input` is what `CoreApi`
+   takes and each error is a **code**, never a sentence. Both the hook and desktop's router
+   action call it, so trimming, blanks-to-null and validation exist once.
+2. **A headless hook** in `packages/ui/src/headless/forms/`, returning `{ fields, errors, set,
+   submit, canSubmit }`. It holds the draft (initial state from the entity being edited, or
+   the create defaults) and calls the shaping function. It is the enhancement: with JS, Save
+   disables until the draft is valid. It owns no user-visible string, imports neither
+   `react-native` nor the DOM, and calls no `CoreApi`.
+3. **A stateless presentational `*Fields` per platform**: values, setters and error codes in
+   as props, markup out. On web every input keeps its `name`, so the post works with no JS.
+4. **A thin stateful `*Form` wrapper per platform**: calls the hook and hands its result to
+   the fields, with no styling or markup primitives of its own. On web it frames the fields
+   in `FormShell`; on mobile it declares the header's Save and gives `submit()`'s value to
+   the screen, which calls core.
 
-The composer draft is the reference: `schema/composer-draft.ts` holds the pure model,
-`ChipTextField` on each platform holds only what the platform's text input needs. Follow that
-split for the rest: if a piece of form logic can be a pure function over a draft, put it in
-`schema` or `view-models`; if it needs React state, it is a headless hook.
+Desktop's router action keeps reading `FormData` (every `FormData` parse stays with the app,
+per `packages/ui/README.md`), but only to rebuild the draft it hands the shaping function.
+
+The composer draft is the reference for the pure half: `schema/composer-draft.ts` holds the
+model, `ChipTextField` on each platform holds only what the platform's text input needs.
 
 ## Steps, each a commit
 
