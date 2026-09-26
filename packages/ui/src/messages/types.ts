@@ -308,6 +308,8 @@ export interface Messages {
     notesPlaceholder: string;
     tags: string;
     tagsPlaceholder: string;
+    /** Shown when Save is pressed with no title. */
+    titleRequired: string;
   };
 
   reminderForm: {

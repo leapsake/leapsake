@@ -8,10 +8,19 @@ import type {
 } from "@leapsake/schema";
 import { useGiftIdeaForm } from "@leapsake/ui/headless";
 import { ChipTextField } from "./ChipTextField";
-import { HeaderSave } from "./HeaderSave";
+import { useHeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
 
 type GiftIdeaSubmit = Extract<GiftIdeaDraftResult, { ok: true }>;
+
+const TEXT = {
+  title: "Title",
+  link: "Link",
+  notes: "Notes",
+  tags: "Tags",
+  tagsHint: "Space-separated — each word is a tag.",
+  titleRequired: "Give the gift idea a title before saving.",
+};
 
 /**
  * The edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
@@ -35,6 +44,11 @@ export function GiftIdeaForm({
 }) {
   const form = useGiftIdeaForm(idea, tagNames);
   const [submitting, setSubmitting] = useState(false);
+  const headerRight = useHeaderSave({
+    problem: form.errors.title === "required" ? TEXT.titleRequired : undefined,
+    saving: submitting,
+    onPress: () => void handleSubmit(),
+  });
 
   async function handleSubmit() {
     const shaped = form.submit();
@@ -49,18 +63,7 @@ export function GiftIdeaForm({
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title,
-          headerRight: () => (
-            <HeaderSave
-              canSave={form.canSubmit && !submitting}
-              saving={submitting}
-              onPress={() => void handleSubmit()}
-            />
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title, headerRight }} />
       <GiftIdeaFields fields={form.fields} set={form.set} />
     </>
   );
@@ -77,7 +80,7 @@ export function GiftIdeaFields({
   return (
     <View style={styles.section}>
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Title</Text>
+        <Text style={styles.fieldLabel}>{TEXT.title}</Text>
         <TextInput
           style={styles.input}
           value={fields.title}
@@ -86,7 +89,7 @@ export function GiftIdeaFields({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Link</Text>
+        <Text style={styles.fieldLabel}>{TEXT.link}</Text>
         <TextInput
           style={styles.input}
           value={fields.url}
@@ -98,7 +101,7 @@ export function GiftIdeaFields({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Notes</Text>
+        <Text style={styles.fieldLabel}>{TEXT.notes}</Text>
         <TextInput
           style={[styles.input, { minHeight: 88, textAlignVertical: "top" }]}
           value={fields.notes}
@@ -108,14 +111,14 @@ export function GiftIdeaFields({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Tags</Text>
+        <Text style={styles.fieldLabel}>{TEXT.tags}</Text>
         <ChipTextField
           grammar="tags"
           style={styles.input}
           value={fields.tags}
           onChangeText={(text) => set("tags", text)}
         />
-        <Text style={styles.muted}>Space-separated — each word is a tag.</Text>
+        <Text style={styles.muted}>{TEXT.tagsHint}</Text>
       </View>
     </View>
   );

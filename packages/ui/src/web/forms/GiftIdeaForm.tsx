@@ -7,7 +7,7 @@ import { StackedField } from "../primitives/Field.js";
 
 /**
  * The create/edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
- * {@link GiftIdeaFields}. With JS, Save waits for a title; without it, `required` does.
+ * {@link GiftIdeaFields}. `required` catches an empty title; a blank one, the hook.
  */
 export function GiftIdeaForm({
   idea,
@@ -33,7 +33,11 @@ export function GiftIdeaForm({
       submitLabel={m.common.save}
       cancelTo={cancelTo}
       submitting={submitting}
-      canSubmit={form.canSubmit}
+      problem={
+        form.errors.title === "required"
+          ? m.giftIdeaForm.titleRequired
+          : undefined
+      }
     >
       <GiftIdeaFields fields={form.fields} set={form.set} search={search} />
     </FormShell>

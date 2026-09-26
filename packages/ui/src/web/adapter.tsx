@@ -1,5 +1,6 @@
 import {
   type ComponentType,
+  type FormEvent,
   type ReactNode,
   createContext,
   useContext,
@@ -32,6 +33,8 @@ export interface UiLinkProps {
 export interface UiFormProps {
   method: "post";
   action?: string;
+  /** Runs before the post; `preventDefault()` stops it. */
+  onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
   children: ReactNode;
 }
 

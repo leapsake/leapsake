@@ -58,6 +58,22 @@ Four pieces per form:
    in `FormShell`; on mobile it declares the header's Save and gives `submit()`'s value to
    the screen, which calls core.
 
+**Decided (owner, 2026-09-26): Save is never disabled for being not ready.** It looks
+different until the draft is valid, and a press before then shows the reason in a native
+dialog: `showFormProblem` (web: `window.alert`; mobile: `Alert.alert`), the one place a
+Leapsake modal replaces later. The wrapper passes the reason as `FormShell`'s or
+`HeaderSave`'s `problem` prop, from a catalog message keyed by the hook's error code. Web
+inputs keep `required` (and the like) **with JS on too**, so the browser's own validation
+runs first and the alert covers only what HTML cannot express. As each form migrates,
+`canSubmit`/`canSave` leave it; when the last one has, delete them. The two gates outside
+these forms (`MilestoneForm`'s month-dependent day picker on web, `ImportReview`'s commit)
+are a separate commit.
+
+**Open: disabling while a save is in flight.** Kept for now. The guidance found leans
+against `disabled` there too (it drops focus, which strands keyboard and screen-reader
+users) in favour of a focusable button that shows progress and ignores repeat presses, as
+GOV.UK's `preventDoubleClick` does. Decide before the last form migrates.
+
 Desktop's router action keeps reading `FormData` (every `FormData` parse stays with the app,
 per `packages/ui/README.md`), but only to rebuild the draft it hands the shaping function.
 

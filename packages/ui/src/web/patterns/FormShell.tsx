@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
+import styles from "./FormShell.module.css";
+import { showFormProblem } from "./form-problem.js";
 
 /**
  * The frame every create/edit form shares: a posting `<form>`, a `<fieldset>`
@@ -25,6 +27,7 @@ export function FormShell({
   cancelTo,
   submitting,
   canSubmit = true,
+  problem,
   beforeFields,
   children,
 }: {
@@ -33,8 +36,13 @@ export function FormShell({
   submitLabel: string;
   cancelTo: string;
   submitting: boolean;
-  /** False while the form's own rules say it isn't ready to send. */
+  /** False while the form's own rules say it isn't ready to send. Disables Save. */
   canSubmit?: boolean;
+  /**
+   * Why the form isn't ready, if it isn't. Save stays pressable and says this when
+   * pressed; replaces `canSubmit` as each form moves to its hook.
+   */
+  problem?: string;
   /**
    * Content between the form and its fieldset — in practice, hidden inputs
    * carrying values resolved from what the user typed. They sit outside the
@@ -47,13 +55,25 @@ export function FormShell({
   const m = useMessages();
 
   const cancel = <Link href={cancelTo}>{m.common.cancel}</Link>;
+  const blocked = problem === undefined && !canSubmit;
+  const saveClass = problem === undefined ? undefined : styles.notReady;
+
+  function refuseIfNotReady(event: FormEvent<HTMLFormElement>) {
+    if (problem === undefined) return;
+    event.preventDefault();
+    showFormProblem(problem);
+  }
 
   return (
-    <Form method="post">
+    <Form method="post" onSubmit={refuseIfNotReady}>
       {title !== undefined && (
         <header>
           <h1>{title}</h1>
-          <button type="submit" disabled={submitting || !canSubmit}>
+          <button
+            type="submit"
+            className={saveClass}
+            disabled={submitting || blocked}
+          >
             {submitLabel}
           </button>{" "}
           {cancel}
@@ -64,7 +84,7 @@ export function FormShell({
         {children}
         {title === undefined && (
           <p>
-            <button type="submit" disabled={!canSubmit}>
+            <button type="submit" className={saveClass} disabled={blocked}>
               {submitLabel}
             </button>{" "}
             {cancel}

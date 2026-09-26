@@ -166,19 +166,35 @@ describe("GiftIdeaForm", () => {
     expect(screen.getByLabelText("Tags")).toHaveProperty("value", "#books");
   });
 
-  it("holds Save until the title has more than blanks", () => {
+  it("never disables Save, and explains a press before there is a title", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    // Below the React root, so it records whether the form stopped the post.
+    const stopped: boolean[] = [];
+    const record = (e: Event) => {
+      stopped.push(e.defaultPrevented);
+      e.preventDefault();
+    };
+    document.addEventListener("submit", record);
     renderWithUi(<GiftIdeaForm search={noSearch} submitting={false} />);
     const save = screen.getByRole("button", { name: "Save" });
 
-    expect(save).toHaveProperty("disabled", true);
+    expect(save).toHaveProperty("disabled", false);
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "  " },
     });
-    expect(save).toHaveProperty("disabled", true);
+    fireEvent.click(save);
+    expect(alert).toHaveBeenCalledWith(
+      "Give the gift idea a title before saving.",
+    );
+
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Kite" },
     });
-    expect(save).toHaveProperty("disabled", false);
+    fireEvent.click(save);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(stopped).toEqual([true, false]);
+    document.removeEventListener("submit", record);
+    alert.mockRestore();
   });
 
   it("returns to the gift list unless told otherwise", () => {

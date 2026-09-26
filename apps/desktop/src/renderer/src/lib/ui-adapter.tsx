@@ -11,8 +11,8 @@ export const desktopUiAdapter: UiAdapter = {
       {children}
     </Link>
   ),
-  Form: ({ method, action, children }) => (
-    <Form method={method} action={action}>
+  Form: ({ method, action, onSubmit, children }) => (
+    <Form method={method} action={action} onSubmit={onSubmit}>
       {children}
     </Form>
   ),

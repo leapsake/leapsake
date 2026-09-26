@@ -319,6 +319,7 @@ export const en: Messages = {
     notesPlaceholder: "inscribe it: no man is a failure who has friends",
     tags: "Tags",
     tagsPlaceholder: "#books #kitchen",
+    titleRequired: "Give the gift idea a title before saving.",
   },
 
   reminderForm: {

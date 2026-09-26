@@ -1,6 +1,16 @@
 import { type ReactElement, useCallback, useEffect, useRef } from "react";
 import { Pressable, Text } from "react-native";
+import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
+
+interface SaveProps {
+  /** False disables Save; being replaced by `problem` as each form moves to its hook. */
+  canSave?: boolean;
+  /** Why the form isn't ready. Save stays pressable and says this when pressed. */
+  problem?: string;
+  saving: boolean;
+  onPress: () => void;
+}
 
 /**
  * The **Save** action that every entity form now carries in its header, replacing
@@ -16,22 +26,20 @@ import { styles } from "../lib/styles";
  * moves as the form becomes valid.
  */
 export function HeaderSave({
-  canSave,
+  canSave = true,
+  problem,
   saving,
   onPress,
-}: {
-  canSave: boolean;
-  saving: boolean;
-  onPress: () => void;
-}) {
+}: SaveProps) {
+  const faded = !canSave || saving || problem !== undefined;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !canSave || saving }}
       disabled={!canSave || saving}
-      onPress={onPress}
+      onPress={problem === undefined ? onPress : () => showFormProblem(problem)}
     >
-      <Text style={[styles.link, (!canSave || saving) && { opacity: 0.4 }]}>
+      <Text style={[styles.link, faded && { opacity: 0.4 }]}>
         {saving ? "Saving…" : "Save"}
       </Text>
     </Pressable>
@@ -60,13 +68,10 @@ export function HeaderSave({
  */
 export function useHeaderSave({
   canSave,
+  problem,
   saving,
   onPress,
-}: {
-  canSave: boolean;
-  saving: boolean;
-  onPress: () => void;
-}): () => ReactElement {
+}: SaveProps): () => ReactElement {
   const latest = useRef(onPress);
   useEffect(() => {
     latest.current = onPress;
@@ -76,10 +81,11 @@ export function useHeaderSave({
     () => (
       <HeaderSave
         canSave={canSave}
+        problem={problem}
         saving={saving}
         onPress={() => latest.current()}
       />
     ),
-    [canSave, saving],
+    [canSave, problem, saving],
   );
 }

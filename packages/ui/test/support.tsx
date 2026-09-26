@@ -15,8 +15,8 @@ export const testAdapter: UiAdapter = {
       {children}
     </a>
   ),
-  Form: ({ method, action, children }) => (
-    <form method={method} action={action}>
+  Form: ({ method, action, onSubmit, children }) => (
+    <form method={method} action={action} onSubmit={onSubmit}>
       {children}
     </form>
   ),
