@@ -40,13 +40,20 @@ describe("stageSigningIdentity", () => {
   let env;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "leapsake-signing-"));
-    for (const name of ["dist.p12", "password", "dist.mobileprovision"]) {
+    for (const name of [
+      "distribution.p12",
+      "password",
+      "distribution.mobileprovision",
+    ]) {
       writeFileSync(join(dir, name), name === "password" ? "hunter2\n" : "x");
     }
     env = {
-      IOS_DIST_CERT_P12_PATH: join(dir, "dist.p12"),
-      IOS_DIST_CERT_PASSWORD_PATH: join(dir, "password"),
-      IOS_PROVISIONING_PROFILE_PATH: join(dir, "dist.mobileprovision"),
+      APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH: join(dir, "distribution.p12"),
+      APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH: join(dir, "password"),
+      APPLE_IOS_PROVISIONING_PROFILE_PATH: join(
+        dir,
+        "distribution.mobileprovision",
+      ),
     };
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -80,7 +87,7 @@ describe("stageSigningIdentity", () => {
     const imported = security.calls.find((args) => args[0] === "import");
     expect(imported.slice(0, 2)).toEqual([
       "import",
-      env.IOS_DIST_CERT_P12_PATH,
+      env.APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH,
     ]);
     expect(imported[imported.indexOf("-P") + 1]).toBe("hunter2");
     expect(imported).toContain("/usr/bin/codesign");
@@ -110,7 +117,7 @@ describe("stageSigningIdentity", () => {
 
   it("refuses a half-configured runner before touching the keychain", () => {
     const security = fakeSecurity();
-    delete env.IOS_PROVISIONING_PROFILE_PATH;
+    delete env.APPLE_IOS_PROVISIONING_PROFILE_PATH;
 
     expect(() => stage(security)).toThrow(/go together/);
     expect(security.calls).toEqual([]);
@@ -121,11 +128,12 @@ describe("signingFilesProblem", () => {
   it("names a path that points at nothing", () => {
     expect(
       signingFilesProblem({
-        IOS_DIST_CERT_P12_PATH: "/nowhere/dist.p12",
-        IOS_DIST_CERT_PASSWORD_PATH: "/nowhere/password",
-        IOS_PROVISIONING_PROFILE_PATH: "/nowhere/dist.mobileprovision",
+        APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH: "/nowhere/distribution.p12",
+        APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH: "/nowhere/password",
+        APPLE_IOS_PROVISIONING_PROFILE_PATH:
+          "/nowhere/distribution.mobileprovision",
       }),
-    ).toBe("IOS_DIST_CERT_P12_PATH names no file");
+    ).toBe("APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH names no file");
   });
 });
 

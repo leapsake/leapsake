@@ -483,10 +483,10 @@ Script pieces first, each testable without a runner. **Both landed 2026-09-24**
 (`targets/ios-signing.mjs`, `materialize.mjs`); the keychain import has not yet run against
 a real `.p12`.
 
-1. **Keychain import in the iOS target.** When `IOS_DIST_CERT_P12_PATH` and
-   `IOS_DIST_CERT_PASSWORD_PATH` are set: create a temporary keychain, import the `.p12`, set the
-   partition list, add it to the search list, copy `IOS_PROVISIONING_PROFILE_PATH` into
-   `~/Library/MobileDevice/Provisioning Profiles/`. Tear down after the export. When they are not
+1. **Keychain import in the iOS target.** When `APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH` and
+   `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH` are set: create a temporary keychain, import
+   the `.p12`, set the partition list, add it to the search list, copy
+   `APPLE_IOS_PROVISIONING_PROFILE_PATH` into `~/Library/MobileDevice/Provisioning Profiles/`. Tear down after the export. When they are not
    set (a local machine), today's behaviour. Add the three variables to `.env.example` under iOS.
 2. **Secrets as files.** A runner holds secrets as strings; the scripts want paths. One small
    command, `pnpm release materialize --into=<dir>`, reads `LEAPSAKE_SECRET_<NAME>_B64` variables,
@@ -516,7 +516,7 @@ cut $CHANNEL --push`. For `final` it needs the App Store Connect read credential
 **What only the owner can supply**, before `release.yml` can ship anything: the repo's Actions
 secrets, one `LEAPSAKE_SECRET_<NAME>_B64` per credential file (`.env.example` → _On a runner_
 lists them), plus `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
-`APPLE_APP_STORE_CONNECT_BETA_GROUP`, `APPLE_TEAM_ID`, `IOS_PROVISIONING_PROFILE` and
+`APPLE_APP_STORE_CONNECT_BETA_GROUP`, `APPLE_TEAM_ID`, `APPLE_IOS_PROVISIONING_PROFILE` and
 `GOOGLE_PLAY_UPLOAD_KEY_ALIAS` as plain values. The iOS distribution identity has to be exported from the login keychain as a `.p12` with a password,
 and the profile downloaded as a `.mobileprovision`; neither exists as a file today.
 

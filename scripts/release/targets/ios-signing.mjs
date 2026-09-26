@@ -19,9 +19,9 @@ const PROFILE_DIRS = [
 ];
 
 const SIGNING_FILES = [
-  "IOS_DIST_CERT_P12_PATH",
-  "IOS_DIST_CERT_PASSWORD_PATH",
-  "IOS_PROVISIONING_PROFILE_PATH",
+  "APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH",
+  "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH",
+  "APPLE_IOS_PROVISIONING_PROFILE_PATH",
 ];
 
 /** Why the runner signing files are unusable, or undefined when all or none are set. */

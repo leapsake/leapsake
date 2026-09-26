@@ -11,19 +11,19 @@ export const SECRETS = [
     pathVar: "APPLE_APP_STORE_CONNECT_KEY_PATH",
   },
   {
-    name: "IOS_DIST_CERT_P12",
-    file: "ios-distribution.p12",
-    pathVar: "IOS_DIST_CERT_P12_PATH",
+    name: "APPLE_DISTRIBUTION_CERTIFICATE_P12",
+    file: "apple-distribution.p12",
+    pathVar: "APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH",
   },
   {
-    name: "IOS_DIST_CERT_PASSWORD",
-    file: "ios-distribution-password",
-    pathVar: "IOS_DIST_CERT_PASSWORD_PATH",
+    name: "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD",
+    file: "apple-distribution-password",
+    pathVar: "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH",
   },
   {
-    name: "IOS_PROVISIONING_PROFILE",
-    file: "ios-distribution.mobileprovision",
-    pathVar: "IOS_PROVISIONING_PROFILE_PATH",
+    name: "APPLE_IOS_PROVISIONING_PROFILE",
+    file: "apple-ios-distribution.mobileprovision",
+    pathVar: "APPLE_IOS_PROVISIONING_PROFILE_PATH",
   },
   {
     name: "GOOGLE_PLAY_UPLOAD_KEYSTORE",

@@ -120,7 +120,7 @@ const exportCompliance = {
 const signing = [
   envSet("APPLE_TEAM_ID", "the archive passes it as DEVELOPMENT_TEAM"),
   envSet(
-    "IOS_PROVISIONING_PROFILE",
+    "APPLE_IOS_PROVISIONING_PROFILE",
     "manual signing needs an explicit App Store distribution profile name",
   ),
   { name: "runner signing files", check: () => signingFilesProblem() },
@@ -1169,7 +1169,7 @@ export default {
     const mobile = MOBILE(root);
     const buildDir = join(mobile, "build");
     const teamId = process.env.APPLE_TEAM_ID.trim();
-    const profile = process.env.IOS_PROVISIONING_PROFILE.trim();
+    const profile = process.env.APPLE_IOS_PROVISIONING_PROFILE.trim();
 
     const config = pinnedConfig(mobile);
     const buildNumber = config.ios?.buildNumber;
