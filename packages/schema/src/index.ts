@@ -291,6 +291,10 @@ export {
   datePrecisionOf,
   formatMilestoneDate,
   milestoneLabel,
+  milestoneDraftOf,
+  milestoneDraftWithKind,
+  milestoneDraftWithSchedule,
+  milestoneInputOf,
 } from "./milestone.js";
 export type {
   MilestoneBearerType,
@@ -305,6 +309,9 @@ export type {
   CreateMilestoneInput,
   UpdateMilestoneInput,
   DatePrecision,
+  MilestoneDraft,
+  MilestoneDraftErrors,
+  MilestoneDraftResult,
 } from "./milestone.js";
 export {
   contactOwnerTypeSchema,

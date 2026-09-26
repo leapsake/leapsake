@@ -297,6 +297,14 @@ export interface Messages {
     noteLabel: string;
     notePlaceholder: string;
     dayNeedsMonth: string;
+    /** Shown when Save is pressed with a year that isn't a whole number. */
+    dateOutOfRange: string;
+    /** Shown when Save is pressed on an “Other” milestone with no label. */
+    labelRequired: string;
+    /** Shown when Save is pressed with an “Other” reminder that has no label. */
+    reminderLabelRequired: string;
+    /** Shown when Save is pressed before the “with whom?” person is chosen. */
+    withWhomRequired: string;
   };
 
   giftIdeaForm: {

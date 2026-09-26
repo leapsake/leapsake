@@ -1,39 +1,23 @@
-import { useEffect, useRef, useState } from "react";
-import { ScrollView } from "react-native";
+import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
-import {
-  type Milestone,
-  type MilestoneBearerType,
-  type MilestoneKind,
-  resolveReminderSchedule,
+import type {
+  Milestone,
+  MilestoneBearerType,
+  MilestoneDraftResult,
+  MilestoneKind,
 } from "@leapsake/schema";
-import { HeaderSave } from "./HeaderSave";
-import {
-  type MilestoneFormValue,
-  MilestoneFields,
-  emptyMilestoneDraft,
-  milestoneDraftFrom,
-  milestoneDraftToValue,
-  milestoneDraftValid,
-} from "./MilestoneFields";
+import { useMilestoneForm } from "@leapsake/ui/headless";
+import { useHeaderSave } from "./HeaderSave";
+import { MilestoneFields, milestoneProblem } from "./MilestoneFields";
 import { useCore } from "../lib/core-context";
-import { styles } from "../lib/styles";
+
+type MilestoneSubmit = Extract<MilestoneDraftResult, { ok: true }>;
 
 /**
- * A milestone on a screen of its own — the add and edit routes a relationship's
- * page pushes to, which are the last places a milestone is authored anywhere but
- * on an entity form. It is {@link MilestoneFields} plus the two things a screen
- * owes: the native header (title and a right-aligned {@link HeaderSave}) and the
- * scroll view. There is no Cancel — "‹ Back" already leaves.
- *
- * The entity form stages milestones instead ({@link StagedMilestonesSection}),
- * where the fields are open and live and the form's own Save writes them. This is
- * the same fields with a Save of its own, because a relationship's milestones have
- * no such form to sit inside.
- *
- * Editing loads the milestone's stored reminder schedule, once, and only over a
- * schedule the user hasn't already touched — the draft opens on the kind's
- * defaults, which is the right answer if the load never lands.
+ * A milestone on a screen of its own, the add and edit routes a relationship's
+ * page pushes to: {@link useMilestoneForm}'s draft rendered by
+ * {@link MilestoneFields}, with Save in the native header. The screen owns the
+ * core call. The entity form stages milestones instead ({@link StagedMilestonesSection}).
  */
 export function MilestoneForm({
   title,
@@ -46,54 +30,46 @@ export function MilestoneForm({
   title?: string;
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
-  /**
-   * The kind to open on when creating. A partnership question sends the user
-   * here to answer *that* date, and a blank kind picker would hand the question
-   * straight back. Ignored when editing.
-   */
+  /** The kind to open on when creating, where the caller knows which is wanted. */
   initialKind?: MilestoneKind;
-  onSubmit: (value: MilestoneFormValue) => Promise<void>;
+  onSubmit: (input: MilestoneSubmit["input"]) => Promise<void>;
 }) {
   const core = useCore();
-  const [draft, setDraft] = useState(() =>
-    milestone === undefined
-      ? emptyMilestoneDraft(bearerType, initialKind)
-      : // Its kind's defaults until the stored rules land below — the right
-        // answer if they never do.
-        milestoneDraftFrom(
-          milestone,
-          resolveReminderSchedule(milestone.kind, []).rules,
-        ),
-  );
+  const form = useMilestoneForm({ bearerType, milestone, kind: initialKind });
   const [submitting, setSubmitting] = useState(false);
-  const hydratedRef = useRef(false);
+  const headerRight = useHeaderSave({
+    problem: milestoneProblem(form.errors),
+    saving: submitting,
+    onPress: () => void handleSubmit(),
+  });
 
+  const { update } = form;
+  const savedId = milestone?.id;
+  const savedKind = milestone?.kind;
+  // Loads the saved milestone's stored schedule over the kind's defaults, unless
+  // the user has already edited the schedule.
   useEffect(() => {
-    if (milestone === undefined || hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (savedId === undefined || savedKind === undefined) return;
     let active = true;
-    void core.milestones
-      .reminderSchedule(milestone.id, milestone.kind)
-      .then((loaded) => {
-        if (!active) return;
-        setDraft((current) =>
-          current.scheduleCustomized
-            ? current
-            : { ...current, reminderSchedule: loaded },
-        );
-      });
+    void core.milestones.reminderSchedule(savedId, savedKind).then((loaded) => {
+      if (!active) return;
+      update((draft) =>
+        draft.scheduleCustomized
+          ? draft
+          : { ...draft, reminderSchedule: loaded },
+      );
+    });
     return () => {
       active = false;
     };
-  }, [core, milestone]);
-
-  const canSubmit = !submitting && milestoneDraftValid(draft);
+  }, [core, savedId, savedKind, update]);
 
   async function handleSubmit() {
-    if (!canSubmit) return;
+    const shaped = form.submit();
+    if (shaped === null || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(milestoneDraftToValue(draft));
+      await onSubmit(shaped.input);
     } finally {
       setSubmitting(false);
     }
@@ -101,28 +77,14 @@ export function MilestoneForm({
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title,
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSubmit}
-              saving={submitting}
-              onPress={() => void handleSubmit()}
-            />
-          ),
-        }}
+      <Stack.Screen options={{ title, headerRight }} />
+      <MilestoneFields
+        scroll
+        draft={form.fields}
+        onChange={(draft) => update(() => draft)}
+        errors={form.errors}
+        bearerType={bearerType}
       />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
-        <MilestoneFields
-          draft={draft}
-          onChange={setDraft}
-          bearerType={bearerType}
-        />
-      </ScrollView>
     </>
   );
 }

@@ -1,27 +1,25 @@
 import {
   type ContactMethodKind,
-  type CreateMilestoneInput,
   type CreatePersonInput,
   type CreatePetInput,
   type EntityType,
   type Gender,
   type GiftIdeaDraft,
   type ReminderDraft,
+  type MilestoneDraft,
   type MilestoneKind,
   type MilestoneBearerType,
   type RelationshipRole,
   type ReminderRuleInput,
-  type UpdateMilestoneInput,
-  createMilestoneInputSchema,
   createRelationshipInputSchema,
   fullName,
   giftIdeaInputOf,
+  milestoneInputOf,
   partsFromIso,
   isReminderEditable,
   parseTagNames,
   preferredBearerType,
   reminderInputOf,
-  updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { findPlatform, normalizeFor } from "@leapsake/contact-links";
@@ -117,12 +115,6 @@ function readNote(formData: FormData, key: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Parse one milestone date part from the form: blank means absent (null). */
-function readDatePart(formData: FormData, key: string): number | null {
-  const value = String(formData.get(key) ?? "").trim();
-  return value === "" ? null : Number(value);
-}
-
 /**
  * The hidden JSON reminder-schedule field: absent leaves the stored rules
  * alone, and an array (even empty) replaces them.
@@ -136,15 +128,17 @@ function readReminderSchedule(
   return Array.isArray(parsed) ? (parsed as ReminderRuleInput[]) : undefined;
 }
 
-/** The editable milestone fields: kind, partial date, note and reminders. */
-function readMilestoneFields(formData: FormData) {
+/** The milestone draft as posted, its reminder schedule parsed from JSON. */
+function readMilestoneDraft(formData: FormData): MilestoneDraft {
+  const text = (key: string) => String(formData.get(key) ?? "");
   return {
-    kind: String(formData.get("kind")) as MilestoneKind,
-    year: readDatePart(formData, "year"),
-    month: readDatePart(formData, "month"),
-    day: readDatePart(formData, "day"),
-    note: readNote(formData, "note"),
-    reminderSchedule: readReminderSchedule(formData),
+    kind: text("kind") as MilestoneKind,
+    month: text("month"),
+    day: text("day"),
+    year: text("year"),
+    note: text("note"),
+    reminderSchedule: readReminderSchedule(formData) ?? [],
+    scheduleCustomized: false,
   };
 }
 
@@ -458,14 +452,15 @@ async function resolveWithWhom(
 
 /**
  * The bearer comes from the route, except for a relationship kind added from a
- * Person; there, no "with whom?" answer cancels the add.
+ * Person; there, no "with whom?" answer cancels the add. So does a bad draft.
  */
-
 function milestoneCreateAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
     const formData = await request.formData();
-    const fields = readMilestoneFields(formData);
+    const shaped = milestoneInputOf(readMilestoneDraft(formData));
+    if (!shaped.ok) return redirect(`${entityBasePath(bearerType)}/${id}`);
+    const fields = shaped.input;
 
     let bearer: { bearerType: MilestoneBearerType; bearerId: string } = {
       bearerType,
@@ -480,11 +475,7 @@ function milestoneCreateAction(bearerType: MilestoneBearerType) {
       bearer = resolved;
     }
 
-    const input: CreateMilestoneInput = createMilestoneInputSchema.parse({
-      ...bearer,
-      ...fields,
-    });
-    await window.api.milestones.create(input);
+    await window.api.milestones.create({ ...bearer, ...fields });
     return redirect(`${entityBasePath(bearerType)}/${id}`);
   };
 }
@@ -514,11 +505,14 @@ function milestoneForBearerLoader(bearerType: MilestoneBearerType) {
 function milestoneEditAction(bearerType: MilestoneBearerType) {
   return async ({ request, params }: ActionFunctionArgs) => {
     const id = params.id as string;
-    const formData = await request.formData();
-    const input: UpdateMilestoneInput = updateMilestoneInputSchema.parse(
-      readMilestoneFields(formData),
+    const shaped = milestoneInputOf(
+      readMilestoneDraft(await request.formData()),
     );
-    await window.api.milestones.update(params.milestoneId as string, input);
+    if (shaped.ok)
+      await window.api.milestones.update(
+        params.milestoneId as string,
+        shaped.input,
+      );
     return redirect(`${entityBasePath(bearerType)}/${id}`);
   };
 }

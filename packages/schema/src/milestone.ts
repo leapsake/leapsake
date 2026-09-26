@@ -552,6 +552,20 @@ const reminderScheduleShape = {
   reminderSchedule: z.array(reminderRuleInputSchema).optional(),
 };
 
+const dayImpliesMonthIssue = {
+  message: "a day requires a month (no lone day, no year+day)",
+  path: ["day"],
+};
+
+/** A milestone's own fields, everything but its bearer: what a form writes. */
+export const milestoneFieldsInputSchema = z
+  .object({
+    kind: milestoneKindSchema,
+    ...datePartsShape,
+    ...reminderScheduleShape,
+  })
+  .refine(dayImpliesMonth, dayImpliesMonthIssue);
+
 /** The bearer + kind + partial date accepted when creating a milestone. */
 export const createMilestoneInputSchema = z
   .object({
@@ -561,10 +575,7 @@ export const createMilestoneInputSchema = z
     ...datePartsShape,
     ...reminderScheduleShape,
   })
-  .refine(dayImpliesMonth, {
-    message: "a day requires a month (no lone day, no year+day)",
-    path: ["day"],
-  })
+  .refine(dayImpliesMonth, dayImpliesMonthIssue)
   .refine((m) => kindAllowsBearer(m.kind, m.bearerType), {
     message: "bearerType is not allowed to hold this milestone kind",
     path: ["bearerType"],
@@ -585,6 +596,130 @@ export const updateMilestoneInputSchema = z.object({
 });
 
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>;
+
+/** A milestone as a form holds it: the date parts as typed, nothing parsed. */
+export interface MilestoneDraft {
+  kind: MilestoneKind;
+  month: string;
+  day: string;
+  year: string;
+  note: string;
+  reminderSchedule: ReminderRuleInput[];
+  /**
+   * Whether the schedule is the user's rather than the kind's defaults, which a
+   * kind change then leaves alone. Never written.
+   */
+  scheduleCustomized: boolean;
+}
+
+/** Why a milestone draft cannot be saved; the catalog owns each sentence. */
+export interface MilestoneDraftErrors {
+  date?: "dayWithoutMonth" | "outOfRange";
+  note?: "required";
+  reminderSchedule?: "labelRequired";
+  kind?: "invalid";
+}
+
+export type MilestoneDraftResult =
+  | {
+      ok: true;
+      input: {
+        kind: MilestoneKind;
+        year: number | null;
+        month: number | null;
+        day: number | null;
+        note: string | null;
+        reminderSchedule: ReminderRuleInput[];
+      };
+    }
+  | { ok: false; errors: MilestoneDraftErrors };
+
+/**
+ * The draft a form starts from: the milestone being edited, or blanks on the
+ * requested kind, else the bearer's first. The schedule defaults to the kind's.
+ */
+export function milestoneDraftOf({
+  bearerType,
+  milestone,
+  kind: requestedKind,
+  reminderSchedule,
+}: {
+  bearerType: MilestoneBearerType;
+  milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note">;
+  kind?: MilestoneKind;
+  reminderSchedule?: ReminderRuleInput[];
+}): MilestoneDraft {
+  const kind =
+    milestone?.kind ??
+    requestedKind ??
+    kindsForBearerType(bearerType)[0]?.kind ??
+    "birthday";
+  return {
+    kind,
+    month: milestone?.month?.toString() ?? "",
+    day: milestone?.day?.toString() ?? "",
+    year: milestone?.year?.toString() ?? "",
+    note: milestone?.note ?? "",
+    reminderSchedule:
+      reminderSchedule ?? resolveReminderSchedule(kind, []).rules,
+    scheduleCustomized: false,
+  };
+}
+
+/** A new kind, re-seeding the schedule from its defaults unless the user's. */
+export function milestoneDraftWithKind(
+  draft: MilestoneDraft,
+  kind: MilestoneKind,
+): MilestoneDraft {
+  return {
+    ...draft,
+    kind,
+    reminderSchedule: draft.scheduleCustomized
+      ? draft.reminderSchedule
+      : resolveReminderSchedule(kind, []).rules,
+  };
+}
+
+/** A schedule the user edited, which a kind change then leaves alone. */
+export function milestoneDraftWithSchedule(
+  draft: MilestoneDraft,
+  reminderSchedule: ReminderRuleInput[],
+): MilestoneDraft {
+  return { ...draft, reminderSchedule, scheduleCustomized: true };
+}
+
+const numberOrNull = (raw: string) =>
+  raw.trim() === "" ? null : Number(raw.trim());
+
+/**
+ * Parses the date parts, trims the note to null, and checks the result against
+ * {@link milestoneFieldsInputSchema}. An `other` milestone needs its note.
+ */
+export function milestoneInputOf(draft: MilestoneDraft): MilestoneDraftResult {
+  const note = draft.note.trim();
+  const input = {
+    kind: draft.kind,
+    year: numberOrNull(draft.year),
+    month: numberOrNull(draft.month),
+    day: numberOrNull(draft.day),
+    note: note === "" ? null : note,
+    reminderSchedule: draft.reminderSchedule,
+  };
+  const errors: MilestoneDraftErrors = {};
+  if (input.kind === "other" && input.note === null) errors.note = "required";
+  const parsed = milestoneFieldsInputSchema.safeParse(input);
+  for (const issue of parsed.error?.issues ?? []) {
+    const field = issue.path[0];
+    if (field === "kind") errors.kind = "invalid";
+    else if (field === "note") errors.note = "required";
+    else if (field === "reminderSchedule")
+      errors.reminderSchedule = "labelRequired";
+    else if (issue.code === "custom") errors.date = "dayWithoutMonth";
+    else errors.date ??= "outOfRange";
+  }
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, input };
+}
 
 /**
  * How much of a milestone's date is known. `year-month` is a month with or

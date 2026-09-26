@@ -5,9 +5,14 @@ import {
   formatMilestoneDate,
   kindDefs,
   kindsForBearerType,
+  milestoneDraftOf,
+  milestoneDraftWithKind,
+  milestoneDraftWithSchedule,
+  milestoneInputOf,
   milestoneLabel,
   milestoneSchema,
   preferredBearerType,
+  resolveReminderSchedule,
 } from "./milestone.js";
 
 const validMilestone = {
@@ -247,5 +252,110 @@ describe("the word anniversary", () => {
         if (/anniversary/i.test(text))
           expect(text).toMatch(/first date anniversary|anniversary of/);
     }
+  });
+});
+
+describe("a milestone draft", () => {
+  const blank = milestoneDraftOf({ bearerType: "pet" });
+  const other = { action: "other" as const, offsetDays: 3, enabled: true };
+
+  it("opens blank on the bearer's first kind, with that kind's schedule", () => {
+    expect(blank).toMatchObject({ kind: "birthday", month: "", note: "" });
+    expect(blank.reminderSchedule).toEqual(
+      resolveReminderSchedule("birthday", []).rules,
+    );
+  });
+
+  it("opens a saved milestone as it was saved", () => {
+    const draft = milestoneDraftOf({
+      bearerType: "person",
+      milestone: {
+        kind: "death",
+        year: 1946,
+        month: 12,
+        day: null,
+        note: null,
+      },
+      reminderSchedule: [],
+    });
+    expect(draft).toMatchObject({ month: "12", day: "", year: "1946" });
+    expect(draft.reminderSchedule).toEqual([]);
+  });
+
+  it("follows the kind's defaults until the user edits the schedule", () => {
+    const moved = milestoneDraftWithKind(blank, "death");
+    expect(moved.reminderSchedule).toEqual(
+      resolveReminderSchedule("death", []).rules,
+    );
+    const edited = milestoneDraftWithSchedule(moved, []);
+    expect(milestoneDraftWithKind(edited, "birthday").reminderSchedule).toEqual(
+      [],
+    );
+  });
+
+  it("parses the date parts and trims the note to null", () => {
+    expect(
+      milestoneInputOf({
+        ...blank,
+        month: "12",
+        day: " 24 ",
+        year: "",
+        note: "  ",
+        reminderSchedule: [],
+      }),
+    ).toEqual({
+      ok: true,
+      input: {
+        kind: "birthday",
+        year: null,
+        month: 12,
+        day: 24,
+        note: null,
+        reminderSchedule: [],
+      },
+    });
+  });
+
+  it("accepts a milestone with no date at all", () => {
+    expect(milestoneInputOf(blank).ok).toBe(true);
+  });
+
+  it("refuses a day with no month", () => {
+    expect(milestoneInputOf({ ...blank, day: "9" })).toEqual({
+      ok: false,
+      errors: { date: "dayWithoutMonth" },
+    });
+  });
+
+  it("refuses a part out of range or not a whole number", () => {
+    for (const parts of [
+      { month: "13" },
+      { month: "3", day: "32" },
+      { year: "19.5" },
+      { year: "soon" },
+    ]) {
+      expect(milestoneInputOf({ ...blank, ...parts })).toEqual({
+        ok: false,
+        errors: { date: "outOfRange" },
+      });
+    }
+  });
+
+  it("needs a label for an `other` milestone and for an `other` reminder", () => {
+    const draft = milestoneDraftWithSchedule(
+      milestoneDraftWithKind(blank, "other"),
+      [{ ...other, label: " " }],
+    );
+    expect(milestoneInputOf(draft)).toEqual({
+      ok: false,
+      errors: { note: "required", reminderSchedule: "labelRequired" },
+    });
+    expect(
+      milestoneInputOf({
+        ...draft,
+        note: "Adoption day",
+        reminderSchedule: [{ ...other, label: "Send flowers" }],
+      }).ok,
+    ).toBe(true);
   });
 });

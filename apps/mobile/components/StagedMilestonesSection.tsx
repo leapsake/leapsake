@@ -1,18 +1,14 @@
 import { Pressable, Text, View } from "react-native";
 import {
   type MilestoneBearerType,
+  type MilestoneDraft,
   formatMilestoneDate,
   kindDefs,
+  milestoneDraftOf,
+  milestoneInputOf,
   milestoneLabel,
 } from "@leapsake/schema";
-import {
-  type MilestoneDraft,
-  MilestoneFields,
-  emptyMilestoneDraft,
-  milestoneDraftEmpty,
-  milestoneDraftToValue,
-  milestoneDraftValid,
-} from "./MilestoneFields";
+import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
 import { styles } from "../lib/styles";
 
 /**
@@ -41,7 +37,7 @@ export function milestoneRowPending(row: StagedMilestone): boolean {
 
 /** Whether a row would either write cleanly or be skipped — the Save gate. */
 export function milestoneRowValid(row: StagedMilestone): boolean {
-  return milestoneRowPending(row) || milestoneDraftValid(row.draft);
+  return milestoneRowPending(row) || milestoneInputOf(row.draft).ok;
 }
 
 /**
@@ -79,10 +75,13 @@ export function StagedMilestonesSection({
       </View>
 
       {entries.map((entry) => {
-        const value = milestoneDraftToValue(entry.draft);
-        const label = milestoneLabel(value);
+        const shaped = milestoneInputOf(entry.draft);
+        const label = milestoneLabel({
+          kind: entry.draft.kind,
+          note: entry.draft.note.trim() || null,
+        });
         const icon = kindDefs[entry.draft.kind].icon;
-        const date = formatMilestoneDate(value);
+        const date = shaped.ok ? formatMilestoneDate(shaped.input) : "";
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
             {/* What the row is so far, next to the way out of it — the only
@@ -107,6 +106,7 @@ export function StagedMilestonesSection({
               collapseSchedule
               bearerType={bearerType}
               draft={entry.draft}
+              errors={shaped.ok ? {} : shaped.errors}
               onChange={(draft) =>
                 onChange(
                   entries.map((e) =>
@@ -130,7 +130,7 @@ export function StagedMilestonesSection({
             ...entries,
             {
               key: crypto.randomUUID(),
-              draft: emptyMilestoneDraft(bearerType),
+              draft: milestoneDraftOf({ bearerType }),
             },
           ])
         }

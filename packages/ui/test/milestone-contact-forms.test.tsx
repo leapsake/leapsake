@@ -8,7 +8,7 @@ import {
   MilestoneForm,
   ReminderScheduleFields,
 } from "../src/web/index.js";
-import { renderWithUi } from "./support.js";
+import { recordSubmits, renderWithUi } from "./support.js";
 
 afterEach(cleanup);
 
@@ -34,27 +34,69 @@ function renderMilestone(
 }
 
 describe("MilestoneForm", () => {
-  it("blocks submit on a day with no month, and says why", () => {
-    // The schema's day⇒month rule, mirrored so the form can't submit what the
-    // write path would reject.
+  it("never disables Save, and explains a press on a day with no month", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
     renderMilestone();
-    expect(submitButton().matches(":disabled")).toBe(false);
 
+    // The day picker is open before a month is chosen, so the post can carry it.
+    expect(screen.getByLabelText("Day").matches(":disabled")).toBe(false);
+    select("Day", "31");
+    expect(submitButton().matches(":disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledWith(
+      "Pick a month before a day, or clear the day.",
+    );
+
+    select("Month", "10");
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(stopped()).toEqual([true, false]);
+    alert.mockRestore();
+  });
+
+  it("posts a month with the day left blank", () => {
+    const stopped = recordSubmits();
+    const { container } = renderMilestone();
+
+    select("Month", "10");
+    fireEvent.click(submitButton());
+    expect(stopped()).toEqual([false]);
+    const form = container.querySelector("form") as HTMLFormElement;
+    const posted = new FormData(form);
+    expect(posted.get("month")).toBe("10");
+    expect(posted.get("day")).toBe("");
+  });
+
+  it("ignores a second press while saving, without disabling Save", () => {
+    const stopped = recordSubmits();
+    renderMilestone({ submitting: true });
+
+    expect(submitButton().matches(":disabled")).toBe(false);
+    expect(submitButton().getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(submitButton());
+    expect(stopped()).toEqual([true]);
+  });
+
+  it("clears the day with the month", () => {
+    renderMilestone();
     select("Month", "10");
     select("Day", "31");
     select("Month", "");
-
-    // Clearing the month clears the day with it, so the form stays valid.
     expect(screen.getByLabelText("Day")).toHaveProperty("value", "");
-    expect(submitButton().matches(":disabled")).toBe(false);
   });
 
-  it("disables the day picker until a month is chosen", () => {
-    renderMilestone();
-    expect(screen.getByLabelText("Day").matches(":disabled")).toBe(true);
+  it("explains a Save pressed before saying who a first date was with", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
+    renderMilestone({ bearerType: "person", initialKind: "first-date" });
 
-    select("Month", "10");
-    expect(screen.getByLabelText("Day").matches(":disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledWith(
+      "Choose who this milestone is with before saving.",
+    );
+    expect(stopped()).toEqual([true]);
+    alert.mockRestore();
   });
 
   it("renames the note field to a label, and requires it, for the `other` kind", () => {

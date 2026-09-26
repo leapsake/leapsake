@@ -308,6 +308,11 @@ export const en: Messages = {
     noteLabel: "Note",
     notePlaceholder: "optional",
     dayNeedsMonth: "Pick a month before a day, or clear the day.",
+    dateOutOfRange: "Enter the year as a whole number, or leave it empty.",
+    labelRequired: "Give this milestone a label before saving.",
+    reminderLabelRequired:
+      "Give each “Other” reminder a label before saving, or remove it.",
+    withWhomRequired: "Choose who this milestone is with before saving.",
   },
 
   giftIdeaForm: {

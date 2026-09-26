@@ -42,7 +42,7 @@ export { ReminderPromptFields } from "./fields/ReminderPromptFields.js";
 export { ReminderScheduleFields } from "./fields/ReminderScheduleFields.js";
 export { WithWhomFields } from "./fields/WithWhomFields.js";
 export { ContactMethodForm } from "./forms/ContactMethodForm.js";
-export { MilestoneForm } from "./forms/MilestoneForm.js";
+export { MilestoneFields, MilestoneForm } from "./forms/MilestoneForm.js";
 export { PersonForm } from "./forms/PersonForm.js";
 export { PetForm } from "./forms/PetForm.js";
 export { RelationshipForm } from "./forms/RelationshipForm.js";

@@ -1,9 +1,12 @@
 import type { CoreApi } from "@leapsake/core";
-import { type EntityType, milestoneLabel } from "@leapsake/schema";
+import {
+  type EntityType,
+  milestoneInputOf,
+  milestoneLabel,
+} from "@leapsake/schema";
 import { captureRecipientOf, giftIdeaOf } from "@leapsake/ui/headless";
 import { contactDraftToValue } from "../components/ContactMethodFields";
 import { giftDraftEmpty } from "../components/GiftFields";
-import { milestoneDraftToValue } from "../components/MilestoneFields";
 import {
   otherLabelOf,
   relationshipDraftToValue,
@@ -63,7 +66,9 @@ export async function applyEntityForm(
   for (const row of value.milestones) {
     // An empty row is the "Add milestone" tap nobody followed through on.
     if (milestoneRowPending(row)) continue;
-    const fields = milestoneDraftToValue(row.draft);
+    const shaped = milestoneInputOf(row.draft);
+    if (!shaped.ok) continue;
+    const fields = shaped.input;
     await attempt(milestoneLabel(fields), () =>
       core.milestones.create({ ...fields, bearerType, bearerId }),
     );

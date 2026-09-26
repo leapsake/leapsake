@@ -1,154 +1,48 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import {
-  type Milestone,
   type MilestoneBearerType,
-  type MilestoneKind,
-  type ReminderRuleInput,
+  type MilestoneDraft,
+  type MilestoneDraftErrors,
   kindDefs,
   kindsForBearerType,
-  monthBlankOrValid,
-  resolveReminderSchedule,
+  milestoneDraftWithKind,
+  milestoneDraftWithSchedule,
 } from "@leapsake/schema";
 import { DatePartsFields } from "./DatePartsFields";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 
-const DATE = {
-  label: "Date",
+const TEXT = {
+  kind: "Kind",
+  date: "Date",
+  label: "Label (e.g. Adoption day)",
+  note: "Note (optional)",
+  show: "Show",
+  hide: "Hide",
+  reminders: (on: number, total: number) =>
+    total === 0
+      ? "Reminders · None"
+      : on === total
+        ? `Reminders · ${on}`
+        : `Reminders · ${on} of ${total}`,
   dayWithoutMonth: "Enter a month to go with the day, or clear the day.",
   outOfRange: "Enter a month from 1 to 12 and a day from 1 to 31.",
+  labelRequired: "Give this milestone a label before saving.",
+  reminderLabelRequired:
+    "Give each “Other” reminder a label before saving, or remove it.",
 } as const;
 
-/** The structured value the write uses; the caller supplies bearer + call. */
-export interface MilestoneFormValue {
-  kind: MilestoneKind;
-  year: number | null;
-  month: number | null;
-  day: number | null;
-  note: string | null;
-  /** The staggered-reminder schedule to persist (replaces the milestone's rules). */
-  reminderSchedule: ReminderRuleInput[];
-}
-
-/**
- * A milestone as the UI holds it: the date parts as typed, nothing parsed —
- * the same idea as {@link PersonDraft} and {@link ContactDraft}. A half-typed
- * year is a string on its way to being a number, and has to survive being looked
- * at.
- */
-export interface MilestoneDraft {
-  kind: MilestoneKind;
-  month: string;
-  day: string;
-  year: string;
-  note: string;
-  reminderSchedule: ReminderRuleInput[];
-  /**
-   * Whether the schedule is the **user's** rather than the kind's defaults.
-   * Until they touch it, changing the kind re-seeds it from the new kind's
-   * defaults; once they have edited a rule it is theirs and a kind change leaves
-   * it alone. Never written — it is a fact about the editing, not the milestone.
-   */
-  scheduleCustomized: boolean;
-}
-
-export function emptyMilestoneDraft(
-  bearerType: MilestoneBearerType,
-  /** The kind to open on, where the caller knows which one is wanted — see
-   *  `MilestoneForm`'s `initialKind`. */
-  requestedKind?: MilestoneKind,
-): MilestoneDraft {
-  const kind =
-    requestedKind ?? kindsForBearerType(bearerType)[0]?.kind ?? "birthday";
-  return {
-    kind,
-    month: "",
-    day: "",
-    year: "",
-    note: "",
-    reminderSchedule: resolveReminderSchedule(kind, []).rules,
-    scheduleCustomized: false,
-  };
-}
-
-/**
- * A saved milestone as a draft. The schedule is passed in rather than fetched:
- * it lives a query away (`core.milestones.reminderSchedule`), and the screen that
- * seeds a whole form of these does that query with all its others.
- */
-export function milestoneDraftFrom(
-  milestone: Milestone,
-  reminderSchedule: ReminderRuleInput[],
-): MilestoneDraft {
-  return {
-    kind: milestone.kind,
-    month: milestone.month?.toString() ?? "",
-    day: milestone.day?.toString() ?? "",
-    year: milestone.year?.toString() ?? "",
-    note: milestone.note ?? "",
-    reminderSchedule,
-    scheduleCustomized: false,
-  };
-}
-
-/** The draft as the write wants it: the date parts parsed, the note trimmed. */
-export function milestoneDraftToValue(
-  draft: MilestoneDraft,
-): MilestoneFormValue {
-  const note = draft.note.trim();
-  return {
-    kind: draft.kind,
-    year: numberOrNull(draft.year),
-    month: numberOrNull(draft.month),
-    day: numberOrNull(draft.day),
-    note: note === "" ? null : note,
-    reminderSchedule: draft.reminderSchedule,
-  };
-}
-
-function numberOrNull(raw: string): number | null {
-  return raw.trim() === "" ? null : Number(raw);
-}
-
-/** A day is only meaningful alongside the month it falls in. */
-function dayWithoutMonth(draft: MilestoneDraft): boolean {
-  return draft.day.trim() !== "" && draft.month.trim() === "";
-}
-
-/** What is wrong with the typed date parts, by the schema's rules, or null. */
-function datePartsError(draft: MilestoneDraft): string | null {
-  if (dayWithoutMonth(draft)) return DATE.dayWithoutMonth;
-  return datePartsValid(draft) ? null : DATE.outOfRange;
-}
-
-/** Whether the typed date parts would pass the schema's rules for them. */
-function datePartsValid(draft: MilestoneDraft): boolean {
-  const day = numberOrNull(draft.day);
-  const year = numberOrNull(draft.year);
-  return (
-    !dayWithoutMonth(draft) &&
-    monthBlankOrValid(draft.month) &&
-    (day === null || (Number.isInteger(day) && day >= 1 && day <= 31)) &&
-    (year === null || Number.isInteger(year))
-  );
-}
-
-/**
- * Whether the draft would pass the schema — the same rules it enforces, mirrored
- * so the form can refuse before the write does.
- */
-export function milestoneDraftValid(draft: MilestoneDraft): boolean {
-  return (
-    datePartsValid(draft) &&
-    // An `other` milestone is named by its note, and an `other` reminder by its
-    // label; the schema re-checks both.
-    (draft.kind !== "other" || draft.note.trim().length > 0) &&
-    draft.reminderSchedule.every(
-      (rule) => rule.action !== "other" || (rule.label ?? "").trim() !== "",
-    )
-  );
+/** Why Save can't write the milestone yet, or undefined when it can. */
+export function milestoneProblem(
+  errors: MilestoneDraftErrors,
+): string | undefined {
+  if (errors.date !== undefined) return TEXT[errors.date];
+  if (errors.note === "required") return TEXT.labelRequired;
+  if (errors.reminderSchedule === "labelRequired")
+    return TEXT.reminderLabelRequired;
+  return undefined;
 }
 
 /**
@@ -164,13 +58,6 @@ export function milestoneDraftEmpty(draft: MilestoneDraft): boolean {
     draft.year.trim() === "" &&
     draft.note.trim() === ""
   );
-}
-
-/** How many of the schedule's rules are switched on — the collapsed summary. */
-function scheduleSummary(schedule: readonly ReminderRuleInput[]): string {
-  const on = schedule.filter((rule) => rule.enabled).length;
-  if (schedule.length === 0) return "None";
-  return on === schedule.length ? `${on}` : `${on} of ${schedule.length}`;
 }
 
 /**
@@ -194,66 +81,56 @@ function scheduleSummary(schedule: readonly ReminderRuleInput[]): string {
 export function MilestoneFields({
   draft,
   onChange,
+  errors,
   bearerType,
   collapseSchedule = false,
+  scroll = false,
 }: {
   draft: MilestoneDraft;
   onChange: (draft: MilestoneDraft) => void;
+  errors: MilestoneDraftErrors;
   bearerType: MilestoneBearerType;
   /** Put the reminder schedule behind a disclosure — see above. */
   collapseSchedule?: boolean;
+  /** Fill a screen of its own, in a scroll view. */
+  scroll?: boolean;
 }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
-  const set = <K extends keyof MilestoneDraft>(
-    key: K,
-    value: MilestoneDraft[K],
-  ) => onChange({ ...draft, [key]: value });
-
   const kinds = kindsForBearerType(bearerType);
   const def = kindDefs[draft.kind];
-  const noteRequired = draft.kind === "other";
+  const on = draft.reminderSchedule.filter((rule) => rule.enabled).length;
 
   const schedule = (
     <ReminderScheduleFields
       value={draft.reminderSchedule}
-      onChange={(reminderSchedule) =>
-        onChange({ ...draft, reminderSchedule, scheduleCustomized: true })
-      }
+      onChange={(rules) => onChange(milestoneDraftWithSchedule(draft, rules))}
     />
   );
 
-  return (
+  const fields = (
     <>
       <SelectField
-        label="Kind"
+        label={TEXT.kind}
         value={draft.kind}
         options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
-        onChange={(kind) =>
-          onChange({
-            ...draft,
-            kind,
-            reminderSchedule: draft.scheduleCustomized
-              ? draft.reminderSchedule
-              : resolveReminderSchedule(kind, []).rules,
-          })
-        }
+        onChange={(kind) => onChange(milestoneDraftWithKind(draft, kind))}
       />
 
       {/* `milestone-year` is load-bearing for the harness: see subflows/stage-birthday.yaml. */}
       <DatePartsFields
-        label={DATE.label}
+        label={TEXT.date}
         value={draft}
         onChange={({ month, day, year }) =>
           onChange({ ...draft, month, day, year })
         }
         testIDPrefix="milestone"
-        error={datePartsError(draft)}
+        error={errors.date === undefined ? null : TEXT[errors.date]}
       />
 
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>
-          {noteRequired ? "Label (e.g. Adoption day)" : "Note (optional)"}
+          {draft.kind === "other" ? TEXT.label : TEXT.note}
         </Text>
         {/*
           Addressable for the same reason `milestone-year` above is: empty, it offers a
@@ -264,7 +141,7 @@ export function MilestoneFields({
           testID="milestone-note"
           style={styles.input}
           value={draft.note}
-          onChangeText={(value) => set("note", value)}
+          onChangeText={(note) => onChange({ ...draft, note })}
         />
       </View>
 
@@ -282,9 +159,11 @@ export function MilestoneFields({
             onPress={() => setScheduleOpen((open) => !open)}
           >
             <Text style={styles.fieldLabel}>
-              Reminders · {scheduleSummary(draft.reminderSchedule)}
+              {TEXT.reminders(on, draft.reminderSchedule.length)}
             </Text>
-            <Text style={styles.link}>{scheduleOpen ? "Hide" : "Show"}</Text>
+            <Text style={styles.link}>
+              {scheduleOpen ? TEXT.hide : TEXT.show}
+            </Text>
           </Pressable>
           {scheduleOpen ? schedule : null}
         </>
@@ -292,5 +171,15 @@ export function MilestoneFields({
         schedule
       )}
     </>
+  );
+
+  if (!scroll) return fields;
+  return (
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      keyboardShouldPersistTaps="handled"
+    >
+      {fields}
+    </ScrollView>
   );
 }

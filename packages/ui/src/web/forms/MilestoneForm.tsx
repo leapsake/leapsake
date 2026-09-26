@@ -1,16 +1,18 @@
 import {
   type Milestone,
   type MilestoneBearerType,
+  type MilestoneDraft,
+  type MilestoneDraftErrors,
   type MilestoneKind,
   type RelationshipNeighbor,
   type ReminderRuleInput,
   kindDefs,
   kindsForBearerType,
   preferredBearerType,
-  resolveReminderSchedule,
 } from "@leapsake/schema";
-import { useMemo, useState } from "react";
-import { useMessages } from "../../messages/index.js";
+import { type ReactNode, useState } from "react";
+import { useMilestoneForm } from "../../headless/index.js";
+import { type Messages, useMessages } from "../../messages/index.js";
 import type { RelationshipCandidate } from "../fields/RelationshipFields.js";
 import { ReminderScheduleFields } from "../fields/ReminderScheduleFields.js";
 import { WithWhomFields } from "../fields/WithWhomFields.js";
@@ -26,29 +28,18 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => ({
   }),
 }));
 
-/** Day options 1–31; the day⇒month rule is enforced below, not by the range. */
+/** Day options 1–31; a day with no month is refused on Save, not by the range. */
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 /**
- * Add/edit form for a milestone, rendered on a bearer entity's page. The user
- * picks a kind (constrained to those the bearer type can hold) and any subset
- * of a partial date — month, day, year — plus an optional note. The day⇒month
- * rule is mirrored here for friendly inline validation; the write path
- * re-validates.
- *
- * Visible inputs are controlled so the kind/date interplay (the note field for
- * `other`, the day-needs-month guard) can react live; their `name`s carry the
- * machine values the write path consumes. When `milestone` is provided the form
- * is in edit mode and pre-fills from it.
- *
- * Adding a relationship kind (Met / First Date / Wedding) from a **Person**
- * reveals a {@link WithWhomFields} step: `candidates`/`neighbors` (loaded only
- * for a Person create) drive binding/inference of the other party.
+ * Add/edit form for a milestone: {@link useMilestoneForm}'s draft rendered by
+ * {@link MilestoneFields}. A relationship kind added from a Person also asks
+ * "with whom?" ({@link WithWhomFields}), from `candidates` and `neighbors`.
  */
 export function MilestoneForm({
   bearerType,
   milestone,
-  initialKind: requestedKind,
+  initialKind,
   initialSchedule,
   candidates = [],
   neighbors = [],
@@ -57,18 +48,9 @@ export function MilestoneForm({
 }: {
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
-  /**
-   * The kind to open on when creating, where the caller knows which one is
-   * wanted — a partnership question ("when is your wedding anniversary?") sends
-   * the user here to answer *that*, and a blank kind picker would hand the
-   * question back. Ignored when editing, where the milestone's own kind wins.
-   */
+  /** The kind to open on when creating, where the caller knows which is wanted. */
   initialKind?: MilestoneKind;
-  /**
-   * The milestone's resolved reminder schedule (stored rules, else kind
-   * defaults), loaded when editing. Absent on create — the schedule is derived
-   * from the picked kind's defaults instead.
-   */
+  /** The milestone's stored schedule, else its kind's defaults; absent on create. */
   initialSchedule?: ReminderRuleInput[];
   candidates?: readonly RelationshipCandidate[];
   neighbors?: readonly RelationshipNeighbor[];
@@ -76,51 +58,19 @@ export function MilestoneForm({
   submitting: boolean;
 }) {
   const m = useMessages();
-  const kinds = useMemo(() => kindsForBearerType(bearerType), [bearerType]);
-
-  const initialKind =
-    milestone?.kind ?? requestedKind ?? kinds[0]?.kind ?? "birthday";
-  const [kind, setKind] = useState<MilestoneKind>(initialKind);
-  const [month, setMonth] = useState(milestone?.month?.toString() ?? "");
-  const [day, setDay] = useState(milestone?.day?.toString() ?? "");
-  const [year, setYear] = useState(milestone?.year?.toString() ?? "");
-  const [note, setNote] = useState(milestone?.note ?? "");
+  const form = useMilestoneForm({
+    bearerType,
+    milestone,
+    kind: initialKind,
+    reminderSchedule: initialSchedule,
+  });
   const [withWhomReady, setWithWhomReady] = useState(false);
 
-  // The staggered-reminder schedule to edit + submit. Seeded from the loaded
-  // schedule (edit) or the initial kind's defaults (create). Until the user
-  // touches it, switching kind re-seeds it from the new kind's defaults; once
-  // they edit a rule it's theirs and a kind change leaves it alone.
-  const [schedule, setSchedule] = useState<ReminderRuleInput[]>(
-    initialSchedule ?? resolveReminderSchedule(initialKind, []).rules,
-  );
-  const [scheduleCustomized, setScheduleCustomized] = useState(false);
-
-  const onKindChange = (next: MilestoneKind) => {
-    setKind(next);
-    if (!scheduleCustomized)
-      setSchedule(resolveReminderSchedule(next, []).rules);
-  };
-  const onScheduleChange = (next: ReminderRuleInput[]) => {
-    setSchedule(next);
-    setScheduleCustomized(true);
-  };
-
   const editing = milestone !== undefined;
-  // A relationship kind added from a Person needs the "with whom?" step; for
-  // every other case the bearer is fixed and the picker stays hidden.
   const needsWithWhom =
     !editing &&
     bearerType === "person" &&
-    preferredBearerType(kind) === "relationship";
-
-  // Mirror the schema rule: a day is only meaningful alongside a month.
-  const dayWithoutMonth = day !== "" && month === "";
-  // Mirror the rule that an `other` reminder needs a label, so submit stays
-  // enabled only when every such row has one (the write path re-validates).
-  const scheduleValid = schedule.every(
-    (rule) => rule.action !== "other" || (rule.label ?? "").trim() !== "",
-  );
+    preferredBearerType(form.fields.kind) === "relationship";
 
   return (
     <FormShell
@@ -128,41 +78,100 @@ export function MilestoneForm({
       submitLabel={editing ? m.common.save : m.milestoneForm.submitAdd}
       cancelTo={cancelTo}
       submitting={submitting}
-      canSubmit={
-        !dayWithoutMonth && scheduleValid && (!needsWithWhom || withWhomReady)
+      problem={
+        needsWithWhom && !withWhomReady
+          ? m.milestoneForm.withWhomRequired
+          : milestoneProblem(form.errors, m)
       }
     >
+      <MilestoneFields
+        bearerType={bearerType}
+        fields={form.fields}
+        errors={form.errors}
+        set={form.set}
+        setKind={form.setKind}
+        setSchedule={form.setSchedule}
+        withWhom={
+          needsWithWhom && (
+            <WithWhomFields
+              kind={form.fields.kind}
+              candidates={candidates}
+              neighbors={neighbors}
+              allowUnbound={form.fields.kind === "wedding"}
+              onReadyChange={setWithWhomReady}
+            />
+          )
+        }
+      />
+    </FormShell>
+  );
+}
+
+function milestoneProblem(
+  errors: MilestoneDraftErrors,
+  m: Messages,
+): string | undefined {
+  if (errors.date === "dayWithoutMonth") return m.milestoneForm.dayNeedsMonth;
+  if (errors.date === "outOfRange") return m.milestoneForm.dateOutOfRange;
+  if (errors.note === "required") return m.milestoneForm.labelRequired;
+  if (errors.reminderSchedule === "labelRequired")
+    return m.milestoneForm.reminderLabelRequired;
+  return undefined;
+}
+
+/**
+ * A milestone's fields, posted under the names the write path reads: a kind the
+ * bearer can hold, any subset of a partial date, a note, and the reminder
+ * schedule as JSON on a hidden input.
+ */
+export function MilestoneFields({
+  bearerType,
+  fields,
+  errors,
+  set,
+  setKind,
+  setSchedule,
+  withWhom,
+}: {
+  bearerType: MilestoneBearerType;
+  fields: MilestoneDraft;
+  errors: MilestoneDraftErrors;
+  set: <K extends keyof MilestoneDraft>(
+    key: K,
+    value: MilestoneDraft[K],
+  ) => void;
+  setKind: (kind: MilestoneKind) => void;
+  setSchedule: (rules: ReminderRuleInput[]) => void;
+  /** The "with whom?" step, shown under the kind when it applies. */
+  withWhom?: ReactNode;
+}) {
+  const m = useMessages();
+  const other = fields.kind === "other";
+  const def = kindDefs[fields.kind];
+
+  return (
+    <>
       <Field label={m.milestoneForm.kind}>
         <select
           name="kind"
-          value={kind}
-          onChange={(event) =>
-            onKindChange(event.target.value as MilestoneKind)
-          }
+          value={fields.kind}
+          onChange={(event) => setKind(event.target.value as MilestoneKind)}
         >
-          {kinds.map((k) => (
+          {kindsForBearerType(bearerType).map((k) => (
             <option key={k.kind} value={k.kind}>
               {k.label}
             </option>
           ))}
         </select>
       </Field>{" "}
-      {needsWithWhom && (
-        <WithWhomFields
-          kind={kind}
-          candidates={candidates}
-          neighbors={neighbors}
-          allowUnbound={kind === "wedding"}
-          onReadyChange={setWithWhomReady}
-        />
-      )}{" "}
+      {withWhom}{" "}
       <Field label={m.milestoneForm.month}>
         <select
           name="month"
-          value={month}
+          value={fields.month}
           onChange={(event) => {
-            setMonth(event.target.value);
-            if (event.target.value === "") setDay("");
+            set("month", event.target.value);
+            if (event.target.value === "") set("day", "");
           }}
         >
           <option value="">{m.common.none}</option>
@@ -176,9 +185,8 @@ export function MilestoneForm({
       <Field label={m.milestoneForm.day}>
         <select
           name="day"
-          value={day}
-          disabled={month === ""}
-          onChange={(event) => setDay(event.target.value)}
+          value={fields.day}
+          onChange={(event) => set("day", event.target.value)}
         >
           <option value="">{m.common.none}</option>
           {DAYS.map((d) => (
@@ -192,41 +200,41 @@ export function MilestoneForm({
         <input
           type="number"
           name="year"
-          value={year}
-          onChange={(event) => setYear(event.target.value)}
+          step={1}
+          value={fields.year}
+          onChange={(event) => set("year", event.target.value)}
           placeholder={m.common.none}
         />
       </Field>{" "}
-      <Field
-        label={
-          kind === "other" ? m.milestoneForm.label : m.milestoneForm.noteLabel
-        }
-      >
+      <Field label={other ? m.milestoneForm.label : m.milestoneForm.noteLabel}>
         <input
           name="note"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
+          value={fields.note}
+          onChange={(event) => set("note", event.target.value)}
           placeholder={
-            kind === "other"
+            other
               ? m.milestoneForm.labelPlaceholder
               : m.milestoneForm.notePlaceholder
           }
-          required={kind === "other"}
+          required={other}
         />
       </Field>
-      {dayWithoutMonth && <p>{m.milestoneForm.dayNeedsMonth}</p>}
+      {errors.date === "dayWithoutMonth" && (
+        <p>{m.milestoneForm.dayNeedsMonth}</p>
+      )}
       <p>
-        {kindDefs[kind].icon ? `${kindDefs[kind].icon} ` : ""}
-        {kindDefs[kind].label}
+        {def.icon ? `${def.icon} ` : ""}
+        {def.label}
       </p>
-      {/* The staggered-reminder schedule, serialised to a hidden field the
-          write path reads (the controlled-field-with-a-name pattern). */}
-      <ReminderScheduleFields value={schedule} onChange={onScheduleChange} />
+      <ReminderScheduleFields
+        value={fields.reminderSchedule}
+        onChange={setSchedule}
+      />
       <input
         type="hidden"
         name="reminderSchedule"
-        value={JSON.stringify(schedule)}
+        value={JSON.stringify(fields.reminderSchedule)}
       />
-    </FormShell>
+    </>
   );
 }
