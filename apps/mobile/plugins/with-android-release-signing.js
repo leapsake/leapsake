@@ -66,16 +66,16 @@ const RELEASE_CONFIG = `signingConfigs {
         // material originates in this generated, gitignored project. The password is
         // supplied by whoever spawns Gradle, from a file outside the repo.
         release {
-            def leapsakeStore = System.getenv("LEAPSAKE_ANDROID_KEYSTORE")
+            def leapsakeStore = System.getenv("LEAPSAKE_ANDROID_SIGNING_KEYSTORE")
             if (leapsakeStore) {
                 storeFile file(leapsakeStore)
-                storePassword System.getenv("LEAPSAKE_ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("LEAPSAKE_ANDROID_KEY_ALIAS")
+                storePassword System.getenv("LEAPSAKE_ANDROID_SIGNING_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("LEAPSAKE_ANDROID_SIGNING_KEY_ALIAS")
                 // keytool's default keystore format is PKCS12, which requires the key
                 // password to equal the store password — so one supplied value covers
                 // both, and the separate variable exists only for a JKS keystore that
                 // predates that default.
-                keyPassword System.getenv("LEAPSAKE_ANDROID_KEY_PASSWORD") ?: System.getenv("LEAPSAKE_ANDROID_KEYSTORE_PASSWORD")
+                keyPassword System.getenv("LEAPSAKE_ANDROID_SIGNING_KEY_PASSWORD") ?: System.getenv("LEAPSAKE_ANDROID_SIGNING_KEYSTORE_PASSWORD")
             }
         }`;
 
@@ -83,7 +83,7 @@ const RELEASE_SIGNING = `            // Injected by plugins/${MARKER}.
             //
             // Deliberately NOT a fallback to signingConfigs.debug: a debug-signed release
             // build is the failure that looks like success. Unsigned fails loudly instead.
-            signingConfig System.getenv("LEAPSAKE_ANDROID_KEYSTORE") ? signingConfigs.release : null`;
+            signingConfig System.getenv("LEAPSAKE_ANDROID_SIGNING_KEYSTORE") ? signingConfigs.release : null`;
 
 /** @type {import("@expo/config-plugins").ConfigPlugin} */
 const withAndroidReleaseSigning = (config) =>

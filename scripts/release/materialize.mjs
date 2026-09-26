@@ -26,14 +26,14 @@ export const SECRETS = [
     pathVar: "IOS_PROVISIONING_PROFILE_PATH",
   },
   {
-    name: "ANDROID_KEYSTORE",
-    file: "android-upload.jks",
-    pathVar: "LEAPSAKE_ANDROID_KEYSTORE",
+    name: "GOOGLE_PLAY_UPLOAD_KEYSTORE",
+    file: "google-play-upload.jks",
+    pathVar: "GOOGLE_PLAY_UPLOAD_KEYSTORE",
   },
   {
-    name: "ANDROID_KEYSTORE_PASSWORD",
-    file: "android-upload-password",
-    pathVar: "LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH",
+    name: "GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD",
+    file: "google-play-upload-password",
+    pathVar: "GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_PATH",
   },
   {
     name: "GOOGLE_PLAY_SERVICE_ACCOUNT",

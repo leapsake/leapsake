@@ -517,7 +517,7 @@ cut $CHANNEL --push`. For `final` it needs the App Store Connect read credential
 secrets, one `LEAPSAKE_SECRET_<NAME>_B64` per credential file (`.env.example` → _On a runner_
 lists them), plus `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
 `APPLE_APP_STORE_CONNECT_BETA_GROUP`, `APPLE_TEAM_ID`, `IOS_PROVISIONING_PROFILE` and
-`LEAPSAKE_ANDROID_KEY_ALIAS` as plain values. The iOS distribution identity has to be exported from the login keychain as a `.p12` with a password,
+`GOOGLE_PLAY_UPLOAD_KEY_ALIAS` as plain values. The iOS distribution identity has to be exported from the login keychain as a `.p12` with a password,
 and the profile downloaded as a `.mobileprovision`; neither exists as a file today.
 
 **Permissions the pipeline needs, and no more:** push a tag, push `refs/notes/releases`, delete

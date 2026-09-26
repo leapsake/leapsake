@@ -42,13 +42,13 @@ const UPLOAD_KEY_SHA256 =
   "61:B6:0B:A8:D5:FE:D8:FD:F2:6D:89:30:87:68:7A:39:7A:70:29:B7:DF:00:FF:0E:8D:09:7A:B0:40:C1:73:D4";
 
 const signing = [
-  fileAt("LEAPSAKE_ANDROID_KEYSTORE", "Gradle signs the AAB with it"),
+  fileAt("GOOGLE_PLAY_UPLOAD_KEYSTORE", "Gradle signs the AAB with it"),
   envSet(
-    "LEAPSAKE_ANDROID_KEY_ALIAS",
+    "GOOGLE_PLAY_UPLOAD_KEY_ALIAS",
     "it names which key in the keystore to use",
   ),
   fileAt(
-    "LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH",
+    "GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_PATH",
     "the password is read from a file and passed to Gradle in its environment",
   ),
 ];
@@ -297,16 +297,20 @@ export default {
     console.log(`   manifest names ${baked}`);
 
     const password = readFileSync(
-      process.env.LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH.trim(),
+      process.env.GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_PATH.trim(),
       "utf8",
     ).trim();
     must("./gradlew bundleRelease", "./gradlew", ["bundleRelease"], {
       cwd: ANDROID(root),
       env: {
         ...process.env,
-        // The password reaches Gradle through the child environment and nowhere else —
-        // `.env` holds its *path*, never the secret.
-        LEAPSAKE_ANDROID_KEYSTORE_PASSWORD: password,
+        // Gradle signs with whatever key these name; here, the Google Play upload key. The
+        // password exists only in this child environment — `.env` holds its *path*.
+        LEAPSAKE_ANDROID_SIGNING_KEYSTORE:
+          process.env.GOOGLE_PLAY_UPLOAD_KEYSTORE.trim(),
+        LEAPSAKE_ANDROID_SIGNING_KEY_ALIAS:
+          process.env.GOOGLE_PLAY_UPLOAD_KEY_ALIAS.trim(),
+        LEAPSAKE_ANDROID_SIGNING_KEYSTORE_PASSWORD: password,
       },
     });
 
