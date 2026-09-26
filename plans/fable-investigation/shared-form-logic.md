@@ -65,9 +65,8 @@ Leapsake modal replaces later. The wrapper passes the reason as `FormShell`'s or
 `HeaderSave`'s `problem` prop, from a catalog message keyed by the hook's error code. Web
 inputs keep `required` (and the like) **with JS on too**, so the browser's own validation
 runs first and the alert covers only what HTML cannot express. As each form migrates,
-`canSubmit`/`canSave` leave it; when the last one has, delete them. The two gates outside
-these forms (`MilestoneForm`'s month-dependent day picker on web, `ImportReview`'s commit)
-are a separate commit.
+`canSubmit`/`canSave` leave it; when the last one has, delete them. The one gate outside
+these forms, `ImportReview`'s commit, is a separate commit.
 
 **Nothing is disabled while a write is in flight either** (owner, 2026-09-26). The control
 stays focusable, says so (`aria-disabled` on web, `accessibilityState.busy` on mobile), and
@@ -97,9 +96,12 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    fields carry no names, and adding recipients is a JS combobox. Making it post needs an
    action on each route that renders it (Gifts' create screen, and the Person/Pet page via
    `GiftsSection`) and a decision on what picking recipients looks like with no JS.
-3. **`useMilestoneForm`**. Watch mobile's two `useEffect`s: whatever they synchronise is either
-   derived state (make it a computed value in the hook) or a genuine effect (keep it on the
-   platform side and say why in one line).
+3. **`useMilestoneForm`. ✅ Landed 2026-09-26.** `milestoneInputOf` in `schema/milestone.ts`
+   validates against `milestoneFieldsInputSchema`, the bearer-less half of
+   `createMilestoneInputSchema`. Web's day picker is no longer disabled until a month is
+   picked. An unanswered "with whom?" is a `problem` like any other. Mobile had only one
+   `useEffect` by then, and it stays: it loads the stored schedule from core. The entity
+   form's staged rows still gate its Save through `canSave`; that goes with step 6.
 4. **`useRelationshipForm`** with the role-picker options as part of the hook's output, so
    mobile's inlined picker and web's `RelationshipFields` read one list.
 5. **`useContactMethodForm`**: the per-kind field set (which kinds take a label, which take a
