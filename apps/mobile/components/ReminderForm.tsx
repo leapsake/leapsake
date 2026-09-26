@@ -1,65 +1,66 @@
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import type { CreateReminderInput, Reminder } from "@leapsake/schema";
-import { checkDueDate, dueDateDraft, editDueDate } from "../lib/date-parts";
+import type {
+  Reminder,
+  ReminderDraft,
+  ReminderDraftResult,
+} from "@leapsake/schema";
+import { useReminderForm } from "@leapsake/ui/headless";
+import { editDueDate } from "../lib/date-parts";
 import { styles } from "../lib/styles";
 import { DatePartsFields } from "./DatePartsFields";
-import { HeaderSave } from "./HeaderSave";
+import { useHeaderSave } from "./HeaderSave";
 import { ChipTextField } from "./ChipTextField";
 
-const DUE_DATE = {
-  label: "Due date (optional)",
-  invalid: "Enter a month, day and year that exist.",
-  past: "Pick today or a later date.",
+type ReminderSubmit = Extract<ReminderDraftResult, { ok: true }>;
+type ReminderErrors = Partial<
+  Extract<ReminderDraftResult, { ok: false }>["errors"]
+>;
+
+const TEXT = {
+  back: "Back",
+  title: "Title",
+  details: "Details",
+  detailsHint: "Type @ to mention someone; add #tags inline.",
+  dueLabel: "Due date (optional)",
+  textRequired: "Give the reminder a title or some details before saving.",
+  due: {
+    invalid: "Enter a month, day and year that exist.",
+    past: "Pick today or a later date.",
+  },
 } as const;
 
 /**
- * The shared create/edit form for a Reminder, mirroring the desktop `ReminderForm`.
- * Title and body are both optional free text (at least one required). `#tags` and
- * `@mentions` are typed **inline** in either field — there's no separate input for
- * either — and core parses them out on save. Title and Details use {@link
- * ChipTextField} so an `@` opens a People/Pets picker that splices the token in.
- * The screen owns the actual core call; this component collects input and hands
- * back a {@link CreateReminderInput} (empty → null).
- *
- * Like {@link MilestoneForm}, it declares its own native header — title plus a
- * right-aligned {@link HeaderSave} — so the screen doesn't have to lift `canSubmit`
- * out of it just to render a header button.
+ * The create/edit form for a Reminder: {@link useReminderForm}'s draft rendered by
+ * {@link ReminderFields}, with Save in the native header. The screen owns the core call.
  */
 export function ReminderForm({
-  title: headerTitle,
+  title,
   reminder,
   onSubmit,
 }: {
   /** Native header title, set here so the header is declared in one place. */
   title: string;
   reminder?: Reminder;
-  onSubmit: (input: CreateReminderInput) => Promise<void>;
+  onSubmit: (input: ReminderSubmit["input"]) => Promise<void>;
 }) {
-  const [title, setTitle] = useState(reminder?.title ?? "");
-  const [body, setBody] = useState(reminder?.body ?? "");
-  const savedDueMs = reminder?.dueDate ?? null;
-  const [due, setDue] = useState(() => dueDateDraft(savedDueMs));
+  const form = useReminderForm(reminder);
+  // Until a year is typed, it follows the month and day to their next occurrence.
+  const [yearTouched, setYearTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  const dueCheck = checkDueDate(due.parts, savedDueMs);
-  const canSubmit =
-    (title.trim().length > 0 || body.trim().length > 0) &&
-    dueCheck.ok &&
-    !submitting;
+  const headerRight = useHeaderSave({
+    problem: reminderProblem(form.errors),
+    saving: submitting,
+    onPress: () => void handleSubmit(),
+  });
 
   async function handleSubmit() {
-    if (!canSubmit || !dueCheck.ok) return;
+    const shaped = form.submit();
+    if (shaped === null) return;
     setSubmitting(true);
     try {
-      const t = title.trim();
-      const b = body.trim();
-      await onSubmit({
-        title: t === "" ? null : t,
-        body: b === "" ? null : b,
-        dueDate: dueCheck.dueMs,
-      });
+      await onSubmit(shaped.input);
     } finally {
       setSubmitting(false);
     }
@@ -68,57 +69,78 @@ export function ReminderForm({
   return (
     <>
       <Stack.Screen
-        options={{
-          title: headerTitle,
-          // Spelled out because the detail screen this is pushed from carries no
-          // title, and a native stack takes a back button's label from there —
-          // without this, editing a reminder leaves a bare chevron to go back by.
-          headerBackTitle: "Back",
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSubmit}
-              saving={submitting}
-              onPress={() => void handleSubmit()}
-            />
-          ),
+        // The back title is spelled out because the detail screen this is pushed
+        // from has none, which would leave a bare chevron.
+        options={{ title, headerBackTitle: TEXT.back, headerRight }}
+      />
+      <ReminderFields
+        fields={form.fields}
+        set={form.set}
+        errors={form.errors}
+        onDueChange={(parts) => {
+          const next = editDueDate(
+            { parts: form.fields.due, yearTouched },
+            parts,
+          );
+          setYearTouched(next.yearTouched);
+          form.set("due", next.parts);
         }}
       />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Title</Text>
-          <ChipTextField
-            testID="reminder-title"
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Details</Text>
-          <ChipTextField
-            testID="reminder-body"
-            style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
-            value={body}
-            onChangeText={setBody}
-            multiline
-          />
-          <Text style={styles.muted}>
-            Type @ to mention someone; add #tags inline.
-          </Text>
-        </View>
-
-        <DatePartsFields
-          label={DUE_DATE.label}
-          value={due.parts}
-          onChange={(parts) => setDue((draft) => editDueDate(draft, parts))}
-          testIDPrefix="reminder-due"
-          error={dueCheck.ok ? null : DUE_DATE[dueCheck.problem]}
-        />
-      </ScrollView>
     </>
+  );
+}
+
+function reminderProblem(errors: ReminderErrors): string | undefined {
+  if (errors.title === "required") return TEXT.textRequired;
+  return errors.due === undefined ? undefined : TEXT.due[errors.due];
+}
+
+/** A reminder's fields: title, details and an optional due date. */
+export function ReminderFields({
+  fields,
+  set,
+  errors,
+  onDueChange,
+}: {
+  fields: ReminderDraft;
+  set: <K extends keyof ReminderDraft>(key: K, value: ReminderDraft[K]) => void;
+  errors: ReminderErrors;
+  onDueChange: (parts: ReminderDraft["due"]) => void;
+}) {
+  return (
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>{TEXT.title}</Text>
+        <ChipTextField
+          testID="reminder-title"
+          style={styles.input}
+          value={fields.title}
+          onChangeText={(text) => set("title", text)}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.fieldLabel}>{TEXT.details}</Text>
+        <ChipTextField
+          testID="reminder-body"
+          style={[styles.input, { minHeight: 96, textAlignVertical: "top" }]}
+          value={fields.body}
+          onChangeText={(text) => set("body", text)}
+          multiline
+        />
+        <Text style={styles.muted}>{TEXT.detailsHint}</Text>
+      </View>
+
+      <DatePartsFields
+        label={TEXT.dueLabel}
+        value={fields.due}
+        onChange={onDueChange}
+        testIDPrefix="reminder-due"
+        error={errors.due === undefined ? null : TEXT.due[errors.due]}
+      />
+    </ScrollView>
   );
 }

@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { type DateParts, checkDueDate } from "./date-parts.js";
 import { plainMentionText } from "./mention.js";
 import type { ResolvedMention } from "./mentioning.js";
+import { civilFromDueMs, todayCivil } from "./reminder-schedule.js";
 import type { Tag } from "./tag.js";
 
 /** Who made a reminder: the user, or the engine, which owns its text. */
@@ -62,6 +64,66 @@ export const createReminderInputSchema = z
   });
 
 export type CreateReminderInput = z.infer<typeof createReminderInputSchema>;
+
+/** A reminder as a form holds it: text as typed, the due date in parts. */
+export interface ReminderDraft {
+  title: string;
+  body: string;
+  due: DateParts;
+}
+
+/** Why a reminder draft cannot be saved; the catalog owns each sentence. */
+export type ReminderDraftError = "required" | "invalid" | "past";
+
+export type ReminderDraftResult =
+  | {
+      ok: true;
+      input: {
+        title: string | null;
+        body: string | null;
+        dueDate: number | null;
+      };
+    }
+  | {
+      ok: false;
+      errors: { title?: "required"; due?: "invalid" | "past" };
+    };
+
+/** The draft a form starts from: the reminder being edited, or blanks. */
+export function reminderDraftOf(
+  reminder?: Pick<Reminder, "title" | "body" | "dueDate">,
+  now: number = Date.now(),
+): ReminderDraft {
+  const dueMs = reminder?.dueDate ?? null;
+  const due =
+    dueMs === null
+      ? { month: "", day: "", year: String(todayCivil(now).year) }
+      : partsOfDueMs(dueMs);
+  return { title: reminder?.title ?? "", body: reminder?.body ?? "", due };
+}
+
+function partsOfDueMs(dueMs: number): DateParts {
+  const { year, month, day } = civilFromDueMs(dueMs);
+  return { month: String(month), day: String(day), year: String(year) };
+}
+
+const blankToNull = (text: string) => (text.trim() === "" ? null : text.trim());
+
+/** Needs a title or details; refuses a past due date unless already saved. */
+export function reminderInputOf(
+  draft: ReminderDraft,
+  savedDueMs: number | null,
+  now: number = Date.now(),
+): ReminderDraftResult {
+  const title = blankToNull(draft.title);
+  const body = blankToNull(draft.body);
+  const due = checkDueDate(draft.due, savedDueMs, now);
+  const errors: { title?: "required"; due?: "invalid" | "past" } = {};
+  if (title === null && body === null) errors.title = "required";
+  if (!due.ok) errors.due = due.problem;
+  if (!due.ok || errors.title !== undefined) return { ok: false, errors };
+  return { ok: true, input: { title, body, dueDate: due.dueMs } };
+}
 
 /**
  * A partial reminder update. The repo re-validates the merged row, so the

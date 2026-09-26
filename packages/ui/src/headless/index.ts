@@ -8,6 +8,7 @@
  */
 export { type Acknowledgement, ACKNOWLEDGEMENTS } from "./acknowledgements.js";
 export { useGiftIdeaForm } from "./forms/gift-idea.js";
+export { useReminderForm } from "./forms/reminder.js";
 export { type Shaped, useDraftForm } from "./forms/use-draft-form.js";
 export {
   type RecipientEntry,

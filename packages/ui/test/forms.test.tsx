@@ -242,6 +242,39 @@ describe("ReminderForm", () => {
     );
   });
 
+  it("explains a Save pressed before there is a title or details", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
+    renderWithUi(<ReminderForm search={noSearch} submitting={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(alert).toHaveBeenCalledWith(
+      "Give the reminder a title or some details before saving.",
+    );
+    expect(stopped()).toEqual([true]);
+    alert.mockRestore();
+  });
+
+  it("lets the browser refuse a past day, but keeps a past day already saved", () => {
+    const pastDue = {
+      id: "r-1",
+      title: "x",
+      body: null,
+      dueDate: 0,
+    } as Reminder;
+    renderWithUi(<ReminderForm search={noSearch} submitting={false} />);
+    const min = screen.getByLabelText("Due date").getAttribute("min");
+    expect(min).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    cleanup();
+
+    renderWithUi(
+      <ReminderForm reminder={pastDue} search={noSearch} submitting={false} />,
+    );
+    expect(screen.getByLabelText("Due date").getAttribute("min")).toBe(
+      "1970-01-01",
+    );
+  });
+
   it("leaves the date empty rather than inventing one", () => {
     const undated = { id: "r-1", title: "x", body: null } as Reminder;
     renderWithUi(

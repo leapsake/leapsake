@@ -329,6 +329,9 @@ export const en: Messages = {
     detailsPlaceholder:
       "Type @ to mention someone; add #tags inline, e.g. ask about the trip #family",
     dueDate: "Due date",
+    textRequired: "Give the reminder a title or some details before saving.",
+    dueInvalid: "Enter a due date that exists, or leave it empty.",
+    duePast: "Pick today or a later date for the reminder to be due.",
   },
 
   person: {

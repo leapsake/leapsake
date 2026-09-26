@@ -318,6 +318,12 @@ export interface Messages {
     details: string;
     detailsPlaceholder: string;
     dueDate: string;
+    /** Shown when Save is pressed with neither a title nor details. */
+    textRequired: string;
+    /** Shown when Save is pressed with a due date that doesn't exist. */
+    dueInvalid: string;
+    /** Shown when Save is pressed with a due date in the past. */
+    duePast: string;
   };
 
   person: {

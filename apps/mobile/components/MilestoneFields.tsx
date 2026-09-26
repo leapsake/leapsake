@@ -7,12 +7,12 @@ import {
   type ReminderRuleInput,
   kindDefs,
   kindsForBearerType,
+  monthBlankOrValid,
   resolveReminderSchedule,
 } from "@leapsake/schema";
 import { DatePartsFields } from "./DatePartsFields";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
-import { monthBlankOrValid } from "../lib/date-parts";
 import { styles } from "../lib/styles";
 
 const DATE = {

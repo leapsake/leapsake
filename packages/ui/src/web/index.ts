@@ -47,7 +47,7 @@ export { PersonForm } from "./forms/PersonForm.js";
 export { PetForm } from "./forms/PetForm.js";
 export { RelationshipForm } from "./forms/RelationshipForm.js";
 export { GiftIdeaFields, GiftIdeaForm } from "./forms/GiftIdeaForm.js";
-export { ReminderForm } from "./forms/ReminderForm.js";
+export { ReminderFields, ReminderForm } from "./forms/ReminderForm.js";
 export { ConfirmDelete } from "./patterns/ConfirmDelete.js";
 export { FormShell } from "./patterns/FormShell.js";
 export { holdWhileSubmitting } from "./patterns/hold-while-submitting.js";

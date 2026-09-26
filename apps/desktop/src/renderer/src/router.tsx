@@ -6,6 +6,7 @@ import {
   type EntityType,
   type Gender,
   type GiftIdeaDraft,
+  type ReminderDraft,
   type MilestoneKind,
   type MilestoneBearerType,
   type RelationshipRole,
@@ -13,12 +14,13 @@ import {
   type UpdateMilestoneInput,
   createMilestoneInputSchema,
   createRelationshipInputSchema,
-  dueMsFromIso,
   fullName,
   giftIdeaInputOf,
+  partsFromIso,
   isReminderEditable,
   parseTagNames,
   preferredBearerType,
+  reminderInputOf,
   updateMilestoneInputSchema,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
@@ -757,19 +759,12 @@ async function relationshipRowDeleteAction({ params }: ActionFunctionArgs) {
   return redirect(rel ? `${entityBasePath(rel.aType)}/${rel.aId}` : "/people");
 }
 
-/** The editable reminder fields; blank fields become null. */
-function readReminderInput(formData: FormData): {
-  title: string | null;
-  body: string | null;
-  dueDate: number | null;
-} {
-  const title = String(formData.get("title") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
+/** The reminder draft as posted, the date input's day split into parts. */
+function readReminderDraft(formData: FormData): ReminderDraft {
   return {
-    title: title.length > 0 ? title : null,
-    body: body.length > 0 ? body : null,
-    // "YYYY-MM-DD", or "" when cleared.
-    dueDate: dueMsFromIso(String(formData.get("dueDate") ?? "")),
+    title: String(formData.get("title") ?? ""),
+    body: String(formData.get("body") ?? ""),
+    due: partsFromIso(String(formData.get("dueDate") ?? "")),
   };
 }
 
@@ -788,19 +783,19 @@ async function reminderEditLoader(args: LoaderFunctionArgs) {
 
 /** Create a reminder; both fields blank is a no-op back to the list. */
 async function reminderCreateAction({ request }: ActionFunctionArgs) {
-  const input = readReminderInput(await request.formData());
-  if (input.title === null && input.body === null)
-    return redirect("/reminders");
-  await window.api.reminders.create(input);
+  const draft = readReminderDraft(await request.formData());
+  const shaped = reminderInputOf(draft, null);
+  if (shaped.ok) await window.api.reminders.create(shaped.input);
   return redirect("/reminders");
 }
 
 /** Save edits to a reminder — core re-derives its #tags from the new text. */
 async function reminderEditAction({ request, params }: ActionFunctionArgs) {
-  const input = readReminderInput(await request.formData());
-  if (input.title === null && input.body === null)
-    return redirect("/reminders");
-  await window.api.reminders.update(params.id as string, input);
+  const id = params.id as string;
+  const draft = readReminderDraft(await request.formData());
+  const saved = await window.api.reminders.get(id);
+  const shaped = reminderInputOf(draft, saved?.dueDate ?? null);
+  if (shaped.ok) await window.api.reminders.update(id, shaped.input);
   return redirect("/reminders");
 }
 

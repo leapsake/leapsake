@@ -89,7 +89,9 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    `giftIdeaInputOf` in `schema/gift-idea.ts`, the generic `useDraftForm` beside the hook in
    `headless/forms/`, `GiftIdeaFields`/`GiftIdeaForm` on each platform, and desktop's
    `giftIdeaEditAction`. Checked by hand on both platforms.
-2. **`useReminderForm`**, then **`useGiftCaptureForm`** (extend the existing
+2. **`useReminderForm`. ✅ Landed 2026-09-26.** The date-parts rules moved from mobile to
+   `schema/date-parts.ts`, so desktop now refuses a past due date too (and its date input
+   carries the same rule as `min`). Then **`useGiftCaptureForm`** (extend the existing
    `headless/gift-form.ts` rather than adding beside it).
 3. **`useMilestoneForm`**. Watch mobile's two `useEffect`s: whatever they synchronise is either
    derived state (make it a computed value in the hook) or a genuine effect (keep it on the

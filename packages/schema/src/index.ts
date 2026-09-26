@@ -59,6 +59,8 @@ export {
   reminderLabel,
   isReminderEditable,
   reminderHasHistory,
+  reminderDraftOf,
+  reminderInputOf,
 } from "./reminder.js";
 export type {
   Reminder,
@@ -66,6 +68,9 @@ export type {
   ReminderSource,
   CreateReminderInput,
   UpdateReminderInput,
+  ReminderDraft,
+  ReminderDraftError,
+  ReminderDraftResult,
 } from "./reminder.js";
 export { taggingSchema, tagBearerTypeSchema } from "./tagging.js";
 export type { Tagging, TagBearerType } from "./tagging.js";
@@ -364,6 +369,16 @@ export {
   recentOccurrence,
 } from "./reminder-schedule.js";
 export type { CivilDate, OccurrenceParts } from "./reminder-schedule.js";
+export {
+  checkDueDate,
+  civilFromParts,
+  earliestDueIso,
+  isoFromParts,
+  monthBlankOrValid,
+  partsFromIso,
+  wholeNumberOrNull,
+} from "./date-parts.js";
+export type { DateParts, DueDateCheck } from "./date-parts.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
 export type { CountryOption } from "./countries.js";
 export type {

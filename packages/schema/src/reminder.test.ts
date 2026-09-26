@@ -3,10 +3,13 @@ import {
   type Reminder,
   createReminderInputSchema,
   isReminderEditable,
+  reminderDraftOf,
   reminderHasHistory,
+  reminderInputOf,
   reminderLabel,
   reminderSchema,
 } from "./reminder.js";
+import { dueDateMs } from "./reminder-schedule.js";
 
 const base = {
   id: crypto.randomUUID(),
@@ -114,5 +117,75 @@ describe("reminderLabel", () => {
     expect(reminderLabel({ title: null, body: null })).toBe(
       "Untitled reminder",
     );
+  });
+});
+
+describe("a reminder draft", () => {
+  // Local noon on 24 September 2026, so "today" is the same civil day in any zone.
+  const NOW = new Date(2026, 8, 24, 12).getTime();
+  const blank = reminderDraftOf(undefined, NOW);
+  const due = (month: string, day: string, year: string) => ({
+    month,
+    day,
+    year,
+  });
+
+  it("opens blank, due this year once a month and day are typed", () => {
+    expect(blank).toEqual({ title: "", body: "", due: due("", "", "2026") });
+  });
+
+  it("opens a saved reminder as it was saved", () => {
+    const dueDate = dueDateMs({ year: 2026, month: 8, day: 1 });
+    expect(
+      reminderDraftOf({ title: "Call", body: null, dueDate }, NOW),
+    ).toEqual({ title: "Call", body: "", due: due("8", "1", "2026") });
+  });
+
+  it("trims the text to null, and turns the due date into the stored day", () => {
+    expect(
+      reminderInputOf(
+        { title: "  ", body: " Call George ", due: due("10", "5", "2026") },
+        null,
+        NOW,
+      ),
+    ).toEqual({
+      ok: true,
+      input: {
+        title: null,
+        body: "Call George",
+        dueDate: dueDateMs({ year: 2026, month: 10, day: 5 }),
+      },
+    });
+  });
+
+  it("needs a title or details", () => {
+    expect(reminderInputOf(blank, null, NOW)).toEqual({
+      ok: false,
+      errors: { title: "required" },
+    });
+  });
+
+  it("names every problem at once", () => {
+    expect(
+      reminderInputOf({ ...blank, due: due("9", "23", "2026") }, null, NOW),
+    ).toEqual({ ok: false, errors: { title: "required", due: "past" } });
+    expect(
+      reminderInputOf(
+        { ...blank, title: "Call", due: due("2", "31", "2027") },
+        null,
+        NOW,
+      ),
+    ).toEqual({ ok: false, errors: { due: "invalid" } });
+  });
+
+  it("keeps a past due date that was already saved", () => {
+    const saved = dueDateMs({ year: 2026, month: 8, day: 1 });
+    expect(
+      reminderInputOf(
+        { ...blank, title: "Call", due: due("8", "1", "2026") },
+        saved,
+        NOW,
+      ).ok,
+    ).toBe(true);
   });
 });
