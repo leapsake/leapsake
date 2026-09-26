@@ -68,8 +68,10 @@ model, `ChipTextField` on each platform holds only what the platform's text inpu
 
 Smallest and most duplicated first, so the pattern is settled before the big ones.
 
-1. **`useGiftIdeaForm`**: the smallest pair with the biggest state gap (2 vs 6). Both
-   components rewritten to consume it. Add the hook's test.
+1. **`useGiftIdeaForm`. ✅ Landed 2026-09-26**, and it is the worked example of the pattern:
+   `giftIdeaInputOf` in `schema/gift-idea.ts`, the generic `useDraftForm` beside the hook in
+   `headless/forms/`, `GiftIdeaFields`/`GiftIdeaForm` on each platform, and desktop's
+   `giftIdeaEditAction`. Checked by hand on both platforms.
 2. **`useReminderForm`**, then **`useGiftCaptureForm`** (extend the existing
    `headless/gift-form.ts` rather than adding beside it).
 3. **`useMilestoneForm`**. Watch mobile's two `useEffect`s: whatever they synchronise is either
