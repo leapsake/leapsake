@@ -98,6 +98,37 @@ describe("GiftsSection", () => {
     expect(screen.getByText("No gifts yet.")).toBeTruthy();
   });
 
+  it("explains an Add pressed before the gift has a name", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { ports } = renderGifts();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(alert).toHaveBeenCalledWith("A gift needs a name.");
+    expect(ports.capture).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("captures a gift for this recipient, then clears the form", async () => {
+    const { ports, onChanged } = renderGifts();
+
+    fireEvent.change(screen.getByLabelText("Gift"), {
+      target: { value: "Socks" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Already gave it to Mary" }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    });
+
+    expect(ports.capture).toHaveBeenCalledWith({
+      giftIdea: { title: "Socks" },
+      recipients: [{ party: { type: "person", id: "p-1" }, given: true }],
+    });
+    expect(onChanged).toHaveBeenCalled();
+    expect(screen.getByLabelText("Gift")).toHaveProperty("value", "");
+  });
+
   it("ticks a gift through the application's port", async () => {
     const { ports, onChanged } = renderGifts({ gifts: [gift()] });
 

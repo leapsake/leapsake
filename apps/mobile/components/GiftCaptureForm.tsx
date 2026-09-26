@@ -3,51 +3,31 @@ import { Pressable, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { GiftIdea } from "@leapsake/schema";
 import {
+  type GiftCaptureDraft,
   type PartyOption,
-  type RecipientEntry,
-  captureRecipientOf,
-  giftIdeaOf,
-  newRecipientEntry,
   partyKey,
-  patchRecipient,
-  removeRecipient,
+  useGiftCaptureForm,
 } from "@leapsake/ui/headless";
-import {
-  type GiftDraft,
-  GiftGivenCheckbox,
-  GiftIdentityFields,
-  emptyGiftDraft,
-} from "./GiftFields";
-import { HeaderSave } from "./HeaderSave";
+import { GiftGivenCheckbox, GiftIdentityFields } from "./GiftFields";
+import { useHeaderSave } from "./HeaderSave";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
 
+const TEXT = {
+  recipientsLabel: "Who’s it for? (optional)",
+  remove: "Remove",
+  removeLabel: (name: string) => `Remove ${name}`,
+  titleRequired: "A gift needs a name.",
+  saveFailed: (error: string) => `Couldn’t save: ${error}`,
+};
+
 /**
- * The one consolidated "capture a gift" **screen** — a {@link GiftDraft} plus
- * whoever it is for, and the single `core.gifts.capture` that writes them. The
- * fields themselves are {@link GiftIdentityFields} and {@link GiftGivenCheckbox},
- * which the entity forms' {@link StagedGiftsSection} renders directly; this is
- * the wrapper that owns state and has a Save.
- *
- * Name a gift (autocompleting existing ideas) or paste a link; that alone
- * captures an **idea**. On the Gifts screen you then add **recipients**; on a
- * Person/Pet screen the recipient is fixed. Tick anyone who already has it. One
- * submit, one transaction.
- *
- * `fixedRecipient` (one known recipient) and `recipientCandidates` (Gifts screen)
- * are mutually exclusive: the former hides the recipient picker, the latter shows
- * a multi-add typeahead over people/pets, each picked party carrying **its own**
- * tick while the name above is shared.
- *
- * This form used to open by asking which of two things it was — "Idea" or
- * "Already gave it" — because the answer chose which table the submit wrote to,
- * and reshaped every field below it into either dated giving rows or a target
- * occasion. With one table there is nothing to ask, and the answer is the
- * checkbox on each recipient.
+ * The "capture a gift" screen: {@link useGiftCaptureForm}'s draft rendered by
+ * {@link GiftCaptureFields}, and the one `core.gifts.capture` that writes it.
  */
 export function GiftCaptureForm({
-  title: headerTitle,
+  title,
   ideaPool,
   fixedRecipient,
   recipientCandidates,
@@ -67,41 +47,23 @@ export function GiftCaptureForm({
   onSaved?: () => void;
 }) {
   const core = useCore();
-
-  const [draft, setDraft] = useState<GiftDraft>(() =>
-    emptyGiftDraft(startGiven),
-  );
-  // Gifts-screen mode: recipients each carry their own tick.
-  const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
+  const form = useGiftCaptureForm({ ideaPool, fixedRecipient, startGiven });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const chosenKeys = new Set(recipients.map((r) => partyKey(r.option)));
-  const trimmedTitle = draft.title.trim();
-
-  function reset() {
-    setDraft(emptyGiftDraft(startGiven));
-    setRecipients([]);
-  }
+  const headerRight = useHeaderSave({
+    problem: form.errors.title === "required" ? TEXT.titleRequired : undefined,
+    saving: busy,
+    onPress: () => void submit(),
+  });
 
   async function submit() {
-    if (trimmedTitle === "") {
-      setError("A gift needs a name.");
-      return;
-    }
-
-    const captureRecipients = fixedRecipient
-      ? [captureRecipientOf(fixedRecipient, draft.given)]
-      : recipients.map((r) => captureRecipientOf(r.option, r.given));
-
+    const shaped = form.submit();
+    if (shaped === null) return;
     setBusy(true);
     setError(null);
     try {
-      await core.gifts.capture({
-        giftIdea: giftIdeaOf(draft, ideaPool),
-        recipients: captureRecipients,
-      });
-      reset();
+      await core.gifts.capture(shaped.input);
+      form.reset();
       onSaved?.();
     } catch (e) {
       setError(String(e));
@@ -110,26 +72,63 @@ export function GiftCaptureForm({
     }
   }
 
-  const canSubmit = !busy && trimmedTitle !== "";
-
   return (
     <View style={styles.section}>
-      <Stack.Screen
-        options={{
-          title: headerTitle,
-          headerRight: () => (
-            <HeaderSave
-              canSave={canSubmit}
-              saving={busy}
-              onPress={() => void submit()}
-            />
-          ),
-        }}
+      <Stack.Screen options={{ title, headerRight }} />
+      <GiftCaptureFields
+        fields={form.fields}
+        onIdentityChange={(d) =>
+          form.update((f) => ({
+            ...f,
+            title: d.title,
+            url: d.url,
+            given: d.given,
+          }))
+        }
+        ideaPool={ideaPool}
+        fixedRecipient={fixedRecipient}
+        candidates={recipientCandidates ?? []}
+        chosen={form.chosen}
+        onAddRecipient={form.addRecipient}
+        onRemoveRecipient={form.removeRecipient}
+        onRecipientGiven={form.setRecipientGiven}
       />
+      {error !== null && (
+        <Text style={styles.danger}>{TEXT.saveFailed(error)}</Text>
+      )}
+    </View>
+  );
+}
 
+/** A gift, and who it is for with a tick each (or the one fixed recipient's). */
+export function GiftCaptureFields({
+  fields,
+  onIdentityChange,
+  ideaPool,
+  fixedRecipient,
+  candidates,
+  chosen,
+  onAddRecipient,
+  onRemoveRecipient,
+  onRecipientGiven,
+}: {
+  fields: GiftCaptureDraft;
+  onIdentityChange: (
+    draft: Pick<GiftCaptureDraft, "title" | "url" | "given">,
+  ) => void;
+  ideaPool: GiftIdea[];
+  fixedRecipient?: PartyOption;
+  candidates: PartyOption[];
+  chosen: ReadonlySet<string>;
+  onAddRecipient: (option: PartyOption) => void;
+  onRemoveRecipient: (key: string) => void;
+  onRecipientGiven: (key: string, given: boolean) => void;
+}) {
+  return (
+    <>
       <GiftIdentityFields
-        draft={draft}
-        onChange={setDraft}
+        draft={fields}
+        onChange={onIdentityChange}
         ideaPool={ideaPool}
       />
 
@@ -137,25 +136,22 @@ export function GiftCaptureForm({
         <GiftGivenCheckbox
           testID="gift-given"
           label={fixedRecipient.label}
-          value={draft.given}
-          onChange={(given) => setDraft({ ...draft, given })}
+          value={fields.given}
+          onChange={(given) => onIdentityChange({ ...fields, given })}
         />
       ) : (
         <View style={styles.section}>
           <Typeahead
             multi
-            label="Who's it for? (optional)"
+            label={TEXT.recipientsLabel}
             value={null}
-            options={recipientCandidates ?? []}
-            exclude={chosenKeys}
-            onChange={(option) =>
-              option !== null &&
-              setRecipients((prev) => [...prev, newRecipientEntry(option)])
-            }
+            options={candidates}
+            exclude={chosen}
+            onChange={(option) => option !== null && onAddRecipient(option)}
             getKey={partyKey}
             getLabel={(c) => c.label}
           />
-          {recipients.map((r) => {
+          {fields.recipients.map((r) => {
             const key = partyKey(r.option);
             return (
               <View key={key} style={styles.row}>
@@ -163,31 +159,23 @@ export function GiftCaptureForm({
                   <Text style={styles.sectionTitle}>{r.option.label}</Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${r.option.label}`}
-                    onPress={() =>
-                      setRecipients((prev) => removeRecipient(prev, key))
-                    }
+                    accessibilityLabel={TEXT.removeLabel(r.option.label)}
+                    onPress={() => onRemoveRecipient(key)}
                   >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
+                    <Text style={[styles.link, styles.danger]}>
+                      {TEXT.remove}
+                    </Text>
                   </Pressable>
                 </View>
                 <GiftGivenCheckbox
                   value={r.given}
-                  onChange={(given) =>
-                    setRecipients((prev) =>
-                      patchRecipient(prev, key, { given }),
-                    )
-                  }
+                  onChange={(given) => onRecipientGiven(key, given)}
                 />
               </View>
             );
           })}
         </View>
       )}
-
-      {error !== null && (
-        <Text style={styles.danger}>Couldn't save: {error}</Text>
-      )}
-    </View>
+    </>
   );
 }

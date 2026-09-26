@@ -3,16 +3,14 @@ import { type FormEvent, useId, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import {
+  type GiftCaptureDraft,
   type PartyOption,
-  type RecipientEntry,
-  captureRecipientOf,
-  giftIdeaOf,
-  newRecipientEntry,
   partyKey,
-  patchRecipient,
-  removeRecipient,
+  useGiftCaptureForm,
   useGiftsPorts,
 } from "../../headless/index.js";
+import styles from "../patterns/not-ready.module.css";
+import { showFormProblem } from "../patterns/form-problem.js";
 
 /**
  * The one consolidated "capture a gift" form: name the gift (autocompleting
@@ -52,51 +50,20 @@ export function GiftCaptureForm({
 }) {
   const ports = useGiftsPorts();
   const m = useMessages();
-  const listId = useId();
-
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
-  // Fixed-recipient mode: the one recipient's checkbox.
-  const [fixedGiven, setFixedGiven] = useState(startGiven);
-  // Gifts-screen mode: recipients each carry their own.
-  const [recipients, setRecipients] = useState<RecipientEntry[]>([]);
+  const form = useGiftCaptureForm({ ideaPool, fixedRecipient, startGiven });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const chosenIds = new Set(recipients.map((r) => partyKey(r.option)));
-  const addableRecipients = (recipientCandidates ?? []).filter(
-    (c) => !chosenIds.has(partyKey(c)),
-  );
-
-  const trimmedTitle = title.trim();
-
-  function reset() {
-    setTitle("");
-    setUrl("");
-    setFixedGiven(startGiven);
-    setRecipients([]);
-  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    if (trimmedTitle === "") {
-      setError(m.giftCapture.missingTitle);
-      return;
-    }
-
-    const captureRecipients = fixedRecipient
-      ? [captureRecipientOf(fixedRecipient, fixedGiven)]
-      : recipients.map((r) => captureRecipientOf(r.option, r.given));
-
+    const shaped = form.submit();
+    if (shaped === null) return showFormProblem(m.giftCapture.missingTitle);
     setBusy(true);
     setError(null);
     try {
-      await ports.capture({
-        giftIdea: giftIdeaOf({ title, url }, ideaPool),
-        recipients: captureRecipients,
-      });
-      reset();
+      await ports.capture(shaped.input);
+      form.reset();
       onSaved();
     } catch (err) {
       setError(String(err));
@@ -107,98 +74,130 @@ export function GiftCaptureForm({
 
   return (
     <form onSubmit={submit}>
-      <fieldset>
-        <p>
-          <label htmlFor={`${listId}-title`}>{m.giftCapture.giftLabel}</label>
-          <br />
-          <input
-            id={`${listId}-title`}
-            list={listId}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={m.giftCapture.titlePlaceholder}
-          />
-          <datalist id={listId}>
-            {ideaPool.map((i) => (
-              <option key={i.id} value={i.title} />
-            ))}
-          </datalist>{" "}
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            type="url"
-            placeholder={m.giftCapture.urlPlaceholder}
-            aria-label={m.giftCapture.urlLabel}
-          />
-        </p>
-
-        {fixedRecipient ? (
-          <p>
-            <label>
-              <input
-                type="checkbox"
-                checked={fixedGiven}
-                onChange={(e) => setFixedGiven(e.target.checked)}
-              />{" "}
-              {m.giftCapture.alreadyGiven(fixedRecipient.label)}
-            </label>
-          </p>
-        ) : (
-          <div>
-            <MultiAddCombobox
-              label={m.giftCapture.addRecipientLabel}
-              placeholder={m.giftCapture.addRecipientPlaceholder}
-              options={addableRecipients}
-              getKey={partyKey}
-              getLabel={(c) => c.label}
-              onPick={(c) =>
-                setRecipients((prev) => [...prev, newRecipientEntry(c)])
-              }
-              announceAdded={m.combobox.added}
-              announceCount={m.combobox.suggestionCount}
-            />
-            <ul>
-              {recipients.map((r) => {
-                const key = partyKey(r.option);
-                return (
-                  <li key={key}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={r.given}
-                        onChange={(e) =>
-                          setRecipients((prev) =>
-                            patchRecipient(prev, key, {
-                              given: e.target.checked,
-                            }),
-                          )
-                        }
-                      />{" "}
-                      {m.giftCapture.alreadyGiven(r.option.label)}
-                    </label>{" "}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setRecipients((prev) => removeRecipient(prev, key))
-                      }
-                    >
-                      {m.giftCapture.removeRecipient}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+      <GiftCaptureFields
+        fields={form.fields}
+        set={form.set}
+        ideaPool={ideaPool}
+        fixedRecipient={fixedRecipient}
+        addable={(recipientCandidates ?? []).filter(
+          (c) => !form.chosen.has(partyKey(c)),
         )}
-
-        {error !== null && <p>{m.common.saveFailed(error)}</p>}
-
-        <p>
-          <button type="submit" aria-disabled={busy}>
-            {m.giftCapture.submit}
-          </button>
-        </p>
-      </fieldset>
+        onAddRecipient={form.addRecipient}
+        onRemoveRecipient={form.removeRecipient}
+        onRecipientGiven={form.setRecipientGiven}
+      />
+      {error !== null && <p>{m.common.saveFailed(error)}</p>}
+      <p>
+        <button
+          type="submit"
+          className={form.canSubmit ? undefined : styles.notReady}
+          aria-disabled={busy}
+        >
+          {m.giftCapture.submit}
+        </button>
+      </p>
     </form>
+  );
+}
+
+/** A gift, and who it is for with a tick each (or the one fixed recipient's). */
+export function GiftCaptureFields({
+  fields,
+  set,
+  ideaPool,
+  fixedRecipient,
+  addable,
+  onAddRecipient,
+  onRemoveRecipient,
+  onRecipientGiven,
+}: {
+  fields: GiftCaptureDraft;
+  set: <K extends keyof GiftCaptureDraft>(
+    key: K,
+    value: GiftCaptureDraft[K],
+  ) => void;
+  ideaPool: readonly GiftIdea[];
+  fixedRecipient?: PartyOption;
+  /** The candidates not yet picked. */
+  addable: readonly PartyOption[];
+  onAddRecipient: (option: PartyOption) => void;
+  onRemoveRecipient: (key: string) => void;
+  onRecipientGiven: (key: string, given: boolean) => void;
+}) {
+  const m = useMessages();
+  const listId = useId();
+
+  return (
+    <fieldset>
+      <p>
+        <label htmlFor={`${listId}-title`}>{m.giftCapture.giftLabel}</label>
+        <br />
+        <input
+          id={`${listId}-title`}
+          list={listId}
+          value={fields.title}
+          onChange={(e) => set("title", e.target.value)}
+          placeholder={m.giftCapture.titlePlaceholder}
+        />
+        <datalist id={listId}>
+          {ideaPool.map((i) => (
+            <option key={i.id} value={i.title} />
+          ))}
+        </datalist>{" "}
+        <input
+          value={fields.url}
+          onChange={(e) => set("url", e.target.value)}
+          type="url"
+          placeholder={m.giftCapture.urlPlaceholder}
+          aria-label={m.giftCapture.urlLabel}
+        />
+      </p>
+
+      {fixedRecipient ? (
+        <p>
+          <label>
+            <input
+              type="checkbox"
+              checked={fields.given}
+              onChange={(e) => set("given", e.target.checked)}
+            />{" "}
+            {m.giftCapture.alreadyGiven(fixedRecipient.label)}
+          </label>
+        </p>
+      ) : (
+        <div>
+          <MultiAddCombobox
+            label={m.giftCapture.addRecipientLabel}
+            placeholder={m.giftCapture.addRecipientPlaceholder}
+            options={addable}
+            getKey={partyKey}
+            getLabel={(c) => c.label}
+            onPick={onAddRecipient}
+            announceAdded={m.combobox.added}
+            announceCount={m.combobox.suggestionCount}
+          />
+          <ul>
+            {fields.recipients.map((r) => {
+              const key = partyKey(r.option);
+              return (
+                <li key={key}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={r.given}
+                      onChange={(e) => onRecipientGiven(key, e.target.checked)}
+                    />{" "}
+                    {m.giftCapture.alreadyGiven(r.option.label)}
+                  </label>{" "}
+                  <button type="button" onClick={() => onRemoveRecipient(key)}>
+                    {m.giftCapture.removeRecipient}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </fieldset>
   );
 }

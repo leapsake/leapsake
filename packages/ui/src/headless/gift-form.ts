@@ -12,8 +12,9 @@
  * prior gifts. All of it existed to serve occasions and dates, which are out of
  * v0.1 scope; a recipient is now a party and a checkbox.
  */
-import type { GiftPartyType } from "@leapsake/schema";
-import type { PartyOption } from "./gifts-ports.js";
+import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
+import type { Shaped } from "./forms/use-draft-form.js";
+import type { GiftCaptureInput, PartyOption } from "./gifts-ports.js";
 
 /** A person or pet as one string — a React key, a Set member, a route param. */
 export const partyKey = (party: { type: string; id: string }) =>
@@ -79,4 +80,37 @@ export function removeRecipient(
   key: string,
 ): RecipientEntry[] {
   return entries.filter((entry) => partyKey(entry.option) !== key);
+}
+
+/** A capture as the form holds it; `given` is the fixed recipient's tick. */
+export interface GiftCaptureDraft {
+  title: string;
+  url: string;
+  given: boolean;
+  recipients: RecipientEntry[];
+}
+
+export const giftCaptureDraftOf = (startGiven = false): GiftCaptureDraft => ({
+  title: "",
+  url: "",
+  given: startGiven,
+  recipients: [],
+});
+
+/** The capture to write, pointing at a matching idea when one exists. */
+export function giftCaptureInputOf(
+  draft: GiftCaptureDraft,
+  ideaPool: readonly Pick<GiftIdea, "id" | "title">[],
+  fixedRecipient?: PartyOption,
+): Shaped<{ input: GiftCaptureInput }, { title?: "required" }> {
+  if (draft.title.trim() === "") {
+    return { ok: false, errors: { title: "required" } };
+  }
+  const recipients = fixedRecipient
+    ? [captureRecipientOf(fixedRecipient, draft.given)]
+    : draft.recipients.map((r) => captureRecipientOf(r.option, r.given));
+  return {
+    ok: true,
+    input: { giftIdea: giftIdeaOf(draft, ideaPool), recipients },
+  };
 }

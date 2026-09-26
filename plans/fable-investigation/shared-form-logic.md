@@ -91,8 +91,12 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    `giftIdeaEditAction`. Checked by hand on both platforms.
 2. **`useReminderForm`. ✅ Landed 2026-09-26.** The date-parts rules moved from mobile to
    `schema/date-parts.ts`, so desktop now refuses a past due date too (and its date input
-   carries the same rule as `min`). Then **`useGiftCaptureForm`** (extend the existing
-   `headless/gift-form.ts` rather than adding beside it).
+   carries the same rule as `min`). **`useGiftCaptureForm`. ✅ Landed 2026-09-26**, its
+   shaping (`giftCaptureInputOf`) in `headless/gift-form.ts`. ⚠️ **Open (owner): the web
+   capture form still needs JS.** It writes through `ports.capture`, not a route action, its
+   fields carry no names, and adding recipients is a JS combobox. Making it post needs an
+   action on each route that renders it (Gifts' create screen, and the Person/Pet page via
+   `GiftsSection`) and a decision on what picking recipients looks like with no JS.
 3. **`useMilestoneForm`**. Watch mobile's two `useEffect`s: whatever they synchronise is either
    derived state (make it a computed value in the hook) or a genuine effect (keep it on the
    platform side and say why in one line).

@@ -1,7 +1,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
-import styles from "./FormShell.module.css";
+import styles from "./not-ready.module.css";
 import { showFormProblem } from "./form-problem.js";
 
 /**

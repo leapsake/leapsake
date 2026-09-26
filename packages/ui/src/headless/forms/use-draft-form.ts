@@ -19,11 +19,17 @@ export function useDraftForm<Draft extends object, Ok, Errors extends object>(
       setFields((draft) => ({ ...draft, [key]: value })),
     [],
   );
+  const update = useCallback(
+    (edit: (draft: Draft) => Draft) => setFields(edit),
+    [],
+  );
   const shaped = shape(fields);
   const errors: Partial<Errors> = shaped.ok ? {} : shaped.errors;
   return {
     fields,
     set,
+    update,
+    reset: () => setFields(initial()),
     errors,
     canSubmit: shaped.ok,
     submit: () => (shaped.ok ? shaped : null),
