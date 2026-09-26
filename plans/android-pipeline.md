@@ -28,7 +28,7 @@ accounts. Google scopes the rule to personal accounts and does not discuss orgs.
 ## Still to build
 
 `scripts/release/targets/android.mjs` is **`ready`**: `alpha` and `beta` ship, `rc` ships its
-closed half, `final` refuses. It and `play.mjs` document their own reasoning. What remains:
+closed half, `final` refuses. It and `google-play.mjs` document their own reasoning. What remains:
 
 - ☐ **`rc`'s production half.** One edit can update **several tracks**, which is how `rc` will
   reach the closed track and a held production release with **one** upload and one version code.

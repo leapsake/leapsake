@@ -118,7 +118,7 @@ storeSubmission?, marker? }`, `build(ctx)`, `publish(ctx)`, and `release(ctx)` f
   `unlock-keychain` / `set-key-partition-list`, unverified here), and on Linux
   `isEncryptionAvailable()` returns `true` over a `basic_text` fallback, so a green test there
   proves less than it appears to. The _signing_ keychain is step 7's `.p12` import, routine.
-- **Play's edit is transactional; Apple's upload is not.** `play.mjs` `withEdit` commits at the end
+- **Play's edit is transactional; Apple's upload is not.** `google-play.mjs` `withEdit` commits at the end
   or abandons; `altool --upload-app` is spent on success. Both sides have a pre-upload validation
   (`altool --validate-app`; Play `:validate` in the `consolePreconditions` check).
 - **Vitest runs `scripts/**/\*.test.mjs`**, so the release-path tests are part of `pnpm test`.

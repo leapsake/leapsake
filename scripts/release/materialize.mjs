@@ -36,9 +36,9 @@ export const SECRETS = [
     pathVar: "LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH",
   },
   {
-    name: "PLAY_SERVICE_ACCOUNT",
-    file: "play-service-account.json",
-    pathVar: "PLAY_SERVICE_ACCOUNT_PATH",
+    name: "GOOGLE_PLAY_SERVICE_ACCOUNT",
+    file: "google-play-service-account.json",
+    pathVar: "GOOGLE_PLAY_SERVICE_ACCOUNT_PATH",
   },
 ];
 

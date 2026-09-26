@@ -49,7 +49,7 @@
       "sha256": "0e73f11b26111091e80771b969fb555fbc64ce3834ee7c585218175934812875"
     },
     {
-      "path": "assets/store/play-icon.png",
+      "path": "assets/store/google-play-icon.png",
       "source": "assets/icon/logo_color.svg",
       "format": "png",
       "size": 512,

@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PlayError, createPlay } from "./play.mjs";
+import { GooglePlayError, createGooglePlay } from "./google-play.mjs";
 
 const PKG = "com.leapsake.app";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -27,7 +27,10 @@ function testCredentials() {
   const { privateKey, publicKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
   });
-  const path = join(mkdtempSync(join(tmpdir(), "play-")), "credentials.json");
+  const path = join(
+    mkdtempSync(join(tmpdir(), "google-play-")),
+    "credentials.json",
+  );
   writeFileSync(
     path,
     JSON.stringify({
@@ -101,8 +104,11 @@ describe("authentication", () => {
       return TOKEN_OK();
     };
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    await play.token();
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    await googlePlay.token();
 
     const [header, payload, signature] = assertion.split(".");
     expect(
@@ -135,9 +141,12 @@ describe("authentication", () => {
       return answer(200, {});
     };
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    await play.get(`${play.app(PKG)}/edits/1/tracks`);
-    await play.get(`${play.app(PKG)}/edits/1/tracks`);
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    await googlePlay.get(`${googlePlay.app(PKG)}/edits/1/tracks`);
+    await googlePlay.get(`${googlePlay.app(PKG)}/edits/1/tracks`);
 
     expect(exchanges).toBe(1);
   });
@@ -146,8 +155,11 @@ describe("authentication", () => {
     const { path } = testCredentials();
     const calls = stubApi([answer(200, {})]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    await play.get(`${play.app(PKG)}/edits/1/tracks`);
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    await googlePlay.get(`${googlePlay.app(PKG)}/edits/1/tracks`);
 
     expect(calls[0].init.headers.authorization).toBe("Bearer ya29.test");
   });
@@ -160,17 +172,23 @@ describe("authentication", () => {
         error_description: "Invalid JWT Signature.",
       });
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    await expect(play.token()).rejects.toThrow(
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    await expect(googlePlay.token()).rejects.toThrow(
       /invalid_grant: Invalid JWT Signature/,
     );
   });
 
   it("refuses a JSON file that is not a service-account key", () => {
-    const path = join(mkdtempSync(join(tmpdir(), "play-")), "credentials.json");
+    const path = join(
+      mkdtempSync(join(tmpdir(), "google-play-")),
+      "credentials.json",
+    );
     writeFileSync(path, JSON.stringify({ installed: { client_id: "x" } }));
 
-    expect(() => createPlay({ credentialsPath: path })).toThrow(
+    expect(() => createGooglePlay({ credentialsPath: path })).toThrow(
       /missing "client_email"/,
     );
   });
@@ -190,12 +208,15 @@ describe("the error path", () => {
       }),
     ]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    const failure = await play
-      .get(`${play.app(PKG)}/edits/1/tracks`)
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    const failure = await googlePlay
+      .get(`${googlePlay.app(PKG)}/edits/1/tracks`)
       .catch((error) => error);
 
-    expect(failure).toBeInstanceOf(PlayError);
+    expect(failure).toBeInstanceOf(GooglePlayError);
     expect(failure.message).toMatch(
       /Version code 368157 has already been used/,
     );
@@ -209,9 +230,12 @@ describe("retrying", () => {
     const { path } = testCredentials();
     const calls = stubApi([answer(503), answer(200, { id: "edit-1" })]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
     const result = await withoutWaiting(() =>
-      play.post(`${play.app(PKG)}/edits`),
+      googlePlay.post(`${googlePlay.app(PKG)}/edits`),
     );
 
     expect(result).toEqual({ id: "edit-1" });
@@ -222,9 +246,12 @@ describe("retrying", () => {
     const { path } = testCredentials();
     const calls = stubApi([answer(403, { error: { message: "denied" } })]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
     await expect(
-      withoutWaiting(() => play.post(`${play.app(PKG)}/edits`)),
+      withoutWaiting(() => googlePlay.post(`${googlePlay.app(PKG)}/edits`)),
     ).rejects.toThrow(/denied/);
 
     expect(calls).toHaveLength(1);
@@ -232,13 +259,19 @@ describe("retrying", () => {
 
   it("does not retry a bundle upload — its recovery is a fresh edit", async () => {
     const { path } = testCredentials();
-    const aab = join(mkdtempSync(join(tmpdir(), "play-")), "app-release.aab");
+    const aab = join(
+      mkdtempSync(join(tmpdir(), "google-play-")),
+      "app-release.aab",
+    );
     writeFileSync(aab, "not really a bundle");
     const calls = stubApi([new TypeError("fetch failed")]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
     await expect(
-      withoutWaiting(() => play.uploadBundle(PKG, "edit-1", aab)),
+      withoutWaiting(() => googlePlay.uploadBundle(PKG, "edit-1", aab)),
     ).rejects.toThrow(/fetch failed/);
 
     expect(calls).toHaveLength(1);
@@ -248,12 +281,18 @@ describe("retrying", () => {
 describe("uploading a bundle", () => {
   it("posts octet-stream to the upload host with uploadType=media", async () => {
     const { path } = testCredentials();
-    const aab = join(mkdtempSync(join(tmpdir(), "play-")), "app-release.aab");
+    const aab = join(
+      mkdtempSync(join(tmpdir(), "google-play-")),
+      "app-release.aab",
+    );
     writeFileSync(aab, "not really a bundle");
     const calls = stubApi([answer(200, { versionCode: 371753 })]);
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    const bundle = await play.uploadBundle(PKG, "edit-1", aab);
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    const bundle = await googlePlay.uploadBundle(PKG, "edit-1", aab);
 
     expect(bundle.versionCode).toBe(371753);
     const { url, init } = calls[0];
@@ -284,8 +323,14 @@ describe("the edit lifecycle", () => {
     const { path } = testCredentials();
     const calls = stubRoutes();
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    const result = await play.withEdit(PKG, async (editId) => `did ${editId}`);
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    const result = await googlePlay.withEdit(
+      PKG,
+      async (editId) => `did ${editId}`,
+    );
 
     expect(result).toBe("did edit-1");
     expect(calls).toEqual([
@@ -298,9 +343,12 @@ describe("the edit lifecycle", () => {
     const { path } = testCredentials();
     const calls = stubRoutes();
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
     await expect(
-      play.withEdit(PKG, async () => {
+      googlePlay.withEdit(PKG, async () => {
         throw new Error("the upload failed");
       }),
     ).rejects.toThrow(/the upload failed/);
@@ -316,8 +364,11 @@ describe("the edit lifecycle", () => {
     const { path } = testCredentials();
     const calls = stubRoutes();
 
-    const play = createPlay({ credentialsPath: path, onRetry: quiet });
-    await play.withEdit(PKG, async () => "dry run", { commit: false });
+    const googlePlay = createGooglePlay({
+      credentialsPath: path,
+      onRetry: quiet,
+    });
+    await googlePlay.withEdit(PKG, async () => "dry run", { commit: false });
 
     expect(calls).toEqual([
       `POST /androidpublisher/v3/applications/${PKG}/edits`,
@@ -335,13 +386,13 @@ describe("the edit lifecycle", () => {
       return answer(200, { id: "edit-1" });
     };
 
-    const play = createPlay({
+    const googlePlay = createGooglePlay({
       credentialsPath: path,
       onRetry: (message) => notices.push(message),
     });
     await expect(
       withoutWaiting(() =>
-        play.withEdit(PKG, async () => {
+        googlePlay.withEdit(PKG, async () => {
           throw new Error("the upload failed");
         }),
       ),

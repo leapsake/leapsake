@@ -1,5 +1,5 @@
 // The Android target: Google Play, via a local bundle. `expo prebuild` generates the
-// project, `./gradlew bundleRelease` signs an AAB with the upload key, and `play.mjs`
+// project, `./gradlew bundleRelease` signs an AAB with the upload key, and `google-play.mjs`
 // puts it on a track through the Developer API.
 //
 // Two constraints shape this file, both the same ones `ios.mjs` states:
@@ -17,7 +17,7 @@ import { join } from "node:path";
 
 import { envSet, fileAt } from "../checks.mjs";
 import { MOBILE, appIcon, must, pinnedConfig } from "../mobile.mjs";
-import { playFromEnv } from "../play.mjs";
+import { googlePlayFromEnv } from "../google-play.mjs";
 import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
 
 // ⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's closed testing
@@ -76,23 +76,23 @@ const signing = [
 const consolePreconditions = (track) => ({
   name: "Play Console preconditions",
   check: async ({ root }) => {
-    if (!process.env.PLAY_SERVICE_ACCOUNT_PATH?.trim()) return undefined;
+    if (!process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH?.trim()) return undefined;
     const packageName = readPackageName(root);
     try {
-      const play = playFromEnv();
-      await play.withEdit(
+      const googlePlay = googlePlayFromEnv();
+      await googlePlay.withEdit(
         packageName,
         async (editId) => {
-          const edit = `${play.app(packageName)}/edits/${editId}`;
-          const current = await play.get(`${edit}/tracks/${track}`);
+          const edit = `${googlePlay.app(packageName)}/edits/${editId}`;
+          const current = await googlePlay.get(`${edit}/tracks/${track}`);
           // A track Play has never released to answers with no releases; writing an empty
           // array back is not the shape a real publish takes, so send nothing instead.
           if (current.releases?.length) {
-            await play.put(`${edit}/tracks/${track}`, {
+            await googlePlay.put(`${edit}/tracks/${track}`, {
               body: { track, releases: current.releases },
             });
           }
-          await play.post(`${edit}:validate`);
+          await googlePlay.post(`${edit}:validate`);
         },
         { commit: false },
       );
@@ -108,7 +108,7 @@ const consolePreconditions = (track) => ({
 });
 
 const serviceAccount = fileAt(
-  "PLAY_SERVICE_ACCOUNT_PATH",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_PATH",
   "the upload authenticates with it — see .env.example",
   { suffix: ".json" },
 );
@@ -130,16 +130,19 @@ const java = {
  * One live Play call, so a wrong grant is reported before a four-minute Gradle build
  * rather than after it. Mirrors the App Store Connect check in `ios.mjs`.
  */
-const playReachable = {
+const googlePlayReachable = {
   name: "Play API",
   check: async ({ root }) => {
-    if (!process.env.PLAY_SERVICE_ACCOUNT_PATH?.trim()) return undefined;
+    if (!process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH?.trim()) return undefined;
     const packageName = readPackageName(root);
     try {
-      const play = playFromEnv();
-      await play.withEdit(
+      const googlePlay = googlePlayFromEnv();
+      await googlePlay.withEdit(
         packageName,
-        (editId) => play.get(`${play.app(packageName)}/edits/${editId}/tracks`),
+        (editId) =>
+          googlePlay.get(
+            `${googlePlay.app(packageName)}/edits/${editId}/tracks`,
+          ),
         { commit: false },
       );
       return undefined;
@@ -233,7 +236,7 @@ export default {
   host: "linux",
   status: "ready",
 
-  preflight: [java, ...signing, serviceAccount, playReachable],
+  preflight: [java, ...signing, serviceAccount, googlePlayReachable],
 
   tiers: TIERS,
 
@@ -324,12 +327,12 @@ export default {
    */
   async publish({ artifact, root, stage, version }) {
     const tier = TIERS[stage];
-    const play = playFromEnv();
-    const app = play.app(artifact.bundleId);
+    const googlePlay = googlePlayFromEnv();
+    const app = googlePlay.app(artifact.bundleId);
     const notes = readFileSync(NOTES(root), "utf8").trim();
 
-    await play.withEdit(artifact.bundleId, async (editId) => {
-      const bundle = await play.uploadBundle(
+    await googlePlay.withEdit(artifact.bundleId, async (editId) => {
+      const bundle = await googlePlay.uploadBundle(
         artifact.bundleId,
         editId,
         artifact.files.aab,
@@ -341,7 +344,7 @@ export default {
       }
       console.log(`   uploaded version code ${bundle.versionCode}`);
 
-      await play.put(`${app}/edits/${editId}/tracks/${tier.track}`, {
+      await googlePlay.put(`${app}/edits/${editId}/tracks/${tier.track}`, {
         body: {
           track: tier.track,
           releases: [

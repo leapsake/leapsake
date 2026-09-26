@@ -188,7 +188,7 @@ const OUTPUTS = [
      * radius. ⚠️ The background is also **mandatory** here — Play rejects a store icon with
      * an alpha channel, the same constraint iOS puts on `icon.png`.
      */
-    path: "assets/store/play-icon.png",
+    path: "assets/store/google-play-icon.png",
     source: SOURCES.color,
     size: 512,
     fraction: FRACTIONS.masked,

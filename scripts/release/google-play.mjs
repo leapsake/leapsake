@@ -25,10 +25,10 @@ const CALL_TIMEOUT_MS = 60_000;
 const UPLOAD_TIMEOUT_MS = 5 * 60_000;
 
 /** A failed Play API request, carrying Google's own `error` object. */
-export class PlayError extends Error {
+export class GooglePlayError extends Error {
   constructor(message, { status, error, retryAfterMs }) {
     super(message);
-    this.name = "PlayError";
+    this.name = "GooglePlayError";
     this.status = status;
     this.error = error;
     this.reasons = (error?.errors ?? [])
@@ -49,14 +49,16 @@ const base64url = (input) => Buffer.from(input).toString("base64url");
 const app = (packageName) =>
   `/androidpublisher/v3/applications/${encodeURIComponent(packageName)}`;
 
-/** Build the client from the service-account JSON named by `PLAY_SERVICE_ACCOUNT_PATH`. */
-export function playFromEnv() {
-  return createPlay({
-    credentialsPath: resolve(process.env.PLAY_SERVICE_ACCOUNT_PATH.trim()),
+/** Build the client from the service-account JSON named by `GOOGLE_PLAY_SERVICE_ACCOUNT_PATH`. */
+export function googlePlayFromEnv() {
+  return createGooglePlay({
+    credentialsPath: resolve(
+      process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH.trim(),
+    ),
   });
 }
 
-export function createPlay({ credentialsPath, onRetry = warn }) {
+export function createGooglePlay({ credentialsPath, onRetry = warn }) {
   // Parse at construction: a malformed key should fail here, not mid-upload.
   const credentials = JSON.parse(readFileSync(credentialsPath, "utf8"));
   for (const field of ["client_email", "private_key"]) {
@@ -122,7 +124,7 @@ export function createPlay({ credentialsPath, onRetry = warn }) {
         [parsed?.error, parsed?.error_description].filter(Boolean).join(": ") ||
         text.slice(0, 500) ||
         response.statusText;
-      throw new PlayError(
+      throw new GooglePlayError(
         `Play token exchange → ${response.status}: ${detail}`,
         {
           status: response.status,
@@ -159,7 +161,7 @@ export function createPlay({ credentialsPath, onRetry = warn }) {
       const error = parsed?.error;
       const detail =
         error?.message || text.slice(0, 500) || response.statusText;
-      throw new PlayError(
+      throw new GooglePlayError(
         `Play ${method} ${path} → ${response.status}: ${detail}`,
         {
           status: response.status,
@@ -280,7 +282,7 @@ function retryDelay(error, attemptNo) {
   if (attemptNo >= MAX_ATTEMPTS) return undefined;
   const backoff = BACKOFF_MS[attemptNo - 1];
 
-  if (error instanceof PlayError) {
+  if (error instanceof GooglePlayError) {
     if (error.status === 429) return error.retryAfterMs ?? backoff;
     return error.status >= 500 ? backoff : undefined;
   }
@@ -305,7 +307,7 @@ function retryAfterOf(response) {
 
 /** What to call this failure in the retry notice. */
 function reason(error) {
-  if (error instanceof PlayError) return `HTTP ${error.status}`;
+  if (error instanceof GooglePlayError) return `HTTP ${error.status}`;
   return error?.name === "TimeoutError" || error?.name === "AbortError"
     ? "timed out"
     : (error?.message ?? "request failed");

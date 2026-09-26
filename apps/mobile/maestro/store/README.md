@@ -98,5 +98,5 @@ of extending `subflows/stage-birthday.yaml`.
 ⚠️ **These captures are not byte-reproducible.** The status-bar clock, battery and signal move
 between runs, so the same screen captured minutes apart differs (measured: `dfa695e3…` vs
 `b171ce0c…`, at different file sizes). That matters if anyone ever wants "upload only if
-changed" — see `plans/android-pipeline.md` → `play.mjs`. Android's SysUI demo mode pins the
+changed" — see `plans/android-pipeline.md` → `google-play.mjs`. Android's SysUI demo mode pins the
 chrome and is the fix, and is not done.

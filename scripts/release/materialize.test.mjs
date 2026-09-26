@@ -17,7 +17,8 @@ describe("materializeSecrets", () => {
   it("writes each secret present and names the path variable it fills", () => {
     const lines = materializeSecrets(
       {
-        LEAPSAKE_SECRET_PLAY_SERVICE_ACCOUNT_B64: b64('{"type":"service"}'),
+        LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64:
+          b64('{"type":"service"}'),
         LEAPSAKE_SECRET_ANDROID_KEYSTORE_PASSWORD_B64: b64("hunter2"),
       },
       dir,
@@ -25,11 +26,11 @@ describe("materializeSecrets", () => {
 
     expect(lines).toEqual([
       `LEAPSAKE_ANDROID_KEYSTORE_PASSWORD_PATH=${join(dir, "android-upload-password")}`,
-      `PLAY_SERVICE_ACCOUNT_PATH=${join(dir, "play-service-account.json")}`,
+      `GOOGLE_PLAY_SERVICE_ACCOUNT_PATH=${join(dir, "google-play-service-account.json")}`,
     ]);
-    expect(readFileSync(join(dir, "play-service-account.json"), "utf8")).toBe(
-      '{"type":"service"}',
-    );
+    expect(
+      readFileSync(join(dir, "google-play-service-account.json"), "utf8"),
+    ).toBe('{"type":"service"}');
     expect(statSync(join(dir, "android-upload-password")).mode & 0o777).toBe(
       0o600,
     );
@@ -49,11 +50,11 @@ describe("materializeSecrets", () => {
       materializeSecrets(
         {
           LEAPSAKE_SECRET_ASC_KEY_B64: b64("key"),
-          LEAPSAKE_SECRET_PLAY_SERVICE_ACCOUNT_B64: "{not base64}",
+          LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64: "{not base64}",
         },
         dir,
       ),
-    ).toThrow("not base64: LEAPSAKE_SECRET_PLAY_SERVICE_ACCOUNT_B64");
+    ).toThrow("not base64: LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64");
     expect(() => statSync(dir)).toThrow();
   });
 

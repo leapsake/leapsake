@@ -158,10 +158,10 @@ const PRIVATE_KEY = generateKeyPairSync("rsa", { modulusLength: 2048 })
   .privateKey.export({ type: "pkcs8", format: "pem" })
   .toString();
 
-/** A service-account key on disk, named the way `playFromEnv` expects. */
+/** A service-account key on disk, named the way `googlePlayFromEnv` expects. */
 function serviceAccount() {
   const path = join(
-    mkdtempSync(join(tmpdir(), "play-key-")),
+    mkdtempSync(join(tmpdir(), "google-play-key-")),
     "service-account.json",
   );
   writeFileSync(
@@ -171,7 +171,7 @@ function serviceAccount() {
       private_key: PRIVATE_KEY,
     }),
   );
-  process.env.PLAY_SERVICE_ACCOUNT_PATH = path;
+  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH = path;
 }
 
 const answer = (status, body) => ({
@@ -188,7 +188,7 @@ const answer = (status, body) => ({
  * Both track routes are stubbed so a rung aiming at the wrong one fails on the assertion
  * rather than on an unstubbed route, which would read as a transport error and retry.
  */
-function stubPlay(overrides = {}) {
+function stubGooglePlay(overrides = {}) {
   const routes = {
     "POST /token": answer(200, { access_token: "T", expires_in: 3600 }),
     [`POST ${APP}/edits`]: answer(200, { id: EDIT }),
@@ -228,14 +228,14 @@ const trackPut = (calls) => calls.find((call) => call.key.startsWith("PUT "));
 const realFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = realFetch;
-  delete process.env.PLAY_SERVICE_ACCOUNT_PATH;
+  delete process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH;
 });
 
 describe("publish", () => {
   it("puts a beta on the closed track, as one completed release", async () => {
     const root = repoWith({ notes: "This is the first release." });
     serviceAccount();
-    const calls = stubPlay();
+    const calls = stubGooglePlay();
 
     await android.publish({
       artifact: artifactIn(root),
@@ -262,7 +262,7 @@ describe("publish", () => {
     // that is the store version, so every rung of 0.1.0 would read "0.1.0" in the Console.
     const root = repoWith();
     serviceAccount();
-    const calls = stubPlay();
+    const calls = stubGooglePlay();
 
     await android.publish({
       artifact: artifactIn(root),
@@ -277,7 +277,7 @@ describe("publish", () => {
   it("sends an alpha rung to the internal track", async () => {
     const root = repoWith();
     serviceAccount();
-    const calls = stubPlay();
+    const calls = stubGooglePlay();
 
     await android.publish({
       artifact: artifactIn(root),
@@ -294,7 +294,7 @@ describe("publish", () => {
     // spend a version code on a bundle nobody can account for, so the edit is thrown away.
     const root = repoWith();
     serviceAccount();
-    const calls = stubPlay({
+    const calls = stubGooglePlay({
       [`POST /upload${APP}/edits/${EDIT}/bundles`]: answer(200, {
         versionCode: 999999,
       }),
@@ -324,7 +324,7 @@ describe("the Console preconditions", () => {
     { name: "0.1.0-beta.9", status: "completed", versionCodes: [String(CODE)] },
   ];
   const withTrack = (track, overrides = {}) =>
-    stubPlay({
+    stubGooglePlay({
       [`GET ${APP}/edits/${EDIT}/tracks/${track}`]: answer(200, {
         track,
         releases: RELEASES,
@@ -385,7 +385,7 @@ describe("the Console preconditions", () => {
   // shape a publish sends, so there is nothing to write back.
   it("writes nothing back to a track that has no releases", async () => {
     serviceAccount();
-    const calls = stubPlay({
+    const calls = stubGooglePlay({
       [`GET ${APP}/edits/${EDIT}/tracks/production`]: answer(200, {
         track: "production",
       }),
