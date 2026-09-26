@@ -1,5 +1,7 @@
 import { Text, View } from "react-native";
 import { Link } from "expo-router";
+import Constants from "expo-constants";
+import { versionLabel } from "../../lib/app-version";
 import { colors, styles } from "../../lib/styles";
 
 /**
@@ -38,6 +40,11 @@ const ROWS = [
   { href: "/acknowledgements", glyph: "💚", label: "Acknowledgements" },
 ] as const;
 
+const VERSION = versionLabel(
+  Constants.expoConfig?.extra?.release,
+  Constants.expoConfig?.version ?? "0.0.0",
+);
+
 export default function MenuScreen() {
   return (
     <View style={styles.screen}>
@@ -52,6 +59,13 @@ export default function MenuScreen() {
           </Link>
         ))}
       </View>
+      <Text
+        testID="app-version"
+        selectable
+        style={[styles.muted, { marginTop: "auto", textAlign: "center" }]}
+      >
+        {VERSION}
+      </Text>
     </View>
   );
 }
