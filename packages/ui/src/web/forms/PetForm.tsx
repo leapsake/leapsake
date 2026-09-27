@@ -1,6 +1,12 @@
-import type { Pet, SearchHit } from "@leapsake/schema";
-import { type ReactNode, useState } from "react";
-import { useMessages } from "../../messages/index.js";
+import type {
+  Pet,
+  PetDraft,
+  PetDraftErrors,
+  SearchHit,
+} from "@leapsake/schema";
+import type { ReactNode } from "react";
+import { usePetForm } from "../../headless/index.js";
+import { type Messages, useMessages } from "../../messages/index.js";
 import { ChipTextField } from "../fields/ChipTextField.js";
 import {
   StagedRelationshipsFields,
@@ -11,10 +17,9 @@ import { Field } from "../primitives/Field.js";
 import { GenderField } from "../primitives/GenderField.js";
 
 /**
- * The shared create/edit form for Pets. Mirrors {@link PersonForm}, with one
- * name rather than three. Passing `candidates` enables the create-only
- * Relationships section, which opens with one empty row so a pet's name and
- * owner can be set together.
+ * The create/edit form for Pets: {@link usePetForm}'s draft rendered by
+ * {@link PetFields}. Passing `candidates` adds the create-only Relationships
+ * section, opened with one row so a pet's owner can be named in the same pass.
  */
 export function PetForm({
   title,
@@ -28,7 +33,7 @@ export function PetForm({
 }: {
   title: ReactNode;
   pet?: Pet;
-  /** Comma-separated existing tag names; empty on create. */
+  /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
   /** Backs the Tags field's existing-tag picker; must be stable across renders. */
   search: (query: string) => Promise<SearchHit[]>;
@@ -40,8 +45,7 @@ export function PetForm({
   submitting: boolean;
 }) {
   const m = useMessages();
-  // Controlled, because the Tags field chips what it holds — see ChipTextField.
-  const [tags, setTags] = useState(tagNames);
+  const form = usePetForm(pet, tagNames);
 
   return (
     <FormShell
@@ -49,24 +53,9 @@ export function PetForm({
       submitLabel={submitLabel}
       cancelTo={cancelTo}
       submitting={submitting}
+      problem={petProblem(form.errors, m)}
     >
-      <Field label={m.pet.name}>
-        <input name="name" defaultValue={pet?.name} required />
-      </Field>{" "}
-      <GenderField value={pet?.gender} />
-      <fieldset>
-        <legend>{m.tags.title}</legend>
-        <Field label={m.tags.title}>
-          <ChipTextField
-            name="tags"
-            grammar="tags"
-            value={tags}
-            onChange={setTags}
-            search={search}
-            placeholder={m.petForm.tagsPlaceholder}
-          />
-        </Field>
-      </fieldset>
+      <PetFields fields={form.fields} set={form.set} search={search} />
       {candidates && (
         <StagedRelationshipsFields
           subjectType="pet"
@@ -75,5 +64,52 @@ export function PetForm({
         />
       )}
     </FormShell>
+  );
+}
+
+function petProblem(errors: PetDraftErrors, m: Messages): string | undefined {
+  return errors.name === "required" ? m.petForm.nameRequired : undefined;
+}
+
+/** A pet's fields, posted under the names the write path reads. */
+export function PetFields({
+  fields,
+  set,
+  search,
+}: {
+  fields: PetDraft;
+  set: <K extends keyof PetDraft>(key: K, value: PetDraft[K]) => void;
+  search: (query: string) => Promise<SearchHit[]>;
+}) {
+  const m = useMessages();
+
+  return (
+    <>
+      <Field label={m.pet.name}>
+        <input
+          name="name"
+          value={fields.name}
+          onChange={(e) => set("name", e.target.value)}
+          required
+        />
+      </Field>{" "}
+      <GenderField
+        value={fields.gender}
+        onChange={(gender) => set("gender", gender)}
+      />
+      <fieldset>
+        <legend>{m.tags.title}</legend>
+        <Field label={m.tags.title}>
+          <ChipTextField
+            name="tags"
+            grammar="tags"
+            value={fields.tags}
+            onChange={(tags) => set("tags", tags)}
+            search={search}
+            placeholder={m.petForm.tagsPlaceholder}
+          />
+        </Field>
+      </fieldset>
+    </>
   );
 }

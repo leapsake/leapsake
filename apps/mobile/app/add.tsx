@@ -1,17 +1,15 @@
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { type EntityType, parseTagNames } from "@leapsake/schema";
+import { type EntityType, personInputOf, petInputOf } from "@leapsake/schema";
 import { EntityFormSections } from "../components/EntityFormSections";
 import { EntityTypeToggle } from "../components/EntityTypeToggle";
 import { useHeaderSave } from "../components/HeaderSave";
-import { personDraftToInput } from "../components/PersonFields";
-import { petDraftToInput } from "../components/PetFields";
 import { useCore } from "../lib/core-context";
 import {
   type EntityFormValue,
   emptyEntityForm,
-  entityFormValid,
+  entityFormProblem,
 } from "../lib/entity-form";
 import { applyEntityForm } from "../lib/entity-form-apply";
 import { entityHref } from "../lib/record-title";
@@ -75,24 +73,30 @@ function AddEntityForm({
   const [saving, setSaving] = useState(false);
 
   const isPerson = type === "person";
-  const canSave = entityFormValid(type, value);
+  const problem = entityFormProblem(type, value);
+
+  /** The person or pet itself, or null while its draft is invalid. */
+  async function createRecord() {
+    if (isPerson) {
+      const shaped = personInputOf(value.person);
+      return shaped.ok ? core.people.create(shaped.input, shaped.tags) : null;
+    }
+    const shaped = petInputOf(value.pet);
+    return shaped.ok ? core.pets.create(shaped.input, shaped.tags) : null;
+  }
 
   async function save() {
-    if (!canSave || saving) return;
+    if (problem !== undefined || saving) return;
     setSaving(true);
     try {
       // The whole record, not just its id: the page this screen is about to
       // replace itself with is titled from it, so the name just typed is already
       // in the header when it lands (`lib/record-title.ts`).
-      const created = isPerson
-        ? await core.people.create(
-            personDraftToInput(value.person),
-            parseTagNames(value.person.tags),
-          )
-        : await core.pets.create(
-            petDraftToInput(value.pet),
-            parseTagNames(value.pet.tags),
-          );
+      const created = await createRecord();
+      if (created === null) {
+        setSaving(false);
+        return;
+      }
       const id = created.id;
 
       // Everything staged, against the entity that now exists — every row a
@@ -130,7 +134,7 @@ function AddEntityForm({
   // Both stable across a keystroke, so typing never reaches the navigator — see
   // {@link useHeaderSave}.
   const headerRight = useHeaderSave({
-    canSave,
+    problem,
     saving,
     onPress: () => void save(),
   });

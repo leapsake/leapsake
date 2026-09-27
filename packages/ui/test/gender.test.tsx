@@ -10,22 +10,22 @@ afterEach(cleanup);
 
 describe("GenderField", () => {
   it("submits under the name the write path reads", () => {
-    renderWithUi(<GenderField />);
+    renderWithUi(<GenderField value={null} onChange={() => {}} />);
     expect(screen.getByRole("combobox")).toHaveProperty("name", "gender");
   });
 
   it("defaults to the empty option, which means unset", () => {
-    renderWithUi(<GenderField />);
+    renderWithUi(<GenderField value={null} onChange={() => {}} />);
     expect(screen.getByRole("combobox")).toHaveProperty("value", "");
   });
 
   it("preselects the stored value on edit", () => {
-    renderWithUi(<GenderField value="nonbinary" />);
+    renderWithUi(<GenderField value="nonbinary" onChange={() => {}} />);
     expect(screen.getByRole("combobox")).toHaveProperty("value", "nonbinary");
   });
 
   it("offers unset plus the three genders", () => {
-    renderWithUi(<GenderField />);
+    renderWithUi(<GenderField value={null} onChange={() => {}} />);
     expect(
       screen.getAllByRole("option").map((o) => (o as HTMLOptionElement).value),
     ).toEqual(["", "female", "male", "nonbinary"]);

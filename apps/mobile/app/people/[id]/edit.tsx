@@ -2,20 +2,20 @@ import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { PersonView } from "@leapsake/core";
-import { parseTagNames } from "@leapsake/schema";
+import { usePersonForm } from "@leapsake/ui/headless";
 import { useHeaderSave } from "../../../components/HeaderSave";
-import {
-  PersonFields,
-  personDraftFrom,
-  personDraftToInput,
-  personDraftValid,
-} from "../../../components/PersonFields";
+import { PersonFields } from "../../../components/PersonFields";
 import { tagsRawOf } from "../../../components/TagsInput";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 
 const TITLE = "Edit details";
+
+const TEXT = {
+  saveFailed: "Couldn’t save",
+  nameRequired: "Enter a first, middle or last name before saving.",
+} as const;
 
 /**
  * A person's own fields — the three parts of their name and their gender — on a
@@ -64,45 +64,26 @@ export default function PersonEditScreen() {
 function PersonEditForm({ id, view }: { id: string; view: PersonView }) {
   const core = useCore();
   const router = useRouter();
-  // Seeded **once**, from the record as it stood when the screen opened: the
-  // loader above re-runs on focus and whenever a background pull lands, and a
-  // form reseeded mid-edit would throw away what the user had typed.
-  //
-  // Gender comes from the stored `person.gender`, not from `view.gender.value`,
-  // which may have been inferred from this person's relationships — see
-  // {@link PersonDetailFields}. Writing a derived value back would freeze an
-  // inference into a fact.
-  const [draft, setDraft] = useState(() =>
-    // The tags ride along even though this screen never shows one: `update`
-    // replaces a record's whole tag set from its third argument. See
-    // {@link tagsRawOf}.
-    personDraftFrom(view.person, tagsRawOf(view.tags)),
-  );
+  // Seeded once, so a reload on focus can't discard what was typed. Gender is the
+  // stored one, never the derived `view.gender`; tags ride along since `update` replaces them.
+  const form = usePersonForm(view.person, tagsRawOf(view.tags));
   const [saving, setSaving] = useState(false);
 
-  const canSave = !saving && personDraftValid(draft);
-
   async function save() {
-    if (!canSave) return;
+    const shaped = form.submit();
+    if (shaped === null || saving) return;
     setSaving(true);
     try {
-      await core.people.update(
-        id,
-        personDraftToInput(draft),
-        parseTagNames(draft.tags),
-      );
-      // Back to the record, which refetches on focus and so reads as this left it.
+      await core.people.update(id, shaped.input, shaped.tags);
       router.back();
     } catch (e) {
-      Alert.alert("Couldn't save", String(e));
+      Alert.alert(TEXT.saveFailed, String(e));
       setSaving(false);
     }
   }
 
-  // Both stable across a keystroke, so typing never reaches the navigator — see
-  // {@link useHeaderSave}.
   const headerRight = useHeaderSave({
-    canSave,
+    problem: form.errors.name === "required" ? TEXT.nameRequired : undefined,
     saving,
     onPress: () => void save(),
   });
@@ -115,7 +96,10 @@ function PersonEditForm({ id, view }: { id: string; view: PersonView }) {
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
       >
-        <PersonFields draft={draft} onChange={setDraft} />
+        <PersonFields
+          draft={form.fields}
+          onChange={(draft) => form.update(() => draft)}
+        />
       </ScrollView>
     </>
   );

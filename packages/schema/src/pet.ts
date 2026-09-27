@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { genderSchema } from "./gender.js";
+import { type Gender, genderSchema } from "./gender.js";
 import { standingColumnSchema, standingSchema } from "./standing.js";
+import { parseTagNames } from "./tag.js";
 
 /** A pet, as stored. */
 export const petSchema = z.object({
@@ -29,3 +30,36 @@ export type CreatePetInput = z.infer<typeof createPetInputSchema>;
 export const updatePetInputSchema = createPetInputSchema.partial();
 
 export type UpdatePetInput = z.infer<typeof updatePetInputSchema>;
+
+/** A pet as a form holds it: every field the text the user typed. */
+export interface PetDraft {
+  name: string;
+  gender: Gender | null;
+  /** Raw tag text, parsed by {@link parseTagNames}. */
+  tags: string;
+}
+
+export type PetDraftErrors = { name?: "required" };
+
+export type PetDraftResult =
+  | { ok: true; input: { name: string; gender: Gender | null }; tags: string[] }
+  | { ok: false; errors: PetDraftErrors };
+
+/** The draft a form starts from: the pet being edited, or blanks. */
+export function petDraftOf(
+  pet?: Pick<Pet, "name" | "gender">,
+  tags = "",
+): PetDraft {
+  return { name: pet?.name ?? "", gender: pet?.gender ?? null, tags };
+}
+
+/** Trims the name, which is required. */
+export function petInputOf(draft: PetDraft): PetDraftResult {
+  const name = draft.name.trim();
+  if (name === "") return { ok: false, errors: { name: "required" } };
+  return {
+    ok: true,
+    input: { name, gender: draft.gender },
+    tags: parseTagNames(draft.tags),
+  };
+}

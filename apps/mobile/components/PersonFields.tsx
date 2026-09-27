@@ -1,82 +1,11 @@
 import { Text, TextInput, View } from "react-native";
-import {
-  type CreatePersonInput,
-  type Gender,
-  type Person,
-  hasAnyName,
-} from "@leapsake/schema";
+import type { PersonDraft } from "@leapsake/schema";
 import { GenderField } from "./GenderField";
 import { styles } from "../lib/styles";
 
 /**
- * A person's fields as the UI holds them: every value a string or a nullable
- * enum, nothing trimmed or parsed yet. The **draft** is the unit both entity
- * forms share, as one third of an {@link EntityFormValue}: the create screen
- * hands it to `core.people.create` on Save, and the edit screen seeds it from a
- * saved person and hands it to `core.people.update`.
- */
-export interface PersonDraft {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  gender: Gender | null;
-  /** Space-separated tag labels, exactly as typed; the screen runs `parseTagNames`. */
-  tags: string;
-}
-
-export function emptyPersonDraft(): PersonDraft {
-  return {
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    gender: null,
-    tags: "",
-  };
-}
-
-export function personDraftFrom(person: Person, tagNames: string): PersonDraft {
-  return {
-    firstName: person.firstName ?? "",
-    middleName: person.middleName ?? "",
-    lastName: person.lastName ?? "",
-    gender: person.gender,
-    tags: tagNames,
-  };
-}
-
-/**
- * Valid once **any one** part of the name is filled in — "Ruth" and "Ruth Dakin"
- * are both whole people (see `hasAnyName`). Asked of the input the form would
- * actually send rather than of the draft, so the button can never enable a save
- * the schema is about to reject.
- */
-export function personDraftValid(draft: PersonDraft): boolean {
-  return hasAnyName(personDraftToInput(draft));
-}
-
-/** Trim, collapsing an untouched field to `null` — the schema's "absent". */
-function trimmed(value: string): string | null {
-  const text = value.trim();
-  return text === "" ? null : text;
-}
-
-export function personDraftToInput(draft: PersonDraft): CreatePersonInput {
-  return {
-    firstName: trimmed(draft.firstName),
-    middleName: trimmed(draft.middleName),
-    lastName: trimmed(draft.lastName),
-    gender: draft.gender,
-  };
-}
-
-/**
- * Everything a person form asks up front — the three parts of a name, then the
- * gender — controlled by whoever owns the draft. The name parts belong together
- * because the rule they answer to spans all three: at least one filled in
- * ({@link personDraftValid}).
- *
- * Tags are *not* here — they're {@link TagsInput}, rendered separately so the
- * form can keep them last, below its staged sections.
+ * A person's three name parts and gender, controlled by whoever owns the draft.
+ * Tags are {@link TagsInput}, rendered apart so a form can keep them last.
  */
 export function PersonFields({
   draft,

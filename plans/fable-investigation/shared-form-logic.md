@@ -116,7 +116,11 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    platform registry's. ⚠️ **Open: a social profile's "handle or link" rule has no HTML
    form**, so with no JS only the route action refuses it, and web still offers no free-text
    "Other" platform.
-6. **`usePersonForm`** and **`usePetForm`**.
+6. **`usePersonForm` and `usePetForm`. ✅ Landed 2026-09-27.** `personInputOf` and
+   `petInputOf` sit beside their schemas. Mobile's create form keeps its two drafts in
+   `EntityFormValue` rather than in the hooks, since its type toggle and staged rows share one
+   value; its Save now says which part is unfinished (`entityFormProblem`). `about-you`'s
+   in-body Save moved too.
 7. **Reminder rows**: merge the two `reminder-row.ts` modules into `@leapsake/view-models`
    as one `reminderRowOf(action, cta)` returning a platform-neutral affordance (`offer`,
    `inline`, `showsRemove`, `removalCopy` key). Each client keeps only the mapping from that to

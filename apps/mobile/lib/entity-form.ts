@@ -1,4 +1,12 @@
-import type { EntityType } from "@leapsake/schema";
+import {
+  type EntityType,
+  type PersonDraft,
+  type PetDraft,
+  personDraftOf,
+  personInputOf,
+  petDraftOf,
+  petInputOf,
+} from "@leapsake/schema";
 import {
   type StagedContact,
   contactRowValid,
@@ -16,16 +24,15 @@ import {
   type StagedRelationship,
   relationshipRowValid,
 } from "../components/StagedRelationshipsSection";
-import {
-  type PersonDraft,
-  emptyPersonDraft,
-  personDraftValid,
-} from "../components/PersonFields";
-import {
-  type PetDraft,
-  emptyPetDraft,
-  petDraftValid,
-} from "../components/PetFields";
+
+const TEXT = {
+  personName: "Enter a first, middle or last name before saving.",
+  petName: "Enter the pet’s name before saving.",
+  milestones: "Finish or remove the unfinished milestone before saving.",
+  contacts: "Finish or remove the unfinished contact method before saving.",
+  relationships: "Finish or remove the unfinished relationship before saving.",
+  gifts: "Name each gift, or remove it, before saving.",
+} as const;
 
 /**
  * A person or pet as the create form holds it — the record's own fields plus
@@ -54,8 +61,8 @@ export interface EntityFormValue {
 
 export function emptyEntityForm(): EntityFormValue {
   return {
-    person: emptyPersonDraft(),
-    pet: emptyPetDraft(),
+    person: personDraftOf(),
+    pet: petDraftOf(),
     milestones: [],
     contacts: [],
     relationships: [],
@@ -65,34 +72,22 @@ export function emptyEntityForm(): EntityFormValue {
 }
 
 /**
- * Whether the form would pass the schema — the Save gate.
- *
- * The record's own fields, plus every staged row that is edited **in place**.
- * Those rows used to reach the form only through a sub-form that had already
- * validated them, so a staged row was valid by construction; now they are typed
- * straight into the list and can sit half-finished, which is a thing to fix
- * rather than to write. The exception each `*RowValid` makes is for a row nobody
- * has filled in at all — the stray "Add" tap, which the write skips instead.
- *
- * Holidays are absent because a holiday row cannot be half-said: it is a pick.
- * Gifts used to be absent for a like reason — the sub-form that staged them had
- * already insisted on a name. Now that a gift is typed straight into the list it
- * can sit there having been given a link but never named, which is a thing to fix
- * rather than write.
+ * Why the form can't be saved yet, or undefined once it can: the record's own
+ * name first, then any staged row left half-filled. An untouched row is skipped.
  */
-export function entityFormValid(
+export function entityFormProblem(
   type: EntityType,
   value: EntityFormValue,
-): boolean {
-  const own =
-    type === "person"
-      ? personDraftValid(value.person)
-      : petDraftValid(value.pet);
-  return (
-    own &&
-    value.contacts.every(contactRowValid) &&
-    value.milestones.every(milestoneRowValid) &&
-    value.relationships.every(relationshipRowValid) &&
-    giftRowsValid(value.gifts)
-  );
+): string | undefined {
+  if (type === "person" && !personInputOf(value.person).ok) {
+    return TEXT.personName;
+  }
+  if (type === "pet" && !petInputOf(value.pet).ok) return TEXT.petName;
+  if (!value.milestones.every(milestoneRowValid)) return TEXT.milestones;
+  if (!value.contacts.every(contactRowValid)) return TEXT.contacts;
+  if (!value.relationships.every(relationshipRowValid)) {
+    return TEXT.relationships;
+  }
+  if (!giftRowsValid(value.gifts)) return TEXT.gifts;
+  return undefined;
 }

@@ -2,20 +2,20 @@ import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { PetView } from "@leapsake/core";
-import { parseTagNames } from "@leapsake/schema";
+import { usePetForm } from "@leapsake/ui/headless";
 import { useHeaderSave } from "../../../components/HeaderSave";
-import {
-  PetFields,
-  petDraftFrom,
-  petDraftToInput,
-  petDraftValid,
-} from "../../../components/PetFields";
+import { PetFields } from "../../../components/PetFields";
 import { tagsRawOf } from "../../../components/TagsInput";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 
 const TITLE = "Edit details";
+
+const TEXT = {
+  saveFailed: "Couldn’t save",
+  nameRequired: "Enter the pet’s name before saving.",
+} as const;
 
 /** A pet's name and gender — see `app/people/[id]/edit.tsx`, which this mirrors. */
 export default function PetEditScreen() {
@@ -51,31 +51,24 @@ function PetEditForm({ id, view }: { id: string; view: PetView }) {
   const core = useCore();
   const router = useRouter();
   // Seeded once, tags and all — see the person screen for both reasons.
-  const [draft, setDraft] = useState(() =>
-    petDraftFrom(view.pet, tagsRawOf(view.tags)),
-  );
+  const form = usePetForm(view.pet, tagsRawOf(view.tags));
   const [saving, setSaving] = useState(false);
 
-  const canSave = !saving && petDraftValid(draft);
-
   async function save() {
-    if (!canSave) return;
+    const shaped = form.submit();
+    if (shaped === null || saving) return;
     setSaving(true);
     try {
-      await core.pets.update(
-        id,
-        petDraftToInput(draft),
-        parseTagNames(draft.tags),
-      );
+      await core.pets.update(id, shaped.input, shaped.tags);
       router.back();
     } catch (e) {
-      Alert.alert("Couldn't save", String(e));
+      Alert.alert(TEXT.saveFailed, String(e));
       setSaving(false);
     }
   }
 
   const headerRight = useHeaderSave({
-    canSave,
+    problem: form.errors.name === "required" ? TEXT.nameRequired : undefined,
     saving,
     onPress: () => void save(),
   });
@@ -88,7 +81,10 @@ function PetEditForm({ id, view }: { id: string; view: PetView }) {
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
       >
-        <PetFields draft={draft} onChange={setDraft} />
+        <PetFields
+          draft={form.fields}
+          onChange={(draft) => form.update(() => draft)}
+        />
       </ScrollView>
     </>
   );

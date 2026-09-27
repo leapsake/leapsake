@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createPersonInputSchema,
+  personDraftOf,
+  personInputOf,
   personSchema,
   updatePersonInputSchema,
 } from "./person.js";
@@ -205,6 +207,64 @@ describe("updatePersonInputSchema", () => {
     });
     expect(updatePersonInputSchema.parse({ standing: "published" })).toEqual({
       standing: "published",
+    });
+  });
+});
+
+describe("personInputOf", () => {
+  it("trims the parts, blanks to null, and parses the tags", () => {
+    expect(
+      personInputOf({
+        ...personDraftOf(),
+        firstName: " Mary ",
+        lastName: "  ",
+        gender: "female",
+        tags: "#family",
+      }),
+    ).toEqual({
+      ok: true,
+      input: {
+        firstName: "Mary",
+        middleName: null,
+        lastName: null,
+        gender: "female",
+      },
+      tags: ["family"],
+    });
+  });
+
+  it("accepts any one part of a name", () => {
+    expect(personInputOf({ ...personDraftOf(), lastName: "Bailey" }).ok).toBe(
+      true,
+    );
+  });
+
+  it("refuses a name with every part blank", () => {
+    expect(personInputOf({ ...personDraftOf(), middleName: " " })).toEqual({
+      ok: false,
+      errors: { name: "required" },
+    });
+  });
+});
+
+describe("personDraftOf", () => {
+  it("starts from the person being edited, nulls as empty text", () => {
+    expect(
+      personDraftOf(
+        {
+          firstName: "George",
+          middleName: null,
+          lastName: "Bailey",
+          gender: null,
+        },
+        "#family",
+      ),
+    ).toEqual({
+      firstName: "George",
+      middleName: "",
+      lastName: "Bailey",
+      gender: null,
+      tags: "#family",
     });
   });
 });

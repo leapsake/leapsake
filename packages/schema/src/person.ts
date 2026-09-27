@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { genderSchema } from "./gender.js";
+import { type Gender, genderSchema } from "./gender.js";
 import { standingColumnSchema, standingSchema } from "./standing.js";
+import { parseTagNames } from "./tag.js";
 
 /**
  * A name's three parts, each optional; a person needs at least one. `min(1)`
@@ -95,3 +96,57 @@ export type CreatePersonInput = z.infer<typeof createPersonInputSchema>;
 export const updatePersonInputSchema = personInputBase;
 
 export type UpdatePersonInput = z.infer<typeof updatePersonInputSchema>;
+
+/** A person as a form holds it: every field the text the user typed. */
+export interface PersonDraft {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  gender: Gender | null;
+  /** Raw tag text, parsed by {@link parseTagNames}. */
+  tags: string;
+}
+
+/** Why a draft cannot be saved; `name` means every part of it is blank. */
+export type PersonDraftErrors = { name?: "required" };
+
+export type PersonDraftResult =
+  | {
+      ok: true;
+      input: {
+        firstName: string | null;
+        middleName: string | null;
+        lastName: string | null;
+        gender: Gender | null;
+      };
+      tags: string[];
+    }
+  | { ok: false; errors: PersonDraftErrors };
+
+/** The draft a form starts from: the person being edited, or blanks. */
+export function personDraftOf(
+  person?: Pick<Person, "firstName" | "middleName" | "lastName" | "gender">,
+  tags = "",
+): PersonDraft {
+  return {
+    firstName: person?.firstName ?? "",
+    middleName: person?.middleName ?? "",
+    lastName: person?.lastName ?? "",
+    gender: person?.gender ?? null,
+    tags,
+  };
+}
+
+const blankToNull = (text: string) => (text.trim() === "" ? null : text.trim());
+
+/** Trims the name parts, blanks to null; any one part is enough. */
+export function personInputOf(draft: PersonDraft): PersonDraftResult {
+  const input = {
+    firstName: blankToNull(draft.firstName),
+    middleName: blankToNull(draft.middleName),
+    lastName: blankToNull(draft.lastName),
+    gender: draft.gender,
+  };
+  if (!hasAnyName(input)) return { ok: false, errors: { name: "required" } };
+  return { ok: true, input, tags: parseTagNames(draft.tags) };
+}

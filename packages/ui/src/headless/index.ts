@@ -11,6 +11,8 @@ export { useContactMethodForm } from "./forms/contact-method.js";
 export { useGiftCaptureForm } from "./forms/gift-capture.js";
 export { useGiftIdeaForm } from "./forms/gift-idea.js";
 export { useMilestoneForm } from "./forms/milestone.js";
+export { usePersonForm } from "./forms/person.js";
+export { usePetForm } from "./forms/pet.js";
 export { useRelationshipForm } from "./forms/relationship.js";
 export { useReminderForm } from "./forms/reminder.js";
 export { type Shaped, useDraftForm } from "./forms/use-draft-form.js";

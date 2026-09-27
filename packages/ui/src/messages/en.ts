@@ -158,10 +158,12 @@ export const en: Messages = {
 
   personForm: {
     tagsPlaceholder: "#Friend #Colleague",
+    nameRequired: "Enter a first, middle or last name before saving.",
   },
 
   petForm: {
     tagsPlaceholder: "#Friend #Neighbor",
+    nameRequired: "Enter the pet’s name before saving.",
   },
 
   search: {

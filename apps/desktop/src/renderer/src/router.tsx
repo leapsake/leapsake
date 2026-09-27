@@ -1,7 +1,7 @@
 import {
   type ContactMethodKind,
-  type CreatePersonInput,
-  type CreatePetInput,
+  type PersonDraft,
+  type PetDraft,
   type EntityType,
   type Gender,
   type GiftIdeaDraft,
@@ -18,7 +18,8 @@ import {
   milestoneInputOf,
   partsFromIso,
   isReminderEditable,
-  parseTagNames,
+  personInputOf,
+  petInputOf,
   preferredBearerType,
   relationshipDraftOf,
   relationshipInputOf,
@@ -89,30 +90,26 @@ function readGender(formData: FormData): Gender | null {
   return value === "" ? null : (value as Gender);
 }
 
-/** A name part the form left blank is absent, not an empty string. */
-function readNamePart(formData: FormData, key: string): string | null {
-  const value = String(formData.get(key) ?? "").trim();
-  return value === "" ? null : value;
-}
-
-/** A blank name part is null: `personSchema` rejects `""`. */
-function readPersonInput(formData: FormData): CreatePersonInput {
+/** The person draft as posted, every field its raw text. */
+function readPersonDraft(formData: FormData): PersonDraft {
+  const text = (key: string) => String(formData.get(key) ?? "");
   return {
-    firstName: readNamePart(formData, "firstName"),
-    middleName: readNamePart(formData, "middleName"),
-    lastName: readNamePart(formData, "lastName"),
+    firstName: text("firstName"),
+    middleName: text("middleName"),
+    lastName: text("lastName"),
     gender: readGender(formData),
+    tags: text("tags"),
   };
 }
 
-/** Pull the editable Pet fields out of a submitted form. */
-function readPetInput(formData: FormData): CreatePetInput {
-  return { name: String(formData.get("name")), gender: readGender(formData) };
-}
-
-/** Pull the desired tag names out of the comma-separated form field. */
-function readTags(formData: FormData): string[] {
-  return parseTagNames(String(formData.get("tags") ?? ""));
+/** The pet draft as posted, every field its raw text. */
+function readPetDraft(formData: FormData): PetDraft {
+  const text = (key: string) => String(formData.get(key) ?? "");
+  return {
+    name: text("name"),
+    gender: readGender(formData),
+    tags: text("tags"),
+  };
 }
 
 /** A role note is meaningful only when non-empty; blank fields become null. */
@@ -1061,9 +1058,11 @@ const routes: RouteObject[] = [
         element: <PersonCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
+          const shaped = personInputOf(readPersonDraft(formData));
+          if (!shaped.ok) return redirect("/");
           const person = await window.api.people.create(
-            readPersonInput(formData),
-            readTags(formData),
+            shaped.input,
+            shaped.tags,
           );
           await createRelationships(
             "person",
@@ -1089,12 +1088,15 @@ const routes: RouteObject[] = [
         loader: personLoader,
         element: <PersonEdit />,
         action: async ({ request, params }) => {
-          const formData = await request.formData();
-          await window.api.people.update(
-            params.id as string,
-            readPersonInput(formData),
-            readTags(formData),
+          const shaped = personInputOf(
+            readPersonDraft(await request.formData()),
           );
+          if (shaped.ok)
+            await window.api.people.update(
+              params.id as string,
+              shaped.input,
+              shaped.tags,
+            );
           return redirect(`/people/${params.id}`);
         },
       },
@@ -1209,10 +1211,9 @@ const routes: RouteObject[] = [
         element: <PetCreate />,
         action: async ({ request }) => {
           const formData = await request.formData();
-          const pet = await window.api.pets.create(
-            readPetInput(formData),
-            readTags(formData),
-          );
+          const shaped = petInputOf(readPetDraft(formData));
+          if (!shaped.ok) return redirect("/");
+          const pet = await window.api.pets.create(shaped.input, shaped.tags);
           await createRelationships("pet", pet.id, readRelationships(formData));
           return redirect(`/pets/${pet.id}`);
         },
@@ -1227,12 +1228,13 @@ const routes: RouteObject[] = [
         loader: petLoader,
         element: <PetEdit />,
         action: async ({ request, params }) => {
-          const formData = await request.formData();
-          await window.api.pets.update(
-            params.id as string,
-            readPetInput(formData),
-            readTags(formData),
-          );
+          const shaped = petInputOf(readPetDraft(await request.formData()));
+          if (shaped.ok)
+            await window.api.pets.update(
+              params.id as string,
+              shaped.input,
+              shaped.tags,
+            );
           return redirect(`/pets/${params.id}`);
         },
       },

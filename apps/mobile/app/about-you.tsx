@@ -9,14 +9,10 @@ import {
 import { Stack, useRouter } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
 import { Typeahead } from "../components/Typeahead";
-import {
-  type PersonDraft,
-  PersonFields,
-  emptyPersonDraft,
-  personDraftToInput,
-  personDraftValid,
-} from "../components/PersonFields";
+import { usePersonForm } from "@leapsake/ui/headless";
+import { PersonFields } from "../components/PersonFields";
 import { useCore } from "../lib/core-context";
+import { showFormProblem } from "../lib/form-problem";
 import { entityHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
@@ -38,6 +34,7 @@ const TEXT = {
   importFirst: "Import from your contacts",
   save: "Save",
   saving: "Saving…",
+  nameRequired: "Enter a first, middle or last name before saving.",
   failed: "Couldn’t save",
 } as const;
 
@@ -69,7 +66,7 @@ export default function AboutYouScreen() {
   const router = useRouter();
   const load = useCallback(() => core.views.entityList(), [core]);
   const { data: entities, error } = useFocusedData(load);
-  const [draft, setDraft] = useState<PersonDraft>(emptyPersonDraft);
+  const form = usePersonForm();
   const [saving, setSaving] = useState(false);
 
   /** Set an existing person as you, then drop back to Home — the answer is
@@ -93,10 +90,12 @@ export default function AboutYouScreen() {
    * open.
    */
   async function save() {
-    if (!personDraftValid(draft) || saving) return;
+    const shaped = form.submit();
+    if (saving) return;
+    if (shaped === null) return showFormProblem(TEXT.nameRequired);
     setSaving(true);
     try {
-      const created = await core.people.create(personDraftToInput(draft), []);
+      const created = await core.people.create(shaped.input, []);
       await core.self.set(created.id);
       router.replace(entityHref("person", created));
     } catch (cause) {
@@ -156,12 +155,14 @@ export default function AboutYouScreen() {
       <Text style={styles.sectionTitle}>
         {people.length > 0 ? TEXT.addWithList : TEXT.addAlone}
       </Text>
-      <PersonFields draft={draft} onChange={setDraft} />
+      <PersonFields
+        draft={form.fields}
+        onChange={(draft) => form.update(() => draft)}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ busy: saving }}
-        disabled={!personDraftValid(draft)}
-        style={styles.button}
+        style={[styles.button, !form.canSubmit && { opacity: 0.4 }]}
         onPress={() => void save()}
       >
         <Text style={styles.buttonText}>

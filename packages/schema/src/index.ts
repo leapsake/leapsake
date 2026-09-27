@@ -4,14 +4,32 @@ export {
   updatePersonInputSchema,
   hasAnyName,
   splitName,
+  personDraftOf,
+  personInputOf,
 } from "./person.js";
-export type { Person, CreatePersonInput, UpdatePersonInput } from "./person.js";
+export type {
+  Person,
+  CreatePersonInput,
+  UpdatePersonInput,
+  PersonDraft,
+  PersonDraftErrors,
+  PersonDraftResult,
+} from "./person.js";
 export {
   petSchema,
   createPetInputSchema,
   updatePetInputSchema,
+  petDraftOf,
+  petInputOf,
 } from "./pet.js";
-export type { Pet, CreatePetInput, UpdatePetInput } from "./pet.js";
+export type {
+  Pet,
+  CreatePetInput,
+  UpdatePetInput,
+  PetDraft,
+  PetDraftErrors,
+  PetDraftResult,
+} from "./pet.js";
 export {
   contentKeySchema,
   createContentKeyInputSchema,

@@ -47,8 +47,8 @@ export {
   ContactMethodForm,
 } from "./forms/ContactMethodForm.js";
 export { MilestoneFields, MilestoneForm } from "./forms/MilestoneForm.js";
-export { PersonForm } from "./forms/PersonForm.js";
-export { PetForm } from "./forms/PetForm.js";
+export { PersonFields, PersonForm } from "./forms/PersonForm.js";
+export { PetFields, PetForm } from "./forms/PetForm.js";
 export { RelationshipForm } from "./forms/RelationshipForm.js";
 export { GiftIdeaFields, GiftIdeaForm } from "./forms/GiftIdeaForm.js";
 export { ReminderFields, ReminderForm } from "./forms/ReminderForm.js";

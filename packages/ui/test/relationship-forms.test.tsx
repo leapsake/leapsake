@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { Person } from "@leapsake/schema";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -235,10 +236,7 @@ describe("PersonForm", () => {
     expect(screen.getByLabelText("Gender")).toHaveProperty("name", "gender");
   });
 
-  // No single name part is required any more: a person needs *some* name, not a
-  // first and a last one (`hasAnyName`). HTML5 has no way to say "at least one
-  // of these three", so the rule is enforced by `personSchema` — the only place
-  // that sees all three — and none of the inputs carries `required`.
+  // Any one part is enough, which HTML can't say, so none carries `required`.
   it("marks no name part as individually required", () => {
     renderWithUi(
       <PersonForm
@@ -253,6 +251,62 @@ describe("PersonForm", () => {
     for (const label of ["First name", "Middle name", "Last name"]) {
       expect(screen.getByLabelText(label)).toHaveProperty("required", false);
     }
+  });
+
+  it("never disables Add, and explains a press with no name at all", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
+    renderWithUi(
+      <PersonForm
+        title="Add a person"
+        search={noSearch}
+        submitLabel="Add"
+        cancelTo="/"
+        submitting={false}
+      />,
+    );
+    const add = screen.getByRole("button", { name: "Add" });
+
+    expect(add.matches(":disabled")).toBe(false);
+    fireEvent.click(add);
+    expect(alert).toHaveBeenCalledWith(
+      "Enter a first, middle or last name before saving.",
+    );
+    fireEvent.change(screen.getByLabelText("Last name"), {
+      target: { value: "Bailey" },
+    });
+    fireEvent.click(add);
+    expect(stopped()).toEqual([true, false]);
+    alert.mockRestore();
+  });
+
+  it("pre-fills the person being edited, gender included", () => {
+    renderWithUi(
+      <PersonForm
+        title="Edit George"
+        person={
+          {
+            id: "p-1",
+            firstName: "George",
+            middleName: null,
+            lastName: "Bailey",
+            gender: "male",
+          } as Person
+        }
+        tagNames="#family"
+        search={noSearch}
+        submitLabel="Save"
+        cancelTo="/"
+        submitting={false}
+      />,
+    );
+
+    expect(screen.getByLabelText("First name")).toHaveProperty(
+      "value",
+      "George",
+    );
+    expect(screen.getByLabelText("Middle name")).toHaveProperty("value", "");
+    expect(screen.getByLabelText("Gender")).toHaveProperty("value", "male");
   });
 
   it("omits relationships on edit, which manages them on the view page", () => {

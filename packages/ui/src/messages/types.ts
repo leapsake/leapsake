@@ -180,10 +180,13 @@ export interface Messages {
 
   personForm: {
     tagsPlaceholder: string;
+    /** Why Save can't go yet: every part of the name is blank. */
+    nameRequired: string;
   };
 
   petForm: {
     tagsPlaceholder: string;
+    nameRequired: string;
   };
 
   search: {
