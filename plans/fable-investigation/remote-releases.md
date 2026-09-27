@@ -24,24 +24,24 @@ this and its `--only` two-step is retired.
 Nine questions were put to the owner on 2026-09-18. These are the answers. **Do not reopen
 them**; if a step cannot be done under one of them, stop and say so rather than bending it.
 
-| #   | Question                                  | Decision                                                                                                                                                                                                                                                    |
-| --- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | How does a release start?                 | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The local command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).     |
-| 2   | Where does the version live?              | **Manifests carry only the core (`0.1.0`). The tag carries the rest (`v0.1.0-beta.10`).** No "Cut X" commit; the pipeline never writes to `main`. Condition: versions must stay _visible_ — see _Keeping the version visible_.                              |
-| 3   | Can alpha follow beta on one core?        | **Yes: channels, not a ladder.** Each of alpha/beta/rc counts up independently per core. **Only a final closes a core.** The core never goes below the highest core ever tagged.                                                                            |
-| 4   | What happens when something fails midway? | **Build every platform, then upload every platform.** A build failure spends nothing and the tag is deleted. An upload failure after another upload succeeded is resumed, never rolled back: re-run the failed job with the same artifact and build number. |
-| 5   | A platform that cannot ship a rung yet?   | **Ship the ready ones.** Readiness is per platform × rung. A blocked cell is printed with its reason and skipped; a ready cell that fails a check is a failure. All-or-nothing applies to the ready set.                                                    |
-| 6   | Where do the tests run?                   | **Split by platform on GitHub-hosted runners:** iOS on macOS, Android on Linux, one job that requires both before any upload. **The macOS runner is accepted lock-in**, written down as such. A self-hosted Mac is off the table for now.                   |
-| 7   | How host-specific may the pipeline be?    | **Workflow files stay dumb.** Every step is one command from the repo. The scripts decide everything, including which jobs exist. Portability rules below.                                                                                                  |
-| 8   | Who approves `final`?                     | **`final` is its own deliberate trigger**, as today: it builds nothing, releases what the store already approved, and tags the commit that went live. No host approval feature.                                                                             |
-| 9   | What runs when?                           | Push or PR: the fast tiers. Push to `main`: fast tiers plus the device tiers per platform, so `main` is always known-releasable. Tag: the release. The owner does not have to start using PRs; the same workflow fires for both.                            |
+| #   | Question                                  | Decision                                                                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | How does a release start?                 | **A release tag pushed to the remote.** A dispatch button on the host is sugar that creates the tag. The local command survives as a backdoor with safeguards (typed confirmation, and it refuses to upload anything whose tag the remote cannot see).                                                                         |
+| 2   | Where does the version live?              | **Manifests carry only the core (`0.1.0`). The tag carries the rest (`v0.1.0-beta.10`).** No "Cut X" commit; the pipeline never writes to `main`. Condition: versions must stay _visible_ — see _Keeping the version visible_.                                                                                                 |
+| 3   | Can alpha follow beta on one core?        | **Yes: channels, not a ladder.** Each of alpha/beta/rc counts up independently per core. **Only a final closes a core.** The core never goes below the highest core ever tagged.                                                                                                                                               |
+| 4   | What happens when something fails midway? | **Build every platform, then upload every platform.** A build failure spends nothing and the tag is deleted. An upload failure after another upload succeeded is resumed, never rolled back: re-run the failed job with the same artifact and build number.                                                                    |
+| 5   | A platform that cannot ship a rung yet?   | **Ship the ready ones.** Readiness is per platform × rung. A blocked cell is printed with its reason and skipped; a ready cell that fails a check is a failure. All-or-nothing applies to the ready set.                                                                                                                       |
+| 6   | Where do the tests run?                   | **Split by platform on GitHub-hosted runners:** iOS on macOS, Android on Linux, one job that requires both before any upload. **The macOS runner is accepted lock-in**, written down as such. A self-hosted Mac is off the table for now.                                                                                      |
+| 7   | How host-specific may the pipeline be?    | **Workflow files stay dumb.** Every step is one command from the repo. The scripts decide everything, including which jobs exist. Portability rules below.                                                                                                                                                                     |
+| 8   | Who approves `final`?                     | **Apple's approval is the trigger.** A scheduled run cuts `final` once a version reaches _Pending Developer Release_; it builds nothing, releases what the store approved, and tags the commit that went live. The version stays on manual release, so disabling the schedule restores a human step. No host approval feature. |
+| 9   | What runs when?                           | Push or PR: the fast tiers. Push to `main`: fast tiers plus the device tiers per platform, so `main` is always known-releasable. Tag: the release. The owner does not have to start using PRs; the same workflow fires for both.                                                                                               |
 
 **What is explicitly not feasible, so no step tries:** undoing a store upload (a build number is
 spent the moment it lands; a TestFlight distribution cannot be unsent; a Play rollout can be
 halted, not unpublished); one machine running both device tiers on hosted runners (the Android
 emulator needs hardware virtualization, which the Apple-silicon macOS runners are not believed to
-offer — step 6 verifies); a hands-off `rc`/`final` (Apple's review and Play's tester clock sit in
-the middle).
+offer — step 6 verifies); a hands-off `rc` (Apple's review and Play's tester clock sit in the
+middle).
 
 **Why decision 5 needs a per-cell status when `requires` already exists.** A `requires` check
 failing means _misconfigured_ (a missing credential, a wrong key role) and must fail the release;
@@ -299,15 +299,15 @@ job where the five-flow arc did about eight, so a clean job is weaker evidence a
 job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
 is a record of one fix each, summarised in the open items below.
 
-| | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
-|---|---|---|
-| Device boot | 62–78s | not timed |
-| Cold `expo run` | 256–402s | 507–1170s |
-| `native` tier | 393–541s | 348–1970s |
-| E2E arc, all flows green | 884s (35558802346) | 1307s (35558802346) |
-| Flow 4 (Argon2id) | 157–187s: **not bimodal** | 151–162s: **not bimodal** |
-| Slowest flow (7b) | 549–623s | 404–425s |
-| Whole job | ≈ 40 min | ≈ 60 min |
+|                          | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
+| ------------------------ | -------------------------------------- | ------------------------------------------- |
+| Device boot              | 62–78s                                 | not timed                                   |
+| Cold `expo run`          | 256–402s                               | 507–1170s                                   |
+| `native` tier            | 393–541s                               | 348–1970s                                   |
+| E2E arc, all flows green | 884s (35558802346)                     | 1307s (35558802346)                         |
+| Flow 4 (Argon2id)        | 157–187s: **not bimodal**              | 151–162s: **not bimodal**                   |
+| Slowest flow (7b)        | 549–623s                               | 404–425s                                    |
+| Whole job                | ≈ 40 min                               | ≈ 60 min                                    |
 
 The under-sized-emulator warning has never fired. Every non-device tier passes on both.
 
@@ -329,15 +329,14 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    for one written in the last ten minutes, and the report lands a beat after Maestro gives up.
    It now waits up to 10s and matches by file name too. Whether this is the store-handle crash
    again or something new is **unknown**; read the next one.
-0. **Maestro's own session fails on the building job** — `MaestroSessionManager.newSession`,
+1. **Maestro's own session fails on the building job** — `MaestroSessionManager.newSession`,
    twice, both times on the job that ran the cold build (35527913453, 35546805924). Maestro
    installs and launches a UITest runner the first time it drives a simulator, and that is what
-   fell over; the first *flow* then took the blame. `prepare` now waits for a `hierarchy` call
+   fell over; the first _flow_ then took the blame. `prepare` now waits for a `hierarchy` call
    to answer before running anything (`maestroReady`), so the wait is explicit and a genuine
    failure says so.
 
-
-1. **iOS: the dev menu opens itself over the app** (2 of 4 jobs — 35470466445 iOS 2,
+2. **iOS: the dev menu opens itself over the app** (2 of 4 jobs — 35470466445 iOS 2,
    35476256905 iOS 1). The `on screen:` line shows the menu and its onboarding sheet
    ("This is the developer menu…" / Continue) instead of the app, and the driver-contract
    self-test goes red. Cause: `EXDevMenuShowsAtLaunch` registers `true` and
@@ -355,7 +354,7 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    saved a person called "M Bailey" and went red on "Mary Bailey" not being visible.
    `add-person.yaml` now erases, types, and reads the field back, twice if it has to.
    **A swallowed tap is the whole family**, not three separate bugs: 35514492654 lost a
-   *tab* tap on both platforms in one run (Flow 3 on iOS, Flow 7b on Android), each failing
+   _tab_ tap on both platforms in one run (Flow 3 on iOS, Flow 7b on Android), each failing
    one step later on a tile that was never going to be there. Every tab tap now goes through
    `subflows/tap-checked.yaml` (or its `-text` twin), which re-taps only while the target is
    still on screen. Animations off (885b002) should remove most of the cause; the checked
@@ -371,17 +370,17 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    `add-person`, `create-account` and Flow 5 use it. **A dropped secret is real** —
    35530663975's iOS 2 lost a password, `submit()` returned early, and Flow 7b waited on a
    "Checking…" that could never come — **but a masked field cannot be read back**. An attempt
-   to assert it renders as dots (`•+`) failed on *both* platforms and took all six jobs of
+   to assert it renders as dots (`•+`) failed on _both_ platforms and took all six jobs of
    35534331965 down; reverted in 1dad725. **Do not retry it without evidence**: what a masked
    field exposes to the hierarchy is unknown, and the next `on screen:` line that catches a
    recovery gate is where to look. Until then the 15s "Checking…" guard catches it late.
    **A non-device tier failed for the first time** in the same run: `master-key-repair.test.ts`
    hit vitest's 5s default while an emulator had the cores. The default is now 15s.
-2. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
+3. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
    35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
    everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
    not rare, and the home-screen timeout has not recurred in nine gate jobs.
-3. **Android: the app dies natively on a cold boot — diagnosed and patched 2026-09-24, not
+4. **Android: the app dies natively on a cold boot — diagnosed and patched 2026-09-24, not
    yet confirmed on a runner.** `SIGSEGV` on `mqt_v_js` at `MountingCoordinator.cpp:103`, the
    virtual call on a mounting override delegate, with frame #00 in freed heap (`SEGV_ACCERR`).
    On the stable release level React Native registers no override delegate of its own, so the
@@ -399,9 +398,9 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    exception, patched separately). iOS crashed natively twice (35483355076, 35554646445) and
    has been clean since 2026-09-21; the patch is Android-only, so an iOS recurrence is a
    different bug. `node scripts/ci/measure-results.mjs <run> "android"` prints a tombstone.
-4. **iOS Flow 5, once** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows
+5. **iOS Flow 5, once** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows
    Home with the reminder's `@Mary Bailey #birthday` line present.
-5. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
+6. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
    clean on the runner (only "Removing leading '/'"), so the archive is fine and what is left is
    the cache service, whose reason is in the job log behind a login. Every build being cold
    costs 5–10 min a job and **did not stop step 6 answering its question**. Step 7's `ci.yml`
@@ -409,7 +408,7 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    addressed and the sizes are now measured (`scripts/ci/measure-cache.sh`, its own annotation):
    one key per platform meant parallel jobs collided (keys are now per job index); no
    `restore-keys` meant any lockfile edit went cold with no fallback (now a prefix chain); and
-   **size is real** — 35546805924 reported ~2 GB of paths per iOS job *without* `DerivedData`,
+   **size is real** — 35546805924 reported ~2 GB of paths per iOS job _without_ `DerivedData`,
    and three jobs each saving that exceeds the repo's whole 10 GB budget. **Only job 1 saves
    now**; the others restore. **That was not it either** — 35550536039's job 1 still failed to
    save ~2 GB. `measure-cache.sh` now writes a throwaway `tar` over the same paths and prints
@@ -417,9 +416,9 @@ failures argue for: the dev menu, the launcher and Metro caused four of them.
    login. If `tar` is clean, the cause is the cache service: stop caching in this throwaway
    workflow and let step 7's `ci.yml` own it. The lever after that is dropping
    `apps/mobile/ios` (1.2 GB, regenerated by prebuild) and keeping only CocoaPods.
-   **`DerivedData` is still out**, which is what would make the *compile* warm; decide once a
+   **`DerivedData` is still out**, which is what would make the _compile_ warm; decide once a
    save succeeds.
-6. After those: three clean runs per platform, then the owner decides (below).
+7. After those: three clean runs per platform, then the owner decides (below).
 
 **Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no
 Metro is up (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator
@@ -430,13 +429,11 @@ look; tests and formatting depended on the owner's global git identity and
 
 #### How to run and read a measurement
 
-- **A push to `main` that touches `measure.yml`, `scripts/ci/**`, `scripts/lib/**` or
-  `apps/mobile/**` starts a run.** (Neither the flows nor the app were in that list until
-  2026-09-20, so a push that fixed either measured nothing. The app is in scope because the
-  gate is *about* the app.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
-  **in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
-  cache, which is worth nothing while the cache never saves (open item 5; put `max-parallel: 1`
-  back when it does). `measure-gate.sh` stops a hung gate at 120 min so the job still reports.
+- **A push to `main` that touches `measure.yml`, `scripts/ci/**`, `scripts/lib/**`or`apps/mobile/**`starts a run.** (Neither the flows nor the app were in that list until
+2026-09-20, so a push that fixed either measured nothing. The app is in scope because the
+gate is *about* the app.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
+**in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
+cache, which is worth nothing while the cache never saves (open item 5; put`max-parallel: 1`back when it does).`measure-gate.sh` stops a hung gate at 120 min so the job still reports.
 - **Read results with `node scripts/ci/measure-results.mjs`** (the latest runs) and
   `node scripts/ci/measure-results.mjs <run> [job]`. It reads check-run annotations, which the
   public API serves without a login; job logs and artifacts need one, and the owner does not
@@ -507,8 +504,11 @@ release plan --tag=$TAG --json` as a job output. `gate-<platform>` and `build-<p
   tag, and attaching the artifacts to the host's Release page.
 - **`cut.yml`** — `workflow_dispatch` with a `channel` choice. One job: full fetch, `pnpm release
 cut $CHANNEL --push`. For `final` it needs the App Store Connect read credentials; the others
-  need only a token that can push a tag. This is the one file whose loss on a host move costs
-  nothing.
+  need only a token that can push a tag.
+- **`cut.yml` on a `schedule`** (hourly) runs `cut final --push` and must be a quiet no-op when no
+  version is in _Pending Developer Release_. Today `cut final` fails there, so it needs a mode
+  that exits 0 having done nothing; the script decides, not the YAML. Needs a test that a
+  version still _In Review_ produces no tag.
 
 **What only the owner can supply**, before `release.yml` can ship anything: the repo's Actions
 secrets, one `LEAPSAKE_SECRET_<NAME>_B64` per credential file (`.env.example` → _On a runner_
