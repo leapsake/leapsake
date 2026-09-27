@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { anrWaitTap } from "./mobile-harness.mjs";
+import { anrWaitTap, ipsSummary } from "./mobile-harness.mjs";
 
 // Trimmed from the dump a hosted Android runner produced on 2026-09-19.
 const ANR_DUMP =
@@ -31,5 +31,49 @@ describe("anrWaitTap", () => {
     expect(
       anrWaitTap(ANR_DUMP.replace(/<node[^>]*aerr_wait[^>]*\/>/, "")),
     ).toBeNull();
+  });
+});
+
+// The shape of a simulator `.ips`: a one-line header, then the report as one JSON body.
+const IPS =
+  '{"app_name":"Leapsake","bundleID":"com.leapsake.app"}\n' +
+  JSON.stringify({
+    exception: { type: "EXC_CRASH", signal: "SIGABRT" },
+    asi: { "libsystem_c.dylib": ["abort() called"] },
+    faultingThread: 1,
+    usedImages: [
+      { name: "libsystem_kernel.dylib" },
+      { name: "libc++abi.dylib" },
+    ],
+    threads: [
+      { frames: [{ imageIndex: 0, symbol: "mach_msg2_trap" }] },
+      {
+        triggered: true,
+        queue: "com.facebook.react.JavaScript",
+        frames: [
+          { imageIndex: 0, symbol: "__pthread_kill" },
+          { imageIndex: 1, symbol: "std::__terminate(void (*)())" },
+          { imageIndex: 7, imageOffset: 4096 },
+        ],
+      },
+    ],
+  });
+
+describe("ipsSummary", () => {
+  it("names the signal, the abort message and the crashed thread's frames", () => {
+    expect(ipsSummary(IPS)).toEqual([
+      "EXC_CRASH SIGABRT",
+      "libsystem_c.dylib: abort() called",
+      "crashed thread (com.facebook.react.JavaScript):",
+      "  #0 libsystem_kernel.dylib __pthread_kill",
+      "  #1 libc++abi.dylib std::__terminate(void (*)())",
+      "  #2 ? +4096",
+    ]);
+  });
+
+  it("falls back to the raw reason lines when the body is not JSON", () => {
+    expect(
+      ipsSummary('{}\n"exception" : {"type":"EXC_CRASH"},\nnot json'),
+    ).toEqual(['"exception" : {"type":"EXC_CRASH"},']);
   });
 });

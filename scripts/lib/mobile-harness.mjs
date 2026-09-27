@@ -924,6 +924,48 @@ const androidDriver = {
   },
 };
 
+/**
+ * What an iOS `.ips` crash report says died: the signal, the abort message, and the top
+ * frames of the exception backtrace and the crashed thread, each as `image symbol`.
+ */
+export function ipsSummary(text, depth = 12) {
+  const newline = text.indexOf("\n");
+  let body;
+  try {
+    body = JSON.parse(text.slice(newline + 1));
+  } catch {
+    return text.match(/"(termination|exception)"[^\n]*/g)?.slice(0, 3) ?? [];
+  }
+  const images = body.usedImages ?? [];
+  const frames = (list = []) =>
+    list
+      .slice(0, depth)
+      .map(
+        (frame, index) =>
+          `  #${index} ${images[frame.imageIndex]?.name ?? "?"} ` +
+          `${frame.symbol ?? `+${frame.imageOffset ?? "?"}`}`,
+      );
+  const crashed =
+    body.threads?.[body.faultingThread] ??
+    body.threads?.find((thread) => thread.triggered);
+  const exception = body.exception ?? {};
+  const lines = [
+    `${exception.type ?? "?"} ${exception.signal ?? ""}`.trim(),
+    ...Object.entries(body.asi ?? {}).flatMap(([image, messages]) =>
+      messages.map((message) => `${image}: ${message}`),
+    ),
+  ];
+  if (body.lastExceptionBacktrace?.length) {
+    lines.push("exception backtrace:", ...frames(body.lastExceptionBacktrace));
+  }
+  if (crashed) {
+    const name =
+      crashed.name ?? crashed.queue ?? `thread ${body.faultingThread}`;
+    lines.push(`crashed thread (${name}):`, ...frames(crashed.frames));
+  }
+  return lines;
+}
+
 /** Where to tap Wait on an Android "isn't responding" dialog in a `uiautomator dump`, or null. */
 export function anrWaitTap(dump) {
   const node = dump.match(
@@ -1210,9 +1252,7 @@ const iosDriver = {
       .filter((path) => readFileSync(path, "utf8").includes(APP_ID))
       .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
     if (!recent) return "";
-    const text = readFileSync(recent, "utf8");
-    const reason = text.match(/"(termination|exception)"[^\n]*/g) ?? [];
-    return [recent, ...reason.slice(0, 3)].join("\n");
+    return [recent, ...ipsSummary(readFileSync(recent, "utf8"))].join("\n");
   },
 
   /**
