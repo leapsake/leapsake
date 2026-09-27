@@ -292,6 +292,17 @@ describe("submitToAppStore", () => {
         "POST /v1/reviewSubmissionItems": answer(409, {
           errors: [{ code: "X", detail: "already added" }],
         }),
+        "GET /v1/reviewSubmissions/SUB1/items": answer(200, {
+          data: [
+            {
+              relationships: {
+                appStoreVersion: {
+                  data: { type: "appStoreVersions", id: "VER1" },
+                },
+              },
+            },
+          ],
+        }),
       };
       const calls = stubRoutes(routes);
       await submit();
@@ -306,9 +317,70 @@ describe("submitToAppStore", () => {
         "PATCH /v1/reviewSubmissions/SUB1": answer(409, {
           errors: [{ code: "X", detail: "already submitted" }],
         }),
+        "GET /v1/reviewSubmissions/SUB1": answer(200, {
+          data: { id: "SUB1", attributes: { state: "WAITING_FOR_REVIEW" } },
+        }),
       };
       stubRoutes(routes);
       await expect(submit()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("a 409 that means Apple refused, not 'already done'", () => {
+    // v0.1.0-rc.1 reported "submitted" while its version sat in an empty submission.
+    const notReviewable = answer(409, {
+      errors: [
+        {
+          code: "STATE_ERROR.ENTITY_STATE_INVALID",
+          detail:
+            "This resource cannot be reviewed, please check associated errors to see why.",
+          meta: {
+            associatedErrors: {
+              "/v1/appStoreVersions/VER1": [
+                {
+                  detail:
+                    "You must provide a value for the attribute 'copyright' with this request",
+                },
+              ],
+              "/v2/appPrices/": [
+                {
+                  detail:
+                    "App is not eligible for submission until pricing has been set.",
+                },
+              ],
+            },
+          },
+        },
+      ],
+    });
+
+    it("fails when the version never joined the submission, naming Apple's reasons", async () => {
+      const calls = stubRoutes({
+        ...freshRoutes(),
+        "POST /v1/reviewSubmissionItems": notReviewable,
+        "GET /v1/reviewSubmissions/SUB1/items": answer(200, { data: [] }),
+      });
+      const failure = submit();
+      await expect(failure).rejects.toThrow(/copyright/);
+      await expect(failure).rejects.toThrow(/pricing has been set/);
+      expect(
+        calls.some((each) => each.key === "PATCH /v1/reviewSubmissions/SUB1"),
+      ).toBe(false);
+    });
+
+    it("fails when the submission was refused and is still unsent", async () => {
+      stubRoutes({
+        ...freshRoutes(),
+        "PATCH /v1/reviewSubmissions/SUB1": answer(409, {
+          errors: [
+            { code: "X", detail: "must have an approved appStoreVersions" },
+          ],
+        }),
+        "GET /v1/reviewSubmissions/SUB1": answer(200, {
+          data: { id: "SUB1", attributes: { state: "READY_FOR_REVIEW" } },
+        }),
+      });
+      await expect(submit()).rejects.toThrow(/READY_FOR_REVIEW/);
     });
   });
 

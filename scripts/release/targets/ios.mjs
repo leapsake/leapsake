@@ -379,6 +379,22 @@ const IPAD_SCREENSHOTS = "APP_IPAD_PRO_3GEN_129";
  * What App Review reads on the day `rc` submits: the app record's information and this
  * version's listing. The App Privacy answers are not in Apple's API, so `manual:` names them.
  */
+/** Whether the app has a price schedule; Apple answers 404 until one is set. */
+async function hasPrice(appleAppStoreConnect, appId) {
+  try {
+    const prices = await appleAppStoreConnect.get(
+      `/v1/appPriceSchedules/${appId}/manualPrices`,
+      { query: { limit: 1 } },
+    );
+    return (prices?.data ?? []).length > 0;
+  } catch (error) {
+    if (error instanceof AppleAppStoreConnectError && error.status === 404) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 const appleAppStoreListing = {
   name: "App Store listing",
   check: async ({ root, storeVersion }) => {
@@ -430,6 +446,10 @@ const appleAppStoreListing = {
         }
       }
 
+      if (!(await hasPrice(appleAppStoreConnect, app.id))) {
+        missing.push("no price — set one in Pricing and Availability");
+      }
+
       const versions = await appleAppStoreConnect.get(
         `/v1/apps/${app.id}/appStoreVersions`,
         {
@@ -446,6 +466,22 @@ const appleAppStoreListing = {
           `no App Store version ${storeVersion} — create it in App Store Connect and fill in its listing, since rc submits it`,
         );
       } else {
+        if (!version.attributes?.copyright?.trim()) {
+          missing.push(`version ${storeVersion} has no copyright`);
+        }
+        const reviewDetail = await appleAppStoreConnect.get(
+          `/v1/appStoreVersions/${version.id}/appStoreReviewDetail`,
+        );
+        const review = reviewDetail?.data?.attributes;
+        if (!review?.contactEmail || !review?.contactPhone) {
+          missing.push(
+            `version ${storeVersion} has no App Review Information contact email and phone`,
+          );
+        } else if (review.demoAccountRequired !== false) {
+          missing.push(
+            `version ${storeVersion}'s App Review Information does not say no sign-in is required`,
+          );
+        }
         const localizations = await appleAppStoreConnect.get(
           `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`,
         );
@@ -990,6 +1026,17 @@ async function findOrCreateSubmission(appleAppStoreConnect, appId) {
   return created.data;
 }
 
+/** Apple's reasons behind a refusal, including the per-resource ones it nests in `meta`. */
+function appleReasons(error) {
+  const reasons = error.errors.flatMap((each) =>
+    Object.values(each.meta?.associatedErrors ?? {})
+      .flat()
+      .map((associated) => associated.detail),
+  );
+  const top = error.errors.map((each) => each.detail);
+  return (reasons.length > 0 ? reasons : top).filter(Boolean);
+}
+
 /** Put the version in the submission, tolerating its already being there. */
 async function addVersionToSubmission(
   appleAppStoreConnect,
@@ -1013,11 +1060,25 @@ async function addVersionToSubmission(
       },
     });
   } catch (error) {
-    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
+    if (!(error instanceof AppleAppStoreConnectError) || error.status !== 409) {
+      throw error;
+    }
+    // Apple answers 409 both for "already there" and for "not reviewable"; ask which.
+    const items = await appleAppStoreConnect.get(
+      `/v1/reviewSubmissions/${submissionId}/items`,
+      { query: { include: "appStoreVersion" } },
+    );
+    if (
+      (items?.data ?? []).some(
+        (each) => each.relationships?.appStoreVersion?.data?.id === versionId,
+      )
+    ) {
       say("the version is already in this submission");
       return;
     }
-    throw error;
+    throw new Error(
+      `App Store Connect will not put the version up for review:\n        - ${appleReasons(error).join("\n        - ")}`,
+    );
   }
 }
 
@@ -1035,13 +1096,20 @@ async function submitForReview(appleAppStoreConnect, submissionId) {
     });
     say("submitted for App Store review");
   } catch (error) {
-    if (error instanceof AppleAppStoreConnectError && error.status === 409) {
-      say(
-        `already submitted for App Store review (${error.errors[0]?.detail ?? "409"})`,
-      );
+    if (!(error instanceof AppleAppStoreConnectError) || error.status !== 409) {
+      throw error;
+    }
+    const submission = await appleAppStoreConnect.get(
+      `/v1/reviewSubmissions/${submissionId}`,
+    );
+    const state = submission?.data?.attributes?.state;
+    if (state === "WAITING_FOR_REVIEW" || state === "IN_REVIEW") {
+      say(`already submitted for App Store review (${state})`);
       return;
     }
-    throw error;
+    throw new Error(
+      `App Store Connect refused the review submission (${state ?? "state unknown"}):\n        - ${appleReasons(error).join("\n        - ")}`,
+    );
   }
 }
 

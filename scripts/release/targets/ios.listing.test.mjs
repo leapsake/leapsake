@@ -33,9 +33,12 @@ function stubRoutes(routes) {
   globalThis.fetch = async (url) => {
     const key = `GET ${new URL(url).pathname}`;
     if (!(key in routes)) throw new Error(`unstubbed call: ${key}`);
-    return answer(200, routes[key]);
+    const route = routes[key];
+    return "ok" in route ? route : answer(200, route);
   };
 }
+
+const notFound = answer(404, { errors: [{ detail: "There is no resource" }] });
 
 const shots = {
   data: [{ attributes: { assetDeliveryState: { state: "COMPLETE" } } }],
@@ -61,8 +64,18 @@ const complete = () => ({
       { attributes: { privacyPolicyUrl: "https://leapsake.com/privacy" } },
     ],
   },
+  "GET /v1/appPriceSchedules/APP1/manualPrices": { data: [{ id: "PRICE1" }] },
   "GET /v1/apps/APP1/appStoreVersions": {
-    data: [{ id: "VER1", attributes: {} }],
+    data: [{ id: "VER1", attributes: { copyright: "2026 Joshua Smith" } }],
+  },
+  "GET /v1/appStoreVersions/VER1/appStoreReviewDetail": {
+    data: {
+      attributes: {
+        contactEmail: "support@leapsake.com",
+        contactPhone: "+1 555 0100",
+        demoAccountRequired: false,
+      },
+    },
   },
   "GET /v1/appStoreVersions/VER1/appStoreVersionLocalizations": {
     data: [
@@ -138,6 +151,11 @@ describe("the App Store listing check", () => {
       "GET /v1/appInfos/INFO1/appInfoLocalizations": {
         data: [{ attributes: {} }],
       },
+      "GET /v1/appPriceSchedules/APP1/manualPrices": notFound,
+      "GET /v1/apps/APP1/appStoreVersions": {
+        data: [{ id: "VER1", attributes: { copyright: null } }],
+      },
+      "GET /v1/appStoreVersions/VER1/appStoreReviewDetail": { data: null },
       "GET /v1/appStoreVersions/VER1/appStoreVersionLocalizations": {
         data: [{ id: "LOC1", attributes: { description: " " } }],
       },
@@ -150,6 +168,9 @@ describe("the App Store listing check", () => {
       "age rating",
       "primary category",
       "privacy policy URL",
+      "no price",
+      "no copyright",
+      "App Review Information contact",
       "no description",
       "no keywords",
       "no support URL",
@@ -158,6 +179,22 @@ describe("the App Store listing check", () => {
     ]) {
       expect(reason).toContain(field);
     }
+  });
+
+  it("asks App Review Information to say no sign-in is required", async () => {
+    stubRoutes({
+      ...complete(),
+      "GET /v1/appStoreVersions/VER1/appStoreReviewDetail": {
+        data: {
+          attributes: {
+            contactEmail: "a@b.c",
+            contactPhone: "1",
+            demoAccountRequired: true,
+          },
+        },
+      },
+    });
+    await expect(reasonFor(repoWith())).resolves.toContain("no sign-in");
   });
 
   it("does not count screenshots Apple has not finished processing", async () => {
