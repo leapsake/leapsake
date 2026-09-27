@@ -102,8 +102,13 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    picked. An unanswered "with whom?" is a `problem` like any other. Mobile had only one
    `useEffect` by then, and it stays: it loads the stored schedule from core. The entity
    form's staged rows still gate its Save through `canSave`; that goes with step 6.
-4. **`useRelationshipForm`** with the role-picker options as part of the hook's output, so
-   mobile's inlined picker and web's `RelationshipFields` read one list.
+4. **`useRelationshipForm`. ✅ Landed 2026-09-26.** Owner decisions: both platforms take
+   mobile's model (every role for the subject up front via `roleOptions`, a role narrowing
+   who can be named via `otherTypes`); web picks the role from a `<select>`; web's name stays
+   a datalist, resolved against the candidates by the route action (no match or two matches
+   is refused); desktop's role-only Edit is the shared form, the other end fixed.
+   `RelationshipRolesEdit` (both roles) is untouched. ⚠️ **Open: with no JS, the `other`
+   role's note field can't appear**, so that one role still needs JS on web.
 5. **`useContactMethodForm`**: the per-kind field set (which kinds take a label, which take a
    handle, which are `https`-only) is data, not UI. Put it in `@leapsake/contact-links` next to
    the kind definitions if it is not already there, and have the hook read it.
