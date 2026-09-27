@@ -1,0 +1,201 @@
+# A release tag ships: plan, then every gate and build, then every upload, then the receipts.
+# `pnpm release plan` decides which jobs exist; a build failure deletes the tag, an upload
+# failure is resumed by re-running its job. Off until the repository variable
+# REMOTE_RELEASES is "true", so a tag pushed by hand is only a tag.
+name: release
+run-name: release ${{ inputs.tag || github.ref_name }}
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GIT_AUTHOR_NAME: leapsake-release
+  GIT_AUTHOR_EMAIL: release@leapsake.invalid
+  GIT_COMMITTER_NAME: leapsake-release
+  GIT_COMMITTER_EMAIL: release@leapsake.invalid
+
+jobs:
+  plan:
+    if: vars.REMOTE_RELEASES == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      buildNumber: ${{ steps.plan.outputs.buildNumber }}
+      gate: ${{ steps.plan.outputs.gate }}
+      build: ${{ steps.plan.outputs.build }}
+      publish: ${{ steps.plan.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - id: plan
+        run: pnpm release plan --tag=${{ inputs.tag || github.ref_name }} --no-checks --outputs="$GITHUB_OUTPUT"
+
+  gate:
+    needs: plan
+    if: needs.plan.outputs.gate != '[]'
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.gate) }}
+    runs-on: ${{ matrix.host == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/ci/prepare-gate.sh ${{ matrix.platform }}
+      - run: bash scripts/ci/gate.sh ${{ matrix.platform }}
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.build != '[]'
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.build) }}
+    runs-on: ${{ matrix.host == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release materialize --into="$RUNNER_TEMP/secrets" --env-out=.env
+        env:
+          LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64 }}
+          LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_P12_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_P12_B64 }}
+          LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_B64 }}
+          LEAPSAKE_SECRET_APPLE_IOS_PROVISIONING_PROFILE_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_IOS_PROVISIONING_PROFILE_B64 }}
+          LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_B64: ${{ secrets.LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_B64 }}
+          LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_B64: ${{ secrets.LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_B64 }}
+          LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64: ${{ secrets.LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64 }}
+      - run: pnpm release build --tag=${{ needs.plan.outputs.tag }} --only=${{ matrix.id }} --build-number=${{ needs.plan.outputs.buildNumber }} --out="$RUNNER_TEMP/out"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_IOS_PROVISIONING_PROFILE: ${{ secrets.APPLE_IOS_PROVISIONING_PROFILE }}
+          APPLE_APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_KEY_ID }}
+          APPLE_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_APP_STORE_CONNECT_BETA_GROUP: ${{ secrets.APPLE_APP_STORE_CONNECT_BETA_GROUP }}
+          GOOGLE_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.GOOGLE_PLAY_UPLOAD_KEY_ALIAS }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.id }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, gate, build]
+    if: ${{ !failure() && !cancelled() && needs.plan.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.publish) }}
+    runs-on: ${{ matrix.host == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          fetch-depth: 0
+      - run: git fetch origin refs/notes/releases:refs/notes/releases
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - if: ${{ !matrix.marker }}
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.id }}
+          path: ${{ runner.temp }}/out
+      - run: pnpm release materialize --into="$RUNNER_TEMP/secrets" --env-out=.env
+        env:
+          LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64 }}
+          LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64: ${{ secrets.LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64 }}
+      - run: pnpm release publish --tag=${{ needs.plan.outputs.tag }} --from="$RUNNER_TEMP/out" --only=${{ matrix.id }} --receipts-out="$RUNNER_TEMP/receipts"
+        env:
+          APPLE_APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_KEY_ID }}
+          APPLE_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_APP_STORE_CONNECT_BETA_GROUP: ${{ secrets.APPLE_APP_STORE_CONNECT_BETA_GROUP }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipt-${{ matrix.id }}
+          path: ${{ runner.temp }}/receipts
+          if-no-files-found: ignore
+
+  record:
+    needs: [plan, publish]
+    if: ${{ always() && needs.plan.result == 'success' && needs.publish.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: receipt-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/receipts
+      - run: pnpm release record --tag=${{ needs.plan.outputs.tag }} --from="$RUNNER_TEMP/receipts" --push
+
+  abandon:
+    needs: [plan, gate, build, publish]
+    if: ${{ failure() && needs.plan.result == 'success' && needs.publish.result == 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          fetch-depth: 0
+      - run: git fetch origin refs/notes/releases:refs/notes/releases
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release abandon --tag=${{ needs.plan.outputs.tag }}

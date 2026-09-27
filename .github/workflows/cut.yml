@@ -1,0 +1,58 @@
+# The release button: cut the next tag on a channel, push it, and run release.yml on it.
+# Hourly, when the repository variable AUTO_FINAL is "true", it cuts final once Apple has
+# approved the version, and otherwise does nothing.
+name: cut
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        options: [alpha, beta, rc, final]
+        required: true
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_FINAL == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+    env:
+      GIT_AUTHOR_NAME: leapsake-release
+      GIT_AUTHOR_EMAIL: release@leapsake.invalid
+      GIT_COMMITTER_NAME: leapsake-release
+      GIT_COMMITTER_EMAIL: release@leapsake.invalid
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - run: git fetch origin refs/notes/releases:refs/notes/releases
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release materialize --into="$RUNNER_TEMP/secrets" --env-out=.env
+        env:
+          LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64: ${{ secrets.LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64 }}
+      # A scheduled run has no inputs, so it cuts `final --if-approved`.
+      - id: cut
+        run: pnpm release cut ${{ inputs.channel || 'final --if-approved' }} --no-checks --push --outputs="$GITHUB_OUTPUT"
+        env:
+          APPLE_APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_KEY_ID }}
+          APPLE_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
+
+  release:
+    needs: cut
+    if: needs.cut.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.cut.outputs.tag }}
+    secrets: inherit

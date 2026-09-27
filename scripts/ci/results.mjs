@@ -1,11 +1,10 @@
-// Throwaway (remote-releases.md step 6): reads measure.yml's results through GitHub's
-// public API, which serves check-run annotations without a login (job logs need one).
-// Deleted with .github/workflows/measure.yml.
+// Reads a workflow's results through GitHub's public API, which serves check-run
+// annotations without a login (job logs need one). gate.sh writes the gate's as one.
 //
-//   node scripts/ci/measure-results.mjs                  the latest runs, and the rate limit
-//   node scripts/ci/measure-results.mjs <run> [job]      each finished job's annotation
+//   node scripts/ci/results.mjs [workflow]               its latest runs, and the rate limit
+//   node scripts/ci/results.mjs <run> [job]              each finished job's annotations
 //
-// Anonymous calls are capped at 60 an hour; one call per job, so poll sparingly.
+// The workflow defaults to ci.yml. Anonymous calls are capped at 60 an hour; one per job.
 const API = "https://api.github.com/repos/leapsake/leapsake";
 
 async function get(path) {
@@ -21,9 +20,9 @@ async function get(path) {
 const NOISE =
   /does not capture|already declared|Node\.js 20|ubuntu-latest label/;
 
-async function listRuns() {
+async function listRuns(workflow = "ci.yml") {
   const { workflow_runs: runs } = await get(
-    "/actions/workflows/measure.yml/runs?per_page=5",
+    `/actions/workflows/${workflow}/runs?per_page=5`,
   );
   for (const run of runs) {
     console.log(
@@ -66,5 +65,5 @@ async function showRun(run, prefix = "") {
   }
 }
 
-const [run, prefix] = process.argv.slice(2);
-await (run ? showRun(run, prefix) : listRuns());
+const [first, prefix] = process.argv.slice(2);
+await (/^\d+$/.test(first ?? "") ? showRun(first, prefix) : listRuns(first));
