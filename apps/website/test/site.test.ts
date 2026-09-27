@@ -106,6 +106,30 @@ describe("the follow page", () => {
   });
 });
 
+describe("the support page", () => {
+  // The App Store listing's support URL: Cloudflare serves the home page for a missing
+  // path, so only the build can show this page exists.
+  let html: string;
+
+  beforeAll(async () => {
+    await execFileAsync("pnpm", ["exec", "astro", "build"], { cwd: WEBSITE });
+    html = await readFile(join(WEBSITE, "dist/support/index.html"), "utf8");
+  }, 120_000);
+
+  it("gives a support address", () => {
+    expect(html).toContain('href="mailto:support@leapsake.com"');
+  });
+
+  it("ships no JavaScript", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("is reachable from the home page", async () => {
+    const home = await readFile(join(WEBSITE, "dist/index.html"), "utf8");
+    expect(home).toContain('href="/support"');
+  });
+});
+
 describe("the site's icons", () => {
   /**
    * That the generated favicons are *served*, which is the half `pnpm test:icons` cannot
