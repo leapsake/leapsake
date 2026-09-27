@@ -1161,6 +1161,10 @@ async function requestRelease(appleAppStoreConnect, versionId) {
   }
 }
 
+/** The refusal `cut final --if-approved` reads as "Apple is not done yet" rather than a failure. */
+const notApproved = (message) =>
+  Object.assign(new Error(message), { name: "NotApproved" });
+
 /**
  * The approved version's record and the commit its build came from, without releasing it.
  * Refuses rather than guesses; `--commit=` names the commit by hand.
@@ -1182,7 +1186,7 @@ export async function approvedRelease({ root, storeVersion, commit }) {
   );
   const version = found?.data?.[0];
   if (!version) {
-    throw new Error(
+    throw notApproved(
       `App Store Connect has no ${storeVersion} version record — it is created when an ` +
         "rc submits, so this version was never submitted",
     );
@@ -1190,7 +1194,7 @@ export async function approvedRelease({ root, storeVersion, commit }) {
 
   const state = version.attributes?.appStoreState;
   if (state !== "PENDING_DEVELOPER_RELEASE" && state !== "READY_FOR_SALE") {
-    throw new Error(
+    throw notApproved(
       `${storeVersion} is ${state}, not approved and waiting — going live is only ` +
         "possible from PENDING_DEVELOPER_RELEASE. Apple has not finished with it",
     );

@@ -9,6 +9,8 @@
 //     build(ctx)   → { files: { name: path }, buildNumber, bundleId }; spends nothing
 //     publish(ctx) upload `ctx.artifact`, which is that result with the files copied
 //     release(ctx) a marker rung's whole work → { commit, buildNumber }
+//     approved(ctx) the commit `release` would mark; throws an error named "NotApproved"
+//                  while the store has not approved it
 //
 // A cell whose tier is `status: "blocked"` is policy: reported ⏳ with its `note`, and
 // skipped. A ready cell whose `preflight`/`requires` fail is misconfigured, and fails.

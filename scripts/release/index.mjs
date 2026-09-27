@@ -5,6 +5,7 @@
 // independently per core, and a final closes it. Every command takes the tag it acts on.
 //
 //   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks]
+//   pnpm release cut final --if-approved [--push]
 //   pnpm release plan --tag=<tag> [--json] [--no-checks]
 //   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
 //   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
@@ -16,7 +17,8 @@
 //   pnpm release --help
 //
 // Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
-// the live commit by hand for a marker rung. Credentials come from `.env` or the environment,
+// the live commit by hand for a marker rung. `--if-approved` exits 0 having done nothing when
+// the store has not approved the version or its final tag already exists. Credentials come from `.env` or the environment,
 // which wins. Off a runner (`CI=true`), uploading needs `--here`, a tag origin already has,
 // and the tag typed back; `cut` and `abandon` need the tag typed back too. There is no `--yes`.
 // Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
@@ -65,7 +67,10 @@ import {
   STAGES,
 } from "./version.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const ROOT = resolve(
+  process.env.LEAPSAKE_RELEASE_ROOT ??
+    join(dirname(fileURLToPath(import.meta.url)), "..", ".."),
+);
 const COMMANDS = [
   "cut",
   "plan",
@@ -264,8 +269,11 @@ async function guardUpload(opts, ctx) {
   return reason === undefined;
 }
 
-/** The commit every ready marker cell says the store approved; they must agree. */
-async function approvedCommit(ctx, cells) {
+/**
+ * The commit every ready marker cell says the store approved; they must agree. With
+ * `ifApproved`, a store that has not approved yet yields `{ waiting }` instead of throwing.
+ */
+async function approvedCommit(ctx, cells, { ifApproved = false } = {}) {
   const markers = cells.filter(
     (cell) => cell.status === "ready" && cell.marker,
   );
@@ -274,7 +282,14 @@ async function approvedCommit(ctx, cells) {
   }
   const found = [];
   for (const { target } of markers) {
-    found.push({ id: target.id, ...(await target.approved(ctx)) });
+    try {
+      found.push({ id: target.id, ...(await target.approved(ctx)) });
+    } catch (error) {
+      if (ifApproved && error.name === "NotApproved") {
+        return { waiting: `${target.id}: ${error.message}` };
+      }
+      throw error;
+    }
   }
   const commits = new Set(found.map((each) => each.commit));
   if (commits.size > 1) {
@@ -282,7 +297,7 @@ async function approvedCommit(ctx, cells) {
       `the approved builds come from different commits: ${found.map((each) => `${each.id} ${each.commit.slice(0, 12)}`).join(", ")}`,
     );
   }
-  return found[0].commit;
+  return { commit: found[0].commit };
 }
 
 async function cut(opts) {
@@ -291,6 +306,10 @@ async function cut(opts) {
     fail(`cut which channel? one of ${STAGES.join(", ")}`);
   }
   if (extra.length > 0) fail(`unexpected argument "${extra[0]}"`);
+  const ifApproved = opts.flags.has("if-approved");
+  if (ifApproved && channel !== "final") {
+    fail("--if-approved only applies to cut final");
+  }
 
   const manifestVersion = JSON.parse(
     readFileSync(join(ROOT, "package.json"), "utf8"),
@@ -304,6 +323,10 @@ async function cut(opts) {
     ...opts,
     values: { ...opts.values, tag: formatTag(version) },
   });
+  if (ifApproved && listTags(ROOT).includes(ctx.tag)) {
+    console.log(`${ctx.tag} is already tagged, so there is nothing to cut`);
+    return 0;
+  }
   const cells = await evaluateCells(TARGETS, ctx, {
     checks: !opts.flags.has("no-checks"),
   });
@@ -318,8 +341,13 @@ async function cut(opts) {
   }
   if (cells.some((cell) => cell.status === "failed")) return 1;
 
-  const commit =
-    channel === "final" ? await approvedCommit(ctx, cells) : undefined;
+  const approval =
+    channel === "final" ? await approvedCommit(ctx, cells, { ifApproved }) : {};
+  if (approval.waiting) {
+    console.log(`\nNot cutting ${ctx.tag}: ${approval.waiting}`);
+    return 0;
+  }
+  const { commit } = approval;
   console.log(`\nWould tag ${ctx.tag} on ${commit?.slice(0, 12) ?? "HEAD"}.`);
   if (opts.flags.has("dry-run")) {
     console.log("(dry run — nothing was changed)");
