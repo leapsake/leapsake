@@ -19,9 +19,8 @@ must start **now**, in parallel with Part 1, not when Part 1 finishes.
 
 The code is done: export, both at-rest doors, the out-of-band custody assertions, and a release
 path where `rc` submits to App Store review and `final` releases the approved version and tags
-the commit that went live. What is left is store paperwork, then two releases. **Step 1 is the
-long pole**, and the one nothing in the repo can check for you. If it is not on this list, it
-does not block GA.
+the commit that went live. What is left is one listing field to confirm by hand, then two
+releases. If it is not on this list, it does not block GA.
 
 **The first `rc` and `final` run from this machine**, through `pnpm release
 ship --here`. That path already enforces the catalog: it runs `pnpm test:all --strict
@@ -30,33 +29,22 @@ tag-triggered pipeline in
 [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) moves the
 gate off the shipper's machine; it does not gate GA.
 
-## 1 — The App Store Connect fields nothing in the repo can check
+## 1 — The one listing field no check can read
 
-`appleAppStoreConnectSetup` reads the beta group, Test Information and Beta App Review
-Information, and stops there, because nothing more is required to distribute a _beta_. It
-does **not** read `privacyPolicyUrl` or the App Privacy answers, so a green `pnpm release
-plan` for a beta says nothing about either and both are required here.
-
-**These have to be in place before the `rc` release, not before `final`**: `rc` is the rung
-that submits to review, so the metadata is what Apple reads on the day.
-
-- Paste <https://leapsake.com/privacy/> into the app record.
-- **Publish** the App Privacy questionnaire (answer: no collection); a draft does not count.
-- Description, keywords, category, age rating, support URL. The first submission needs all of
-  them, and none recurs.
-- **Screenshots at two sizes, not one.** `supportsTablet: true`, so the listing is universal and
-  App Store Connect requires a 13" iPad set alongside the 6.9" iPhone set. See
-  [`v0-2.md`](./v0-2.md) → _Client / UX_ for what iPad support does and does not promise, and
-  verify the app on an iPad simulator before submitting.
-- ⚠️ The version string is **spent permanently** once a version is _released_. A rejection does
-  not spend it: the same `0.1.0` record is edited and resubmitted, which is why a rejected rc
-  costs a fresh `rc.N+1` and nothing more.
+The `rc` rung's _App Store listing_ check reads what App Review reads: age rating, category,
+privacy policy URL, the version's description, keywords and support URL, and processed
+screenshots in the 6.9" iPhone and 13" iPad slots. It cannot read the **App Privacy** answers,
+which Apple's API does not expose, so confirm by hand that they are **published**, not a
+draft, before `rc`.
 
 ## 2 — Submit, then release
 
 **Two releases, days apart, and the rungs mean different things.** Each is a tag pushed first
 (`pnpm release cut <rc|final> --push`), then `pnpm release ship --tag=<tag> --here`, which refuses
-a tag origin does not have and asks for it typed back.
+a tag origin does not have and asks for it typed back. ⚠️ The version string is **spent
+permanently** once a version is _released_; a rejection does not spend it, since the same
+`0.1.0` record is edited and resubmitted, so a rejected rc costs a fresh `rc.N+1` and nothing
+more.
 
 `rc` builds, uploads, hands the build to TestFlight's testers _and_ submits it to App Store
 review. A rejection is answered with another `rc`: the version record is reused, so the attempts
