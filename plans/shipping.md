@@ -20,8 +20,8 @@ must start **now**, in parallel with Part 1, not when Part 1 finishes.
 The code is done: export, both at-rest doors, the out-of-band custody assertions, and a release
 path where `rc` submits to App Store review and `final` releases the approved version and tags
 the commit that went live. What is left is one piece of release plumbing that a larger change
-absorbs, then process and store paperwork. **Steps 2 and 3 are the long pole**, and 3 is the one
-nothing in the repo can check for you. If it is not on this list, it does not block GA.
+absorbs, then store paperwork. **Step 2 is the long pole**, and the one nothing in the repo can
+check for you. If it is not on this list, it does not block GA.
 
 ## 1 — The `rc` gate becomes a check
 
@@ -30,39 +30,13 @@ sentence on the `rc` rung, enforcing nothing. It belongs in `requires:`. **How t
 the catalog is green is answered by the tag-triggered pipeline** in
 [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md): the
 pipeline itself runs the gate per platform on hosted runners before any upload, so the machine
-that runs the tests is not the person shipping, and no local receipt is ever built. Steps 1–4
-of that doc are script-only and can start now; steps 6–8 need step 2 below.
+that runs the tests is not the person shipping, and no local receipt is ever built. What is
+left of that doc is its step 6 (the owner's call on the hosted-runner numbers), step 7 (the
+three workflows, and the Actions secrets only the owner can supply), and step 8.
 
 **Acceptance:** an `rc` release cannot ship a build the catalog has not passed.
 
-## 2 — Public repo
-
-**Value:** transparency for a privacy product; free macOS Actions runners, which the pipeline in
-step 1 depends on. Before GA because going public first makes desktop auto-update simpler
-([`desktop-packaging.md`](./desktop-packaging.md) → C) and is the cheaper mistake to make early.
-
-⚠️ **Git history is public forever.** In this order:
-
-1. **Run the secret scan over every object, not every ref.** `pnpm test:secrets` runs on every
-   ref in the trophy; its `--all-objects` mode reads **every blob in the object database,
-   reachable or not**, and is the one to run before the repo actually flips. This history has
-   been rewritten (`refs/original/`) and pushed, and a host keeps unreachable objects
-   addressable by SHA long after no branch points at them. Every finding is recorded with its
-   reasoning in `.gitleaksignore`, which publishes with the repo and is meant to be read.
-2. **Read the security findings as a stranger would.** They publish with the repo: the relay's
-   threat register ([`apps/server/README.md`](../apps/server/README.md)), the Argon2id honesty
-   note ([`packages/crypto/README.md`](../packages/crypto/README.md)), and the open items in
-   [`v0-2.md`](./v0-2.md). Transparency is on-brand and self-hosters deserve it; what to check
-   is that **H1 in particular reads as a scoped, decided deferral rather than an unattended
-   hole**. It is the one an outside reader finds first.
-3. After flipping: the workflows in
-   [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) steps
-   6–7, starting with the throwaway workflow that measures whether hosted runners can carry the
-   device tiers at all.
-
-**Acceptance:** repo public with a clean history scan; Actions green on a PR.
-
-## 3 — The App Store Connect fields nothing in the repo can check
+## 2 — The App Store Connect fields nothing in the repo can check
 
 `appleAppStoreConnectSetup` reads the beta group, Test Information and Beta App Review
 Information, and stops there, because nothing more is required to distribute a _beta_. It
@@ -84,7 +58,7 @@ that submits to review, so the metadata is what Apple reads on the day.
   not spend it: the same `0.1.0` record is edited and resubmitted, which is why a rejected rc
   costs a fresh `rc.N+1` and nothing more.
 
-## 4 — Submit, then release
+## 3 — Submit, then release
 
 **Two commands, days apart, and the rungs mean different things.** Once
 [`remote-releases.md`](./fable-investigation/remote-releases.md) lands, both are a tag arriving

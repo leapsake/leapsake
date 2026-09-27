@@ -87,8 +87,7 @@ the signed artifact; `safeStorage` round-trips under the real signature.
 user permanently.**
 
 - `electron-updater` against GitHub Releases as the feed.
-- The repo goes public before iOS GA ([`shipping.md`](./shipping.md) → Part 1, step 2), and
-  desktop ships after it, so C never needs token distribution.
+- The repo is public, and desktop ships after it, so C never needs token distribution.
 
 **Acceptance:** an installed older build detects, downloads, and applies a newer release.
 
