@@ -31,6 +31,12 @@ describe("pinning the build number", () => {
     expect(process.env.LEAPSAKE_BUILD_NUMBER).toBe("368157");
   });
 
+  it("treats a blank pin as unset, as .env.example ships it", () => {
+    process.env.LEAPSAKE_BUILD_NUMBER = "";
+
+    expect(pinBuildNumber({ android: { versionCode: 371768 } })).toBe(371768);
+  });
+
   it("refuses a config that resolved no build number at all", () => {
     delete process.env.LEAPSAKE_BUILD_NUMBER;
 

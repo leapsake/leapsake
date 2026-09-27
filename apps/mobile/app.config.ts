@@ -72,8 +72,9 @@ const BUILD_EPOCH_MS = Date.UTC(2026, 0, 1);
  * prebuild time rather than at archive time.
  */
 function buildNumber(): number {
-  const pinned = process.env.LEAPSAKE_BUILD_NUMBER;
-  if (pinned !== undefined) {
+  // Blank means unset: `.env.example` ships the variable empty.
+  const pinned = process.env.LEAPSAKE_BUILD_NUMBER?.trim();
+  if (pinned) {
     if (!/^\d+$/.test(pinned)) {
       throw new Error(
         `LEAPSAKE_BUILD_NUMBER must be a positive integer, got "${pinned}"`,

@@ -55,7 +55,9 @@ export function pinBuildNumber(config) {
       "expo config resolved no build number — check apps/mobile/app.config.ts",
     );
   }
-  process.env.LEAPSAKE_BUILD_NUMBER ??= String(build);
+  if (!process.env.LEAPSAKE_BUILD_NUMBER?.trim()) {
+    process.env.LEAPSAKE_BUILD_NUMBER = String(build);
+  }
   return Number(process.env.LEAPSAKE_BUILD_NUMBER);
 }
 
