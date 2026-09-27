@@ -101,11 +101,8 @@ export default function ObservanceScheduleScreen() {
       <Stack.Screen
         options={{
           title: `${observer.label} — ${holiday.name}`,
-          // Saving lives in the header, as it does on every other form screen;
-          // there's nothing to validate here, so it's only disabled mid-write.
-          headerRight: () => (
-            <HeaderSave canSave saving={saving} onPress={save} />
-          ),
+          // Nothing here to validate, so Save only waits out a write in flight.
+          headerRight: () => <HeaderSave saving={saving} onPress={save} />,
         }}
       />
 

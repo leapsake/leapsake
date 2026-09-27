@@ -64,9 +64,9 @@ dialog: `showFormProblem` (web: `window.alert`; mobile: `Alert.alert`), the one 
 Leapsake modal replaces later. The wrapper passes the reason as `FormShell`'s or
 `HeaderSave`'s `problem` prop, from a catalog message keyed by the hook's error code. Web
 inputs keep `required` (and the like) **with JS on too**, so the browser's own validation
-runs first and the alert covers only what HTML cannot express. As each form migrates,
-`canSubmit`/`canSave` leave it; when the last one has, delete them. The one gate outside
-these forms, `ImportReview`'s commit, is a separate commit.
+runs first and the alert covers only what HTML cannot express. `canSubmit`/`canSave` are
+gone (2026-09-27). ⚠️ **Open:** `ImportReview`'s commit is the one disabled-until-ready
+gate left, still its own commit.
 
 **Nothing is disabled while a write is in flight either** (owner, 2026-09-26). The control
 stays focusable, says so (`aria-disabled` on web, `accessibilityState.busy` on mobile), and

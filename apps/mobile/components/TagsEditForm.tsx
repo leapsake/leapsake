@@ -57,12 +57,9 @@ export function TagsEditForm({
   const [raw, setRaw] = useState(() => tagsRawOf(tags));
   const [saving, setSaving] = useState(false);
 
-  // Always saveable: clearing every tag is a change like any other, and there is
-  // no state a tag string can be in that the parser would refuse.
-  const canSave = !saving;
-
+  // Always saveable: no tag string is one the parser would refuse.
   async function save() {
-    if (!canSave) return;
+    if (saving) return;
     setSaving(true);
     try {
       const names = parseTagNames(raw);
@@ -78,7 +75,6 @@ export function TagsEditForm({
   }
 
   const headerRight = useHeaderSave({
-    canSave,
     saving,
     onPress: () => void save(),
   });

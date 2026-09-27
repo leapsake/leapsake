@@ -83,23 +83,6 @@ describe("FormShell", () => {
     fireEvent.click(add);
     expect(stopped()).toEqual([true]);
   });
-
-  it("holds the submit closed while the form says it isn't ready", () => {
-    renderWithUi(
-      <FormShell
-        submitLabel="Save"
-        cancelTo="/back"
-        submitting={false}
-        canSubmit={false}
-      >
-        <input name="x" aria-label="x" />
-      </FormShell>,
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Save" }).matches(":disabled"),
-    ).toBe(true);
-  });
 });
 
 describe("Field", () => {

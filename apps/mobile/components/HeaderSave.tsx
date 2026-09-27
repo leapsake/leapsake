@@ -4,8 +4,6 @@ import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 
 interface SaveProps {
-  /** False disables Save; being replaced by `problem` as each form moves to its hook. */
-  canSave?: boolean;
   /** Why the form isn't ready. Save stays pressable and says this when pressed. */
   problem?: string;
   saving: boolean;
@@ -21,22 +19,15 @@ interface SaveProps {
  * "‹ Back" already leaves without saving, and a second way to do the same thing
  * was competing with the one the platform draws for free.
  *
- * Rendered from a screen's `Stack.Screen options.headerRight`. It stays mounted
- * while disabled rather than disappearing, so the action's place on screen never
- * moves as the form becomes valid.
+ * Rendered from a screen's `Stack.Screen options.headerRight`. It is never
+ * disabled: until the form is ready it fades, and a press says why.
  */
-export function HeaderSave({
-  canSave = true,
-  problem,
-  saving,
-  onPress,
-}: SaveProps) {
-  const faded = !canSave || saving || problem !== undefined;
+export function HeaderSave({ problem, saving, onPress }: SaveProps) {
+  const faded = saving || problem !== undefined;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !canSave, busy: saving }}
-      disabled={!canSave}
+      accessibilityState={{ busy: saving }}
       onPress={() => {
         if (saving) return;
         if (problem === undefined) onPress();
@@ -65,13 +56,12 @@ export function HeaderSave({
  * `onPress` is read through a ref rather than closed over, and that indirection
  * is the whole reason this is a hook rather than a `useCallback` at each call
  * site. A form's save closes over everything typed into it, so a `headerRight`
- * memoized on `canSave` alone would keep calling the save from the render where
+ * memoized on `problem` alone would keep calling the save from the render where
  * validity last flipped — writing the form as it stood several keystrokes ago.
  * The ref is set in an effect rather than during render so that a render which
  * never commits cannot arm a save with itself.
  */
 export function useHeaderSave({
-  canSave,
   problem,
   saving,
   onPress,
@@ -84,12 +74,11 @@ export function useHeaderSave({
   return useCallback(
     () => (
       <HeaderSave
-        canSave={canSave}
         problem={problem}
         saving={saving}
         onPress={() => latest.current()}
       />
     ),
-    [canSave, problem, saving],
+    [problem, saving],
   );
 }

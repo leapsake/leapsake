@@ -12,7 +12,10 @@ import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
 
-const COPY = { failed: "Couldn’t save" } as const;
+const COPY = {
+  failed: "Couldn’t save",
+  partnerRequired: "Say who it’s with before saving.",
+} as const;
 
 /** Who a couple's occasion held by one person is with, asked from its
  *  reminders. */
@@ -31,9 +34,8 @@ export default function MilestonePartnerScreen() {
   const loadSelf = useCallback(() => core.self.get(), [core]);
   const { data: self } = useFocusedData(loadSelf);
 
-  const canSave = !saving && partner != null;
   async function save() {
-    if (partner == null) return;
+    if (partner == null || saving) return;
     setSaving(true);
     try {
       await core.milestones.linkPartner({
@@ -49,7 +51,7 @@ export default function MilestonePartnerScreen() {
   }
 
   const headerRight = useHeaderSave({
-    canSave,
+    problem: partner == null ? COPY.partnerRequired : undefined,
     saving,
     onPress: () => void save(),
   });
