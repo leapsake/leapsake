@@ -21,8 +21,8 @@ pnpm release ship --tag=<the tag it prints> --here
 git push origin <that tag> refs/notes/releases
 ```
 
-**Not gating GA:** [remote releases](./fable-investigation/remote-releases.md) — step 6's
-last measure run and the owner's call, then step 7's workflows once the Actions secrets exist.
+**Not gating GA:** [remote releases](./fable-investigation/remote-releases.md) — the owner's
+go/no-go on step 6; step 7's workflows are written, and off until the Actions secrets exist.
 
 **In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.
 

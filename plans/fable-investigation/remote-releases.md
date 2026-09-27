@@ -263,262 +263,104 @@ later steps need to know:
 `leapsake/leapsake` is public. GitHub now reports Dependabot alerts on it (53 on 2026-09-19);
 reading them is the owner's, outside this plan.
 
-### Step 6 — A throwaway workflow measures the device tiers on hosted runners
+### Step 6 — Measure the device tiers on hosted runners — awaiting the owner's go/no-go
 
-**Goal:** know, with numbers, whether GitHub's runners can carry the gate before anything
-depends on it. This is the one unknown that could change decision 6.
-
-**Files:** one `.github/workflows/measure.yml`, deleted when step 7 lands; findings go into this
-doc's _Facts_ list and then into `CONTRIBUTING.md`.
-
-1. Job `ios` on `macos-latest`: checkout, Node, `pnpm install`, then
-   `pnpm release gate --platforms=ios`. Cache what is cacheable (`~/.cocoapods`, the pods dir,
-   Xcode DerivedData for the dev client, `~/.expo`, the Metro cache). Record: provisioning time,
-   `expo run:ios` time cold and warm, arc time, and whether Flow 4 is bimodal over three runs.
-2. Job `android` on `ubuntu-latest`: enable KVM (the udev rule GitHub documents for
-   hardware-accelerated emulators), install the SDK and an AVD matching
-   `scripts/lib/mobile-harness.mjs`'s expectations, then `pnpm release gate --platforms=android`.
-   `EMULATOR_SIZE` asks for 6 cores and 8 GB; the runner has 4 and 16. Record the same numbers,
-   and whether the harness's warning about an under-sized emulator fires.
-3. Both: three runs each, on the same commit. Anything that fails twice is a finding, not a flake.
-
-#### Where step 6 stands (updated 2026-09-24)
-
-**Both of step 6's questions are answered: hosted runners can carry the gate.** Flow 4 is not
-bimodal on either platform, and the Android emulator runs accelerated on Linux (table below).
-What was holding the bar back was the Android crash in open item 3, now patched:
-**`35990530595` (80cc189) was iOS 3/3 and Android 3/3 through the whole catalog, no crash** —
-its one red a self-test wait budget, since raised. **One more clean run** (the next push that
-touches `apps/mobile/**`) takes the crash to six clean jobs, and then step 6 is only the owner's
-decision below. The arc it measures is now 01 → smoke → 04, with the doors as 04's closing
-acts and a `console.error` check after each flow (`ci-and-test-tiers.md` steps 4b and 6); the
-table's arc times are from the old seven-flow arc. That arc cold-starts the app four times per
-job where the five-flow arc did about eight, so a clean job is weaker evidence against the crash. Everything else here is history worth keeping only until then.
-
-**Reading a run:** `node scripts/ci/measure-results.mjs <run>`, then `<run> "<job>"` for one
-job's detail. The green one is `35558802346`; before it, every run from `35466401578` onward
-is a record of one fix each, summarised in the open items below.
+**Hosted runners can carry the gate.** Flow 4's Argon2id pass is not bimodal on either
+platform, and the Android emulator runs accelerated under KVM on Linux. `measure.yml` is gone;
+`ci.yml`'s `gate` jobs run the same `scripts/ci/gate.sh` on every push to `main`.
 
 |                          | Android, `ubuntu-latest`, 4 cores, KVM | iOS, `macos-latest`, 3 cores, iPhone 17 Pro |
 | ------------------------ | -------------------------------------- | ------------------------------------------- |
 | Device boot              | 62–78s                                 | not timed                                   |
 | Cold `expo run`          | 256–402s                               | 507–1170s                                   |
-| `native` tier            | 393–541s                               | 348–1970s                                   |
-| E2E arc, all flows green | 884s (35558802346)                     | 1307s (35558802346)                         |
 | Flow 4 (Argon2id)        | 157–187s: **not bimodal**              | 151–162s: **not bimodal**                   |
-| Slowest flow (7b)        | 549–623s                               | 404–425s                                    |
-| Whole job                | ≈ 40 min                               | ≈ 60 min                                    |
+| Whole job, cold          | 27–39 min                              | 48–63 min (one 91)                          |
 
-The under-sized-emulator warning has never fired. Every non-device tier passes on both.
+No build cache ever saved in step 6; every number above is cold. `ci.yml` has no cache yet.
+The under-sized-emulator warning never fired.
 
-**Determinism first, retries second** (owner, 2026-09-20). A step-level retry with a
-post-condition is synchronization and stays; a re-run of a whole flow or job is flake-hiding
-and does not enter the gate. What removes the need for either: animations off (Android
-`*_animation_scale 0`, iOS Reduce Motion), a pinned simulator model
-(`LEAPSAKE_IOS_SIMULATOR`, default iPhone 17 Pro — the runner image's default iPhone can
-change under us), and a frozen status bar. All landed 2026-09-20. **Not pinned: the
-timezone** — the simulator takes the host's, and `simctl` has no knob for it, so a runner
-(UTC) and the owner's Mac (ET) still differ on anything date-shaped. The structural fix for
-the rest is dropping the dev client (`ci-and-test-tiers.md` step 4), which this week's
-failures argue for: the dev menu, the launcher and Metro caused four of them.
+**Since the Android crash patch (80cc189), five runs of three jobs per platform:**
 
-**Open, in the order to take them:**
+| Run           | Commit  | Android | iOS                                                    |
+| ------------- | ------- | ------- | ------------------------------------------------------ |
+| `35990530595` | 80cc189 | 3/3 ¹   | 3/3                                                    |
+| `36080753935` | 13e906b | 3/3     | 3/3                                                    |
+| `36284601968` | d93dc74 | 3/3     | 2/2, plus one `pnpm install` failure (infrastructure)  |
+| `36294303309` | 2bcfe6a | 3/3     | 3/3                                                    |
+| `36295332721` | 3ec10f7 | 3/3     | 2/3: **a native crash**, below                         |
 
-0. **An iOS crash we could not read** (35550536039 iOS 2): Maestro reported "App crashed or
-   stopped while executing flow" in Flow 1 and the harness printed no crash report — it looks
-   for one written in the last ten minutes, and the report lands a beat after Maestro gives up.
-   It now waits up to 10s and matches by file name too. Whether this is the store-handle crash
-   again or something new is **unknown**; read the next one.
-1. **Maestro's own session fails on the building job** — `MaestroSessionManager.newSession`,
-   twice, both times on the job that ran the cold build (35527913453, 35546805924). Maestro
-   installs and launches a UITest runner the first time it drives a simulator, and that is what
-   fell over; the first _flow_ then took the blame. `prepare` now waits for a `hierarchy` call
-   to answer before running anything (`maestroReady`), so the wait is explicit and a genuine
-   failure says so.
+¹ Its one red was the driver self-test's 120s wait on a slow emulator, since raised to 300s.
 
-2. **iOS: the dev menu opens itself over the app** (2 of 4 jobs — 35470466445 iOS 2,
-   35476256905 iOS 1). The `on screen:` line shows the menu and its onboarding sheet
-   ("This is the developer menu…" / Continue) instead of the app, and the driver-contract
-   self-test goes red. Cause: `EXDevMenuShowsAtLaunch` registers `true` and
-   `EXDevMenuIsOnboardingFinished` `false` on iOS (`expo-dev-menu`'s
-   `Modules/DevMenuPreferences.swift`), so a simulator that has never run the dev menu opens
-   it at launch. Invisible on a developer's machine, where both are long since set.
-   `settleDevMenuIos` now writes all three keys and `app.json`'s `infoPlist` carries them.
-   Earlier iOS stoppers: the AutoFill preflight (8307729) and `relaunch.yaml` (6f1f25e) hold.
-   **Flow 1's factory reset is the persistent one** (35476256905 iOS 2, 35507495771 iOS 2):
-   the Data screen sits there with "Factory reset…" on it and the confirmation never opens,
-   so the tap is swallowed. Neither the animation wait (22ee3ae) nor a point inside the
-   element (e263172) stopped it; the whole opening is now retried, which is what fixed the
-   same class in `ios-autofill.yaml`.
-   **A typed name can lose everything but its first keystroke** (35507495771 iOS 1): Flow 2
-   saved a person called "M Bailey" and went red on "Mary Bailey" not being visible.
-   `add-person.yaml` now erases, types, and reads the field back, twice if it has to.
-   **A swallowed tap is the whole family**, not three separate bugs: 35514492654 lost a
-   _tab_ tap on both platforms in one run (Flow 3 on iOS, Flow 7b on Android), each failing
-   one step later on a tile that was never going to be there. Every tab tap now goes through
-   `subflows/tap-checked.yaml` (or its `-text` twin), which re-taps only while the target is
-   still on screen. Animations off (885b002) should remove most of the cause; the checked
-   tap is what makes a swallowed one fail honestly instead of one step later.
-   **Animations off did not end it** (35518189593: iOS 3 lost a tap on a dev-clear button,
-   iOS 1 never reached the self-test screen). The dev-clear taps are checked now too. The
-   remaining suspect is the JS thread: on a 3-core runner with Metro attached, a dev client
-   that is busy cannot answer a touch, and no amount of waiting in the flow fixes that —
-   the release-configuration build (`ci-and-test-tiers.md` step 4) does.
-   **Typed text is the same story as taps** and now has the same answer: 35527913453 lost a
-   username (Flow 4 submitted a form with an empty field under a filled password) and a
-   reminder title (Flow 5, twice now). `subflows/type-checked.yaml` types and reads back;
-   `add-person`, `create-account` and Flow 5 use it. **A dropped secret is real** —
-   35530663975's iOS 2 lost a password, `submit()` returned early, and Flow 7b waited on a
-   "Checking…" that could never come — **but a masked field cannot be read back**. An attempt
-   to assert it renders as dots (`•+`) failed on _both_ platforms and took all six jobs of
-   35534331965 down; reverted in 1dad725. **Do not retry it without evidence**: what a masked
-   field exposes to the hierarchy is unknown, and the next `on screen:` line that catches a
-   recovery gate is where to look. Until then the 15s "Checking…" guard catches it late.
-   **A non-device tier failed for the first time** in the same run: `master-key-repair.test.ts`
-   hit vitest's 5s default while an emulator had the cores. The default is now 15s.
-3. **The Android dialog fix works, and earns its keep.** Two of the three Android jobs in
-   35483355076 logged `! dismissed "System UI isn't responding" with Wait` and then passed
-   everything; 35476256905's job 2 logged it too. The dialog is common on a hosted runner,
-   not rare, and the home-screen timeout has not recurred in nine gate jobs.
-4. **Android: the app dies natively on a cold boot — diagnosed and patched 2026-09-24, not
-   yet confirmed on a runner.** `SIGSEGV` on `mqt_v_js` at `MountingCoordinator.cpp:103`, the
-   virtual call on a mounting override delegate, with frame #00 in freed heap (`SEGV_ACCERR`).
-   On the stable release level React Native registers no override delegate of its own, so the
-   one it reached is react-native-screens' `RNSScreenRemovalListener`. `ScreensModule`
-   installs it twice on a cold start (`initialize()` on the JS thread, and the `onHostResume`
-   that `addLifecycleEventListener` posts to the UI thread), and `NativeProxy` assigns and
-   copies the `shared_ptr` with no lock, so a torn copy registers a freed listener. Upstream
-   fixed exactly this in #4413, released in 4.28.0; Expo SDK 56 pins 4.25.2, so it is
-   backported (`patches/README.md`). **What confirms it:** no Android crash across at least
-   six jobs (the old rate was about 1 in 6). **3 of 6 so far:** 35990530595 (80cc189) ran all
-   three Android jobs through 7c and 7b with no crash; iOS was 3/3. Its one red was the
-   driver self-test's 120s wait on a slow emulator (the run finished, 38/38, just after); the
-   budget is now 300s. One more clean run closes it. **Ruled out before
-   this:** SQLite handles (f6121a3, d2dd420, c0b7eb0) and expo's registry race (a Kotlin
-   exception, patched separately). iOS crashed natively twice (35483355076, 35554646445) and
-   has been clean since 2026-09-21; the patch is Android-only, so an iOS recurrence is a
-   different bug. `node scripts/ci/measure-results.mjs <run> "android"` prints a tombstone.
-5. **iOS Flow 5, once** (35470466445, job 3): `.*Send a card.*` not visible; the screen shows
-   Home with the reminder's `@Mary Bailey #birthday` line present.
-6. **The build cache never saves — stop here, let `ci.yml` own it.** The `tar` probe came back
-   clean on the runner (only "Removing leading '/'"), so the archive is fine and what is left is
-   the cache service, whose reason is in the job log behind a login. Every build being cold
-   costs 5–10 min a job and **did not stop step 6 answering its question**. Step 7's `ci.yml`
-   should set caching up properly, with logs the owner can read. The history: ("Cache save failed" on every job). Three causes have been
-   addressed and the sizes are now measured (`scripts/ci/measure-cache.sh`, its own annotation):
-   one key per platform meant parallel jobs collided (keys are now per job index); no
-   `restore-keys` meant any lockfile edit went cold with no fallback (now a prefix chain); and
-   **size is real** — 35546805924 reported ~2 GB of paths per iOS job _without_ `DerivedData`,
-   and three jobs each saving that exceeds the repo's whole 10 GB budget. **Only job 1 saves
-   now**; the others restore. **That was not it either** — 35550536039's job 1 still failed to
-   save ~2 GB. `measure-cache.sh` now writes a throwaway `tar` over the same paths and prints
-   what the archiver says, since the save step's own reason is in the job log, which needs a
-   login. If `tar` is clean, the cause is the cache service: stop caching in this throwaway
-   workflow and let step 7's `ci.yml` own it. The lever after that is dropping
-   `apps/mobile/ios` (1.2 GB, regenerated by prebuild) and keeping only CocoaPods.
-   **`DerivedData` is still out**, which is what would make the _compile_ warm; decide once a
-   save succeeds.
-7. After those: three clean runs per platform, then the owner decides (below).
+- **Android: 15 jobs, no crash** (the old rate was about 1 in 6). The react-native-screens
+  backport (`patches/README.md`) is confirmed.
+- **iOS: one native crash in 13 gate jobs.** `36295332721` "ios (2)": the app died with
+  `EXC_CRASH` / `SIGABRT` (`Abort trap: 6`, raised by the app itself) while relaunching into
+  the recovery gate in Flow 4's `unlock-after-key-loss.yaml`, right after
+  `dev-clear-dbkey`. The flow then waited out its 120s for `recovery-gate` over the home
+  screen. The job log would add nothing: the harness printed only the report's signal
+  lines, and the `.ips` itself stayed on the runner. **The harness now prints the abort
+  message, the exception backtrace and the crashed thread's frames** (`ipsSummary` in
+  `scripts/lib/mobile-harness.mjs`), and a failed gate's annotation title names the red
+  flow, so the next occurrence can be read with `node scripts/ci/results.mjs <run>` and
+  no login. iOS crashed natively twice before (`35483355076`, `35554646445`, 2026-09-21);
+  whether this is the same bug is unknown. The Android patch cannot have touched it.
 
-**Fixed along the way, each found only on a hosted runner:** `expo run` never exits when no
-Metro is up (now `--no-bundler`, capped at 60 min); `emu kill` returned before the emulator
-left; the AutoFill preflight neither waited for its switch nor survived a slow Settings (now a
-self-checking retry); the AVD was created under `XDG_CONFIG_HOME` where the emulator does not
-look; tests and formatting depended on the owner's global git identity and
-`~/.editorconfig`; one website test ran `astro build` twice in 5s.
+**The owner's call.** The evidence says the hosted runners are good enough for Android, and
+good enough for iOS apart from a crash rate of about 1 in 13 jobs whose cause is not yet
+known. The choices: go ahead with hosted runners and keep reading the crash as it
+recurs; hold `release.yml`'s switch off until an iOS backtrace is in hand; or revisit
+decision 6. Nothing else in step 6 is open.
 
-#### How to run and read a measurement
+### Step 7 — The three workflows ✅ written 2026-09-27; waits on the owner's secrets
 
-- **A push to `main` that touches `measure.yml`, `scripts/ci/**`, `scripts/lib/**`or`apps/mobile/**`starts a run.** (Neither the flows nor the app were in that list until
-2026-09-20, so a push that fixed either measured nothing. The app is in scope because the
-gate is *about* the app.) Otherwise: Actions → *measure* → *Run workflow*. Each platform runs its three jobs
-**in parallel**, so a run is one job long — they were sequential to give runs 2 and 3 a warm
-cache, which is worth nothing while the cache never saves (open item 5; put`max-parallel: 1`back when it does).`measure-gate.sh` stops a hung gate at 120 min so the job still reports.
-- **Read results with `node scripts/ci/measure-results.mjs`** (the latest runs) and
-  `node scripts/ci/measure-results.mjs <run> [job]`. It reads check-run annotations, which the
-  public API serves without a login; job logs and artifacts need one, and the owner does not
-  want `gh` installed. Anonymous calls are capped at **60 an hour**: poll every 10 minutes, not
-  every minute.
-- **Each job's annotation** carries the harness's timing lines, the tier summary, Maestro's
-  15 lines before any red flow, what was on screen when a wait failed, and the gate's last 25
-  lines.
-- **Pushing:** the agent does not push. The standing permission given for this measuring work
-  on 2026-09-20 was withdrawn on 2026-09-21; commit locally and say what is waiting. A run takes 1–2 hours; cancel a superseded one in the Actions tab
-  (the API cannot, without auth).
+`.github/workflows/ci.yml`, `release.yml` and `cut.yml`, plus `plan --outputs`, `cut
+--outputs` and `cut final --if-approved` in the scripts (see `git log -- .github
+scripts/release`). No workflow has run yet: nothing here is proved on GitHub until a push.
+What a later step needs to know:
 
-**Decide from the numbers** (owner): if Flow 4 is bimodal on the runner, the options are the
-cheap-KDF-in-E2E decision that `ci-and-test-tiers.md` leaves open, or a paid larger runner. If
-the Android emulator cannot run accelerated on Linux either, decision 6 needs revisiting; do not
-work around it in YAML.
+- **Both release workflows are off by default, behind repository variables.**
+  `release.yml`'s `plan` job runs only when `REMOTE_RELEASES` is `true`; every other job
+  needs `plan`. It has to stay off until the secrets exist *and* `0.1.0` is live: the owner's
+  hand-run `cut final --push` pushes `v0.1.0`, and a pipeline without secrets would fail
+  its publish job. `cut.yml`'s schedule runs only when `AUTO_FINAL` is `true`. Turn that on
+  **after `0.1.0` is live**, so the schedule cannot release it on its own. The button works
+  whatever the variables say, and its `release` job then does nothing while
+  `REMOTE_RELEASES` is off.
+- **The hourly `final`** is `pnpm release cut final --if-approved --push`. It exits 0 having
+  tagged nothing while the version is short of Pending Developer Release, has no version
+  record, or already has its final tag. Every other refusal (a missing receipt, missing
+  credentials) still fails the run. `scripts/release/cut.test.mjs` drives it.
+- **A tag pushed with `GITHUB_TOKEN` starts no workflow**, so `cut.yml` calls `release.yml`
+  as a reusable workflow on the tag it cut. A tag pushed by a person starts `release.yml`
+  through its own `push` trigger.
+- **`abandon` runs only when nothing reached `publish`** (a gate or build failed). An upload
+  failure keeps the tag and its receipts, and the fix is re-running the failed publish job.
+- **GitHub-specific expressions remain** beyond passing outputs: the host-to-runner map, the
+  empty-matrix guards, and the `!failure()` / `always()` conditions on `publish`, `record`
+  and `abandon`. A host move rewrites those lines, not the scripts.
+- **No build cache.** Step 6 never got one to save; add it in `ci.yml` once someone can read
+  the save step's log.
 
-**Done when:** the numbers are in this doc and the owner has picked.
+**What only the owner can supply.** Actions secrets, all under the names `.env.example` →
+_On a runner_ gives:
 
-### Step 7 — The three workflows, and the two script pieces they need
+- seven files, base64-encoded (`base64 -i <file>`):
+  `LEAPSAKE_SECRET_APPLE_APP_STORE_CONNECT_KEY_B64` (the `.p8`),
+  `LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_P12_B64` and
+  `LEAPSAKE_SECRET_APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_B64` (the Apple Distribution
+  identity exported from the login keychain as a `.p12`, and a file holding its export
+  password), `LEAPSAKE_SECRET_APPLE_IOS_PROVISIONING_PROFILE_B64` (the App Store profile,
+  downloaded as a `.mobileprovision`), `LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_B64`,
+  `LEAPSAKE_SECRET_GOOGLE_PLAY_UPLOAD_KEYSTORE_PASSWORD_B64` (a file holding the password),
+  `LEAPSAKE_SECRET_GOOGLE_PLAY_SERVICE_ACCOUNT_B64`;
+- six plain values: `APPLE_TEAM_ID`, `APPLE_IOS_PROVISIONING_PROFILE` (the profile's name),
+  `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
+  `APPLE_APP_STORE_CONNECT_BETA_GROUP`, `GOOGLE_PLAY_UPLOAD_KEY_ALIAS`;
+- then the repository variable `REMOTE_RELEASES=true`, and after `0.1.0` is live,
+  `AUTO_FINAL=true`.
 
-**Goal:** the pipeline in _The target picture_, as three dumb YAML files, plus the credential
-plumbing done in the scripts so the YAML stays dumb.
-
-**Files:** `.github/workflows/ci.yml`, `release.yml`, `cut.yml`; `scripts/release/targets/ios.mjs`
-(keychain import); `scripts/release/checks.mjs` or a new `credentials.mjs`; `.env.example`.
-
-**Leave the door open to fastlane.** It is deferred, not ruled out
-([`dependency-balance.md`](./dependency-balance.md) → _Evaluated and kept_ has the trigger).
-If it comes, it replaces only what is inside `targets/ios.mjs` and `targets/android.mjs`. Three
-rules keep it that way:
-
-- **The scripts own the version and the build number.** A future lane takes both as inputs;
-  never fastlane's `increment_build_number` or version bumps, which write to project files.
-- **The keychain import stays one self-contained function** in the iOS target, so fastlane's
-  `setup_ci`/`import_certificate` can replace it whole. No certificate-sharing scheme of our
-  own; that is `match`'s job if it is ever needed.
-- **Receipts are written from what `build()`/`publish()` return**, never from a tool's output.
-
-Script pieces first, each testable without a runner. **Both landed 2026-09-24**
-(`targets/ios-signing.mjs`, `materialize.mjs`); the keychain import has not yet run against
-a real `.p12`.
-
-1. **Keychain import in the iOS target.** When `APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH` and
-   `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH` are set: create a temporary keychain, import
-   the `.p12`, set the partition list, add it to the search list, copy
-   `APPLE_IOS_PROVISIONING_PROFILE_PATH` into `~/Library/MobileDevice/Provisioning Profiles/`. Tear down after the export. When they are not
-   set (a local machine), today's behaviour. Add the three variables to `.env.example` under iOS.
-2. **Secrets as files.** A runner holds secrets as strings; the scripts want paths. One small
-   command, `pnpm release materialize --into=<dir>`, reads `LEAPSAKE_SECRET_<NAME>_B64` variables,
-   writes each to `<dir>/<name>`, and prints the `*_PATH=` lines to export. Portable: every host
-   can set an environment variable. Document the names next to the paths in `.env.example`.
-
-Then the workflows. Each step is one command; the matrices come from `plan --json`.
-
-- **`ci.yml`** — `on: [push, pull_request]`. Job `fast` on Linux: `pnpm test`. On push to `main`
-  only: jobs `gate-ios` (macOS) and `gate-android` (Linux, KVM) running `pnpm release gate
---platforms=<x>`. The caches from step 6.
-- **`release.yml`** — `on: push: tags: ['v*']`. `plan` (Linux): full fetch with tags, `pnpm
-release plan --tag=$TAG --json` as a job output. `gate-<platform>` and `build-<platform>` from
-  the matrix (`--build-number` from `plan`'s output; `build` uploads `<dir>` as an artifact named
-  by target). `publish-ios` (macOS: `altool` needs it) and `publish-android` (Linux), both
-  `needs` every gate and build job, each downloading its artifact and running `publish
---from=<dir> --only=<t>`, uploading its receipt. `record` (`if: always()`, Linux): download
-  receipts, `pnpm release record --from=<dir> --push`. `abandon` (`if: failure()`, after `record`):
-  `pnpm release abandon --tag=$TAG`, which refuses if anything shipped. Marker rungs: `plan`'s
-  matrices are empty, so only the publish jobs run. Host sugar allowed: a `concurrency` group per
-  tag, and attaching the artifacts to the host's Release page.
-- **`cut.yml`** — `workflow_dispatch` with a `channel` choice. One job: full fetch, `pnpm release
-cut $CHANNEL --push`. For `final` it needs the App Store Connect read credentials; the others
-  need only a token that can push a tag.
-- **`cut.yml` on a `schedule`** (hourly) runs `cut final --push` and must be a quiet no-op when no
-  version is in _Pending Developer Release_. Today `cut final` fails there, so it needs a mode
-  that exits 0 having done nothing; the script decides, not the YAML. Needs a test that a
-  version still _In Review_ produces no tag.
-
-**What only the owner can supply**, before `release.yml` can ship anything: the repo's Actions
-secrets, one `LEAPSAKE_SECRET_<NAME>_B64` per credential file (`.env.example` → _On a runner_
-lists them), plus `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
-`APPLE_APP_STORE_CONNECT_BETA_GROUP`, `APPLE_TEAM_ID`, `APPLE_IOS_PROVISIONING_PROFILE` and
-`GOOGLE_PLAY_UPLOAD_KEY_ALIAS` as plain values. The iOS distribution identity has to be exported from the login keychain as a `.p12` with a password,
-and the profile downloaded as a `.mobileprovision`; neither exists as a file today.
-
-**Permissions the pipeline needs, and no more:** push a tag, push `refs/notes/releases`, delete
-a tag. It never writes to `main`. Write that sentence in `CONTRIBUTING.md`.
+The `.p12` and the `.mobileprovision` do not exist as files today. The keychain import
+(`targets/ios-signing.mjs`) has not yet run against a real `.p12`.
 
 **Done when:** a `cut beta` from the button produces a tag, the tag runs the pipeline to two
 uploads and a pushed note, and a deliberately broken build (a bad `--build-number`) ends with

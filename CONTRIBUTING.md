@@ -205,6 +205,11 @@ rather than described here. Run `pnpm release --help` for the current rules.
   notarized artifact is public the moment its feed sees it. So uploading from a local machine needs
   `--here`, a tag origin already has, and the tag typed back; there is no `--yes`, and on a
   runner (`CI=true`) nothing prompts.
+- **The pipeline is [`.github/workflows/`](.github/workflows/):** `release.yml` ships a pushed
+  `v*` tag, `cut.yml` is the button and the hourly `final`, and `ci.yml` runs the fast tiers
+  plus each platform's gate on `main`. It may push a tag, push `refs/notes/releases` and
+  delete a tag, and nothing more; it never writes to `main`. Repository variables switch it
+  on: `REMOTE_RELEASES=true` for `release.yml`, `AUTO_FINAL=true` for the hourly `final`.
 
 ## Commit and PR conventions
 
