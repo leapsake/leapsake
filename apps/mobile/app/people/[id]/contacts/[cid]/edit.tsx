@@ -1,14 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { useCallback } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { ContactMethod } from "@leapsake/schema";
-import { useHeaderSave } from "../../../../../components/HeaderSave";
-import {
-  ContactMethodFields,
-  contactDraftFrom,
-  contactDraftToValue,
-  contactDraftValid,
-} from "../../../../../components/ContactMethodFields";
+import { ContactMethodForm } from "../../../../../components/ContactMethodForm";
 import { updateContact } from "../../../../../lib/contact-writes";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
@@ -68,44 +62,17 @@ function ContactEditForm({
 }) {
   const core = useCore();
   const router = useRouter();
-  // Seeded once: the loader above re-runs on focus and on a background pull, and
-  // a form reseeded mid-edit would discard what the user had typed.
-  const [draft, setDraft] = useState(() => contactDraftFrom(entry));
-  const [saving, setSaving] = useState(false);
 
-  const canSave = !saving && contactDraftValid(draft);
-
-  async function save() {
-    if (!canSave) return;
-    setSaving(true);
-    try {
-      await updateContact(core, cid, contactDraftToValue(draft));
-      router.back();
-    } catch (e) {
-      Alert.alert("Couldn't save", String(e));
-      setSaving(false);
-    }
-  }
-
-  const headerRight = useHeaderSave({
-    canSave,
-    saving,
-    onPress: () => void save(),
-  });
-  const options = useMemo(() => ({ title: TITLE, headerRight }), [headerRight]);
-
+  // Seeded once from `entry`, so a reload on focus can't discard what was typed.
+  // No Type dropdown: a saved method's kind is its table, so a new kind is a new row.
   return (
-    <>
-      <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* No Type dropdown: a phone number that should have been an email is a
-            new row, not an edit — the two live in different tables and share no
-            id. A saved social row gets a Platform field in its place. */}
-        <ContactMethodFields draft={draft} onChange={setDraft} />
-      </ScrollView>
-    </>
+    <ContactMethodForm
+      title={TITLE}
+      start={entry}
+      onSubmit={async (value) => {
+        await updateContact(core, cid, value);
+        router.back();
+      }}
+    />
   );
 }

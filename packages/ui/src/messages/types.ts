@@ -261,6 +261,13 @@ export interface Messages {
     profileUrl: string;
     /** Whether the phone reaches a platform addressed by number. */
     reachableOn: string;
+    /** Why Save can't go yet, one per field a draft is refused on. */
+    labelRequired: string;
+    addressRequired: string;
+    numberRequired: string;
+    line1Required: string;
+    platformRequired: string;
+    handleRequired: string;
   };
 
   reminderPrompt: {

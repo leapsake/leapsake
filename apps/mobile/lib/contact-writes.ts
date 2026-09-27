@@ -1,13 +1,13 @@
 import type { CoreApi } from "@leapsake/core";
 import type { ContactMethodKind } from "@leapsake/schema";
-import type { ContactFormValue } from "../components/ContactMethodFields";
+import type { ContactMethodValue } from "@leapsake/contact-links";
 
 /**
  * The four contact-method tables as three calls — the dispatch every writer of a
  * contact method needs, and the only thing any of them needs to know about the
  * split.
  *
- * `ContactMethodFields` produces one {@link ContactFormValue} whatever kind the
+ * `contactMethodInputOf` produces one {@link ContactMethodValue} whatever kind the
  * user picked, but `core.contactMethods` is four sibling repositories, so
  * somebody has to turn the tag back into a table. It lives here rather than in
  * any one caller because there are now three: the create screen writes a whole
@@ -24,7 +24,7 @@ export interface ContactOwner {
 export function createContact(
   core: CoreApi,
   owner: ContactOwner,
-  value: ContactFormValue,
+  value: ContactMethodValue,
 ): Promise<unknown> {
   if (value.kind === "email") {
     return core.contactMethods.emails.create({
@@ -70,7 +70,7 @@ export function createContact(
 export function updateContact(
   core: CoreApi,
   id: string,
-  value: ContactFormValue,
+  value: ContactMethodValue,
 ): Promise<unknown> {
   if (value.kind === "email") {
     return core.contactMethods.emails.update(id, {

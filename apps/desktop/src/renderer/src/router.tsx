@@ -26,7 +26,11 @@ import {
   reminderInputOf,
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
-import { findPlatform, normalizeFor } from "@leapsake/contact-links";
+import {
+  type ContactMethodDraft,
+  contactMethodDraftOf,
+  contactMethodInputOf,
+} from "@leapsake/contact-links";
 import { entityBasePath } from "@leapsake/ui/headless";
 import {
   type ActionFunctionArgs,
@@ -601,33 +605,39 @@ async function milestoneRebindAction({ request, params }: ActionFunctionArgs) {
   return redirect(`/people/${id}`);
 }
 
-function readContactLabel(formData: FormData): string {
-  return String(formData.get("label") ?? "").trim();
-}
-
-/** An ISO alpha-2 country: uppercased, blank → null. */
-function readContactCountry(formData: FormData): string | null {
-  const value = String(formData.get("country") ?? "")
-    .trim()
-    .toUpperCase();
-  return value === "" ? null : value;
-}
-
-/**
- * Reduces the handle to its bare form (`@george`, `instagram.com/george` →
- * `george`), which depends on the platform the form was showing.
- */
-function readSocialFields(formData: FormData) {
-  const platform = String(formData.get("platform") ?? "");
+/** A contact method's draft as posted; only its kind's fields are sent. */
+function readContactMethodDraft(
+  formData: FormData,
+  kind: ContactMethodKind,
+): ContactMethodDraft {
+  const text = (key: string) => String(formData.get(key) ?? "");
   return {
-    platform,
-    handle: normalizeFor(
-      findPlatform(platform),
-      String(formData.get("handle") ?? ""),
-    ),
-    platformUserId: readNote(formData, "platformUserId"),
-    url: readNote(formData, "url"),
+    ...contactMethodDraftOf(kind),
+    label: text("label"),
+    address: text("address"),
+    number: text("number"),
+    extension: text("extension"),
+    smsCapable: formData.has("smsCapable"),
+    reachableOn: formData.getAll("reachableOn").map(String),
+    line1: text("line1"),
+    line2: text("line2"),
+    locality: text("locality"),
+    region: text("region"),
+    postalCode: text("postalCode"),
+    country: text("country"),
+    platform: text("platform"),
+    handle: text("handle"),
+    platformUserId: text("platformUserId"),
+    url: text("url"),
   };
+}
+
+/** A shaped contact method's fields, as its table's write takes them. */
+function withoutKind<T extends { kind: ContactMethodKind }>({
+  kind: _,
+  ...fields
+}: T): Omit<T, "kind"> {
+  return fields;
 }
 
 async function contactPersonSubject(id: string) {
@@ -652,91 +662,52 @@ async function contactMethodLoader({ params }: LoaderFunctionArgs) {
     (m) => m.kind === kind && m.method.id === methodId,
   );
   if (!entry) throw new Response("Contact method not found", { status: 404 });
-  return { subject, kind, method: entry.method, entry };
+  return { subject, kind, entry };
 }
 
 async function contactCreateAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
-  const kind = params.kind as ContactMethodKind;
-  const formData = await request.formData();
+  const draft = readContactMethodDraft(
+    await request.formData(),
+    params.kind as ContactMethodKind,
+  );
+  const shaped = contactMethodInputOf(draft);
+  if (!shaped.ok) return redirect(`/people/${id}`);
+  const value = shaped.input;
   const owner = { ownerType: "person" as const, ownerId: id };
-  const label = readContactLabel(formData);
-
-  if (kind === "email") {
-    await window.api.contactMethods.emails.create({
-      ...owner,
-      label,
-      address: String(formData.get("address")),
-    });
-  } else if (kind === "phone") {
-    await window.api.contactMethods.phones.create({
-      ...owner,
-      label,
-      number: String(formData.get("number")),
-      extension: readNote(formData, "extension"),
-      country: readContactCountry(formData),
-      smsCapable: formData.has("smsCapable"),
-      reachableOn: formData.getAll("reachableOn").map(String),
-    });
-  } else if (kind === "social") {
-    await window.api.contactMethods.socials.create({
-      ...owner,
-      label,
-      ...readSocialFields(formData),
-    });
+  const api = window.api.contactMethods;
+  if (value.kind === "email") {
+    await api.emails.create({ ...owner, ...withoutKind(value) });
+  } else if (value.kind === "phone") {
+    await api.phones.create({ ...owner, ...withoutKind(value) });
+  } else if (value.kind === "social") {
+    await api.socials.create({ ...owner, ...withoutKind(value) });
   } else {
-    await window.api.contactMethods.postals.create({
-      ...owner,
-      label,
-      line1: String(formData.get("line1")),
-      line2: readNote(formData, "line2"),
-      locality: readNote(formData, "locality"),
-      region: readNote(formData, "region"),
-      postalCode: readNote(formData, "postalCode"),
-      country: readContactCountry(formData),
-    });
+    await api.postals.create({ ...owner, ...withoutKind(value) });
   }
   return redirect(`/people/${id}`);
 }
 
 async function contactEditAction({ request, params }: ActionFunctionArgs) {
-  const id = params.id as string;
-  const kind = params.kind as ContactMethodKind;
   const methodId = params.methodId as string;
-  const formData = await request.formData();
-  const label = readContactLabel(formData);
-
-  if (kind === "email") {
-    await window.api.contactMethods.emails.update(methodId, {
-      label,
-      address: String(formData.get("address")),
-    });
-  } else if (kind === "phone") {
-    await window.api.contactMethods.phones.update(methodId, {
-      label,
-      number: String(formData.get("number")),
-      extension: readNote(formData, "extension"),
-      country: readContactCountry(formData),
-      smsCapable: formData.has("smsCapable"),
-      reachableOn: formData.getAll("reachableOn").map(String),
-    });
-  } else if (kind === "social") {
-    await window.api.contactMethods.socials.update(methodId, {
-      label,
-      ...readSocialFields(formData),
-    });
+  const draft = readContactMethodDraft(
+    await request.formData(),
+    params.kind as ContactMethodKind,
+  );
+  const shaped = contactMethodInputOf(draft);
+  if (!shaped.ok) return redirect(`/people/${params.id}`);
+  const value = shaped.input;
+  const api = window.api.contactMethods;
+  if (value.kind === "email") {
+    await api.emails.update(methodId, withoutKind(value));
+  } else if (value.kind === "phone") {
+    await api.phones.update(methodId, withoutKind(value));
+  } else if (value.kind === "social") {
+    await api.socials.update(methodId, withoutKind(value));
   } else {
-    await window.api.contactMethods.postals.update(methodId, {
-      label,
-      line1: String(formData.get("line1")),
-      line2: readNote(formData, "line2"),
-      locality: readNote(formData, "locality"),
-      region: readNote(formData, "region"),
-      postalCode: readNote(formData, "postalCode"),
-      country: readContactCountry(formData),
-    });
+    await api.postals.update(methodId, withoutKind(value));
   }
-  return redirect(`/people/${id}`);
+  return redirect(`/people/${params.id}`);
 }
 
 async function contactDeleteAction({ params }: ActionFunctionArgs) {

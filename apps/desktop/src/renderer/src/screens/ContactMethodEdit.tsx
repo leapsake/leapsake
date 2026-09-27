@@ -1,9 +1,4 @@
-import type {
-  ContactMethodKind,
-  EmailAddress,
-  PhoneNumber,
-  PostalAddress,
-} from "@leapsake/schema";
+import type { ContactMethod, ContactMethodKind } from "@leapsake/schema";
 import { Breadcrumbs, ContactMethodForm } from "@leapsake/ui/web";
 import { useLoaderData } from "react-router-dom";
 import { homeCrumb } from "../lib/crumbs";
@@ -16,10 +11,10 @@ interface Subject {
 }
 
 export function ContactMethodEdit() {
-  const { subject, kind, method } = useLoaderData() as {
+  const { subject, kind, entry } = useLoaderData() as {
     subject: Subject;
     kind: ContactMethodKind;
-    method: EmailAddress | PhoneNumber | PostalAddress;
+    entry: ContactMethod;
   };
   const subjectPath = `/people/${subject.id}`;
 
@@ -34,7 +29,7 @@ export function ContactMethodEdit() {
       />
       <ContactMethodForm
         kind={kind}
-        method={method}
+        entry={entry}
         cancelTo={subjectPath}
         submitting={useSubmitting()}
       />

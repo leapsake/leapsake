@@ -279,6 +279,28 @@ describe("ContactMethodForm", () => {
     );
   });
 
+  it("asks a social profile for a handle or a link, which HTML can't", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
+    const { container } = renderWithUi(
+      <ContactMethodForm kind="social" cancelTo="/back" submitting={false} />,
+    );
+
+    expect(submitButton().matches(":disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledWith(
+      "Enter a handle or a profile link before saving.",
+    );
+    fireEvent.change(screen.getByLabelText("Profile URL"), {
+      target: { value: "https://example.test/george" },
+    });
+    fireEvent.click(submitButton());
+    expect(stopped()).toEqual([true, false]);
+    const posted = new FormData(container.querySelector("form")!);
+    expect(posted.get("url")).toBe("https://example.test/george");
+    alert.mockRestore();
+  });
+
   it("titles itself by kind, and by whether it is adding or editing", () => {
     renderWithUi(
       <ContactMethodForm kind="postal" cancelTo="/back" submitting={false} />,
@@ -312,7 +334,7 @@ describe("ContactMethodForm", () => {
     renderWithUi(
       <ContactMethodForm
         kind="postal"
-        method={postal}
+        entry={{ kind: "postal", method: postal }}
         cancelTo="/back"
         submitting={false}
       />,
@@ -335,7 +357,7 @@ describe("ContactMethodForm", () => {
     renderWithUi(
       <ContactMethodForm
         kind="phone"
-        method={phone}
+        entry={{ kind: "phone", method: phone }}
         cancelTo="/back"
         submitting={false}
       />,

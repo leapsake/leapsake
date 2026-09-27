@@ -9,6 +9,19 @@ export {
   findPlatform,
   normalizeFor,
 } from "./platforms.js";
+export {
+  contactMethodDraftFilled,
+  contactMethodDraftOf,
+  contactMethodDraftWithKind,
+  contactMethodInputOf,
+  labelSuggestionsFor,
+} from "./draft.js";
+export type {
+  ContactMethodDraft,
+  ContactMethodDraftErrors,
+  ContactMethodDraftResult,
+  ContactMethodValue,
+} from "./draft.js";
 export { bareHandle, phoneDigits, phoneE164 } from "./normalize.js";
 export type {
   ActionVerb,

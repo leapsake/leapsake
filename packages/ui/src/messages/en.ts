@@ -260,6 +260,12 @@ export const en: Messages = {
       `${platform} opens a direct message only from a numeric ID. Without one this opens their profile.`,
     profileUrl: "Profile URL",
     reachableOn: "Also reachable on",
+    labelRequired: "Give it a label before saving, like “Home”.",
+    addressRequired: "Enter the email address before saving.",
+    numberRequired: "Enter the phone number before saving.",
+    line1Required: "Enter the first line of the address before saving.",
+    platformRequired: "Name the platform before saving.",
+    handleRequired: "Enter a handle or a profile link before saving.",
   },
 
   reminderPrompt: {

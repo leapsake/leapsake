@@ -14,7 +14,7 @@ const MIN_SUGGEST_CHARS = 2;
 
 /**
  * A gift as a form holds it: every field as typed, nothing parsed or resolved —
- * the same idea as {@link PersonDraft} and {@link ContactDraft}, and held for the
+ * the same idea as {@link PersonDraft} and {@link ContactMethodDraft}, and held for the
  * same reason, since a half-typed field has to survive being looked at.
  *
  * It used to carry a `kind` naming which of two arms was live, a list of dated

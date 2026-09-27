@@ -1,13 +1,14 @@
 import { Pressable, Text, View } from "react-native";
 import type { ContactMethodKind } from "@leapsake/schema";
-import { findPlatform } from "@leapsake/contact-links";
 import {
-  type ContactDraft,
-  ContactMethodFields,
-  contactDraftFilled,
-  contactDraftValid,
-  emptyContactDraft,
-} from "./ContactMethodFields";
+  type ContactMethodDraft,
+  contactMethodDraftFilled,
+  contactMethodDraftOf,
+  contactMethodDraftWithKind,
+  contactMethodInputOf,
+  findPlatform,
+} from "@leapsake/contact-links";
+import { ContactMethodFields } from "./ContactMethodFields";
 import { styles } from "../lib/styles";
 
 /** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
@@ -24,7 +25,7 @@ const KIND_HEADING: Record<ContactMethodKind, string> = {
  * {@link ContactsSection} makes — and falls back to "Social" only while the
  * catch-all is waiting to be told.
  */
-function headingFor(draft: ContactDraft): string {
+function headingFor(draft: ContactMethodDraft): string {
   if (draft.kind !== "social") return KIND_HEADING[draft.kind];
   const named = findPlatform(draft.platform)?.name ?? draft.platform.trim();
   return named === "" ? KIND_HEADING.social : `💬 ${named}`;
@@ -38,7 +39,7 @@ function headingFor(draft: ContactDraft): string {
  */
 export interface StagedContact {
   key: string;
-  draft: ContactDraft;
+  draft: ContactMethodDraft;
 }
 
 /**
@@ -48,12 +49,12 @@ export interface StagedContact {
  * to save until you noticed and removed it would be punishing a stray tap.
  */
 export function contactRowPending(row: StagedContact): boolean {
-  return !contactDraftFilled(row.draft);
+  return !contactMethodDraftFilled(row.draft);
 }
 
 /** Whether a row would either write cleanly or be skipped — the Save gate. */
 export function contactRowValid(row: StagedContact): boolean {
-  return contactRowPending(row) || contactDraftValid(row.draft);
+  return contactRowPending(row) || contactMethodInputOf(row.draft).ok;
 }
 
 /**
@@ -86,33 +87,40 @@ export function StagedContactsSection({
         <Text style={styles.sectionTitle}>Contact</Text>
       </View>
 
-      {entries.map((entry) => (
-        <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-          {/* What the row is so far, next to the way out of it — the only line
+      {entries.map((entry) => {
+        const setDraft = (draft: ContactMethodDraft) =>
+          onChange(
+            entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
+          );
+        return (
+          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
+            {/* What the row is so far, next to the way out of it — the only line
               that says which method's Remove this is. */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${entry.draft.label}`}
-              onPress={() =>
-                onChange(entries.filter((e) => e.key !== entry.key))
+            <View style={styles.sectionHeader}>
+              <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${entry.draft.label}`}
+                onPress={() =>
+                  onChange(entries.filter((e) => e.key !== entry.key))
+                }
+              >
+                <Text style={[styles.link, styles.danger]}>Remove</Text>
+              </Pressable>
+            </View>
+            <ContactMethodFields
+              canChangeKind
+              draft={entry.draft}
+              onChange={setDraft}
+              setKind={(kind, platform) =>
+                setDraft(
+                  contactMethodDraftWithKind(entry.draft, kind, platform),
+                )
               }
-            >
-              <Text style={[styles.link, styles.danger]}>Remove</Text>
-            </Pressable>
+            />
           </View>
-          <ContactMethodFields
-            canChangeKind
-            draft={entry.draft}
-            onChange={(draft) =>
-              onChange(
-                entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
-              )
-            }
-          />
-        </View>
-      ))}
+        );
+      })}
 
       {entries.length === 0 ? (
         <Text style={styles.muted}>No contact methods yet.</Text>
@@ -123,7 +131,7 @@ export function StagedContactsSection({
         onPress={() =>
           onChange([
             ...entries,
-            { key: crypto.randomUUID(), draft: emptyContactDraft() },
+            { key: crypto.randomUUID(), draft: contactMethodDraftOf() },
           ])
         }
       >

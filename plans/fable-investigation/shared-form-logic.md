@@ -47,7 +47,7 @@ Four pieces per form:
    takes and each error is a **code**, never a sentence. Both the hook and desktop's router
    action call it, so trimming, blanks-to-null and validation exist once.
 2. **A headless hook** in `packages/ui/src/headless/forms/`, returning `{ fields, errors, set,
-   submit, canSubmit }`. It holds the draft (initial state from the entity being edited, or
+submit, canSubmit }`. It holds the draft (initial state from the entity being edited, or
    the create defaults) and calls the shaping function. It is the enhancement: with JS, Save
    disables until the draft is valid. It owns no user-visible string, imports neither
    `react-native` nor the DOM, and calls no `CoreApi`.
@@ -109,9 +109,13 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    is refused); desktop's role-only Edit is the shared form, the other end fixed.
    `RelationshipRolesEdit` (both roles) is untouched. ⚠️ **Open: with no JS, the `other`
    role's note field can't appear**, so that one role still needs JS on web.
-5. **`useContactMethodForm`**: the per-kind field set (which kinds take a label, which take a
-   handle, which are `https`-only) is data, not UI. Put it in `@leapsake/contact-links` next to
-   the kind definitions if it is not already there, and have the hook read it.
+5. **`useContactMethodForm`. ✅ Landed 2026-09-27.** Owner decision: the hook owns the kind
+   and can change it (`setKind`), so mobile's Type dropdown drives it; web's route fixes the
+   kind and never calls it. The draft and `contactMethodInputOf` live in
+   `@leapsake/contact-links/src/draft.ts`, not `schema`, because the handle rules are the
+   platform registry's. ⚠️ **Open: a social profile's "handle or link" rule has no HTML
+   form**, so with no JS only the route action refuses it, and web still offers no free-text
+   "Other" platform.
 6. **`usePersonForm`** and **`usePetForm`**.
 7. **Reminder rows**: merge the two `reminder-row.ts` modules into `@leapsake/view-models`
    as one `reminderRowOf(action, cta)` returning a platform-neutral affordance (`offer`,

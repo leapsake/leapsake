@@ -1,3 +1,4 @@
+import { contactMethodInputOf } from "@leapsake/contact-links";
 import type { CoreApi } from "@leapsake/core";
 import {
   type EntityType,
@@ -6,7 +7,6 @@ import {
   relationshipInputOf,
 } from "@leapsake/schema";
 import { captureRecipientOf, giftIdeaOf } from "@leapsake/ui/headless";
-import { contactDraftToValue } from "../components/ContactMethodFields";
 import { giftDraftEmpty } from "../components/GiftFields";
 import { otherLabelOf } from "../components/RelationshipFields";
 import { contactRowPending } from "../components/StagedContactsSection";
@@ -78,7 +78,9 @@ export async function applyEntityForm(
     // A row every one of whose editors is open has to be allowed to be empty;
     // an empty one is nothing to write.
     if (contactRowPending(row)) continue;
-    const method = contactDraftToValue(row.draft);
+    const shaped = contactMethodInputOf(row.draft);
+    if (!shaped.ok) continue;
+    const method = shaped.input;
     await attempt(method.label, () => createContact(core, owner, method));
   }
 
