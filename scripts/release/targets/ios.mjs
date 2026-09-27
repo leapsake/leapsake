@@ -371,6 +371,132 @@ const appleAppStoreConnectSetup = {
   },
 };
 
+/** The screenshot slots App Store Connect requires: 6.9" iPhone, and 13" iPad for a universal app. */
+const IPHONE_SCREENSHOTS = "APP_IPHONE_67";
+const IPAD_SCREENSHOTS = "APP_IPAD_PRO_3GEN_129";
+
+/**
+ * What App Review reads on the day `rc` submits: the app record's information and this
+ * version's listing. The App Privacy answers are not in Apple's API, so `manual:` names them.
+ */
+const appleAppStoreListing = {
+  name: "App Store listing",
+  check: async ({ root, storeVersion }) => {
+    if (
+      !process.env.APPLE_APP_STORE_CONNECT_KEY_ID?.trim() ||
+      !process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID?.trim() ||
+      !process.env.APPLE_APP_STORE_CONNECT_KEY_PATH?.trim()
+    ) {
+      return undefined;
+    }
+    const ios = readAppJson(root).expo?.ios ?? {};
+    const appleAppStoreConnect = appleAppStoreConnectFromEnv();
+    const missing = [];
+    try {
+      const apps = await appleAppStoreConnect.get("/v1/apps", {
+        query: { "filter[bundleId]": ios.bundleIdentifier, limit: 1 },
+      });
+      const app = apps?.data?.[0];
+      // `appleAppStoreConnectSetup` already says what is wrong with a missing record.
+      if (!app) return undefined;
+
+      const infos = await appleAppStoreConnect.get(
+        `/v1/apps/${app.id}/appInfos`,
+      );
+      const info = (infos?.data ?? []).find(
+        (each) => each.attributes?.state !== "READY_FOR_SALE",
+      );
+      if (info) {
+        if (!info.attributes?.appStoreAgeRating) {
+          missing.push(
+            "no age rating — answer the questions in App Information",
+          );
+        }
+        const category = await appleAppStoreConnect.get(
+          `/v1/appInfos/${info.id}/primaryCategory`,
+        );
+        if (!category?.data) {
+          missing.push("no primary category — set it in App Information");
+        }
+        const infoLocalizations = await appleAppStoreConnect.get(
+          `/v1/appInfos/${info.id}/appInfoLocalizations`,
+        );
+        if (
+          !(infoLocalizations?.data ?? []).some(
+            (each) => each.attributes?.privacyPolicyUrl,
+          )
+        ) {
+          missing.push("no privacy policy URL — set it in App Information");
+        }
+      }
+
+      const versions = await appleAppStoreConnect.get(
+        `/v1/apps/${app.id}/appStoreVersions`,
+        {
+          query: {
+            "filter[versionString]": storeVersion,
+            "filter[platform]": "IOS",
+            limit: 1,
+          },
+        },
+      );
+      const version = versions?.data?.[0];
+      if (!version) {
+        missing.push(
+          `no App Store version ${storeVersion} — create it in App Store Connect and fill in its listing, since rc submits it`,
+        );
+      } else {
+        const localizations = await appleAppStoreConnect.get(
+          `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`,
+        );
+        const listing = localizations?.data?.[0];
+        for (const [field, label] of [
+          ["description", "description"],
+          ["keywords", "keywords"],
+          ["supportUrl", "support URL"],
+        ]) {
+          if (!listing?.attributes?.[field]?.trim()) {
+            missing.push(`version ${storeVersion} has no ${label}`);
+          }
+        }
+        const sets = listing
+          ? await appleAppStoreConnect.get(
+              `/v1/appStoreVersionLocalizations/${listing.id}/appScreenshotSets`,
+            )
+          : undefined;
+        const required = [
+          [IPHONE_SCREENSHOTS, '6.9" iPhone'],
+          ...(ios.supportsTablet ? [[IPAD_SCREENSHOTS, '13" iPad']] : []),
+        ];
+        for (const [displayType, label] of required) {
+          const set = (sets?.data ?? []).find(
+            (each) => each.attributes?.screenshotDisplayType === displayType,
+          );
+          const shots = set
+            ? await appleAppStoreConnect.get(
+                `/v1/appScreenshotSets/${set.id}/appScreenshots`,
+              )
+            : undefined;
+          if (
+            !(shots?.data ?? []).some(
+              (each) =>
+                each.attributes?.assetDeliveryState?.state === "COMPLETE",
+            )
+          ) {
+            missing.push(`version ${storeVersion} has no ${label} screenshots`);
+          }
+        }
+      }
+    } catch (error) {
+      return `could not read the App Store listing: ${error.message}`;
+    }
+
+    return missing.length === 0
+      ? undefined
+      : `the App Store listing is not ready for review:\n        - ${missing.join("\n        - ")}`;
+  },
+};
+
 /** `method: app-store-connect` plus an explicit profile — the manual-signing half. */
 function exportOptions({ bundleId, teamId, profile }) {
   const entries = [
@@ -716,6 +842,19 @@ async function findOrCreateVersion(appleAppStoreConnect, appId, storeVersion) {
       );
     }
     say(`App Store version ${storeVersion} already exists (${state})`);
+    // A record made by hand defaults to release-on-approval, which `final` cannot follow.
+    if (existing.attributes?.releaseType !== "MANUAL") {
+      await appleAppStoreConnect.patch(`/v1/appStoreVersions/${existing.id}`, {
+        body: {
+          data: {
+            type: "appStoreVersions",
+            id: existing.id,
+            attributes: { releaseType: "MANUAL" },
+          },
+        },
+      });
+      say(`set App Store version ${storeVersion} to manual release`);
+    }
     return existing;
   }
 
@@ -1111,9 +1250,11 @@ const TIERS = {
       whatsNew,
       betaGroup,
       appleAppStoreConnectSetup,
+      appleAppStoreListing,
     ],
     manual: [
       "the crucial-flow catalog green on a real device",
+      "the App Privacy answers published — Apple's API cannot read them",
       "App Store review — a day or so, and it reviews the metadata too",
     ],
   },

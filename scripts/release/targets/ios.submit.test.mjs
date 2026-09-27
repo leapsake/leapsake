@@ -88,6 +88,7 @@ const freshRoutes = () => ({
     data: [{ id: "LOC1", attributes: { locale: "en-US" } }],
   }),
   "PATCH /v1/appStoreVersionLocalizations/LOC1": answer(200, {}),
+  "PATCH /v1/appStoreVersions/VER1": answer(200, {}),
   "PATCH /v1/appStoreVersions/VER1/relationships/build": answer(204),
   "GET /v1/apps/APP1/reviewSubmissions": answer(200, { data: [] }),
   "POST /v1/reviewSubmissions": answer(201, { data: { id: "SUB1" } }),
@@ -190,6 +191,49 @@ describe("submitToAppStore", () => {
       expect(
         calls.some((each) => each.key.endsWith("/relationships/build")),
       ).toBe(true);
+    });
+
+    it("switches a reused version to manual release", async () => {
+      const calls = stubRoutes({
+        ...freshRoutes(),
+        "GET /v1/apps/APP1/appStoreVersions": answer(200, {
+          data: [
+            {
+              id: "VER1",
+              attributes: {
+                appStoreState: "PREPARE_FOR_SUBMISSION",
+                releaseType: "AFTER_APPROVAL",
+              },
+            },
+          ],
+        }),
+      });
+      await submit();
+      const patch = calls.find(
+        (each) => each.key === "PATCH /v1/appStoreVersions/VER1",
+      );
+      expect(patch?.body.data.attributes).toEqual({ releaseType: "MANUAL" });
+    });
+
+    it("leaves a reused version alone when it is already manual", async () => {
+      const calls = stubRoutes({
+        ...freshRoutes(),
+        "GET /v1/apps/APP1/appStoreVersions": answer(200, {
+          data: [
+            {
+              id: "VER1",
+              attributes: {
+                appStoreState: "PREPARE_FOR_SUBMISSION",
+                releaseType: "MANUAL",
+              },
+            },
+          ],
+        }),
+      });
+      await submit();
+      expect(
+        calls.some((each) => each.key === "PATCH /v1/appStoreVersions/VER1"),
+      ).toBe(false);
     });
 
     it("refuses a version Apple will not let it edit, and names the state", async () => {
