@@ -9,20 +9,22 @@
 **v0.1 is iOS alone**, in external TestFlight with a real tester on it. macOS follows **after**
 the company exists and the iOS record transfers to it ([`shipping.md`](./shipping.md) → _Part 2_).
 
-**Android ships the same rungs** from the personal Play account; `rc` and `final` wait on
-production access, earned by the [14-day closed test](./android-pipeline.md).
+**Android ships the same rungs** from the personal Play account, `rc` to closed testing;
+`final` waits on production access, earned by the [14-day closed test](./android-pipeline.md).
 
-**Next, in order — [`shipping.md`](./shipping.md) → _Part 1_ has the acceptance for each.**
-① Confirm the App Privacy answers are **published**; the `rc` listing check reads every other
-field and passes. ② `rc`, then `final`, **both from this machine** with `pnpm release ship --here`, which runs the gate
-first; push `refs/notes/releases` after each. `v0.1.0-beta.10` is tagged at origin and unshipped.
+**Next: `0.1.0` is Waiting for Review** (`v0.1.0-rc.2`, build 387695). When Apple approves
+(a rejection is answered with another `rc`, see [`shipping.md`](./shipping.md) → _Part 1_):
 
-**Not gating GA:** the [remote-releases](./fable-investigation/remote-releases.md) pipeline.
-Step 6 wants one more clean measure run for the Android crash patch, then the owner's call;
-step 7's workflows need the owner's Actions secrets.
+```sh
+pnpm release cut final --push
+pnpm release ship --tag=<the tag it prints> --here
+git push origin <that tag> refs/notes/releases
+```
+
+**Not gating GA:** [remote releases](./fable-investigation/remote-releases.md) — step 6's
+last measure run and the owner's call, then step 7's workflows once the Actions secrets exist.
 
 **In parallel:** incorporate and get a D-U-N-S number — up to 30 days, before GA's transfer.
 
-**Not gating.** [`v0-2.md`](./v0-2.md) → _Export_ holds increment 6 and three device
-verifications; contact-import fidelity rests there too; contact methods' URL templates are
-convention — confirm on real hardware while testing a build.
+**Not gating.** [`v0-2.md`](./v0-2.md) → _Export_ (increment 6, three device checks),
+contact-import fidelity, and the contact-method URL templates to confirm on real hardware.

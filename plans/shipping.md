@@ -17,48 +17,29 @@ must start **now**, in parallel with Part 1, not when Part 1 finishes.
 
 # Part 1 — Before iOS GA
 
-The code is done: export, both at-rest doors, the out-of-band custody assertions, and a release
-path where `rc` submits to App Store review and `final` releases the approved version and tags
-the commit that went live. What is left is one listing field to confirm by hand, then two
-releases. If it is not on this list, it does not block GA.
+`0.1.0` is **Waiting for Review**: `v0.1.0-rc.2` submitted build 387695, recorded against its
+commit in `refs/notes/releases`, and the version is on manual release. What is left is Apple's
+answer, then one command pair. If it is not on this list, it does not block GA.
 
-**The first `rc` and `final` run from this machine**, through `pnpm release
-ship --here`. That path already enforces the catalog: it runs `pnpm test:all --strict
---provision --platforms=ios` before any build, and nothing uploads if the gate is red. The
-tag-triggered pipeline in
-[`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) moves the
-gate off the shipper's machine; it does not gate GA.
+## When Apple approves: release it
 
-## 1 — The one listing field no check can read
+The version parks in _Pending Developer Release_. From this machine, with `main` checked out:
 
-The `rc` rung's _App Store listing_ check reads what App Review reads: age rating, category,
-privacy policy URL, the version's description, keywords and support URL, and processed
-screenshots in the 6.9" iPhone and 13" iPad slots. It cannot read the **App Privacy** answers,
-which Apple's API does not expose, so confirm by hand that they are **published**, not a
-draft, before `rc`.
+```sh
+pnpm release cut final --push                  # tags the commit the approved build came from
+pnpm release ship --tag=<the tag it prints> --here
+git push origin <that tag> refs/notes/releases # or the exact command ship prints
+```
 
-## 2 — Submit, then release
+`final` builds nothing: it releases the approved version and tags the commit that went live,
+which it reads from `refs/notes/releases`. The tag is cut before the release, so it cannot land
+on a rejected commit.
 
-**Two releases, days apart, and the rungs mean different things.** Each is a tag pushed first
-(`pnpm release cut <rc|final> --push`), then `pnpm release ship --tag=<tag> --here`, which refuses
-a tag origin does not have and asks for it typed back. ⚠️ The version string is **spent
-permanently** once a version is _released_; a rejection does not spend it, since the same
-`0.1.0` record is edited and resubmitted, so a rejected rc costs a fresh `rc.N+1` and nothing
-more.
+## If Apple rejects it
 
-`rc` builds, uploads, hands the build to TestFlight's testers _and_ submits it to App Store
-review. A rejection is answered with another `rc`: the version record is reused, so the attempts
-cost tags rather than version strings.
-
-`final` builds nothing. Once Apple approves, the version parks in _Pending Developer Release_
-(`releaseType: MANUAL`), and `final` releases it, resolves which commit that build came from out
-of `refs/notes/releases`, and tags it. That tag is the marker for the commit that actually
-reached the public, which is why it is cut last, and why it cannot land on a rejected commit.
-
-⚠️ **Push `refs/notes/releases` after every `ship --here`.** A local ship records its receipt
-and pushes nothing; it prints the full command (`git push origin <tag> refs/notes/releases`).
-Skip it and the receipts live on one machine, and `cut final` reads them to find the live
-commit. That push is what keeps the release in step with the repo's history.
+Fix what the rejection cites, then `pnpm release cut rc --push` and `ship` the new tag, pushing
+the notes after. The same `0.1.0` record is reused, so a rejection costs an `rc.N+1` and nothing
+more; the version string is spent only once a version is _released_.
 
 **Acceptance:** the iOS app installable by the public. **Then delete Part 1.**
 
