@@ -132,6 +132,9 @@ describe("planJson", () => {
       stage: "beta",
       core: "0.1.0",
       buildNumber: 368157,
+      gate: [{ platform: "ios", host: "macos" }],
+      build: [{ id: "ios", platform: "ios", host: "macos" }],
+      publish: [{ id: "ios", platform: "ios", host: "macos" }],
       targets: [
         {
           id: "ios",
@@ -153,6 +156,28 @@ describe("planJson", () => {
         },
       ],
     });
+  });
+});
+
+describe("planJson for a marker rung", () => {
+  it("gates and builds nothing, and publishes the marker", async () => {
+    const final = { name: "release", marker: true, requires: [] };
+    const cells = await evaluateCells(
+      [stub("ios", { host: "macos", tiers: { final } }).target],
+      ctx({ stage: "final", version: "0.1.0", tag: "v0.1.0" }),
+    );
+    const plan = planJson(
+      {
+        ...ctx({ stage: "final", version: "0.1.0", tag: "v0.1.0" }),
+        buildNumber: 1,
+      },
+      cells,
+    );
+    expect(plan.gate).toEqual([]);
+    expect(plan.build).toEqual([]);
+    expect(plan.publish).toEqual([
+      { id: "ios", platform: "ios", host: "macos" },
+    ]);
   });
 });
 

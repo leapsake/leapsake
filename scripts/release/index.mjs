@@ -6,7 +6,7 @@
 //
 //   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks]
 //   pnpm release cut final --if-approved [--push]
-//   pnpm release plan --tag=<tag> [--json] [--no-checks]
+//   pnpm release plan --tag=<tag> [--json] [--outputs=<path>] [--no-checks]
 //   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
 //   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
 //   pnpm release publish --tag=<tag> --from=<dir> --here [--only=<targets>] [--receipts-out=<dir>]
@@ -93,6 +93,7 @@ const VALUE_FLAGS = new Set([
   "platforms",
   "into",
   "env-out",
+  "outputs",
 ]);
 
 function parseArgs(argv) {
@@ -368,15 +369,20 @@ async function cut(opts) {
   return 0;
 }
 
+/** `plan --outputs=<path>` appends one `name=<json>` line per field a workflow's jobs read. */
 async function plan(opts) {
   const json = opts.flags.has("json");
   const { ctx, cells, buildNumber, ok } = await planRelease(opts, {
     write: json ? console.error : console.log,
   });
-  if (json) {
-    console.log(
-      JSON.stringify(planJson({ ...ctx, buildNumber }, cells), null, 2),
+  const planned = planJson({ ...ctx, buildNumber }, cells);
+  if (json) console.log(JSON.stringify(planned, null, 2));
+  if (opts.values.outputs) {
+    const lines = ["tag", "buildNumber", "gate", "build", "publish"].map(
+      (name) =>
+        `${name}=${typeof planned[name] === "string" ? planned[name] : JSON.stringify(planned[name])}`,
     );
+    appendFileSync(resolve(opts.values.outputs), `${lines.join("\n")}\n`);
   }
   return ok ? 0 : 1;
 }

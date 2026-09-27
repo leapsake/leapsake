@@ -64,14 +64,30 @@ function cellChecks(target, tier) {
     : [...(target.preflight ?? []), ...(tier.requires ?? [])];
 }
 
-/** What a workflow reads to build its matrices. */
+/** What a workflow reads to build its matrices: one row per gate, build and publish job. */
 export function planJson({ tag, version, stage, buildNumber }, cells) {
+  const ready = cells.filter((cell) => cell.status === "ready");
+  const building = ready.filter((cell) => !cell.marker);
+  const row = ({ target }) => ({
+    id: target.id,
+    platform: target.platform,
+    host: target.host,
+  });
+  const gates = new Map(
+    building.map(({ target }) => [
+      target.platform,
+      { platform: target.platform, host: target.host },
+    ]),
+  );
   return {
     tag,
     version,
     stage,
     core: coreOf(version),
     buildNumber,
+    gate: [...gates.values()],
+    build: building.map(row),
+    publish: ready.map(row),
     targets: cells.map(({ target, status, note, marker, failures }) => ({
       id: target.id,
       platform: target.platform,
