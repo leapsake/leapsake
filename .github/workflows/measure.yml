@@ -30,7 +30,7 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/ci/install-maestro.sh
-      - run: bash scripts/ci/measure-gate.sh ios
+      - run: bash scripts/ci/gate.sh ios
 
   android:
     runs-on: ubuntu-latest
@@ -52,4 +52,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: bash scripts/ci/android-host.sh
       - run: bash scripts/ci/install-maestro.sh
-      - run: bash scripts/ci/measure-gate.sh android
+      - run: bash scripts/ci/gate.sh android
