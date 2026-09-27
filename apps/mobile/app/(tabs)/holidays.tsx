@@ -51,6 +51,7 @@ export default function HolidaysScreen() {
             <Link
               href={holidayHref(holiday)}
               style={styles.row}
+              testID="holiday-row"
               accessible
               accessibilityLabel={`${holiday.name}${
                 holiday.hidden ? " (hidden)" : ""

@@ -42,6 +42,23 @@ M="$HOME/.maestro/bin/maestro"
 "$M" --udid emulator-5554 test 04-capture.yaml       # the screenshots
 ```
 
+### On iOS, three differences
+
+The App Store wants a 6.9" iPhone set (1320×2868: iPhone 16/17 Pro Max) and a 13" iPad set
+(2064×2752: iPad Pro 13-inch). Run the sequence once per simulator, one booted at a time.
+
+```sh
+U=<udid>
+xcrun simctl install $U <DerivedData>/Build/Products/Debug-iphonesimulator/Leapsake.app
+# 1. Pin the status bar, which Android has no cheap equivalent for.
+xcrun simctl status_bar $U override --time 9:41 --dataNetwork wifi --wifiMode active \
+  --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
+# 2. base.mjs refuses a simulator with AutoFill on; a fresh one has it on.
+"$M" --udid $U test -e FIX=true ../ios-autofill.yaml
+# 3. The harness leaves the dev LAUNCHER up, so 01-roster finds no app. Load the bundle first.
+xcrun simctl openurl $U "leapsake://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
 ⚠️ **The captures do not land in the working directory.** `takeScreenshot` writes relative to
 Maestro's own run directory:
 
@@ -63,9 +80,8 @@ Each cost a failed run to find.
   Wait on a **section heading** (`Milestones`, `Relationships`); those exist only after the
   record loads.
 - ⚠️ **The holidays list is ordered by date proximity and virtualised.** Only the next few
-  weeks are mounted, so waiting on `New Year's Day` in September times out having never
-  rendered. Wait on a holiday near _today_. (The apostrophe is not the problem — the stored
-  name is plain ASCII.)
+  weeks are mounted, so waiting on any named holiday times out for most of the year. Wait on
+  `id: holiday-row`. Rows expose only the name to accessibility, so the date cannot be matched.
 - ⚠️ **There is no Holidays tab.** `(tabs)/_layout.tsx` gives gifts, holidays and tags
   `href: null` — they sit in the tab group deliberately _without_ a bar button and are reached
   from Search's browse tiles. `tab-holidays` does not exist; use `browse-tile-holidays`, whose

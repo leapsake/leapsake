@@ -83,16 +83,11 @@ appId: com.leapsake.app
     id: "tab-search"
 - tapOn:
     id: "browse-tile-holidays"
-# ⚠️ Same render race that blanked the person page: the first capture of this screen was
-# a "Holidays" header over nothing — not even an empty-state line — because the list had
-# not painted yet. The catalog genuinely holds 45 rows (confirmed by querying the pulled
-# store), so waiting on a known one is both safe and the proof the list rendered.
-# ⚠️ **Wait on a holiday near TODAY, not the first one alphabetically.** The catalog is
-# sorted by date proximity and the list is virtualised, so only the next few weeks are
-# rendered — "New Year's Day" waited the full 20s and never appeared, because in September
-# it is months away and was never mounted. (The apostrophe was NOT the problem: the stored
-# name is plain ASCII, hex 27.) This target is the first row actually on screen.
+# Wait on a row, not the header: the header draws before the list paints. Not on a named
+# holiday either: the list is sorted by date and virtualised, so any one name is unmounted
+# for most of the year.
 - extendedWaitUntil:
-    visible: ".*Mexican Independence Day.*"
+    visible:
+      id: "holiday-row"
     timeout: 20000
 - takeScreenshot: shots/06-holidays
