@@ -134,7 +134,7 @@ describe("planJson", () => {
       buildNumber: 368157,
       gate: [{ platform: "ios", host: "macos" }],
       build: [{ id: "ios", platform: "ios", host: "macos" }],
-      publish: [{ id: "ios", platform: "ios", host: "macos" }],
+      publish: [{ id: "ios", platform: "ios", host: "macos", marker: false }],
       targets: [
         {
           id: "ios",
@@ -176,7 +176,7 @@ describe("planJson for a marker rung", () => {
     expect(plan.gate).toEqual([]);
     expect(plan.build).toEqual([]);
     expect(plan.publish).toEqual([
-      { id: "ios", platform: "ios", host: "macos" },
+      { id: "ios", platform: "ios", host: "macos", marker: true },
     ]);
   });
 });

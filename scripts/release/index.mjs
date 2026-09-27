@@ -4,8 +4,8 @@
 // tag carries the channel and counter (`v0.1.0-beta.10`). alpha, beta and rc count up
 // independently per core, and a final closes it. Every command takes the tag it acts on.
 //
-//   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks]
-//   pnpm release cut final --if-approved [--push]
+//   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks] [--outputs=<path>]
+//   pnpm release cut final --if-approved [--push] [--outputs=<path>]
 //   pnpm release plan --tag=<tag> [--json] [--outputs=<path>] [--no-checks]
 //   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
 //   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
@@ -18,7 +18,8 @@
 //
 // Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
 // the live commit by hand for a marker rung. `--if-approved` exits 0 having done nothing when
-// the store has not approved the version or its final tag already exists. Credentials come from `.env` or the environment,
+// the store has not approved the version or its final tag already exists. `--no-checks` skips
+// the targets' checks (their host tools), never the tag's own. Credentials come from `.env` or the environment,
 // which wins. Off a runner (`CI=true`), uploading needs `--here`, a tag origin already has,
 // and the tag typed back; `cut` and `abandon` need the tag typed back too. There is no `--yes`.
 // Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
@@ -239,9 +240,10 @@ function printCells(ctx, cells, buildNumber, write) {
 /** Evaluate the tag and every cell, and print them; `plan` and `ship` both start here. */
 async function planRelease(opts, { write = console.log } = {}) {
   const ctx = releaseContext(opts);
-  const checks = !opts.flags.has("no-checks");
-  const cells = await evaluateCells(TARGETS, ctx, { checks });
-  const repoFailures = checks ? await runChecks(FROM_TAG_CHECKS, ctx) : [];
+  const cells = await evaluateCells(TARGETS, ctx, {
+    checks: !opts.flags.has("no-checks"),
+  });
+  const repoFailures = await runChecks(FROM_TAG_CHECKS, ctx);
   const buildNumber = plannedBuildNumber();
   printCells(ctx, cells, buildNumber, write);
   if (repoFailures.length > 0) {
@@ -360,6 +362,9 @@ async function cut(opts) {
   }
 
   createTag(ROOT, ctx.tag, `${version} (${channel})`, commit);
+  if (opts.values.outputs) {
+    appendFileSync(resolve(opts.values.outputs), `tag=${ctx.tag}\n`);
+  }
   if (opts.flags.has("push")) {
     return git(["push", "origin", `refs/tags/${ctx.tag}`]) ? 0 : 1;
   }

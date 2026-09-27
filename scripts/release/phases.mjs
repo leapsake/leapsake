@@ -73,6 +73,7 @@ export function planJson({ tag, version, stage, buildNumber }, cells) {
     platform: target.platform,
     host: target.host,
   });
+  const publishRow = (cell) => ({ ...row(cell), marker: cell.marker });
   const gates = new Map(
     building.map(({ target }) => [
       target.platform,
@@ -87,7 +88,7 @@ export function planJson({ tag, version, stage, buildNumber }, cells) {
     buildNumber,
     gate: [...gates.values()],
     build: building.map(row),
-    publish: ready.map(row),
+    publish: ready.map(publishRow),
     targets: cells.map(({ target, status, note, marker, failures }) => ({
       id: target.id,
       platform: target.platform,
