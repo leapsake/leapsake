@@ -77,10 +77,13 @@ Start the relay with `pnpm --filter @leapsake/server dev` — see
 > (`com.leapsake.desktop`); see [`plans/desktop-packaging.md`](../../plans/desktop-packaging.md)
 > for why sharing one would have cost more than it bought.
 
+The everyday path is GitHub → Actions → _cut_ → _Run workflow_, which cuts the tag and ships
+it. By hand:
+
 ```sh
 pnpm release cut alpha --dry-run                # the next tag, and what each platform is waiting on
 pnpm release cut alpha                          # tag HEAD once the tag is typed back
-git push origin v0.1.0-alpha.4                  # starts the hosted pipeline, once it exists
+git push origin v0.1.0-alpha.4                  # starts release.yml (when REMOTE_RELEASES is on)
 pnpm release ship --tag=v0.1.0-alpha.4 --here   # or ship from this machine: gate, build, upload, record
 ```
 

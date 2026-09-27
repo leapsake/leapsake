@@ -52,7 +52,9 @@ than being a slogan, and between them they have already decided our tools.
 5. **Full trophy, every app and package.** Static, unit, integration and E2E each have a home
    for each app and package — not just desktop.
 6. **Everything reachable from the dev machine** — or a documented, vendor-neutral host for
-   the platform. No hosted CI is assumed. **Carve-out:** native-platform E2E is intrinsically
+   the platform. The dev machine can still run every tier and every release (`pnpm release
+   ship --here`); the release itself runs on hosted runners, and GitHub's macOS runner is the
+   one accepted lock-in ([`.github/workflows/README.md`](.github/workflows/README.md)). **Carve-out:** native-platform E2E is intrinsically
    multi-host (a prod-faithful Windows or Linux run cannot happen on an Apple-silicon Mac), so
    a platform's E2E gate is _blocked_ — not waived — until its host exists.
 7. **Incremental, no middling-confidence hacks.** Reorder freely to lay the best next brick;
@@ -210,6 +212,7 @@ rather than described here. Run `pnpm release --help` for the current rules.
   plus each platform's gate on `main`. It may push a tag, push `refs/notes/releases` and
   delete a tag, and nothing more; it never writes to `main`. Repository variables switch it
   on: `REMOTE_RELEASES=true` for `release.yml`, `AUTO_FINAL=true` for the hourly `final`.
+  Its portability rules are in [`.github/workflows/README.md`](.github/workflows/README.md).
 
 ## Commit and PR conventions
 
