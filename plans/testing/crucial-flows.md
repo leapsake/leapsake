@@ -283,7 +283,7 @@ on the platform that does. Windows/Linux run the identical list once a host exis
 
 1. **Two-instance harness shape.** How Flows 6/7a run two instances locally: two emulators/sims,
    or one device + a headless second core. Settle it when sync returns; it travels with the
-   merge-by-phrase decision in [`../shipping.md`](../shipping.md) → _Open_.
+   merge-by-phrase decision in [`../v0-2.md`](../v0-2.md) → _Encryption, sync, and the relay_.
 2. **Relay for E2E.** Which relay the sync flows point at (an ephemeral local `@leapsake/server`
    boot per run is the vendor-neutral default; confirm). Travels with 1.
 

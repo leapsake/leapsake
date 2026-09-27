@@ -19,24 +19,18 @@ must start **now**, in parallel with Part 1, not when Part 1 finishes.
 
 The code is done: export, both at-rest doors, the out-of-band custody assertions, and a release
 path where `rc` submits to App Store review and `final` releases the approved version and tags
-the commit that went live. What is left is one piece of release plumbing that a larger change
-absorbs, then store paperwork. **Step 2 is the long pole**, and the one nothing in the repo can
-check for you. If it is not on this list, it does not block GA.
+the commit that went live. What is left is store paperwork, then two releases. **Step 1 is the
+long pole**, and the one nothing in the repo can check for you. If it is not on this list, it
+does not block GA.
 
-## 1 — The `rc` gate becomes a check
+**The first `rc` and `final` run from this machine**, through `pnpm release
+ship --here`. That path already enforces the catalog: it runs `pnpm test:all --strict
+--provision --platforms=ios` before any build, and nothing uploads if the gate is red. The
+tag-triggered pipeline in
+[`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) moves the
+gate off the shipper's machine; it does not gate GA.
 
-`scripts/release/targets/ios.mjs` carries "the crucial-flow catalog green" as a `manual:`
-sentence on the `rc` rung, enforcing nothing. It belongs in `requires:`. **How the check learns
-the catalog is green is answered by the tag-triggered pipeline** in
-[`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md): the
-pipeline itself runs the gate per platform on hosted runners before any upload, so the machine
-that runs the tests is not the person shipping, and no local receipt is ever built. What is
-left of that doc is its step 6 (the owner's call on the hosted-runner numbers), step 7 (the
-three workflows, and the Actions secrets only the owner can supply), and step 8.
-
-**Acceptance:** an `rc` release cannot ship a build the catalog has not passed.
-
-## 2 — The App Store Connect fields nothing in the repo can check
+## 1 — The App Store Connect fields nothing in the repo can check
 
 `appleAppStoreConnectSetup` reads the beta group, Test Information and Beta App Review
 Information, and stops there, because nothing more is required to distribute a _beta_. It
@@ -58,11 +52,11 @@ that submits to review, so the metadata is what Apple reads on the day.
   not spend it: the same `0.1.0` record is edited and resubmitted, which is why a rejected rc
   costs a fresh `rc.N+1` and nothing more.
 
-## 3 — Submit, then release
+## 2 — Submit, then release
 
-**Two commands, days apart, and the rungs mean different things.** Once
-[`remote-releases.md`](./fable-investigation/remote-releases.md) lands, both are a tag arriving
-at the remote; the local path stays as the guarded backdoor.
+**Two releases, days apart, and the rungs mean different things.** Each is a tag pushed first
+(`pnpm release cut <rc|final> --push`), then `pnpm release ship --tag=<tag> --here`, which refuses
+a tag origin does not have and asks for it typed back.
 
 `rc` builds, uploads, hands the build to TestFlight's testers _and_ submits it to App Store
 review. A rejection is answered with another `rc`: the version record is reused, so the attempts
@@ -73,9 +67,10 @@ cost tags rather than version strings.
 of `refs/notes/releases`, and tags it. That tag is the marker for the commit that actually
 reached the public, which is why it is cut last, and why it cannot land on a rejected commit.
 
-⚠️ **Push `refs/notes/releases` along with the tag.** The release prints the full command; a bare
-`git push origin main <tag>` leaves the receipts on one machine, and `final` reads them to find
-the live commit.
+⚠️ **Push `refs/notes/releases` after every `ship --here`.** A local ship records its receipt
+and pushes nothing; it prints the full command (`git push origin <tag> refs/notes/releases`).
+Skip it and the receipts live on one machine, and `cut final` reads them to find the live
+commit. That push is what keeps the release in step with the repo's history.
 
 **Acceptance:** the iOS app installable by the public. **Then delete Part 1.**
 
@@ -179,18 +174,6 @@ Incorporating changes both, and the policy is a **live URL a reviewer reads**, s
 discovers afterwards.
 
 ---
-
-# Open, and waiting on the owner
-
-1. **Does v0.1 ship without merge by recovery phrase?** `recoverAccount` refuses a device that
-   already holds an account exactly as `joinAccount` does, so merging by phrase needs the same
-   copy-first treatment and is a second full flow on both clients. The gap: a user who has the
-   account's **phrase** but not its password must recover on their _other_ device first, which is
-   fine unless that device is the one they lost. **Leaning ship-without** (password-plus-a-second-
-   device covers the realistic case, and the flow it would duplicate is the most delicate one we
-   have), but it is a real hole in the _cannot strand anyone_ promise. Context:
-   [`@leapsake/key-custody`](../packages/key-custody/README.md) → _Not built: merge by recovery
-   phrase_. **Flow 7a is decided with this, not separately.**
 
 # Not here
 

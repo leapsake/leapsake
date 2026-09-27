@@ -198,7 +198,7 @@ account"_ refusal `joinAccount` does, so it needs the same copy-first treatment 
 a second full flow; the merge UI hides its recovery affordance rather than offering a button
 that can only throw. The gap is a user who has the account's **phrase** but not its password —
 today they must recover on the other device first. *(Deferred, owner 2026-08-08; see
-[`plans/shipping.md`](../../plans/shipping.md) → *Open, and waiting on the owner*.)*
+[`plans/v0-2.md`](../../plans/v0-2.md) → *Encryption, sync, and the relay*.)*
 
 ## Locked, Sign out, Forget account _(decided 2026-07-27)_
 
