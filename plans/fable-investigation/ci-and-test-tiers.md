@@ -45,10 +45,6 @@ minutes on iOS. `scripts/test-e2e.mjs` runs the whole arc at **every** rung; the
 | `driver-selftest.yaml`                 | Keep. It is unit tests that need the real engine, not E2E                                                                       | —    |
 | `ios-prepare.yaml`, `ios-autofill.yaml` | Harness, not tests                                                                                                              | —    |
 | `store/`                               | Screenshot tooling, not tests                                                                                                   | —    |
-| `anniversary-partner.yaml`             | Leave the tier. Its claims are form state                                                                                       | 7c   |
-
-The remaining one-off flow is wired into no runner, so retiring it costs no gate
-anything; what it holds is claims that deserve a test somewhere cheaper.
 
 **Nothing on mobile's boot path is reachable only through E2E any more** (step 5): which
 store opens, the keyless first run, and the recovery-door rewrite are tested in Vitest.
@@ -60,11 +56,10 @@ uploads. See step 4.
 
 ## Steps, each a commit
 
-**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a, 7a, 7b and 7d landed), with 7c slotted in anywhere.
+**Order: 4c → 4d → 4e** (4a, 4b, 5, 6, 6a and 7 landed).
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7c** is independent of 4, and builds the hook its claims need itself.
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
 
@@ -259,15 +254,18 @@ a `relationship` reason. Both sabotages bite (drop `listOnly` from `people-repo.
 `attached` pass in `search-service.ts`). Accepted residual risk: a screen calling the wrong
 query, or rendering a reason wrongly.
 
-**7c. `anniversary-partner.yaml`.** Its claims are `PartyField`/`PartnerField` state (Edit
-appears only once a role is picked; Save after Edit revises that relationship rather than
-adding a second; Remove on a person Edit wrote deletes them). They live in those two
-components' own state, which no hook holds, so 7c first lifts it into a headless hook in
-`packages/ui/src/headless/` (the pattern in `packages/ui/README.md` → _Forms_), tests the three
-claims against it, and then deletes the flow; the writes are already
-`apps/desktop/test/integration/link-partner.test.ts`'s. Keep the
-flow's vCard-seeding recipe (its header) as a few lines in `apps/mobile/README.md`'s hand-driving
-section: it is how you get a dated contact onto a simulator.
+**7c. `anniversary-partner.yaml`. ✅ Landed 2026-09-28.** Deleted. `PartyField`'s Edit/Remove
+state is `usePartyField` in `packages/ui/src/headless/`, with `relationshipCommit` (Edit waits
+for a role) and `onlyPartnerOf` (the pre-fill) beside it. `packages/ui/test/use-party-field.test.tsx`
+covers Edit offered on a new name only once a role is picked, Edit writing and opening them, Save
+after Edit carrying the written `relationshipId`, and Remove deleting only someone Edit wrote.
+The routes' writes are `apps/mobile/lib/relationship-writes.ts`, whose test proves that Save
+revises rather than adds. Save's link, the spouse staying unpublished and a first date's Partner
+were already `link-partner.test.ts`'s; Remove's cascade, `unpublished-people.test.ts`'s.
+Sabotages bite: `canEdit` ignoring `commit`; no `addedHere`; Remove ignoring it;
+`relationshipCommit` ignoring the role; the `relationshipId` dropped; Save never taking
+`editFromSubject`. Accepted residual risk: the field's rendering (the row, the question's
+wording). The vCard seeding recipe is in `apps/mobile/README.md` → _Running_.
 
 **7d. `global-nav.yaml`. ✅ Landed 2026-09-24.** Deleted. The tab navigator's screens are
 now a table, `apps/mobile/lib/tab-screens.ts`, which `app/(tabs)/_layout.tsx` maps over.
