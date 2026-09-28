@@ -165,4 +165,19 @@ describe("useChipDraft", () => {
       end: 15,
     });
   });
+  it("snaps a caret reported before the edit re-renders against the edit's chips", () => {
+    const { result } = host(`see ${violetToken} `);
+    // "see @Violet Bick ": the chip spans 4–16.
+    act(() => result.current.chips.moveCaret(4));
+
+    // iOS reports the caret an edit moved before React renders the edit.
+    let snapped = { start: -1, end: -1 };
+    act(() => {
+      const { chips } = result.current;
+      chips.edit("see x@Violet Bick ");
+      snapped = chips.snap({ start: 5, end: 5 });
+    });
+
+    expect(snapped).toEqual({ start: 5, end: 5 });
+  });
 });

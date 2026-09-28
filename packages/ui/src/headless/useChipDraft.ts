@@ -81,8 +81,13 @@ export function useChipDraft({
   // Everything the field itself does goes through `commit`, which keeps the two
   // in step, so a mismatch means the value changed under us: re-seed from it.
   const live = serialize(draft) === value ? draft : seed(value);
+  // What an event sees before the next render: iOS reports the caret an edit
+  // moved before React re-renders with the edit's chips.
+  const latest = useRef(live);
+  latest.current = live;
 
   function commit(next: ComposerDraft, nextCaret: number, force: boolean) {
+    latest.current = next;
     setDraft(next);
     onChange(serialize(next));
     setCaret(nextCaret);
@@ -156,7 +161,11 @@ export function useChipDraft({
     },
     /** Where `selection` belongs so it neither enters nor splits a chip. */
     snap(selection: Selection): Selection {
-      return snapSelection(live.spans, selection, previousCaret.current);
+      return snapSelection(
+        latest.current.spans,
+        selection,
+        previousCaret.current,
+      );
     },
     /** The caret moved without an edit (arrows, a click, a snap). */
     moveCaret(next: number) {
