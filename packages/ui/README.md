@@ -1,9 +1,10 @@
 # `@leapsake/ui`
 
-Shared, **strictly presentational** UI. Components here take their data as props,
+Shared UI: **presentational** web components, and the **headless** hooks that hold
+each form's state for web and mobile alike. Components take their data as props,
 render markup, and get the two things they can't supply themselves — navigation
-and form submission — from an adapter the host app injects. They never read a
-router, never call `window.api`, and never own a write.
+and form submission — from an adapter the host app injects. Nothing here reads a
+router, calls `window.api`, or owns a write.
 
 The point is that `apps/web` (post-launch) is a port rather than a rewrite, and
 that desktop's UI becomes testable for the first time. The extraction is
@@ -25,7 +26,7 @@ container — read the loader, render a component from here.
 | ----------------------- | ------------------------------- | ----------------------- |
 | `@leapsake/ui/tokens`   | Design tokens as plain objects  | Neutral                 |
 | `@leapsake/ui/messages` | The text catalog + its provider | Neutral                 |
-| `@leapsake/ui/headless` | Behavior + ports with zero DOM  | Neutral                 |
+| `@leapsake/ui/headless` | Form hooks, ports; zero DOM     | Neutral                 |
 | `@leapsake/ui/web`      | DOM components                  | Web + Electron renderer |
 
 There is **no package root export**. Subpaths are what would let a
@@ -72,6 +73,45 @@ const adapter: UiAdapter = {
 Everything else a component needs — loaded data, `submitting`, write callbacks —
 arrives as **props**, because it is per-screen state the container already holds
 rather than ambient chrome.
+
+## Forms
+
+Every create/edit form is written once as state and rendered twice, by platform.
+Four pieces per form:
+
+1. **A shaping function** beside the entity it builds, usually in `@leapsake/schema`
+   (`giftIdeaInputOf`, `personInputOf`, …): a draft of plain strings in, and either
+   `{ ok: true, input }` — what `CoreApi` takes, trimmed, blanks as null — or
+   `{ ok: false, errors }` out. **Errors are codes, never sentences**, so each client
+   words them. Where the rules belong to another package, the function lives there:
+   the contact-method draft is in [`@leapsake/contact-links`](../contact-links/README.md),
+   because a handle is reduced by its platform's rules.
+2. **A hook** in `headless/forms/`, built on `useDraftForm`, returning `fields`, `set`,
+   `update`, `errors`, `canSubmit` and `submit`. It holds the draft and calls the shaping
+   function on every render. It owns no text, imports neither the DOM nor React Native, and calls
+   no `CoreApi`.
+3. **A presentational `*Fields`** per platform: values, setters and error codes in,
+   markup out.
+4. **A thin `*Form`** per platform: calls the hook and hands its result to the fields.
+   On web it frames them in `FormShell`; on mobile it declares the header's `HeaderSave`
+   and passes `submit()`'s value to the screen, which writes.
+
+Three rules every form keeps:
+
+- **A web form works with no JavaScript.** It posts named fields through the adapter's
+  real `<form>`, and the route's action rebuilds the draft from `FormData` and calls the
+  same shaping function, since nothing else has checked. Inputs keep `required` and the
+  like even with JS on, so the browser refuses first.
+- **Save is never disabled for being not ready.** It looks different, and a press shows
+  the reason in a native dialog (`showFormProblem`) from the `problem` prop that
+  `FormShell` and `HeaderSave` take, worded from the hook's error code.
+- **Nothing is disabled while a write is in flight either.** The control says so
+  (`aria-disabled` on web, `accessibilityState.busy` on mobile) and ignores the repeat
+  press.
+
+Rows staged on mobile's create form (a person's contacts, milestones, relationships)
+call the shaping functions directly rather than through hooks, since they live in one
+shared value; that form's Save names the first unfinished section.
 
 ## Text
 

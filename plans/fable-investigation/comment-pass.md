@@ -20,10 +20,10 @@ order:
 
 | Directory | Comment lines | Start with |
 | --- | ---: | --- |
-| `apps/mobile/lib` | 1,723 | `core-context.tsx` (490 of its 1,401 lines), then `reminder-row.ts`, `styles.ts`, `record-title.ts`, `device-contacts.ts` |
+| `apps/mobile/lib` | 1,723 | `core-context.tsx` (490 of its 1,401 lines), then `styles.ts`, `record-title.ts`, `device-contacts.ts` |
 | `apps/mobile/db` + `apps/mobile/keystore` | 230 | `convert-store.ts` (125): see _Mobile specifics_ |
 | `apps/mobile/app` | 1,493 | `reminders/[id]/index.tsx`, `(tabs)/index.tsx`, `(tabs)/_layout.tsx`, `(tabs)/search.tsx`, `data.tsx` |
-| `apps/mobile/components` | 1,876 | `ContactMethodFields.tsx`, `AppHeader.tsx`, then by size |
+| `apps/mobile/components` | 1,876 | `AppHeader.tsx`, then by size |
 | `apps/mobile/plugins`, `index.ts`, `app.config.ts` | 287 | anything |
 
 **Step 7: everything else, by directory, `scripts/` last.** Comment lines by directory, with

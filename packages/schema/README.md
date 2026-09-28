@@ -26,6 +26,10 @@ Person. Use `Person` / `people` / `peopleRepo` consistently.
 - **Pure domain logic**, shared so every client behaves identically: name/label formatters,
   gender derivation, relationship-role algebra (`inverseRole`, `genderedVariant`,
   `composeRoles`, …), milestone date precision, contact-method normalization, search folding.
+- **Form shaping** — each entity's `*DraftOf` and `*InputOf`: a form's draft of plain strings
+  in, the `CoreApi` input or error **codes** out. Both clients' form hooks and desktop's route
+  actions call the same one, so trimming and validation exist once; see
+  [`@leapsake/ui`](../ui/README.md) → _Forms_.
 - **Merge primitives** — `resolveMerge` (whole-row last-writer-wins on `updatedAt` +
   tombstones: the _same-id_ merge that sync converges with) and `scoreDuplicate` (the
   _distinct-id_ duplicate detector). The two-kinds-of-merge framing is in
