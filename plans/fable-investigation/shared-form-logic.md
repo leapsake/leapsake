@@ -128,9 +128,9 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    the prompt's form. ⚠️ **Open:** desktop's `ReminderDelete` still decides nudge-or-not from
    the reminder alone, so a `🗓 plan` prompt's removal there says "Remove" rather than "Stop
    asking"; fixing it means loading the row's targets into that route.
-8. **ChipTextField**: last, and only if steps 1 to 7 leave an obvious shared caret/selection
-   hook. It may be that the remaining twin code is genuinely platform text-input handling; if
-   so, stop and say so.
+8. **ChipTextField. ✅ Landed 2026-09-27.** The twin code was the draft and picker state, not
+   the caret plumbing: `useChipDraft` in `headless/` now holds it, and each platform keeps
+   placing its caret (`placeCaret`), snapping, keys and markup.
 
 ## Verification
 
