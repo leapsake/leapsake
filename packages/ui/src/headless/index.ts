@@ -57,5 +57,13 @@ export {
 export { formatTimestamp, formatTimestampCompact } from "./timestamps.js";
 export { useChipDraft } from "./useChipDraft.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
+export {
+  type CommittedParty,
+  type NewParty,
+  type PartyChoice,
+  onlyPartnerOf,
+  relationshipCommit,
+  usePartyField,
+} from "./usePartyField.js";
 export { useSerializedWrites } from "./useSerializedWrites.js";
 export { useTypeahead } from "./useTypeahead.js";

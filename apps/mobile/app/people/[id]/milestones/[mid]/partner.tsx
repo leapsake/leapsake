@@ -2,12 +2,12 @@ import { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { kindDefs } from "@leapsake/schema";
+import type { PartyChoice } from "@leapsake/ui/headless";
 import { useHeaderSave } from "../../../../../components/HeaderSave";
 import {
   PartnerField,
   linkedPartner,
 } from "../../../../../components/PartnerField";
-import type { PartyChoice } from "../../../../../components/PartyField";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";

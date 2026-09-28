@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
-import { isRomanticRole } from "@leapsake/schema";
-import { type PartyChoice, PartyField } from "./PartyField";
+import { type PartyChoice, onlyPartnerOf } from "@leapsake/ui/headless";
+import { PartyField } from "./PartyField";
 import { useCore } from "../lib/core-context";
 import { useFocusedData } from "../lib/useFocusedData";
 
@@ -43,24 +43,7 @@ export function PartnerField({
 
   useEffect(() => {
     if (data === null || value !== undefined) return;
-    const partners = data[1].filter(
-      (n) =>
-        n.origin === "explicit" &&
-        n.otherType === "person" &&
-        isRomanticRole(n.otherRole),
-    );
-    const [only] = partners;
-    onChange(
-      partners.length === 1 && only !== undefined
-        ? {
-            kind: "existing",
-            type: "person",
-            id: only.otherId,
-            label: only.otherLabel,
-            relationshipId: only.relationshipId,
-          }
-        : null,
-    );
+    onChange(onlyPartnerOf(data[1]));
   }, [data, value, onChange]);
 
   if (data === null || data[0] === null) return null;

@@ -1,9 +1,14 @@
-import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { RelationshipCandidate } from "@leapsake/core";
 import type { EntityType } from "@leapsake/schema";
-import { entityBasePath } from "@leapsake/ui/headless";
+import {
+  type CommittedParty,
+  type NewParty,
+  type PartyChoice,
+  entityBasePath,
+  usePartyField,
+} from "@leapsake/ui/headless";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -16,27 +21,6 @@ const COPY = {
   editFailed: "Couldn’t save them",
   removeFailed: "Couldn’t remove them",
 } as const;
-
-/**
- * Who the field holds. A `new` one is only a name until the screen saves, or
- * until Edit writes them; `addedHere` marks one this field wrote.
- */
-export type PartyChoice =
-  | {
-      kind: "existing";
-      type: EntityType;
-      id: string;
-      label: string;
-      relationshipId?: string;
-      addedHere?: boolean;
-    }
-  | { kind: "new"; type: EntityType; name: string; label: string };
-
-/** A new party once written with the relationship that holds them. */
-export interface CommittedParty {
-  id: string;
-  relationshipId: string;
-}
 
 /**
  * The other party to a relationship: somebody already in the app, or a name
@@ -60,14 +44,23 @@ export function PartyField({
   candidates: readonly RelationshipCandidate[];
   /** What a new party may be, and which candidates are offered. */
   types: readonly EntityType[];
-  commit?: (
-    party: Extract<PartyChoice, { kind: "new" }>,
-  ) => Promise<CommittedParty>;
+  commit?: (party: NewParty) => Promise<CommittedParty>;
   testID?: string;
 }) {
   const core = useCore();
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const { canEdit, busy, edit, remove } = usePartyField({
+    value,
+    onChange,
+    commit,
+    open: (party) => router.push(`${entityBasePath(party.type)}/${party.id}`),
+    removeRelationship: (id) => core.relationships.softDelete(id),
+    onFailure: (action, e) =>
+      Alert.alert(
+        action === "edit" ? COPY.editFailed : COPY.removeFailed,
+        String(e),
+      ),
+  });
 
   if (value === null) {
     return (
@@ -109,47 +102,6 @@ export function PartyField({
     );
   }
 
-  const canEdit = value.kind === "existing" || commit !== undefined;
-
-  async function edit() {
-    if (value === null) return;
-    let target = value;
-    if (target.kind === "new") {
-      if (commit === undefined) return;
-      const written = await commit(target);
-      target = {
-        kind: "existing",
-        type: target.type,
-        id: written.id,
-        label: target.label,
-        relationshipId: written.relationshipId,
-        addedHere: true,
-      };
-      onChange(target);
-    }
-    router.push(`${entityBasePath(target.type)}/${target.id}`);
-  }
-
-  // Someone this field wrote goes with their relationship, and an unpublished
-  // one with it; anyone else is only let go of.
-  async function remove() {
-    if (
-      value?.kind === "existing" &&
-      value.addedHere === true &&
-      value.relationshipId !== undefined
-    )
-      await core.relationships.softDelete(value.relationshipId);
-    onChange(null);
-  }
-
-  const run = (work: () => Promise<void>, failure: string) => {
-    if (busy) return;
-    setBusy(true);
-    work()
-      .catch((e: unknown) => Alert.alert(failure, String(e)))
-      .finally(() => setBusy(false));
-  };
-
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -160,7 +112,7 @@ export function PartyField({
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ busy }}
-              onPress={() => run(edit, COPY.editFailed)}
+              onPress={() => void edit()}
             >
               <Text style={styles.link}>{COPY.edit}</Text>
             </Pressable>
@@ -168,7 +120,7 @@ export function PartyField({
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ busy }}
-            onPress={() => run(remove, COPY.removeFailed)}
+            onPress={() => void remove()}
           >
             <Text style={styles.link}>{COPY.remove}</Text>
           </Pressable>

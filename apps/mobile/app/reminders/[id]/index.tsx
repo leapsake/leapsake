@@ -18,6 +18,7 @@ import {
   reminderLabel,
 } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/core";
+import type { PartyChoice } from "@leapsake/ui/headless";
 import {
   reminderActionKey,
   reminderActionsOf,
@@ -25,7 +26,6 @@ import {
 } from "@leapsake/view-models";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { PartnerField, linkedPartner } from "../../../components/PartnerField";
-import type { PartyChoice } from "../../../components/PartyField";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";

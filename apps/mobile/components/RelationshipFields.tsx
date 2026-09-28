@@ -7,9 +7,10 @@ import type {
 } from "@leapsake/schema";
 import {
   type CommittedParty,
-  type PartyChoice,
-  PartyField,
-} from "./PartyField";
+  type NewParty,
+  relationshipCommit,
+} from "@leapsake/ui/headless";
+import { PartyField } from "./PartyField";
 import { PickerField } from "./PickerField";
 import { styles } from "../lib/styles";
 
@@ -103,7 +104,7 @@ export function RelationshipFields({
   /** Writes a new other end with this relationship, so Edit can open them;
    *  absent where there is no saved subject to relate them to. */
   commitOther?: (
-    party: Extract<PartyChoice, { kind: "new" }>,
+    party: NewParty,
     role: RelationshipRole,
     note: string | null,
   ) => Promise<CommittedParty>;
@@ -133,8 +134,6 @@ export function RelationshipFields({
     />
   );
 
-  const role = draft.role;
-  const noteReady = role !== "other" || draft.note.trim().length > 0;
   const other = draft.other?.kind === "typed" ? null : draft.other;
 
   const nameField =
@@ -151,17 +150,7 @@ export function RelationshipFields({
         onChange={(next) => onChange({ ...draft, other: next })}
         candidates={candidates ?? []}
         types={otherTypes}
-        // Edit on somebody new writes the relationship, so it waits for a role.
-        commit={
-          commitOther === undefined || role === null || !noteReady
-            ? undefined
-            : (party) =>
-                commitOther(
-                  party,
-                  role,
-                  role === "other" ? draft.note.trim() : null,
-                )
-        }
+        commit={relationshipCommit(draft, commitOther)}
       />
     );
 
