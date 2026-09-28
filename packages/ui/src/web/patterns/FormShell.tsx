@@ -2,7 +2,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import styles from "./not-ready.module.css";
-import { showFormProblem } from "./form-problem.js";
+import { readyToSubmit } from "./form-problem.js";
 
 /**
  * The frame every create/edit form shares: a posting `<form>` to its own route,
@@ -39,10 +39,7 @@ export function FormShell({
   const saveClass = problem === undefined ? undefined : styles.notReady;
 
   function holdOrRefuse(event: FormEvent<HTMLFormElement>) {
-    if (submitting) return event.preventDefault();
-    if (problem === undefined) return;
-    event.preventDefault();
-    showFormProblem(problem);
+    if (!readyToSubmit(submitting, problem)) event.preventDefault();
   }
 
   return (

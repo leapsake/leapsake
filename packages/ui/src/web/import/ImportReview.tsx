@@ -2,6 +2,8 @@ import type { ParsedBirthday, ParsedContact } from "@leapsake/vcard";
 import { useEffect, useMemo, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import type { Messages } from "../../messages/index.js";
+import { readyToSubmit } from "../patterns/form-problem.js";
+import notReady from "../patterns/not-ready.module.css";
 import styles from "./ImportOverlay.module.css";
 
 /**
@@ -233,6 +235,7 @@ export function ImportReview({
   }
 
   const committing = phase === "committing";
+  const problem = chosen === 0 ? m.import.nothingChosen : undefined;
 
   return (
     <div className={styles.backdrop}>
@@ -266,11 +269,11 @@ export function ImportReview({
           </button>
           <button
             type="button"
+            className={problem === undefined ? undefined : notReady.notReady}
             onClick={() => {
-              if (!committing) void confirm();
+              if (readyToSubmit(committing, problem)) void confirm();
             }}
             aria-disabled={committing}
-            disabled={chosen === 0}
           >
             {committing ? m.import.importing : m.import.importCount(chosen)}
           </button>

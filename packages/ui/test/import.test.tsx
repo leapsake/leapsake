@@ -74,12 +74,47 @@ describe("ImportReview", () => {
     expect(importButton().textContent).toBe("Import 1");
   });
 
-  it("refuses to import when everything is skipped", async () => {
-    renderReview();
+  it("says why it won't import when everything is skipped, rather than going dead", async () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const { onCommit } = renderReview();
     await flush();
 
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(importButton().matches(":disabled")).toBe(true);
+    expect(importButton().matches(":disabled")).toBe(false);
+    await act(async () => importButton().click());
+
+    expect(alert).toHaveBeenCalledWith(
+      "Every contact is skipped. Include at least one to import.",
+    );
+    expect(onCommit).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("stays pressable while importing, says so, and ignores a second press", async () => {
+    let finish: (value: ImportOutcome) => void = () => {};
+    const onCommit = vi.fn(
+      () => new Promise<ImportOutcome>((resolve) => (finish = resolve)),
+    );
+    renderWithUi(
+      <ImportReview
+        contacts={[contact()]}
+        onPreview={async () => []}
+        onCommit={onCommit}
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+        onPickSelf={vi.fn()}
+      />,
+    );
+    await flush();
+    await act(async () => importButton().click());
+
+    const busy = screen.getByRole("button", { name: "Importing…" });
+    expect(busy.matches(":disabled")).toBe(false);
+    expect(busy.getAttribute("aria-disabled")).toBe("true");
+    await act(async () => busy.click());
+    expect(onCommit).toHaveBeenCalledTimes(1);
+
+    await act(async () => finish(outcome()));
   });
 
   it("commits the edited name, not the parsed one", async () => {

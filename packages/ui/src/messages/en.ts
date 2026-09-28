@@ -186,6 +186,7 @@ export const en: Messages = {
         : `Found ${count} contacts in the dropped file. Review what will be imported, then confirm.`,
     importCount: (count) => `Import ${count}`,
     importing: "Importing…",
+    nothingChosen: "Every contact is skipped. Include at least one to import.",
     skip: "Skip",
     include: "Include",
     needsName: "Needs a first and last name before it can be imported.",

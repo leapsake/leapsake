@@ -2,3 +2,14 @@
 export function showFormProblem(message: string): void {
   window.alert(message);
 }
+
+/** Whether a press may submit: never while a write is in flight, and not while `problem` is set, which it shows. */
+export function readyToSubmit(
+  submitting: boolean,
+  problem: string | undefined,
+): boolean {
+  if (submitting) return false;
+  if (problem === undefined) return true;
+  showFormProblem(problem);
+  return false;
+}

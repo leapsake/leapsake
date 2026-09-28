@@ -206,6 +206,7 @@ export interface Messages {
     reviewIntro: (count: number) => string;
     importCount: (count: number) => string;
     importing: string;
+    nothingChosen: string;
     skip: string;
     include: string;
     needsName: string;
