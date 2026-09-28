@@ -22,10 +22,11 @@ import {
   reminderActionKey,
   reminderActionsOf,
   reminderCountdownOf,
+  reminderRowOf,
 } from "@leapsake/view-models";
 import { Fragment } from "react";
 import { Link, useFetcher, useLoaderData } from "react-router-dom";
-import { rowAffordanceFor, showsRemove } from "../lib/reminder-row";
+import { rowAffordanceFor } from "../lib/reminder-row";
 
 /**
  * Every user-visible string on this screen. None takes a value; counts render
@@ -185,7 +186,7 @@ function ReminderRow({
           </Fragment>
         );
       })}
-      {showsRemove(actions, done, reminder.materialized) && (
+      {reminder.materialized && reminderRowOf(actions, done).showsRemove && (
         <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       )}
       {reminder.title !== null && reminder.body !== null && (

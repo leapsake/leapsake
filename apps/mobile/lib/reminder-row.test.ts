@@ -4,12 +4,7 @@ import {
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { describe, expect, it } from "vitest";
-import {
-  isAnsweredInline,
-  offerFor,
-  removalCopyFor,
-  showsDelete,
-} from "./reminder-row";
+import { REMOVAL_COPY, isAnsweredInline, offerFor } from "./reminder-row";
 
 const NOW = 1_800_000_000_000;
 
@@ -224,44 +219,9 @@ describe("isAnsweredInline", () => {
   });
 });
 
-describe("showsDelete", () => {
-  it("withholds Delete from an open nudge, which offers its own dismiss", () => {
-    // Otherwise the screen shows two buttons for the one tombstone.
-    const actions = actionsFor(idFor("create-account"));
-
-    expect(actions.map((a) => a.kind)).toContain("dismiss");
-    expect(showsDelete(actions, false)).toBe(false);
-  });
-
-  it("keeps Delete on a completed nudge, whose offers collapse to the CTA", () => {
-    // Without this, marking a nudge done would strand it at the foot of the list
-    // with no way to be rid of it.
-    const actions = actionsFor(idFor("create-account"), NOW);
-
-    expect(actions.map((a) => a.kind)).toEqual(["cta"]);
-    expect(showsDelete(actions, true)).toBe(true);
-  });
-
-  it("keeps Delete on an ordinary reminder, which offers only put-offs", () => {
-    expect(showsDelete(actionsFor("user-written"), false)).toBe(true);
-  });
-
-  it("keeps Delete on gift and duplicates reminders", () => {
-    expect(showsDelete(actionsFor("gift", null, giftContext), false)).toBe(
-      true,
-    );
-    expect(
-      showsDelete(
-        actionsFor("dupes", null, { isDuplicatesNudge: true }),
-        false,
-      ),
-    ).toBe(true);
-  });
-});
-
-describe("removalCopyFor", () => {
-  it("asks whether to stop asking, on a nudge", () => {
-    const copy = removalCopyFor(actionsFor(idFor("create-account")));
+describe("REMOVAL_COPY", () => {
+  it("words a nudge's removal as stopping the question, and quotes the label", () => {
+    const copy = REMOVAL_COPY.dismiss;
 
     expect(copy.title).toBe("Stop asking about this?");
     expect(copy.confirm).toBe("Don’t ask again");
@@ -270,38 +230,11 @@ describe("removalCopyFor", () => {
     );
   });
 
-  it("still says the honest thing on a completed nudge, reached via Delete", () => {
-    // The copy branches on the reminder, not on which affordance was tapped, so
-    // the one remaining route to the tombstone can't bypass it.
-    const copy = removalCopyFor(actionsFor(idFor("create-account"), NOW));
-
-    expect(copy.title).toBe("Stop asking about this?");
-  });
-
-  // A prompt is the same shape of thing as a nudge: a question Leapsake asked
-  // unbidden, whose removal has always been a permanent tombstone.
-  it("says the honest thing on a prompt too", () => {
-    const copy = removalCopyFor(actionsFor("prompt", null, planContext));
-
-    expect(copy.title).toBe("Stop asking about this?");
-    expect(copy.confirm).toBe("Don’t ask again");
-  });
-
-  it("asks about deletion on a user's own reminder", () => {
-    const copy = removalCopyFor(actionsFor("user-written"));
+  it("words an ordinary removal as a deletion", () => {
+    const copy = REMOVAL_COPY.remove;
 
     expect(copy.title).toBe("Delete reminder");
     expect(copy.confirm).toBe("Delete");
     expect(copy.message("Call Ana")).toBe("Delete “Call Ana”?");
-  });
-
-  it("asks about deletion on gift and duplicates rows", () => {
-    expect(removalCopyFor(actionsFor("gift", null, giftContext)).title).toBe(
-      "Delete reminder",
-    );
-    expect(
-      removalCopyFor(actionsFor("dupes", null, { isDuplicatesNudge: true }))
-        .title,
-    ).toBe("Delete reminder");
   });
 });

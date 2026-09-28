@@ -18,7 +18,11 @@ import {
   reminderLabel,
 } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/core";
-import { reminderActionKey, reminderActionsOf } from "@leapsake/view-models";
+import {
+  reminderActionKey,
+  reminderActionsOf,
+  reminderRowOf,
+} from "@leapsake/view-models";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { PartnerField, linkedPartner } from "../../../components/PartnerField";
 import type { PartyChoice } from "../../../components/PartyField";
@@ -27,10 +31,9 @@ import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import {
+  REMOVAL_COPY,
   isAnsweredInline,
   offerFor,
-  removalCopyFor,
-  showsDelete,
 } from "../../../lib/reminder-row";
 import { colors, styles } from "../../../lib/styles";
 
@@ -223,7 +226,7 @@ export default function ReminderDetailScreen() {
   // What actually draws as a button. On a prompt that is the escapes and any
   // second CTA — never “Choose below” (which would point at the form already on
   // screen) or “Just the day” (which writes exactly what Save writes with the
-  // offers untouched). `removalCopyFor` and `showsDelete` still read the **full**
+  // offers untouched). `reminderRowOf` still reads the **full**
   // set: whether this is a nudge is a fact about the reminder, not about which
   // of its offers this screen happens to draw.
   const offered = actions.filter((a) => !isPrompt || !isAnsweredInline(a));
@@ -233,9 +236,10 @@ export default function ReminderDetailScreen() {
   // button has to know too: it takes the filled style only when nothing else
   // has claimed it, so two of them never share a screen.
   const hasCta = offered.some((a) => offerFor(a).kind === "navigate");
-  const removal = removalCopyFor(actions);
+  const row = reminderRowOf(actions, done);
+  const removal = REMOVAL_COPY[row.removal];
   const canEdit = isReminderEditable(reminder);
-  const canDelete = showsDelete(actions, done);
+  const canDelete = row.showsRemove;
 
   /**
    * Finish this reminder — or reopen it, which is the same write with the
@@ -385,7 +389,7 @@ export default function ReminderDetailScreen() {
       )}
       {/* Automatic (birthday) reminders aren't content-editable — the engine owns
           their text — so only user reminders get an Edit link; Delete is withheld
-          while a nudge offers its own "don't ask again" (see `showsDelete`). Both
+          while a nudge offers its own "don't ask again" (see `reminderRowOf`). Both
           can be absent at once — an open, engine-owned nudge — so the row is
           conditional rather than rendering an empty strip of actions. */}
       {(canEdit || canDelete) && (

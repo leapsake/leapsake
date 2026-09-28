@@ -4,11 +4,8 @@ import {
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { describe, expect, it } from "vitest";
-import {
-  ctaLinkFor,
-  rowAffordanceFor,
-  showsRemove,
-} from "../src/renderer/src/lib/reminder-row.js";
+import type { ReminderCta } from "@leapsake/view-models";
+import { rowAffordanceFor } from "../src/renderer/src/lib/reminder-row.js";
 
 const NOW = 1_800_000_000_000;
 
@@ -168,100 +165,51 @@ describe("rowAffordanceFor", () => {
   });
 });
 
-describe("ctaLinkFor", () => {
-  it("maps every onboarding route", () => {
-    for (const { id, route } of ONBOARDING_REMINDERS) {
-      const link = ctaLinkFor({ kind: "onboarding", route });
-      expect(link.path.startsWith("/")).toBe(true);
+describe("a CTA's link", () => {
+  const linkFor = (cta: ReminderCta) =>
+    rowAffordanceFor({ kind: "cta", cta }, "r1");
+
+  it("maps every onboarding route to a path", () => {
+    for (const { route } of ONBOARDING_REMINDERS) {
+      const link = linkFor({ kind: "onboarding", route });
+      expect(link.kind === "link" && link.to.startsWith("/")).toBe(true);
       expect(link.label).not.toBe("");
-      // Sanity: the id and the route are the two halves of the same convention.
-      expect(id).toBeTruthy();
     }
-    expect(ctaLinkFor({ kind: "onboarding", route: "about-you" })).toEqual({
-      path: "/people?pick=self",
-      label: "Pick yourself →",
-    });
   });
 
   it("sends a pet's gifts to the pets tree, not people", () => {
     expect(
-      ctaLinkFor({
+      linkFor({
         kind: "gift",
         action: "see-gifts",
         recipientType: "pet",
         recipientId: "x1",
       }),
-    ).toEqual({ path: "/pets/x1", label: "See their gifts →" });
+    ).toEqual({ kind: "link", to: "/pets/x1", label: "See their gifts →" });
   });
 
-  // ⚠️ The person's own page, not a form: desktop adds contact methods from the
-  // Contact section there, and unlike mobile it has no route that opens straight
-  // into an empty one. The copy is an offer of help, not a missing field — the
-  // reminder is completable without it.
+  // Desktop has no route straight into an empty contact form, unlike mobile.
   it("sends the collect prompt to the person's page", () => {
-    expect(ctaLinkFor({ kind: "contact", personId: "p1" })).toEqual({
-      path: "/people/p1",
+    expect(linkFor({ kind: "contact", personId: "p1" })).toEqual({
+      kind: "link",
+      to: "/people/p1",
       label: "Add a way to reach them →",
     });
   });
-});
 
-describe("showsRemove", () => {
-  const actionsFor = (id: string, completedAt: number | null = null) =>
-    reminderActionsOf(reminder(id, completedAt), {}, NOW);
-
-  it("withholds Remove from an open nudge, which offers its own dismiss", () => {
-    // Otherwise the row shows two buttons for the one tombstone.
-    const actions = actionsFor(idFor("create-account"));
-
-    expect(actions.map((a) => a.kind)).toContain("dismiss");
-    expect(showsRemove(actions, false)).toBe(false);
-  });
-
-  it("keeps Remove on a completed nudge, whose offers collapse to the CTA", () => {
-    // Without this, marking a nudge done would strand it in the completed
-    // disclosure with no way to clear it.
-    const actions = actionsFor(idFor("create-account"), NOW);
-
-    expect(actions.map((a) => a.kind)).toEqual(["cta"]);
-    expect(showsRemove(actions, true)).toBe(true);
-  });
-
-  it("keeps Remove on an ordinary reminder, which offers only put-offs", () => {
-    expect(showsRemove(actionsFor("user-written"), false)).toBe(true);
-  });
-
-  it("withholds Remove from a coming row, which is not a row yet", () => {
-    // Nothing to tombstone: the engine has not minted it, and the next
-    // reconcile would undo whatever this pretended to do.
-    expect(showsRemove(actionsFor("not-yet-minted"), false, false)).toBe(false);
-  });
-
-  // A prompt's permanent out is "don't ask again"; showing Remove beside it
-  // would be two buttons for one tombstone, under a label that hides what it
-  // does.
-  it("withholds Remove from a prompt, which offers its own dismiss", () => {
+  it("asks for your partner, not a spouse, on your own first date", () => {
     expect(
-      showsRemove(
-        reminderActionsOf(reminder("prompt"), { planTarget }, NOW),
-        false,
-      ),
-    ).toBe(false);
-  });
-
-  it("keeps Remove on gift and duplicates rows", () => {
-    const gift = reminderActionsOf(
-      reminder("gift"),
-      { giftTarget: { recipientType: "person", recipientId: "p1" } },
-      NOW,
-    );
-    const dupes = reminderActionsOf(
-      reminder("dupes"),
-      { isDuplicatesNudge: true },
-      NOW,
-    );
-
-    expect(showsRemove(gift, false)).toBe(true);
-    expect(showsRemove(dupes, false)).toBe(true);
+      linkFor({
+        kind: "link-partner",
+        milestoneId: "m1",
+        milestoneKind: "first-date",
+        personId: "p1",
+        isSelf: true,
+      }),
+    ).toEqual({
+      kind: "link",
+      to: "/people/p1/milestones/m1/rebind",
+      label: "Who is your partner? →",
+    });
   });
 });

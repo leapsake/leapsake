@@ -121,11 +121,13 @@ Smallest and most duplicated first, so the pattern is settled before the big one
    `EntityFormValue` rather than in the hooks, since its type toggle and staged rows share one
    value; its Save now says which part is unfinished (`entityFormProblem`). `about-you`'s
    in-body Save moved too.
-7. **Reminder rows**: merge the two `reminder-row.ts` modules into `@leapsake/view-models`
-   as one `reminderRowOf(action, cta)` returning a platform-neutral affordance (`offer`,
-   `inline`, `showsRemove`, `removalCopy` key). Each client keeps only the mapping from that to
-   a link or a sheet. Both existing test files (desktop 283 lines, mobile) fold into one in
-   `view-models`.
+7. **Reminder rows. ✅ Landed 2026-09-27.** `@leapsake/view-models/src/reminder-row.ts`
+   decides which label key each offer wears (`reminderOfferLabelOf`) and whether a row shows
+   Remove and how its removal is worded (`reminderRowOf`). Each client keeps its routes, which
+   differ, and its words. `isAnsweredInline` stays on mobile: only its detail screen carries
+   the prompt's form. ⚠️ **Open:** desktop's `ReminderDelete` still decides nudge-or-not from
+   the reminder alone, so a `🗓 plan` prompt's removal there says "Remove" rather than "Stop
+   asking"; fixing it means loading the row's targets into that route.
 8. **ChipTextField**: last, and only if steps 1 to 7 leave an obvious shared caret/selection
    hook. It may be that the remaining twin code is genuinely platform text-input handling; if
    so, stop and say so.
