@@ -55,6 +55,7 @@ export {
   searchHitPath,
 } from "./routes.js";
 export { formatTimestamp, formatTimestampCompact } from "./timestamps.js";
+export { useChipDraft } from "./useChipDraft.js";
 export { useDebouncedSearch } from "./useDebouncedSearch.js";
 export { useSerializedWrites } from "./useSerializedWrites.js";
 export { useTypeahead } from "./useTypeahead.js";

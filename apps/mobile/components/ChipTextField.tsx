@@ -8,51 +8,23 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  type ComposerDraft,
-  type EntityType,
-  type SearchHit,
-  activeMentionQuery,
-  activeTagQuery,
-  applyDraftEdit,
-  draftFromMarkup,
-  draftFromTagField,
-  insertMentionInDraft,
-  insertTagInDraft,
-  markupFromDraft,
-  snapCaret,
-  splitDraft,
-} from "@leapsake/schema";
-import { useDebouncedSearch, useTypeahead } from "@leapsake/ui/headless";
+import { type SearchHit, splitDraft } from "@leapsake/schema";
+import { useChipDraft, useTypeahead } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
 import { colors, styles } from "../lib/styles";
 
 /**
  * A controlled `TextInput` whose `@mentions` and `#tags` read as **chips**, with
- * a typeahead for both — the mobile twin of the desktop `ChipTextField`, and the
- * same two grammars:
- *
- * - **`"prose"`** — a reminder's title/body. `value`/`onChangeText` carry the
- *   *stored* text, mention tokens and all (`@[Violet Bick](person:<uuid>)`), while
- *   the field shows `@Violet Bick`. Only `#`-prefixed runs are tags.
- * - **`"tags"`** — a Person/Pet/GiftIdea Tags field, where the text *is* the
- *   stored value and every word is a tag (see `parseTagNames`), so every word
- *   chips.
- *
- * Which trigger the caret sits in decides three things: which detector runs
- * ({@link activeMentionQuery} vs {@link activeTagQuery}), which hits are kept
- * (people/pets vs `tag`), and which insert helper splices the choice in. The
- * draft ({@link ComposerDraft}) is state rather than something re-derived from
- * `value`, because a chip is partly invisible in the text — a `#family` being
- * typed and one already committed read the same, and only the second is a chip.
+ * a typeahead for both — the mobile twin of the web `ChipTextField`. The draft,
+ * the two grammars and the picker's results are {@link useChipDraft}'s; this is
+ * the React Native half.
  *
  * React Native styles runs of a `TextInput`'s text natively, so the draft goes in
  * as nested `<Text>` children and each chip carries the same tint the desktop
  * backdrop paints. Chips are atomic: the caret rests at their edges but never
- * inside ({@link snapCaret}, applied through the controlled `selection`), and an
- * edit reaching into one takes the whole chip ({@link applyDraftEdit}). Both
- * rules live in `@leapsake/schema`, so the two clients cannot drift.
+ * inside (snapped through the controlled `selection`), and an edit reaching
+ * into one takes the whole chip.
  *
  * The results list renders inline beneath the field (the parent `ScrollView`
  * keeps `keyboardShouldPersistTaps="handled"` so a tap lands before the keyboard
@@ -105,15 +77,6 @@ export function ChipTextField({
   const core = useCore();
   const inputRef = useRef<RNTextInput>(null);
 
-  // The caret offset drives fragment detection; `null` until the field is
-  // touched, so pre-filled edit text doesn't spuriously open the picker.
-  const [caret, setCaret] = useState<number | null>(null);
-  // Where the caret was before the move being handled — the direction an arrow
-  // key was travelling, which is what carries it over a chip rather than into it.
-  const previousCaret = useRef<number | null>(null);
-  // Escape has no key here, but a completed pick still suppresses the picker
-  // until the next keystroke — otherwise a tag picked in a tags field re-opens.
-  const [suppressed, setSuppressed] = useState(false);
   // Set by `onKeyPress` for the one `onChangeText` that a Tab caused, so that
   // edit can be replaced by the pick instead of applied.
   const tabPressed = useRef(false);
@@ -123,92 +86,22 @@ export function ChipTextField({
     { start: number; end: number } | undefined
   >(undefined);
 
-  const seed = (text: string): ComposerDraft =>
-    prose ? draftFromMarkup(text) : draftFromTagField(text);
-  const serialize = (next: ComposerDraft) =>
-    prose ? markupFromDraft(next) : next.text;
-
-  const [draft, setDraft] = useState(() => seed(value));
-  // The value changed under us (a reset, a different record): re-seed from it.
-  // Everything the field itself does goes through `commit`, which keeps the two
-  // in step, so this only fires for changes that didn't come from here.
-  const live = serialize(draft) === value ? draft : seed(value);
-
-  /**
-   * Push an edited draft out as stored text, and put the caret where the edit
-   * says it belongs. `force` only when the field's own caret is now wrong — a
-   * pick, or an edit that took a whole chip; driving `selection` on every
-   * keystroke is what fights the platform mid-composition.
-   */
-  function commit(next: ComposerDraft, nextCaret: number, force: boolean) {
-    setDraft(next);
-    onChangeText(serialize(next));
-    setCaret(nextCaret);
-    previousCaret.current = nextCaret;
-    if (force) setSelection({ start: nextCaret, end: nextCaret });
-  }
-
-  // Which inline trigger — `@mention` or a tag — the caret sits in. A mention
-  // fragment spans spaces, so it can overlap a later tag; when both detectors
-  // match, the one whose trigger is nearest the caret (greater `start`) is the
-  // live one — i.e. the token the user is currently typing.
-  const mention =
-    !prose || caret === null
-      ? null
-      : activeMentionQuery(live.text, caret, live.spans);
-  const tag = caret === null ? null : activeTagQuery(live, caret);
-  const mode: "mention" | "tag" | null =
-    mention && tag
-      ? tag.start > mention.start
-        ? "tag"
-        : "mention"
-      : mention
-        ? "mention"
-        : tag
-          ? "tag"
-          : null;
-  const active = mode === "tag" ? tag : mode === "mention" ? mention : null;
-  const activeQuery = active?.query ?? null;
-
-  // The tag picker keeps only tag hits; the `@mention` picker excludes them
-  // (mentions only reference people/pets). Memoised on `mode`, because
-  // `useDebouncedSearch` re-runs whenever this function's identity changes.
-  const searchForMode = useCallback(
-    (query: string) =>
-      core.search
-        .query(query)
-        .then((hits) =>
-          hits.filter((hit) =>
-            mode === "tag"
-              ? hit.entityType === "tag"
-              : hit.entityType !== "tag",
-          ),
-        ),
-    [core, mode],
+  const search = useCallback(
+    (query: string) => core.search.query(query),
+    [core],
   );
-
-  const results = useDebouncedSearch({
-    query: activeQuery ?? "",
-    search: searchForMode,
-    enabled: activeQuery !== null && !suppressed,
+  const chips = useChipDraft({
+    grammar,
+    value,
+    onChange: onChangeText,
+    search,
+    placeCaret: (caret) => setSelection({ start: caret, end: caret }),
   });
+  const { live, activeQuery, results } = chips;
   const open = results.length > 0;
 
-  /** Splice the chosen hit in as a set chip and nudge the caret past it. */
   function pick(hit: SearchHit) {
-    if (caret === null) return;
-    const inserted =
-      mode === "tag"
-        ? insertTagInDraft(live, caret, hit.title)
-        : insertMentionInDraft(live, caret, {
-            displayName: hit.title,
-            targetType: hit.entityType as EntityType, // never "tag" here
-            targetId: hit.entityId,
-          });
-    commit(inserted.draft, inserted.caret, true);
-    // The caret lands at the chip's end, which is not a fragment — but a tag
-    // picked in a tags field would re-open on the next keystroke otherwise.
-    setSuppressed(true);
+    chips.pick(hit);
     inputRef.current?.focus();
   }
 
@@ -245,10 +138,7 @@ export function ChipTextField({
             tabPressed.current = false;
             if (selectActive()) return;
           }
-          // The field hands back displayed text; chips move, grow or go whole.
-          const edited = applyDraftEdit(live, text);
-          commit(edited.draft, edited.caret, edited.tookChip);
-          setSuppressed(false); // typing re-opens the picker after a dismiss
+          chips.edit(text);
         }}
         onSelectionChange={(e) => {
           const next = e.nativeEvent.selection;
@@ -256,17 +146,14 @@ export function ChipTextField({
           // carried to the nearer edge; an arrow step is carried the way it was
           // already going, so ← steps over a whole chip rather than into it.
           const snapped =
-            next.start === next.end
-              ? snapCaret(live.spans, next.end, previousCaret.current)
-              : next.end;
+            next.start === next.end ? chips.snap(next).end : next.end;
           if (snapped !== next.end) {
             setSelection({ start: snapped, end: snapped });
           } else if (selection !== undefined) {
             // Release the one-shot forced caret once RN has applied it.
             setSelection(undefined);
           }
-          previousCaret.current = snapped;
-          setCaret(snapped);
+          chips.moveCaret(snapped);
         }}
         multiline={multiline}
         autoCapitalize={prose ? "sentences" : "none"}
