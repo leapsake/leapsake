@@ -43,6 +43,16 @@ describe("bytesToBase64 / base64ToBytes", () => {
     }
   });
 
+  it("pins the stored format: standard alphabet, padded", () => {
+    expect(bytesToBase64(new Uint8Array([0xfb, 0xff]))).toBe("+/8=");
+    expect(bytesToBase64(new Uint8Array([0xfb, 0xef, 0xbe]))).toBe("++++");
+    expect(bytesToBase64(new Uint8Array([0xff, 0xff, 0xff]))).toBe("////");
+    expect(bytesToBase64(allBytes.subarray(0, 32))).toBe(
+      "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    );
+    expect(base64ToBytes("+/8=")).toEqual(new Uint8Array([0xfb, 0xff]));
+  });
+
   it("rejects malformed base64", () => {
     expect(() => base64ToBytes("Zg=")).toThrow(); // length not multiple of 4
     expect(() => base64ToBytes("Z!==")).toThrow(); // illegal character
@@ -62,6 +72,10 @@ describe("bytesToHex / hexToBytes", () => {
 
   it("round-trips all-256-value input", () => {
     expect(hexToBytes(bytesToHex(allBytes))).toEqual(allBytes);
+  });
+
+  it("decodes either case", () => {
+    expect(hexToBytes("00ffAB")).toEqual(new Uint8Array([0, 255, 171]));
   });
 
   it("rejects malformed hex", () => {

@@ -3,8 +3,15 @@
 The low-level codecs — bytes ↔ string, and the content-addressed id derived from
 them. Pure JS on every target (no `Buffer`, no `btoa`/`atob`, no `TextEncoder`), so
 identical code runs on Node/Electron and on React Native's Hermes. Depends on
-`@noble/*` only; no workspace dependencies, so it sits beside `schema` at the base
-of the graph.
+`@noble/*` and `@scure/base` only; no workspace dependencies, so it sits beside
+`schema` at the base of the graph.
+
+The base64 and hex codecs are `@scure/base`'s, not our own. It is the same audited
+family as `@noble/*`, it is pure JS on Hermes, and it was already installed as
+`@scure/bip39`'s dependency, so declaring it added nothing to the tree. Its decoders
+are strict (canonical padding, no whitespace), which everything this package ever
+encoded already is. `test/base64.test.ts` pins the exact encoded output, so a later
+codec swap cannot change a stored format unnoticed.
 
 ## Surface
 
