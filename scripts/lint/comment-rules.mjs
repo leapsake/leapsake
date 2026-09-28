@@ -136,10 +136,89 @@ const noDecisionComments = {
   },
 };
 
+const URL = /[^:/?#]:\/\/[^?#]/u;
+const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/;
+const TAB_WIDTH = 4;
+
+/** Columns a line occupies: code points, each tab widened to the next stop. */
+const lineWidth = (line) => {
+  let extra = 0;
+  line.replace(/\t/g, (_, offset) => {
+    extra += TAB_WIDTH - ((offset + extra) % TAB_WIDTH) - 1;
+    return "";
+  });
+  return Array.from(line).length + extra;
+};
+
+/** Each comment's offsets; a one-line JSX comment spans its braces. */
+const commentSpans = (sourceCode) =>
+  sourceCode.getAllComments().map((comment) => {
+    const node = sourceCode.getNodeByRangeIndex(comment.start);
+    const box = node?.type === "JSXEmptyExpression" ? node.parent : null;
+    return box && !LINE_BREAK.test(sourceCode.text.slice(box.start, box.end))
+      ? box
+      : comment;
+  });
+
+const maxCommentWidth = {
+  meta: {
+    type: "layout",
+    docs: {
+      description:
+        "A line holding only comment fits the width; code width is oxfmt's.",
+    },
+    schema: [
+      {
+        type: "object",
+        properties: { max: { type: "integer", minimum: 1 } },
+        additionalProperties: false,
+      },
+    ],
+  },
+  create(context) {
+    const max = context.options[0]?.max ?? 80;
+    return {
+      Program() {
+        const { text } = context.sourceCode;
+        const spans = commentSpans(context.sourceCode);
+        let lineStart = 0;
+        let next = 0;
+        text.split(LINE_BREAK).forEach((line, i) => {
+          const lineEnd = lineStart + line.length;
+          while (next < spans.length && spans[next].start <= lineEnd) next++;
+          const span = spans[next - 1];
+          const isCommentLine =
+            span !== undefined &&
+            span.end >= lineEnd &&
+            (span.start < lineStart ||
+              text.slice(lineStart, span.start).trim() === "");
+          const width = lineWidth(line);
+          if (
+            isCommentLine &&
+            width > max &&
+            !line.includes("oxlint-disable") &&
+            !URL.test(line)
+          ) {
+            context.report({
+              loc: {
+                start: { line: i + 1, column: 0 },
+                end: { line: i + 1, column: line.length },
+              },
+              message: `Comment line is ${width} columns; the limit is ${max}. Rewrap it.`,
+            });
+          }
+          lineStart = lineEnd + (text.startsWith("\r\n", lineEnd) ? 2 : 1);
+        });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "leapsake" },
   rules: {
     "max-comment-lines": maxCommentLines,
+    "max-comment-width": maxCommentWidth,
     "no-decision-comments": noDecisionComments,
   },
 };

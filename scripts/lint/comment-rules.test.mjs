@@ -6,8 +6,8 @@ import { describe, expect, test } from "vitest";
 
 const PLUGIN = resolve(import.meta.dirname, "comment-rules.mjs");
 
-/** Rule ids oxlint reports for `source`, one per finding, in order. */
-const findings = (source) => {
+/** Rule ids oxlint reports for `source` in file `name`, one per finding. */
+const findings = (source, name = "sample.ts") => {
   const dir = mkdtempSync(join(tmpdir(), "comment-rules-"));
   writeFileSync(
     join(dir, ".oxlintrc.json"),
@@ -16,11 +16,12 @@ const findings = (source) => {
       jsPlugins: [PLUGIN],
       rules: {
         "leapsake/max-comment-lines": "error",
+        "leapsake/max-comment-width": "error",
         "leapsake/no-decision-comments": "error",
       },
     }),
   );
-  writeFileSync(join(dir, "sample.ts"), source);
+  writeFileSync(join(dir, name), source);
   const run = spawnSync(
     "pnpm",
     [
@@ -29,7 +30,7 @@ const findings = (source) => {
       "-c",
       join(dir, ".oxlintrc.json"),
       "--format=unix",
-      join(dir, "sample.ts"),
+      join(dir, name),
     ],
     { encoding: "utf8" },
   );
@@ -73,6 +74,63 @@ describe("max-comment-lines", () => {
       "// oxlint-disable-next-line leapsake/max-comment-lines -- the protocol needs it\n" +
       "// one\n// two\n// three\nconst a = 1;\n";
     expect(findings(source)).toEqual([]);
+  });
+});
+
+const words = (columns) => "x".repeat(columns);
+
+const jsxComment = (inner) =>
+  `const a = (\n  <div>\n    {/* ${inner} */}\n  </div>\n);\n`;
+
+describe("max-comment-width", () => {
+  test("allows a comment line of 80 columns and reports one of 81", () => {
+    expect(findings(`// ${words(77)}\nconst a = 1;\n`)).toEqual([]);
+    expect(findings(`// ${words(78)}\nconst a = 1;\n`)).toEqual([
+      "max-comment-width",
+    ]);
+  });
+
+  test("counts indentation, a tab reaching the next multiple of four", () => {
+    expect(findings(`\t// ${words(73)}\nconst a = 1;\n`)).toEqual([]);
+    expect(findings(`\t// ${words(74)}\nconst a = 1;\n`)).toEqual([
+      "max-comment-width",
+    ]);
+  });
+
+  test("counts an emoji as one column", () => {
+    expect(findings(`// ${"😀".repeat(77)}\nconst a = 1;\n`)).toEqual([]);
+  });
+
+  test("measures each line of a block comment, delimiters included", () => {
+    expect(findings(`/*\n * ${words(78)}\n */\nconst a = 1;\n`)).toEqual([
+      "max-comment-width",
+    ]);
+    expect(findings(`/* ${words(75)} */\nconst a = 1;\n`)).toEqual([
+      "max-comment-width",
+    ]);
+  });
+
+  test("leaves a comment after code to the formatter", () => {
+    expect(findings(`const a = 1; // ${words(78)}\n`)).toEqual([]);
+    expect(findings(`const a = 1; /* ${words(78)}\n */\n`)).toEqual([]);
+  });
+
+  test("measures a one-line JSX comment from its brace", () => {
+    expect(findings(jsxComment(words(68)), "sample.tsx")).toEqual([]);
+    expect(findings(jsxComment(words(69)), "sample.tsx")).toEqual([
+      "max-comment-width",
+    ]);
+  });
+
+  test("exempts a line holding a URL or a disable directive", () => {
+    expect(
+      findings(`// See https://example.com/${words(78)}\nconst a = 1;\n`),
+    ).toEqual([]);
+    expect(
+      findings(
+        `// oxlint-disable-next-line no-console -- ${words(78)}\nconsole.log(1);\n`,
+      ),
+    ).toEqual([]);
   });
 });
 
