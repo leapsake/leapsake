@@ -12,6 +12,7 @@ import proxyaddr from "proxy-addr";
 import { z } from "zod";
 import {
   DEFAULT_BOOTSTRAP_RATE_LIMIT,
+  DEFAULT_MAX_BODY_BYTES,
   DEFAULT_RATE_LIMIT,
   DEFAULT_RECOVERY_RATE_LIMIT,
   DEFAULT_SESSION_TTL_MS,
@@ -144,29 +145,20 @@ function registrationTokenOk(req: IncomingMessage): boolean {
 }
 
 /**
- * A minimal fixed-window, per-IP rate limiter. Three instances guard the relay (see
- * {@link createRelayServer}): one on the **unauthenticated** enumeration vectors
- * (`GET /accounts/lookup`, `POST /accounts`), a stricter one on the recovery-authed
- * endpoints, and a third on **failed** authentications at the two verifier-checking
- * login endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`).
- * The launch join scheme is username + password (`plans/encryption/sync.md`), so a username
- * existence oracle is an *accepted, deliberate* property — it can't be removed without
- * dropping usernames — but it **can be throttled**, the pragmatic enumeration mitigation
- * (README.md). Those two logins aren't enumeration oracles but *are* password
- * oracles — a successful auth returns `wrap(MK, KEK)` or a session token — so an online
- * guessing grind is capped across both, sharing one budget (threats H2/H3, README.md).
- * `push`/`pull` stay un-throttled: neither oracle, and hit legitimately on every sync.
- *
- * The key is a proxy-aware client IP (see {@link createRelayServer}'s `clientIp`):
- * behind a trusted reverse proxy it's the real client from `X-Forwarded-For`, not
- * the proxy's address. In-memory and per-process, so right for a *single-node*
- * relay; a multi-node deployment still needs a shared counter (the remaining
- * open half of threat H3, README.md). Default parameters live in {@link ./config}.
+ * A fixed-window, per-IP rate limiter. Expired entries are swept at most once per
+ * window, so the map holds only the addresses seen in the last two windows.
  */
 function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   const hits = new Map<string, { count: number; resetAt: number }>();
+  let nextSweepAt = 0;
   return function allow(ip: string): boolean {
     const now = Date.now();
+    if (now >= nextSweepAt) {
+      for (const [key, entry] of hits) {
+        if (now >= entry.resetAt) hits.delete(key);
+      }
+      nextSweepAt = now + limit.windowMs;
+    }
     const entry = hits.get(ip);
     if (entry === undefined || now >= entry.resetAt) {
       hits.set(ip, { count: 1, resetAt: now + limit.windowMs });
@@ -178,13 +170,23 @@ function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   };
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+class BodyTooLargeError extends Error {}
+
+/** Buffer the request body, rejecting with {@link BodyTooLargeError} past `maxBytes`. */
+function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    let data = "";
-    req.on("data", (chunk) => {
-      data += chunk;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        req.removeAllListeners("data");
+        reject(new BodyTooLargeError());
+        return;
+      }
+      chunks.push(chunk);
     });
-    req.on("end", () => resolve(data));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
 }
@@ -193,6 +195,12 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json" });
   res.end(payload);
+}
+
+/** Answer 413 and close the connection, dropping the rest of the body unbuffered. */
+function sendTooLarge(res: ServerResponse): void {
+  res.setHeader("connection", "close");
+  sendJson(res, 413, { error: "payload too large" });
 }
 
 /**
@@ -300,6 +308,8 @@ export function createRelayServer(opts: {
    * {@link DEFAULT_SESSION_TTL_MS}). Short by design — see that constant.
    */
   sessionTtlMs?: number;
+  /** The largest request body read, in bytes (default {@link DEFAULT_MAX_BODY_BYTES}). */
+  maxBodyBytes?: number;
   /**
    * In-process TLS (Option B). When set, the relay terminates HTTPS itself with
    * this cert + key instead of speaking plain HTTP; when omitted, it speaks plain
@@ -310,6 +320,7 @@ export function createRelayServer(opts: {
   tls?: { cert: string | Buffer; key: string | Buffer; passphrase?: string };
 }): Server {
   const { store } = opts;
+  const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
   // A separate counter so recovery-flood throttling never spends (or is spent by)
   // the enumeration budget — the two surfaces are independent.
@@ -409,6 +420,27 @@ export function createRelayServer(opts: {
     return session.accountId;
   }
 
+  /** Read and parse a JSON body, or answer 413 or 400 and return undefined. */
+  async function readJson(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<unknown> {
+    let text: string;
+    try {
+      text = await readBody(req, maxBodyBytes);
+    } catch (error) {
+      if (!(error instanceof BodyTooLargeError)) throw error;
+      sendTooLarge(res);
+      return undefined;
+    }
+    try {
+      return JSON.parse(text || "{}");
+    } catch {
+      sendJson(res, 400, { error: "invalid request" });
+      return undefined;
+    }
+  }
+
   // The request listener is identical over HTTP and HTTPS — TLS (Option B) is purely
   // a transport wrapper around the same handler, session store, and limiters.
   const listener = (req: IncomingMessage, res: ServerResponse): void => {
@@ -430,6 +462,10 @@ export function createRelayServer(opts: {
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
+    if (Number(req.headers["content-length"] ?? 0) > maxBodyBytes) {
+      sendTooLarge(res);
+      return;
+    }
     const url = new URL(req.url ?? "/", "http://relay");
     const { method } = req;
 
@@ -440,9 +476,9 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "registration token required" });
         return;
       }
-      const parsed = registerBodySchema.safeParse(
-        JSON.parse((await readBody(req)) || "{}"),
-      );
+      const body = await readJson(req, res);
+      if (body === undefined) return;
+      const parsed = registerBodySchema.safeParse(body);
       if (!parsed.success) {
         sendJson(res, 400, { error: "invalid request" });
         return;
@@ -595,9 +631,9 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
-      const parsed = rotateRecoveryBodySchema.safeParse(
-        JSON.parse((await readBody(req)) || "{}"),
-      );
+      const body = await readJson(req, res);
+      if (body === undefined) return;
+      const parsed = rotateRecoveryBodySchema.safeParse(body);
       if (!parsed.success) {
         sendJson(res, 400, { error: "invalid request" });
         return;
@@ -624,9 +660,9 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
-      const parsed = resetBodySchema.safeParse(
-        JSON.parse((await readBody(req)) || "{}"),
-      );
+      const body = await readJson(req, res);
+      if (body === undefined) return;
+      const parsed = resetBodySchema.safeParse(body);
       if (!parsed.success) {
         sendJson(res, 400, { error: "invalid request" });
         return;
@@ -648,9 +684,9 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
-      const parsed = pushBodySchema.safeParse(
-        JSON.parse((await readBody(req)) || "{}"),
-      );
+      const body = await readJson(req, res);
+      if (body === undefined) return;
+      const parsed = pushBodySchema.safeParse(body);
       if (!parsed.success) {
         sendJson(res, 400, { error: "invalid request" });
         return;

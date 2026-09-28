@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Server } from "node:http";
+import { type Server, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { AddressInfo } from "node:net";
 import { DatabaseSync } from "node:sqlite";
@@ -46,7 +46,7 @@ import {
 } from "@leapsake/data";
 import { createHttpSyncTransport, createSyncEngine } from "@leapsake/sync";
 import type { SyncRow } from "@leapsake/schema";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRelayServer } from "../src/relay.js";
 import { createRelayStore } from "../src/store.js";
 import { nodeSqliteDriver } from "./node-sqlite-driver.js";
@@ -1621,6 +1621,23 @@ describe("relay rate limiting (unauthenticated endpoints)", () => {
     // The third within the window is throttled before the lookup runs.
     expect(await probe()).toBe(429);
   });
+
+  it("lets a throttled client back in once the window has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const probe = () =>
+        fetch(`${baseUrl}/accounts/lookup?username=nobody`).then(
+          (r) => r.status,
+        );
+      await probe();
+      await probe();
+      expect(await probe()).toBe(429);
+      vi.setSystemTime(Date.now() + 60_000);
+      expect(await probe()).toBe(404);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 /**
@@ -1835,6 +1852,107 @@ describe("relay rate limiting (proxy-aware client IP)", () => {
     // a different forged leftmost → same bucket → throttled.
     expect(await probe("9.9.9.9, 1.1.1.1")).toBe(404);
     expect(await probe("8.8.8.8, 1.1.1.1")).toBe(429);
+  });
+});
+
+describe("relay request bodies", () => {
+  const CAP = 1024;
+  let server: Server;
+  let db: DatabaseSync;
+  let baseUrl: string;
+  const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
+  const bearer = `Bearer ${ACCOUNT_ID}.${b64(AUTH_VERIFIER)}`;
+  const recovery = `Recovery ${ACCOUNT_ID}.${b64(RECOVERY_VERIFIER)}`;
+  let session: string;
+
+  beforeEach(async () => {
+    db = new DatabaseSync(":memory:");
+    server = createRelayServer({
+      store: createRelayStore(db),
+      maxBodyBytes: CAP,
+    });
+    baseUrl = `http://127.0.0.1:${await listen(server)}`;
+    await createHttpSyncTransport({
+      baseUrl,
+      accountId: ACCOUNT_ID,
+      authVerifier: AUTH_VERIFIER,
+    }).register({
+      username: USERNAME,
+      kdfSalt: KDF_SALT,
+      wrappedMasterKey: WRAPPED_MK,
+      wrappedRecoveryKey: WRAPPED_RECOVERY_KEY,
+      wrappedMasterKeyRecovery: WRAPPED_MK_RECOVERY,
+      recoveryVerifier: RECOVERY_VERIFIER,
+    });
+    const login = await fetch(`${baseUrl}/accounts/session`, {
+      method: "POST",
+      headers: { authorization: bearer },
+    });
+    session = `Session ${((await login.json()) as { token: string }).token}`;
+  });
+
+  afterEach(async () => {
+    await close(server);
+    db.close();
+  });
+
+  const routes = (): [string, string][] => [
+    ["/accounts", ""],
+    ["/accounts/session", bearer],
+    ["/accounts/recovery", bearer],
+    ["/accounts/reset", recovery],
+    ["/sync/push", session],
+  ];
+
+  const post = (path: string, authorization: string, body: string) =>
+    fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: authorization === "" ? {} : { authorization },
+      body,
+    }).then((r) => r.status);
+
+  /** POST with chunked transfer encoding, so the relay sees no content-length. */
+  const postStreamed = (
+    path: string,
+    authorization: string,
+    chunks: string[],
+  ) =>
+    new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        `${baseUrl}${path}`,
+        { method: "POST", headers: { authorization } },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on("error", reject);
+      for (const chunk of chunks) req.write(chunk);
+      req.end();
+    });
+
+  it("answers 413 to a body one byte over the cap on every POST route", async () => {
+    for (const [path, authorization] of routes()) {
+      expect(await post(path, authorization, "x".repeat(CAP + 1))).toBe(413);
+    }
+  });
+
+  it("answers 413 to a streamed body that passes the cap without a content-length", async () => {
+    const half = " ".repeat(CAP / 2 + 1);
+    expect(await postStreamed("/sync/push", session, [half, half])).toBe(413);
+  });
+
+  it("accepts a push exactly at the cap", async () => {
+    const records = JSON.stringify({ records: [] });
+    const padded = records + " ".repeat(CAP - records.length);
+    expect(await post("/sync/push", session, padded)).toBe(200);
+  });
+
+  it("answers 400 to a body that is not JSON on every route that reads one", async () => {
+    for (const [path, authorization] of routes()) {
+      if (path === "/accounts/session") continue;
+      expect(await post(path, authorization, "{not json")).toBe(400);
+    }
   });
 });
 

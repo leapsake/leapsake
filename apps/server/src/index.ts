@@ -77,6 +77,9 @@ const sessionTtlEnv = process.env[ENV.sessionTtlMs];
 const sessionTtlMs =
   sessionTtlEnv === undefined ? undefined : Number(sessionTtlEnv);
 
+const maxBodyEnv = process.env[ENV.maxBodyBytes];
+const maxBodyBytes = maxBodyEnv === undefined ? undefined : Number(maxBodyEnv);
+
 // In-process TLS (Option B): set BOTH the cert and key paths, or neither. Both ⇒ the
 // relay speaks HTTPS itself; neither ⇒ plain HTTP (terminate TLS in front, Option A).
 const tlsCertPath = process.env[ENV.tlsCert];
@@ -122,6 +125,7 @@ createRelayServer({
   bootstrapRateLimit,
   trustedProxies,
   sessionTtlMs,
+  maxBodyBytes,
   tls,
 }).listen(port, () => {
   const scheme = tls === undefined ? "http" : "https";

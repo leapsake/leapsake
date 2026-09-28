@@ -24,6 +24,9 @@ export const DEFAULT_PORT = 4000;
 /** Default store path; `:memory:` is also accepted (`index.ts`, `RELAY_DB`). */
 export const DEFAULT_DB_PATH = "relay.db";
 
+/** The largest request body the relay reads; anything bigger is answered 413. */
+export const DEFAULT_MAX_BODY_BYTES = 64 * 1024 * 1024;
+
 /** Shared default window for both throttles. */
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 
@@ -112,6 +115,8 @@ export const ENV = {
   port: "PORT",
   /** Store path or `:memory:` (default {@link DEFAULT_DB_PATH}). */
   dbPath: "RELAY_DB",
+  /** Request body cap in bytes (default {@link DEFAULT_MAX_BODY_BYTES}). */
+  maxBodyBytes: "RELAY_MAX_BODY_BYTES",
   /** When set, gates `POST /accounts` on a matching `X-Registration-Token`. */
   registrationToken: "RELAY_REGISTRATION_TOKEN",
   /** Enumeration throttle overrides (default {@link DEFAULT_RATE_LIMIT}). */

@@ -42,37 +42,12 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-Order: 1 first, because it is a live vulnerability. 2 through 7 are independent of each other
-and of 1.
+1 landed. 2 through 7 are independent of each other.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
-`readBody` in `apps/server/src/relay.ts` concatenates the whole body with no cap; the Caddyfile
-sets no `request_body` limit; in-process TLS mode (Option B) has no proxy at all. The per-IP
-limiter's `Map` never evicts an entry, so a source cycling addresses grows it without bound. A
-body that is not JSON throws inside `handle` and surfaces as a 500.
-
-Do, in `apps/server`:
-
-- A `MAX_BODY_BYTES` constant in `config.ts`. Measure the largest legitimate `/sync/push` first
-  (a full first push of a populated store, through `packages/sync`'s engine) and set the cap at
-  several times that; a cap is a defence, not a budget. Refuse on `content-length` when it is
-  present, and abort the stream at the cap when it is not; both answer **413**.
-- Parse the body inside a `try` and answer **400** `{ error: "invalid request" }` on a parse
-  failure, the same body the schema failures already send.
-- Evict expired limiter entries: a sweep of the `Map` on each call once it passes a size
-  threshold is enough for a single-node relay; no timer, nothing to stop on shutdown.
-- `request_body { max_size … }` in the Caddyfile at the same figure, so Option A refuses before
-  the relay sees the bytes.
-
-Acceptance, in `apps/server/test/relay.test.ts`, black-box over `fetch` like the rest of that
-file: a body one byte over the cap answers 413 on every POST route; a non-JSON body answers 400;
-a limited IP is allowed again after the window (fake timers), which is the only observable the
-eviction may change. Update `apps/server/README.md` → _Threat register_ with the new bound.
-
-**Not a framework.** Hono would supply `bodyLimit` and routing with no transitive packages, and
-is the right move if the relay grows past its nine routes or needs middleware a second time.
-Today the fix is smaller than the import.
+**✅ Landed 2026-09-28.** Threat M4 in `apps/server/README.md`; `relay.test.ts` →
+_relay request bodies_ holds it up.
 
 ### 2. `packages/bytes`: base64 and hex from `@scure/base`
 

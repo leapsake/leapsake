@@ -8,6 +8,11 @@
 {$RELAY_DOMAIN} {
 	encode zstd gzip
 
+	# Refuse oversized bodies before they reach the relay; match RELAY_MAX_BODY_BYTES.
+	request_body {
+		max_size 64MiB
+	}
+
 	# Caddy sets X-Forwarded-For / -Proto automatically; the relay trusts them via
 	# RELAY_TRUSTED_PROXIES so its per-IP rate limiters key on the real client.
 	reverse_proxy relay:4000
