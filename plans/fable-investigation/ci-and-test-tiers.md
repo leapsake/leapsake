@@ -64,8 +64,7 @@ uploads. See step 4.
 
 - **4c waits on `remote-releases.md` step 6 closing** ([`README.md`](./README.md) → _Where 3
   and 4 pull on each other_): the switch invalidates that step's numbers.
-- **7c** is independent of 4. It waits on the
-  `RelationshipFields` row of [`shared-form-logic.md`](./shared-form-logic.md).
+- **7c** is independent of 4, and builds the hook its claims need itself.
 - Ideally all of 4–6 land before `remote-releases.md` step 7 wires the gate into `ci.yml`:
   every push pays for whatever the gate costs from then on.
 
@@ -249,8 +248,8 @@ list. When the last one goes, that list is the self-test and the two iOS helpers
 form's Save writes staged gifts, is `apps/mobile/lib/entity-form-apply.test.ts`, which runs
 `applyEntityForm` against a real core (sabotage: skip `value.gifts`, all three cases red).
 Accepted residual risk for the second, the row's tick: `GiftsSection`'s `setGiven` is one
-`core.gifts.recipients.update` call, whose writes `gifts.test.ts` covers, and no hook falls
-out of `shared-form-logic.md` for that row.
+`core.gifts.recipients.update` call, whose writes `gifts.test.ts` covers, and no hook holds that
+row's state.
 
 **7b. `unpublished-people.yaml`. ✅ Landed 2026-09-24.** Deleted; nothing needed adding. In
 `apps/desktop/test/integration/`, `unpublished-people.test.ts` covers creation by a
@@ -262,9 +261,11 @@ query, or rendering a reason wrongly.
 
 **7c. `anniversary-partner.yaml`.** Its claims are `PartyField`/`PartnerField` state (Edit
 appears only once a role is picked; Save after Edit revises that relationship rather than
-adding a second; Remove on a person Edit wrote deletes them). They belong in the headless hook
-[`shared-form-logic.md`](./shared-form-logic.md) plans for `RelationshipFields`; the writes are
-already `apps/desktop/test/integration/link-partner.test.ts`'s. **Waits on that hook.** Keep the
+adding a second; Remove on a person Edit wrote deletes them). They live in those two
+components' own state, which no hook holds, so 7c first lifts it into a headless hook in
+`packages/ui/src/headless/` (the pattern in `packages/ui/README.md` → _Forms_), tests the three
+claims against it, and then deletes the flow; the writes are already
+`apps/desktop/test/integration/link-partner.test.ts`'s. Keep the
 flow's vCard-seeding recipe (its header) as a few lines in `apps/mobile/README.md`'s hand-driving
 section: it is how you get a dated contact onto a simulator.
 
