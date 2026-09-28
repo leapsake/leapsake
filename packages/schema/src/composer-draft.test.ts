@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type ChipSpan,
+  type ComposerDraft,
   activeTagQuery,
   applyDraftEdit,
   draftFromMarkup,
@@ -37,6 +38,17 @@ const jimmyChip = { kind: "mention" as const, ...JIMMY_MENTION };
 /** The chips as `[text, kind]`, which is what a renderer actually consumes. */
 function chips(draft: { text: string; spans: ChipSpan[] }): [string, string][] {
   return draft.spans.map((s) => [draft.text.slice(s.start, s.end), s.kind]);
+}
+
+/** Type `typed` at `caret` one character at a time, as a keyboard does. */
+function typeAt(draft: ComposerDraft, caret: number, typed: string) {
+  let at = { draft, caret };
+  for (const ch of typed) {
+    const text = at.draft.text;
+    const edit = text.slice(0, at.caret) + ch + text.slice(at.caret);
+    at = { draft: applyDraftEdit(at.draft, edit).draft, caret: at.caret + 1 };
+  }
+  return at;
 }
 
 describe("draftFromMarkup", () => {
@@ -214,6 +226,27 @@ describe("applyDraftEdit — when a tag becomes a chip", () => {
     expect(next.draft.spans.map((s) => s.kind === "tag" && s.name)).toEqual([
       "family",
     ]);
+  });
+
+  it("does not chip a tag still being typed before later text", () => {
+    // A pick leaves the caret before the space it adds, so typing lands there.
+    const picked = insertMentionInDraft(
+      applyDraftEdit(draftFromMarkup(""), "call @vio").draft,
+      9,
+      VIOLET_MENTION,
+    );
+    const next = typeAt(picked.draft, picked.caret, " about #fam");
+    expect(next.draft.text).toBe("call @Violet Bick about #fam ");
+    expect(chips(next.draft)).toEqual([["@Violet Bick", "mention"]]);
+    expect(activeTagQuery(next.draft, next.caret)).toEqual({
+      query: "fam",
+      start: 24,
+    });
+  });
+
+  it("chips a tag typed before later text once a character ends it", () => {
+    const next = typeAt(draftFromMarkup("see  ok"), 4, "#fam,");
+    expect(chips(next.draft)).toEqual([["#fam", "tag"]]);
   });
 
   it("chips every word in a tags field, once terminated", () => {

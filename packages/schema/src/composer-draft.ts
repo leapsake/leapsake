@@ -96,20 +96,20 @@ function normalizeSpans(spans: readonly ChipSpan[]): ChipSpan[] {
 }
 
 /**
- * Chip every tag run not already inside a chip. With `onlyTerminated`, a run at
- * the very end is skipped: it is still being typed.
+ * Chip every tag run not already inside a chip, except one ending at
+ * `typingAt`, the caret: it is still being typed.
  */
 function withTagSpans(
   text: string,
   spans: readonly ChipSpan[],
   grammar: TagGrammar,
-  onlyTerminated: boolean,
+  typingAt: number | null,
 ): ChipSpan[] {
   const merged = [...spans];
   for (const match of text.matchAll(tagRunPattern(grammar))) {
     const start = match.index;
     const end = start + match[0].length;
-    if (onlyTerminated && end === text.length) continue;
+    if (end === typingAt) continue;
     if (merged.some((s) => overlaps(s, start, end))) continue;
     merged.push({ kind: "tag", start, end, name: tagNameOf(match[0]) });
   }
@@ -141,7 +141,7 @@ export function draftFromMarkup(markup: string): ComposerDraft {
   }
   return {
     text,
-    spans: withTagSpans(text, spans, "prose", false),
+    spans: withTagSpans(text, spans, "prose", null),
     grammar: "prose",
   };
 }
@@ -173,7 +173,7 @@ export function markupFromDraft(draft: ComposerDraft): string {
 export function draftFromTagField(raw: string): ComposerDraft {
   return {
     text: raw,
-    spans: withTagSpans(raw, [], "tagField", false),
+    spans: withTagSpans(raw, [], "tagField", null),
     grammar: "tagField",
   };
 }
@@ -252,14 +252,15 @@ export function applyDraftEdit(
         : [],
   );
   const refitted = normalizeSpans(refitTagSpans(text, shifted, draft.grammar));
+  const caret = start + inserted.length;
 
   return {
     draft: {
       text,
-      spans: withTagSpans(text, refitted, draft.grammar, true),
+      spans: withTagSpans(text, refitted, draft.grammar, caret),
       grammar: draft.grammar,
     },
-    caret: start + inserted.length,
+    caret,
     tookChip,
   };
 }

@@ -97,6 +97,30 @@ describe("useChipDraft", () => {
     expect(placeCaret).toHaveBeenCalledWith("call @Violet Bick".length);
   });
 
+  it("offers tags for a #tag typed after a picked mention, before its space", async () => {
+    const { result } = host("");
+    type(result, "call @vio");
+    await waitFor(() => expect(result.current.chips.results).not.toEqual([]));
+    act(() => result.current.chips.pick(violetHit));
+
+    // The caret sits at the mention's end, before the space the pick added.
+    let caret = "call @Violet Bick".length;
+    for (const ch of " about #fam") {
+      const text = result.current.chips.live.text;
+      act(() =>
+        result.current.chips.edit(
+          text.slice(0, caret) + ch + text.slice(caret),
+        ),
+      );
+      act(() => result.current.chips.moveCaret(++caret));
+    }
+
+    expect(result.current.chips.activeQuery).toBe("fam");
+    await waitFor(() =>
+      expect(result.current.chips.results).toEqual([familyHit]),
+    );
+  });
+
   it("keeps the picker shut after a pick, and after a dismiss, until the next edit", async () => {
     const { result } = host("", "tags");
     type(result, "fam");
