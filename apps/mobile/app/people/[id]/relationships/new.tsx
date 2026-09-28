@@ -8,6 +8,7 @@ import {
 } from "@leapsake/schema";
 import { RelationshipForm } from "../../../../components/RelationshipForm";
 import { useCore } from "../../../../lib/core-context";
+import { relationshipWrites } from "../../../../lib/relationship-writes";
 import { useFocusedData } from "../../../../lib/useFocusedData";
 import { styles } from "../../../../lib/styles";
 
@@ -37,6 +38,7 @@ export default function PersonRelationshipNewScreen() {
     [core, id],
   );
   const { data: view, error } = useFocusedData(load);
+  const writes = relationshipWrites(core, "person", id);
 
   const candidate =
     view && otherId !== undefined && otherType !== undefined
@@ -83,44 +85,9 @@ export default function PersonRelationshipNewScreen() {
             }
           : relationshipDraftOf()
       }
-      // Edit on somebody new writes them with this relationship at once, so
-      // Save then revises that relationship rather than adding a second.
-      commitOther={async (party, otherRole, otherRoleNote) => {
-        const { other, relationship } =
-          await core.relationships.createWithNewOther({
-            subjectType: "person",
-            subjectId: id,
-            otherType: party.type,
-            otherName: party.name,
-            otherRole,
-            otherRoleNote,
-          });
-        return { id: other.id, relationshipId: relationship.id };
-      }}
+      commitOther={writes.commitOther}
       onSubmit={async (value) => {
-        if (value.other === "existing" && value.relationshipId !== undefined)
-          await core.relationships.editFromSubject({
-            subjectType: "person",
-            subjectId: id,
-            relId: value.relationshipId,
-            otherRole: value.otherRole,
-            otherRoleNote: value.otherRoleNote,
-          });
-        else
-          // Two calls, because the other end is either somebody already in the
-          // list or somebody being named for the first time — the second creates
-          // them as a fact about this person and nothing more.
-          await (value.other === "existing"
-            ? core.relationships.createFromSubject({
-                subjectType: "person",
-                subjectId: id,
-                ...value,
-              })
-            : core.relationships.createWithNewOther({
-                subjectType: "person",
-                subjectId: id,
-                ...value,
-              }));
+        await writes.save(value);
         router.back();
       }}
     />
