@@ -80,6 +80,7 @@ import type {
 import {
   isPublished,
   isRomanticRole,
+  kindAllowsBearer,
   kindDefs,
   resolveReminderSchedule,
   todayCivil,
@@ -494,6 +495,28 @@ export function createCore(driver: SqliteDriver) {
     }
   }
 
+  /** Copy a milestone onto a bearer, with its reminder schedule. */
+  async function copyMilestone(
+    milestone: Milestone,
+    bearerType: EntityType,
+    bearerId: string,
+  ): Promise<void> {
+    const copy = await milestones.copyToBearer(milestone, bearerType, bearerId);
+    if (!copy.created) return;
+    const rules = await reminderRules.listForBearer("milestone", milestone.id);
+    if (rules.length > 0)
+      await reminderRules.replaceForBearer(
+        "milestone",
+        copy.id,
+        rules.map(({ action, label, offsetDays, enabled }) => ({
+          action,
+          label,
+          offsetDays,
+          enabled,
+        })),
+      );
+  }
+
   /** The occasions among `others` that are `milestone` recorded again: same
    *  kind, month and day. The partner's own card often carries it. */
   function sameDayCopies(milestone: Milestone, others: Milestone[]) {
@@ -753,21 +776,34 @@ export function createCore(driver: SqliteDriver) {
         await regenerateSystem();
         return updated;
       },
-      // An unpublished end goes with the edge, its only reason to exist; two
-      // published people are just unlinked.
+      // An unpublished end goes with the edge, its only reason to exist; a
+      // published one keeps a copy of each of the edge's milestones.
       softDelete: async (id: string): Promise<void> => {
         await driver.transaction(async () => {
           const rel = await relationships.get(id);
           await relationships.softDelete(id);
           if (rel === undefined) return;
+          // TODO: maybe ask before removing a relationship whether its
+          // milestones should be deleted too, rather than always copying them.
+          const shared = await milestones.listForBearer("relationship", id);
           for (const end of [
             { type: rel.aType, id: rel.aId },
             { type: rel.bType, id: rel.bId },
           ]) {
             const entity = await entities.resolve(end.type, end.id);
-            if (entity === undefined || isPublished(entity.standing)) continue;
+            if (entity === undefined) continue;
+            if (isPublished(entity.standing)) {
+              for (const m of shared)
+                if (kindAllowsBearer(m.kind, end.type))
+                  await copyMilestone(m, end.type, end.id);
+              continue;
+            }
             await entities.softDelete(end.type, end.id);
             await entities.removeFacts(end.type, end.id);
+          }
+          for (const m of shared) {
+            await milestones.softDelete(m.id);
+            await reminderRules.removeAllForBearer("milestone", m.id);
           }
         });
         await regenerateSystem();

@@ -348,3 +348,82 @@ describe("deleting one of a couple", () => {
     );
   });
 });
+
+describe("removing a couple's relationship", () => {
+  const schedule = [
+    { action: "wish" as const, label: null, offsetDays: 7, enabled: true },
+  ];
+
+  async function marriage(partner: { personId: string } | { name: string }) {
+    const { george, milestone } = await georgesAnniversary();
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner,
+      reminderSchedule: schedule,
+    });
+    const [rel] = await core.relationships.listForEntity("person", george.id);
+    return { george, rel, milestone };
+  }
+
+  it("leaves a copy of the anniversary, and its reminders, with each of them", async () => {
+    const mary = await person("Mary", "Hatch");
+    const { george, rel, milestone } = await marriage({ personId: mary.id });
+
+    await core.relationships.softDelete(rel.relationshipId);
+
+    const [georges] = await core.milestones.listForBearer("person", george.id);
+    const [marys] = await core.milestones.listForBearer("person", mary.id);
+    for (const copy of [georges, marys]) {
+      expect(copy).toMatchObject({ kind: "wedding" });
+      expect(copy.id).not.toBe(milestone.id);
+      expect(
+        await core.milestones.reminderSchedule(copy.id, copy.kind),
+      ).toEqual(schedule);
+    }
+    expect(georges.id).not.toBe(marys.id);
+    expect(
+      await core.milestones.listForBearer("relationship", rel.relationshipId),
+    ).toEqual([]);
+  });
+
+  it("leaves no copy with a partner who goes with the relationship", async () => {
+    const { george, rel } = await marriage({ name: "Mary Hatch" });
+
+    await core.relationships.softDelete(rel.relationshipId);
+
+    expect(await core.people.get(rel.otherId)).toBeUndefined();
+    expect(await core.milestones.listForBearer("person", rel.otherId)).toEqual(
+      [],
+    );
+    expect(
+      await core.milestones.listForBearer("person", george.id),
+    ).toHaveLength(1);
+  });
+
+  it("gives a pet no copy of a kind it cannot hold", async () => {
+    const george = await person("George", "Bailey");
+    const jimmy = await core.pets.create({ name: "Jimmy", gender: null }, []);
+    const rel = await core.relationships.createFromSubject({
+      subjectType: "person",
+      subjectId: george.id,
+      otherType: "pet",
+      otherId: jimmy.id,
+      otherRole: "pet",
+    });
+    await core.milestones.create({
+      kind: "met",
+      bearerType: "relationship",
+      bearerId: rel.id,
+      month: 4,
+      day: 1,
+    });
+
+    await core.relationships.softDelete(rel.id);
+
+    expect(await core.milestones.listForBearer("pet", jimmy.id)).toEqual([]);
+    expect(
+      await core.milestones.listForBearer("person", george.id),
+    ).toMatchObject([{ kind: "met" }]);
+  });
+});

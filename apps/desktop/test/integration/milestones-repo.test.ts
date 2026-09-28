@@ -134,6 +134,27 @@ describe("milestonesRepo", () => {
     expect(list.map((m) => m.id)).toEqual([older.id, newer.id]);
   });
 
+  it("copies onto a bearer once, under the same id on every device", async () => {
+    const m = await repo.create(birthday(crypto.randomUUID()));
+    const other = makeEncryptedTestDriver();
+    await runMigrations(other.driver);
+    const otherRepo = createMilestonesRepo(other.driver);
+    await otherRepo.insert(m);
+    const to = crypto.randomUUID();
+
+    const here = await repo.copyToBearer(m, "person", to);
+    const again = await repo.copyToBearer(m, "person", to);
+    const there = await otherRepo.copyToBearer(m, "person", to);
+    other.cleanup();
+
+    expect(here.created).toBe(true);
+    expect(again).toEqual({ id: here.id, created: false });
+    expect(there.id).toBe(here.id);
+    expect(await repo.listForBearer("person", to)).toMatchObject([
+      { id: here.id, kind: "birthday", year: 1992, month: 3, day: 9 },
+    ]);
+  });
+
   it("soft-deletes all of an entity's milestones via removeAllForEntity", async () => {
     const bearer = crypto.randomUUID();
     await repo.create(birthday(bearer, { year: 1980 }));

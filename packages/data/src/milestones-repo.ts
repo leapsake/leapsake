@@ -9,6 +9,7 @@ import {
   milestoneSchema,
   updateMilestoneInputSchema,
 } from "@leapsake/schema";
+import { deterministicUuid } from "@leapsake/bytes";
 import type { SqliteDriver } from "./driver.js";
 import {
   type EntityRepo,
@@ -40,6 +41,14 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
     bearerId: string,
   ): Promise<void>;
 
+  /** Copy a milestone onto another bearer, under an id derived from both so
+   *  every device mints the same copy; `created` is false if it already was. */
+  copyToBearer(
+    milestone: Milestone,
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<{ id: string; created: boolean }>;
+
   /** Re-point a bearer's milestones onto `toId`. Transaction-free. */
   repointEntity(
     type: MilestoneBearerType,
@@ -47,6 +56,8 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
     toId: string,
   ): Promise<void>;
 }
+
+const MILESTONE_COPY_NAMESPACE = "leapsake:milestone-copy";
 
 /** The milestones repository. */
 export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
@@ -135,6 +146,26 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
           WHERE id = ? AND deleted_at IS NULL`,
         [bearerType, bearerId, now, id],
       );
+    },
+
+    async copyToBearer(milestone, bearerType, bearerId) {
+      const id = deterministicUuid(
+        MILESTONE_COPY_NAMESPACE,
+        `${milestone.id}:${bearerType}:${bearerId}`,
+      );
+      if ((await base.getIncludingDeleted(id)) !== undefined)
+        return { id, created: false };
+      const now = Date.now();
+      await base.insert({
+        ...milestone,
+        id,
+        bearerType,
+        bearerId,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+      return { id, created: true };
     },
 
     async repointEntity(type, fromId, toId) {
