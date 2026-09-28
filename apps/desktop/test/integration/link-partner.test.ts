@@ -280,3 +280,71 @@ describe("core.milestones.linkPartner", () => {
     });
   });
 });
+
+describe("deleting one of a couple", () => {
+  /** George and Mary, married, their anniversary on the marriage. */
+  async function marriedWithAnniversary(newPartner?: string) {
+    const { george, milestone } = await georgesAnniversary();
+    const mary =
+      newPartner === undefined ? await person("Mary", "Hatch") : undefined;
+    await core.milestones.linkPartner({
+      milestoneId: milestone.id,
+      personId: george.id,
+      partner:
+        mary === undefined ? { name: newPartner! } : { personId: mary.id },
+    });
+    const [marriage] = await core.relationships.listForEntity(
+      "person",
+      george.id,
+    );
+    return { george, maryId: marriage.otherId, milestone };
+  }
+
+  it("leaves the anniversary with the one who remains", async () => {
+    const { george, maryId, milestone } = await marriedWithAnniversary();
+
+    await core.people.softDelete(george.id);
+
+    expect(await core.milestones.listForBearer("person", maryId)).toMatchObject(
+      [{ id: milestone.id, kind: "wedding" }],
+    );
+    expect(await promptTitles()).toEqual([
+      expect.stringContaining("Mary Hatch"),
+    ]);
+  });
+
+  it("drops it with a partner who existed only through the marriage", async () => {
+    const { george, maryId } = await marriedWithAnniversary("Mary Hatch");
+
+    await core.people.softDelete(george.id);
+
+    expect(await core.milestones.listForBearer("person", maryId)).toEqual([]);
+    expect(await promptTitles()).toEqual([]);
+  });
+
+  it("drops a milestone the pet left behind cannot hold", async () => {
+    const george = await person("George", "Bailey");
+    const jimmy = await core.pets.create({ name: "Jimmy", gender: null }, []);
+    const rel = await core.relationships.createFromSubject({
+      subjectType: "person",
+      subjectId: george.id,
+      otherType: "pet",
+      otherId: jimmy.id,
+      otherRole: "pet",
+    });
+    await core.milestones.create({
+      kind: "met",
+      bearerType: "relationship",
+      bearerId: rel.id,
+      month: 4,
+      day: 1,
+    });
+
+    await core.people.softDelete(george.id);
+
+    expect(await core.milestones.listForBearer("pet", jimmy.id)).toEqual([]);
+    expect(await core.milestones.listForBearer("relationship", rel.id)).toEqual(
+      [],
+    );
+  });
+});

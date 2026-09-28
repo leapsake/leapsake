@@ -4,6 +4,7 @@ import {
   type Pet,
   entityLabel,
   isPublished,
+  kindAllowsBearer,
 } from "@leapsake/schema";
 import type { ContactMethodsRepo } from "./contact-methods-repo.js";
 import type { DismissalsRepo } from "./dismissals-repo.js";
@@ -102,6 +103,7 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
    *  Transaction-free: callers are already inside one. */
   async function removeFacts(type: EntityType, id: string): Promise<void> {
     await tags.removeAllForEntity(type, id);
+    await handOverSharedMilestones(type, id);
     await relationships.removeAllForEntity(type, id);
     await dismissals.removeAllForEntity(type, id);
     await milestones.removeAllForEntity(type, id);
@@ -110,6 +112,25 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     }
     await observances.removeAllForBearer(type, id);
     await giftRecipients.removeAllForRecipient(type, id);
+  }
+
+  /** Move each milestone on this entity's relationships to the other end, or
+   *  drop it with the relationship where that end cannot hold its kind. */
+  async function handOverSharedMilestones(
+    type: EntityType,
+    id: string,
+  ): Promise<void> {
+    for (const rel of await relationships.listForEntity(type, id)) {
+      const subjectIsA = rel.aType === type && rel.aId === id;
+      const other = subjectIsA
+        ? { type: rel.bType, id: rel.bId }
+        : { type: rel.aType, id: rel.aId };
+      for (const m of await milestones.listForBearer("relationship", rel.id)) {
+        if (kindAllowsBearer(m.kind, other.type))
+          await milestones.moveToBearer(m.id, other.type, other.id);
+        else await milestones.softDelete(m.id);
+      }
+    }
   }
 
   /** The unpublished ends of this entity's explicit relationships. Read before

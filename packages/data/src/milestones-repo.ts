@@ -30,9 +30,15 @@ export interface MilestonesRepo extends EntityRepo<Milestone> {
    *  reminder engine. Never reads `note`. */
   listRemindEligible(): Promise<RemindEligibleMilestone[]>;
 
-  /** Soft-delete a bearer's milestones. Transaction-free. TODO: also cascade
-   *  milestones borne by a relationship the entity was in. */
+  /** Soft-delete a bearer's milestones. Transaction-free. */
   removeAllForEntity(type: MilestoneBearerType, id: string): Promise<void>;
+
+  /** Move one milestone onto another bearer, of any type. Transaction-free. */
+  moveToBearer(
+    id: string,
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<void>;
 
   /** Re-point a bearer's milestones onto `toId`. Transaction-free. */
   repointEntity(
@@ -119,6 +125,17 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         "bearer_type = ? AND bearer_id = ?",
         [type, id],
       ),
+
+    async moveToBearer(id, bearerType, bearerId) {
+      const now = Date.now();
+      // `MAX(?, updated_at + 1)`: see the README's re-point rule.
+      await driver.run(
+        `UPDATE milestones
+            SET bearer_type = ?, bearer_id = ?, updated_at = MAX(?, updated_at + 1)
+          WHERE id = ? AND deleted_at IS NULL`,
+        [bearerType, bearerId, now, id],
+      );
+    },
 
     async repointEntity(type, fromId, toId) {
       const now = Date.now();
