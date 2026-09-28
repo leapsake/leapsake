@@ -23,6 +23,11 @@ import {
 } from "../../lib/search-categories";
 import { colors, radius, styles } from "../../lib/styles";
 
+const TEXT = {
+  matchedOn: "matched on",
+  reasonSeparator: ", ",
+};
+
 /**
  * Shortest query the screen acts on — mirrors the service's own floor so the
  * results clear the instant the term drops below it, rather than waiting for an
@@ -298,10 +303,10 @@ function ResultRow({ hit, term }: { hit: SearchHit; term: string }) {
       </Text>
       {reasons.length > 0 && (
         <Text style={[styles.fieldLabel, { marginTop: 2 }]}>
-          matched on{" "}
+          {TEXT.matchedOn}{" "}
           {reasons.map((r, ri) => (
             <Text key={`${r.facet}:${r.matchedText}`}>
-              {ri > 0 && ", "}
+              {ri > 0 && TEXT.reasonSeparator}
               {r.facet === "tag" && "#"}
               {r.facet === "birthday"
                 ? highlightBirthday(r.matchedText, term)

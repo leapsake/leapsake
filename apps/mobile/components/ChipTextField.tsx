@@ -14,6 +14,11 @@ import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
 import { colors, styles } from "../lib/styles";
 
+const TEXT = {
+  matchedOn: "matched on",
+  reasonSeparator: ", ",
+};
+
 /**
  * A controlled `TextInput` whose `@mentions` and `#tags` read as **chips**, with
  * a typeahead for both — the mobile twin of the web `ChipTextField`. The draft,
@@ -196,10 +201,10 @@ export function ChipTextField({
                 </Text>
                 {reasons.length > 0 && (
                   <Text style={[styles.fieldLabel, { marginTop: 2 }]}>
-                    matched on{" "}
+                    {TEXT.matchedOn}{" "}
                     {reasons.map((r, ri) => (
                       <Text key={`${r.facet}:${r.matchedText}`}>
-                        {ri > 0 ? ", " : ""}
+                        {ri > 0 ? TEXT.reasonSeparator : ""}
                         {r.facet === "tag" ? "#" : ""}
                         {r.matchedText}
                       </Text>

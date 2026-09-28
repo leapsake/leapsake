@@ -6,6 +6,7 @@ import {
 import { useChipDraft } from "../../headless/useChipDraft.js";
 import { useTypeahead } from "../../headless/useTypeahead.js";
 import { Fragment, useLayoutEffect, useRef } from "react";
+import { useMessages } from "../../messages/index.js";
 import { highlightMatch } from "../highlight.js";
 import { Combobox, ComboboxOptionDetail } from "../primitives/Combobox.js";
 import styles from "./ChipTextField.module.css";
@@ -49,6 +50,7 @@ export function ChipTextField({
   rows?: number;
   placeholder?: string;
 }) {
+  const m = useMessages();
   const prose = grammar === "prose";
   const fieldRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLSpanElement>(null);
@@ -161,10 +163,10 @@ export function ChipTextField({
             {highlightMatch(hit.title, activeQuery ?? "")}
             {reasons.length > 0 && (
               <ComboboxOptionDetail>
-                matched on{" "}
+                {m.search.matchedOn}{" "}
                 {reasons.map((r, ri) => (
                   <Fragment key={`${r.facet}:${r.matchedText}`}>
-                    {ri > 0 && ", "}
+                    {ri > 0 && m.search.reasonSeparator}
                     {r.facet === "tag" && "#"}
                     {r.matchedText}
                   </Fragment>
