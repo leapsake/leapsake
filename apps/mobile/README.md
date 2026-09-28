@@ -67,6 +67,26 @@ Against a local relay, the simulators reach the host differently:
 Start the relay with `pnpm --filter @leapsake/server dev` — see
 [`@leapsake/server`](../server/README.md) → _Running_.
 
+### A dated contact on a simulator
+
+To see an anniversary or first date asked about, give the simulator's address book a card
+dated a few weeks out; the app's contact sync brings it in (run the import once on a fresh
+store). The label is `_$!<Anniversary>!$_` for an anniversary, or `First Date`:
+
+```
+BEGIN:VCARD
+VERSION:3.0
+N:Wainwright;Sam;;;
+FN:Sam Wainwright
+item1.X-ABDATE;type=pref:2001-<MM-DD>
+item1.X-ABLABEL:_$!<Anniversary>!$_
+END:VCARD
+```
+
+```sh
+xcrun simctl addmedia booted sam.vcf
+```
+
 ## Cutting a release
 
 > **The bundle ID is `com.leapsake.app`, and it is permanent.** It is chosen when the App Store

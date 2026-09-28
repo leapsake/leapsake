@@ -7,10 +7,7 @@ so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
 **Before adding a flow here**, read [`plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ _What earns a flow here_. The one top-level flow that no runner invokes
-(`anniversary-partner`) fails that rule and
-is being retired: [`ci-and-test-tiers.md`](../../../plans/fable-investigation/ci-and-test-tiers.md)
-step 7.
+→ _What earns a flow here_.
 
 - **`driver-selftest.yaml`** — the Maestro flow: deep-link to the self-test route, wait
   for the async contract run to finish, assert the `driver-selftest-status` element's
