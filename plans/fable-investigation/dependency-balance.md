@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 and 2 landed. 3 through 7 are independent of each other.
+1 through 3 landed. 4 through 7 are independent of each other.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -56,15 +56,8 @@ stored format.
 
 ### 3. Remove `@stylistic/eslint-plugin`; move comment max-len into the local plugin
 
-The plugin is loaded through oxlint's JS-plugin bridge for exactly one rule, `max-len` with
-`code: 1000`, i.e. comments only. `scripts/lint/comment-rules.mjs` already walks every comment
-for `max-comment-lines`, so a `max-comment-width` rule (80 columns, `ignoreUrls`, the
-`oxlint-disable` pattern exempt) belongs beside it.
-
-Do: add the rule and its cases to `scripts/lint/comment-rules.test.mjs`; swap the rule name in
-`.oxlintrc.json` and `scripts/lint/comment-rules.oxlintrc.json`; remove the dependency and let
-the lockfile shrink. Acceptance: `pnpm lint` reports the same findings on the same lines before
-and after; `pnpm test:lint` is green; the package is gone from `pnpm-lock.yaml`.
+**✅ Landed 2026-09-28.** `leapsake/max-comment-width` in `scripts/lint/comment-rules.mjs`;
+`comment-rules.test.mjs` → _max-comment-width_ holds it up.
 
 ### 4. `apps/website`: use Astro's zod, drop the direct dependency
 

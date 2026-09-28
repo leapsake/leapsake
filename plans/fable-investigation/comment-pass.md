@@ -18,28 +18,28 @@ remain:
 **Step 6: `apps/mobile`, about 5,600 comment lines.** One override entry per directory, in this
 order:
 
-| Directory | Comment lines | Start with |
-| --- | ---: | --- |
-| `apps/mobile/lib` | 1,723 | `core-context.tsx` (490 of its 1,401 lines), then `styles.ts`, `record-title.ts`, `device-contacts.ts` |
-| `apps/mobile/db` + `apps/mobile/keystore` | 230 | `convert-store.ts` (125): see _Mobile specifics_ |
-| `apps/mobile/app` | 1,493 | `reminders/[id]/index.tsx`, `(tabs)/index.tsx`, `(tabs)/_layout.tsx`, `(tabs)/search.tsx`, `data.tsx` |
-| `apps/mobile/components` | 1,876 | `AppHeader.tsx`, then by size |
-| `apps/mobile/plugins`, `index.ts`, `app.config.ts` | 287 | anything |
+| Directory                                          | Comment lines | Start with                                                                                             |
+| -------------------------------------------------- | ------------: | ------------------------------------------------------------------------------------------------------ |
+| `apps/mobile/lib`                                  |         1,723 | `core-context.tsx` (490 of its 1,401 lines), then `styles.ts`, `record-title.ts`, `device-contacts.ts` |
+| `apps/mobile/db` + `apps/mobile/keystore`          |           230 | `convert-store.ts` (125): see _Mobile specifics_                                                       |
+| `apps/mobile/app`                                  |         1,493 | `reminders/[id]/index.tsx`, `(tabs)/index.tsx`, `(tabs)/_layout.tsx`, `(tabs)/search.tsx`, `data.tsx`  |
+| `apps/mobile/components`                           |         1,876 | `AppHeader.tsx`, then by size                                                                          |
+| `apps/mobile/plugins`, `index.ts`, `app.config.ts` |           287 | anything                                                                                               |
 
 **Step 7: everything else, by directory, `scripts/` last.** Comment lines by directory, with
 lint findings in brackets:
 
-| Directory | Lines | | Directory | Lines |
-| --- | ---: | --- | --- | ---: |
-| `packages/ui` | 1,276 (300) | | `packages/notifications` | 247 (28) |
-| `packages/vcard` | 1,222 (332) | | `packages/contact-links` | 208 (38) |
-| `packages/holidays` | 750 (156) | | `packages/store-layout` | 142 (49) |
-| `packages/sync` | 715 (227) | | `packages/contact-import` | 134 (26) |
-| `apps/server` | 429 (178) | | `apps/website` | 102 (52) |
-| `packages/view-models` | 390 (92) | | `packages/gifts` | 80 (17) |
-| `packages/export` | 352 (63) | | `packages/bytes` | 64 (18) |
-| `packages/crypto` | 322 (123) | | `packages/highlight` | 60 (13) |
-| `scripts` | 2,440 (1,579) | | | |
+| Directory              |         Lines |     | Directory                 |    Lines |
+| ---------------------- | ------------: | --- | ------------------------- | -------: |
+| `packages/ui`          |   1,276 (300) |     | `packages/notifications`  | 247 (28) |
+| `packages/vcard`       |   1,222 (332) |     | `packages/contact-links`  | 208 (38) |
+| `packages/holidays`    |     750 (156) |     | `packages/store-layout`   | 142 (49) |
+| `packages/sync`        |     715 (227) |     | `packages/contact-import` | 134 (26) |
+| `apps/server`          |     429 (178) |     | `apps/website`            | 102 (52) |
+| `packages/view-models` |      390 (92) |     | `packages/gifts`          |  80 (17) |
+| `packages/export`      |      352 (63) |     | `packages/bytes`          |  64 (18) |
+| `packages/crypto`      |     322 (123) |     | `packages/highlight`      |  60 (13) |
+| `scripts`              | 2,440 (1,579) |     |                           |          |
 
 Measured 2026-09-18 over non-test `.ts`/`.tsx`/`.mjs`/`.js`. A comment line is one starting
 with `//`, `*` or `/*`. When step 7 lands, the rules move to the top level of `.oxlintrc.json`
@@ -120,7 +120,7 @@ directories in the override:
 - **`leapsake/no-decision-comments`**: an ISO date, `§`, a `plans/` path, `(owner,`,
   `slice N`. `used to`, `no longer` and `migration N` stay a reviewer's call, because they are
   just as often behaviour.
-- **`@stylistic/max-len`**: comments only, at 80 columns. Code width is oxfmt's job.
+- **`leapsake/max-comment-width`**: comments only, at 80 columns. Code width is oxfmt's job.
 
 Test files (`**/*.test.*`) are exempt. A rare long comment can carry
 `// oxlint-disable-next-line leapsake/max-comment-lines -- <why>`, visible to grep and to review.
