@@ -9,20 +9,8 @@ import type {
 import type { ExportContact, ParsedDate, ParsedRelated } from "@leapsake/vcard";
 import { fullName, isPublished, kindDefs } from "@leapsake/schema";
 
-/**
- * Leapsake rows as the vCard writer's {@link ExportContact}.
- *
- * This is the mirror of the `ImportPorts` implementation in `@leapsake/core` —
- * that one takes a `ParsedContact` apart into rows, this one puts rows back into
- * the same shape — and the two being the same type is what makes the exported
- * file re-readable at all.
- *
- * A person and a pet share every mapper below deliberately. A pet's card is not
- * a lesser card: it carries the same milestones and the same relationships in
- * the same spelling, and factoring {@link toDates} and {@link toRelated} out is
- * what stops the two drifting into disagreeing about how a date or an edge is
- * written.
- */
+// Leapsake rows as the vCard writer's {@link ExportContact}, the inverse of
+// import. People and pets share every mapper, so the two can't drift.
 
 /** One person's rows as a card. */
 export function toExportContact(input: {
@@ -36,10 +24,7 @@ export function toExportContact(input: {
 }): ExportContact {
   const { person, methods, milestones, tags } = input;
 
-  // The birthday is a milestone like any other in storage, but `BDAY` is a
-  // property of its own in vCard, so it is lifted out here. First wins: the
-  // schema does not forbid two, and writing two `BDAY`s would leave which one
-  // survives up to whichever importer read the file.
+  // The first birthday becomes `BDAY`; any other goes out as a dated entry.
   const birthday = milestones.find((m) => m.kind === "birthday");
 
   return {
@@ -49,18 +34,12 @@ export function toExportContact(input: {
     createdAt: person.createdAt,
     updatedAt: person.updatedAt,
     name: {
-      // The Person schema spells absent as `null`; `ParsedName` spells it as the
-      // empty string, because that is what a source file's own blank field
-      // yields. `nameInputFrom` is the inverse of these three lines.
+      // `ParsedName` spells absent as `""`; `nameInputFrom` is the inverse.
       firstName: person.firstName ?? "",
       middleName: person.middleName,
       lastName: person.lastName ?? "",
     },
-    // The same formatter every client labels a person with, so the `FN` in the
-    // file reads exactly as the app does rather than being composed a second way.
-    // It cannot be empty for a valid Person (the schema demands a name part), but
-    // `|| null` says so rather than trusting it — an empty `FN` is a card our own
-    // parser turns away.
+    // The app's own name formatter; an empty `FN` would be refused on import.
     displayName: fullName(person) || null,
     gender: person.gender,
     emails: methods.flatMap((m) =>
@@ -116,24 +95,12 @@ export function toExportContact(input: {
     dates: toDates(milestones, input.relationshipMilestones, birthday?.id),
     related: toRelated(input.neighbors),
     tags: tags.map((t) => t.name),
-    // Nothing is "dropped" on the way *out*: the field exists so the import
-    // review can show a user what a foreign card carried and we could not store.
+    // Only an import drops anything.
     dropped: [],
   };
 }
 
-/**
- * One pet's rows as a card.
- *
- * `petSchema` is only `name` + `gender` + `standing`, so there is nothing to
- * carry beyond the identity, the tags and the graph. The single `name` goes in
- * the first-name slot with the surname left empty — the mononym shape the parser
- * and `personSchema` both already accept, since a Person needs *some* name
- * rather than a first and a last one.
- *
- * A pet has no contact methods by construction: a contact method's owner is a
- * person or a household, so there is no parameter for them here to be forgotten.
- */
+/** One pet's rows as a card, its name in the first-name slot. */
 export function toPetContact(input: {
   pet: Pet;
   milestones: readonly Milestone[];
@@ -168,26 +135,13 @@ export function toPetContact(input: {
   };
 }
 
-/**
- * Every dated milestone that is not the card's `BDAY`, as `X-ABDATE` entries.
- *
- * `birthdayId` is the one already lifted into `birthday`; excluding it by **id**
- * rather than by kind is what lets a second birthday-kind milestone still be
- * carried, instead of a store that somehow holds two silently exporting one.
- *
- * A milestone with no date at all is skipped: `X-ABDATE` with an empty value is
- * a line saying nothing, and the writer would drop it anyway.
- *
- * `label` is what a human reads in Contacts, and for kind `other` that is the
- * **note** — "Beach house closing", not the word "Other". The kind survives
- * regardless, because the writer carries it in a parameter of its own.
- */
-/** Whether a milestone says any part of a date. One with none is skipped: an
- *  `X-ABDATE` with an empty value is a line saying nothing. */
+/** Whether a milestone says any part of a date. */
 function dated(m: Milestone): boolean {
   return m.year !== null || m.month !== null || m.day !== null;
 }
 
+/** Every dated milestone but the `BDAY`, excluded by id so a second birthday
+ *  still goes out; an `other`'s label is its note. */
 function toDates(
   own: readonly Milestone[],
   relationship: readonly Milestone[],
@@ -201,26 +155,13 @@ function toDates(
       date: { year: m.year, month: m.month, day: m.day },
       note: m.note,
       id: m.id,
-      // The bearer is the fact that decides this: a milestone borne by the
-      // relationship gets written on both partners' cards, and this is what
-      // says so.
+      // A relationship's milestone is written on both partners' cards.
       relationshipId: m.bearerType === "relationship" ? m.bearerId : null,
     }));
 }
 
-/**
- * An entity's explicit edges as `RELATED`.
- *
- * The two forms differ by whether the other end has a card in this file. A
- * published person or pet does, so the edge points at their `UID`; an
- * unpublished one does not — they exist only as a fact about this entity — so
- * the edge *names* them, which is exactly what the store holds. Their gender is
- * not carried, an accepted loss:
- * `RelationshipNeighbor` does not resolve it, so nothing here is tempted to.
- *
- * `roleNote` rides only an `other` role, which is the same rule
- * `createRelationshipInputSchema` enforces on the way in.
- */
+/** An entity's explicit edges as `RELATED`: by `UID` to a published end, by
+ *  name to an unpublished one, whose gender is not carried. */
 function toRelated(
   neighbors: readonly RelationshipNeighbor[],
 ): ParsedRelated[] {

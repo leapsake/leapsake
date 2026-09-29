@@ -18,88 +18,34 @@ import {
 import { z } from "zod";
 import type { ExportPorts } from "./ports.js";
 
-/**
- * `data.json` — everything the `.vcf` cannot hold.
- *
- * A vCard is a person. Reminders, gift ideas, the user's holiday choices, the
- * duplicate judgments they made and their notification preferences belong to no
- * single card, and appending them as fabricated `KIND:x-leapsake-*` records
- * would make Apple Contacts import somebody's reminders as human beings. So
- * they go in a companion file inside the same archive, which **duplicates
- * nothing** in the `.vcf`: no fact is written twice across the two.
- *
- * The format is the rows as `@leapsake/schema` spells them, with four
- * deliberate departures, each marked below: tags travel as names, holidays
- * travel by slug, catalog holidays do not travel at all, and a device's OS facts
- * do not travel.
- */
+// `data.json`: everything the `.vcf` cannot hold, as schema rows with four
+// departures; see the README's _`data.json`_.
 
-/**
- * The version stamped into the file, and the thing a future restore path reads
- * first.
- *
- * It shipped from the first commit, while the file still held nothing else,
- * because the first release already put it on users' disks: adding fields to an
- * identified file later is ordinary, retrofitting a version onto one already in
- * the wild is not. Filling the file did **not** bump it — every table below is
- * its own optional key, so a file written by an older app still parses, and the
- * version is reserved for a change of *shape*.
- */
+/** The file's version, read first by a restore; bumped only for a change of
+ *  shape, since every table is an optional key. */
 export const DATA_VERSION = 1;
 
-/**
- * A tag on a reminder or a gift idea, carried **by name**.
- *
- * People and pets carry theirs as `CATEGORIES` in the `.vcf`; these two bearers
- * have no card, so without this a tag the user put on a reminder would vanish
- * from their backup silently. Names rather than ids for the same reason
- * `CATEGORIES` uses them: they are what a human reads, and a restore re-creates
- * them through the `tags.setEntityTags(type, id, names)` the app already writes
- * every tag with — so the file never has to carry the `tags`/`taggings` tables
- * and their ids.
- *
- * `.and()` rather than `.extend()` because `reminderSchema` is `.refine()`d
- * (title-or-body), and the intersection keeps that check.
- */
+/** A reminder's or gift idea's tags, by name. Joined with `.and()`, since
+ *  `.extend()` would drop `reminderSchema`'s refinement. */
 const tagged = z.object({ tags: z.array(z.string()) });
 
 export const exportReminderSchema = reminderSchema.and(tagged);
 export const exportGiftIdeaSchema = giftIdeaSchema.and(tagged);
 
-/**
- * A holiday reference the file can resolve on its own.
- *
- * The row's `holidayId` is `deterministicUuid(HOLIDAY_NAMESPACE, slug)`, so the
- * two agree by construction — but only the slug is *legible*, and it is the key
- * `ux_holidays_slug_active` makes stable. Null where the holiday row itself is
- * gone: honest, rather than dropping the observance and losing the user's
- * answer with it.
- */
+/** A holiday by its legible slug, or null where the holiday row is gone. */
 const holidayRef = z.object({ holidaySlug: z.string().nullable() });
 
 export const exportObservanceSchema = observanceSchema.and(holidayRef);
 export const exportHiddenHolidaySchema = hiddenHolidaySchema.and(holidayRef);
 
-/**
- * Notification **preferences**, without the two columns that are facts about one
- * phone rather than choices: `permissionState` (what that OS last answered) and
- * `platform`. Restoring "notifications allowed" onto a new device would be a
- * lie the app then acts on. `label` stays — the user typed it.
- *
- * `.omit()` also does the stripping: a Zod object drops unknown keys, so
- * parsing a full row through this schema is how a row becomes an exported one.
- */
+/** Notification preferences without one phone's OS facts; parsing a row
+ *  through it strips them. */
 export const exportNotificationSettingsSchema = notificationSettingsSchema.omit(
   { platform: true, permissionState: true },
 );
 
-/**
- * What {@link DATA_VERSION} identifies. Every table is its **own optional key**,
- * which is what lets a file written by an older app parse against a newer
- * schema — the reader decides what an absent table means, and the version is
- * left for a change of shape. The writer always emits every key, empty arrays
- * included, so the file reads as a full inventory.
- */
+/** What {@link DATA_VERSION} identifies: every table an optional key, though
+ *  the writer emits them all. */
 export const exportDataSchema = z.object({
   version: z.literal(DATA_VERSION),
   reminders: z.array(exportReminderSchema).optional(),
@@ -107,7 +53,7 @@ export const exportDataSchema = z.object({
   reminderRules: z.array(reminderRuleSchema).optional(),
   giftIdeas: z.array(exportGiftIdeaSchema).optional(),
   giftRecipients: z.array(giftRecipientSchema).optional(),
-  /** User-authored holidays only — the catalog reseeds itself. */
+  /** User-authored holidays only; the catalog reseeds itself. */
   holidays: z.array(holidaySchema).optional(),
   observances: z.array(exportObservanceSchema).optional(),
   hiddenHolidays: z.array(exportHiddenHolidaySchema).optional(),
@@ -118,19 +64,8 @@ export const exportDataSchema = z.object({
 
 export type ExportData = z.infer<typeof exportDataSchema>;
 
-/**
- * Read the ten tables and shape them into {@link exportDataSchema}.
- *
- * `rows` is what the caller reports as `counts.otherRecords` — without it,
- * filling this file changes nothing a user can see after tapping Export, and
- * the on-device harness has no way to tell an archive that carries their
- * reminders from one that does not.
- *
- * **Nothing here may read a clock or iterate a `Set`/`Map` into the output.**
- * The archive is asserted reproducible byte-for-byte for a fixed instant, so
- * every array must come out in the order its read gave it (`listActive` orders
- * by `created_at`; the entity repos by their own `orderBy`).
- */
+/** Reads the ten tables into {@link exportDataSchema}. ⚠️ Never read a clock
+ *  or iterate a `Set` or `Map` into the output: it must reproduce. */
 export async function buildExportData(
   ports: ExportPorts,
 ): Promise<{ data: ExportData; rows: number }> {
@@ -163,9 +98,7 @@ export async function buildExportData(
     d.listNotificationSettings(),
   ]);
 
-  // One read of the holiday table answers both questions it is needed for:
-  // which rows the user authored, and what slug each id stands for. The map is
-  // a lookup only — nothing iterates it into the file.
+  // A lookup only; nothing iterates it into the file.
   const slugs = new Map(holidays.map((holiday) => [holiday.id, holiday.slug]));
   const slugOf = (holidayId: string): string | null =>
     slugs.get(holidayId) ?? null;

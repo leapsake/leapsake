@@ -5,20 +5,8 @@ import { toExportContact, toPetContact } from "./contact.js";
 import { buildExportData } from "./data.js";
 import type { ExportPorts } from "./ports.js";
 
-/**
- * The export archive: one `.zip` holding the user's data, built entirely in
- * memory and handed to the caller as bytes.
- *
- * **One artifact, not two**, because the situation this file exists for is a user
- * finding it two years later — one share action and one thing to keep track of
- * beats a `.vcf` and a `.json` that must stay together to mean anything.
- * `expo-sharing` also shares one file at a time, so the alternative was two
- * buttons.
- *
- * The accepted cost is that a `.zip` cannot be handed straight to Contacts.app —
- * the user unzips first. {@link README_NAME} is what keeps that from being
- * confusing, and is the reason it is not filler.
- */
+// The export archive: one `.zip`, built in memory; see the README's _The
+// archive_.
 
 export const VCF_NAME = "contacts.vcf";
 export const DATA_NAME = "data.json";
@@ -29,21 +17,12 @@ export interface ExportArchive {
   /** The `.zip`, ready for `File.write()`. */
   bytes: Uint8Array;
   filename: string;
-  /** For the "exported N people (M KB)" the caller shows, and for the E2E assertion. */
+  /** For the “exported N people” line the caller shows. */
   counts: {
     people: number;
     pets: number;
     contactMethods: number;
-    /**
-     * Every row in {@link DATA_NAME} — reminders, gift ideas, holiday choices,
-     * duplicate judgments, notification preferences — as one number.
-     *
-     * One rather than ten because it has a reader: the line the app shows after
-     * a share. Without it, the half of the archive that is not contacts is
-     * invisible from outside the zip, and neither the user nor the on-device
-     * harness can tell a backup that carries their reminders from one that
-     * silently does not.
-     */
+    /** Every row in {@link DATA_NAME}, as one number the app shows. */
     otherRecords: number;
     bytes: number;
   };
@@ -52,33 +31,12 @@ export interface ExportArchive {
 export interface BuildOptions {
   /** Stamped into `PRODID` and {@link README_NAME}. */
   appVersion: string;
-  /**
-   * The moment this export was taken — **injected, never read from the clock**,
-   * so the package stays pure and its tests can assert the filename.
-   */
+  /** When this export was taken; injected, never read from the clock. */
   now: Date;
 }
 
-/**
- * Gather the whole published graph, serialize it, and zip the result with a
- * README and the versioned companion data file.
- *
- * **A graph walk, not a list.** Increment 1 could visit each person alone;
- * carrying relationships cannot, because an edge is a fact about two entities
- * and lands on both their cards. Two things follow:
- *
- * - Unpublished people and pets are reached only through somebody else's
- *   `neighborsFor`. They never get a card, which is what their standing means:
- *   they exist as a fact about the one entity they hang off.
- * - A milestone borne by a *relationship* is read once per relationship and
- *   written on both partners' cards, carrying the same id. {@link relMilestones}
- *   memoises the read, so an edge visited from both ends costs one query.
- *
- * Deflate rather than store: vCard is extremely compressible text, and a large
- * address book is the case that matters. `zipSync` is fine at these sizes — the
- * whole archive is built in memory, which is also what lets the caller write it
- * once and delete it immediately.
- */
+/** Walks the published graph and zips its cards with a README and the data
+ *  file; see the README's _The graph walk_. */
 export async function buildArchive(
   ports: ExportPorts,
   opts: BuildOptions,
@@ -99,9 +57,7 @@ export async function buildArchive(
     milestones: Milestone[];
   }> => {
     const all = await ports.neighborsFor(type, id);
-    // Derived edges are computed live and have no stored row — the port's own
-    // contract excludes them, and filtering here as well means a fake or a
-    // future implementation that forgets cannot leak an inference into the file.
+    // The port already excludes derived edges; this stops one that forgets.
     const neighbors = all.filter((n) => n.origin === "explicit");
     const milestones = await Promise.all(
       neighbors.map((n) => {
@@ -170,9 +126,7 @@ export async function buildArchive(
         readmeText(opts, people.length, pets.length),
       ),
     },
-    // The injected instant, not the clock: with it the archive is reproducible
-    // byte-for-byte, so two exports of an unchanged store are the same file
-    // rather than two files that merely say the same thing.
+    // The injected instant, so an unchanged store exports the same bytes.
     { level: 6, mtime: opts.now },
   );
 
@@ -189,18 +143,12 @@ export async function buildArchive(
   };
 }
 
-/** `2026-09-07` in UTC — a filename, so it must not vary with the reader's zone. */
+/** The UTC day as `YYYY-MM-DD`: a filename must not vary with the zone. */
 function isoDay(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
-/**
- * The only part of the archive that explains itself to somebody opening it long
- * after the fact — which is the whole situation the file exists for. It names
- * both files, says which one any contacts app will take and which one needs
- * Leapsake, and stamps the version that wrote it, so a future restore path has
- * something to read even if the `.json` turns out to be unreadable.
- */
+/** The README that explains the archive to whoever opens it years later. */
 function readmeText(opts: BuildOptions, people: number, pets: number): string {
   const held =
     pets === 0
