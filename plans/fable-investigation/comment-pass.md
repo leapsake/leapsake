@@ -21,7 +21,7 @@ lint findings in brackets:
 | Directory                 |         Lines |
 | ------------------------- | ------------: |
 
-| `packages/holidays`       |     750 (156) |
+
 | `packages/sync`           |     715 (227) |
 | `packages/view-models`    |      390 (92) |
 | `packages/export`         |      352 (63) |
