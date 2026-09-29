@@ -11,6 +11,9 @@
     // floor is enforced in `tsconfig.packages.json` (`lib: ES2022`), which makes the
     // unsupported call a typecheck error; this rule would push code toward it.
     "unicorn/no-array-sort": "off",
+    "leapsake/max-comment-lines": "error",
+    "leapsake/no-decision-comments": "error",
+    "leapsake/max-comment-width": "error",
     "no-restricted-imports": [
       "error",
       {
@@ -25,48 +28,7 @@
   },
   "overrides": [
     {
-      // The comment rules, on only where the code already meets them.
-      "files": [
-        "packages/schema/src/**",
-        "packages/reminders/src/**",
-        "packages/key-custody/src/**",
-        "packages/data/src/**",
-        "packages/core/src/**",
-        "apps/desktop/src/**",
-        "apps/mobile/lib/**",
-        "apps/mobile/db/**",
-        "apps/mobile/keystore/**",
-        "apps/mobile/app/**",
-        "apps/mobile/components/**",
-        "apps/mobile/plugins/**",
-        "apps/mobile/index.ts",
-        "apps/mobile/app.config.ts",
-        "packages/ui/**",
-        "packages/vcard/**",
-        "packages/holidays/**",
-        "packages/sync/**",
-        "packages/view-models/**",
-        "packages/export/**",
-        "packages/crypto/**",
-        "packages/notifications/**",
-        "packages/contact-links/**",
-        "packages/store-layout/**",
-        "packages/contact-import/**",
-        "packages/gifts/**",
-        "packages/bytes/**",
-        "packages/highlight/**",
-        "apps/server/**",
-        "apps/website/**",
-        "scripts/**"
-      ],
-      "rules": {
-        "leapsake/max-comment-lines": "error",
-        "leapsake/no-decision-comments": "error",
-        "leapsake/max-comment-width": "error"
-      }
-    },
-    {
-      "files": ["**/*.test.*"],
+      "files": ["**/*.test.*", "apps/mobile/test/**"],
       "rules": {
         "leapsake/max-comment-lines": "off",
         "leapsake/no-decision-comments": "off",

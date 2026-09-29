@@ -29,7 +29,8 @@ check, not a paragraph here.
   not enough, a comment of at most two lines saying what the code does that the name cannot. A
   longer comment is a discussion to have before writing it, not a default. Why a thing was
   decided, what it replaced, when, and by whom belongs in the commit message and, if it is
-  durable, in the package `README.md`. Never in source, and never in `plans/`.
+  durable, in the package `README.md`. Never in source, and never in `plans/`. Enforced
+  outside tests by `scripts/lint/comment-rules.mjs` under `pnpm lint`.
 - **Test the thing as a black box.** Assert what the consumer sees, not the implementation.
 - **Use the right quotation marks** in anything a person reads — “Father’s Day”, not
   "Father's Day". Enforced for the message catalog by `scripts/typography.test.mjs`.

@@ -16,11 +16,10 @@ ports).
 
 | #   | Doc                                                | What it removes or simplifies                                                                                                                                                                                                                              | Owner's call                                                                                                                                                                                                                                                                                     |
 | --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | [`comment-pass.md`](./comment-pass.md)             | Decision history living in source comments. What remains: the other packages, apps and `scripts/`.                                                                                                         | **Do it, and adopt the rule.** Behaviour comments only, under two lines; decisions go to `git log` and package READMEs.                                                                                                                                                                          |
 | 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)   | E2E flows proving what a lower tier should: door negatives, form state, query behaviour, navigation config. Steps 1–3, 4a, 4b, 5, 6 and 6a landed (the arc is three flows; Forget account is proven in Vitest); 7 landed, retiring all four one-off flows. | **Do it.** Admission rule in `testing/crucial-flows.md`; step 4 decided 2026-09-24 (release build, iOS then Android); 4a, 4b, 5, 6, 6a, 7a, 7b and 7d landed 2026-09-24; 7c 2026-09-28.                                                                                                          |
 | 4   | [`remote-releases.md`](./remote-releases.md)       | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels.                                                                                 | **Built.** Workflows and scripts landed 2026-09-27; left: the owner's go/no-go on hosted runners, the secrets, and a first real run.                                                                                                                                                             |
 
-3 can run in parallel with 1. The repo is public, so 4 has no gate left outside itself.
+The repo is public, so 4 has no gate left outside itself.
 
 ### Where 3 and 4 pull on each other
 
@@ -55,7 +54,7 @@ three Android jobs clean, and one more clean run confirms it.
   pnpm exec vitest run     # after restoring the Node SQLite ABI; AGENTS.md → *The native SQLite ABI*
   ```
   On a developer machine, plain `pnpm test`.
-- **The comment rule applies to all code these workstreams touch** (`AGENTS.md` → _Principles_).
-  Do not move a decision-history comment; delete it.
+- **The comment rule applies to all code these workstreams touch** (`AGENTS.md` → _Principles_),
+  and `pnpm lint` enforces it. Do not move a decision-history comment; delete it.
 - **Do not add to `plans/`.** When a workstream finishes, delete its doc and this README's row.
   When the last row goes, delete the directory and the row in `plans/README.md` that points here.
