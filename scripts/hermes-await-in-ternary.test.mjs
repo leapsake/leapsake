@@ -1,4 +1,5 @@
 // More than one `await` in one branch of a ternary — a shape Hermes miscompiles.
+// Still miscompiled on Expo SDK 56.0.11 / React Native 0.85.3 (iOS dev client).
 //
 // **What goes wrong.** Hermes throws the branch's value away and returns a leftover
 // register in its place — a plain number in every instance measured. That is worse
