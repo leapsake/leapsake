@@ -29,6 +29,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseReleaseArgs } from "./args.mjs";
 import { runChecks } from "./checks.mjs";
 import {
   createTag,
@@ -83,47 +84,6 @@ const COMMANDS = [
   "ship",
   "materialize",
 ];
-const VALUE_FLAGS = new Set([
-  "tag",
-  "only",
-  "commit",
-  "build-number",
-  "out",
-  "from",
-  "receipts-out",
-  "platforms",
-  "into",
-  "env-out",
-  "outputs",
-]);
-
-function parseArgs(argv) {
-  const positional = [];
-  const flags = new Set();
-  const values = {};
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) {
-      positional.push(arg);
-      continue;
-    }
-    const equals = arg.indexOf("=");
-    if (equals !== -1) {
-      values[arg.slice(2, equals)] = arg.slice(equals + 1);
-      continue;
-    }
-    const name = arg.slice(2);
-    const next = argv[i + 1];
-    if (VALUE_FLAGS.has(name) && next && !next.startsWith("--")) {
-      values[name] = next;
-      i++;
-    } else {
-      flags.add(name);
-    }
-  }
-  return { positional, flags, values };
-}
-
 const fail = (message) => {
   console.error(`✗ ${message}`);
   process.exit(2);
@@ -671,7 +631,12 @@ const HANDLERS = {
 };
 
 async function main() {
-  const opts = parseArgs(process.argv.slice(2));
+  let opts;
+  try {
+    opts = parseReleaseArgs(process.argv.slice(2));
+  } catch (error) {
+    fail(error.message);
+  }
   const [command, ...extra] = opts.positional;
   if (opts.flags.has("help")) {
     printHelp();
