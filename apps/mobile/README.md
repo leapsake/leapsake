@@ -61,6 +61,24 @@ the plugin on iOS — rather than to switch backup off wholesale. It is wholesal
 exclusion rule **fails open**: a renamed slot or a new plaintext artifact silently stops matching,
 and nothing goes red. Off fails closed.
 
+## A reminder row is a link; its detail screen acts
+
+- **A Home row is a link and nothing else**, so nothing on the list can complete, delete or
+  silence a reminder by mistap. Every action is on the reminder's detail screen, completion
+  included, as a full-width button among the offers rather than a checkbox _(owner,
+  2026-09-13)_.
+- **The sections you open are buttons; the ones that name a group are headings** _(owner,
+  2026-09-13)_. _Next 7 days_ and _Later_ start closed and wear the quiet secondary button, with
+  the count inside the label; Belated, Today and Completed are headings over rows. A tappable
+  heading gives no sign that it opens anything.
+- **A `🗓 plan` prompt is answered on its detail screen**, inline. Its offers arrive with the wish
+  already ticked, so Save untouched is "just the day". Save writes the milestone's whole rule set,
+  disabled rows included, because rows existing is what tells "asked, and chose nothing" from
+  "never asked".
+- **Only an errand can be completed.** A prompt retires by being answered, and a first-run nudge
+  when its condition is met. Completing a nudge would leave it in Completed with the condition
+  still unmet, so the control is withheld rather than the write refused.
+
 ## Keeping People in step with the phone's contacts
 
 Importing from the phone once switches on a sync (`lib/device-contacts-sync.ts`), which then
