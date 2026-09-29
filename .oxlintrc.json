@@ -55,7 +55,8 @@
         "packages/gifts/**",
         "packages/bytes/**",
         "packages/highlight/**",
-        "apps/server/**"
+        "apps/server/**",
+        "apps/website/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
