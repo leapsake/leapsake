@@ -32,7 +32,7 @@ lint findings in brackets:
 
 
 
-| `packages/highlight`      |       60 (13) |
+
 | `apps/server`             |     429 (178) |
 | `apps/website`            |      102 (52) |
 | `scripts`                 | 2,440 (1,579) |
