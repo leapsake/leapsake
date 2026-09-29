@@ -37,7 +37,10 @@
         "apps/mobile/db/**",
         "apps/mobile/keystore/**",
         "apps/mobile/app/**",
-        "apps/mobile/components/**"
+        "apps/mobile/components/**",
+        "apps/mobile/plugins/**",
+        "apps/mobile/index.ts",
+        "apps/mobile/app.config.ts"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

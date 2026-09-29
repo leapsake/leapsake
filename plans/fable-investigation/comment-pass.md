@@ -12,15 +12,8 @@ and belongs to the commit that made it.
 ## Where the pass stands
 
 The `files` list of the comment-rules override in `.oxlintrc.json` is the only record of which
-directories are finished and enforced. Anything not listed there is still to do. Two steps
-remain:
-
-**Step 6: `apps/mobile`, about 290 comment lines left.** One override entry per directory, in this
-order:
-
-| Directory                                          | Comment lines | Start with                                                                                             |
-| -------------------------------------------------- | ------------: | ------------------------------------------------------------------------------------------------------ |
-| `apps/mobile/plugins`, `index.ts`, `app.config.ts` |           287 | anything                                                                                               |
+directories are finished and enforced. Anything not listed there is still to do. One step
+remains:
 
 **Step 7: everything else, by directory, `scripts/` last.** Comment lines by directory, with
 lint findings in brackets:
@@ -124,7 +117,7 @@ Test files (`**/*.test.*`) are exempt. A rare long comment can carry
 ## Conventions and traps
 
 - **Split a big file by section.** Aim for about 300 deleted lines per commit, and name the
-  section's symbols in the commit subject. `core-context.tsx` will take two or three.
+  section's symbols in the commit subject.
 - **An invariant moves before its comment goes.** A ⚠️ warning that still holds and has no README
   home goes into the owning README as a bullet under _Invariants a change here must preserve_
   (`packages/key-custody/README.md` and `apps/desktop/README.md` have one;
@@ -144,23 +137,12 @@ Test files (`**/*.test.*`) are exempt. A rare long comment can carry
   so editing it reports `CODE CHANGED`. And a file-level doc comment followed by a blank line
   belongs to no declaration: when you cut one, delete it or reattach it, never leave a floating
   `/** */`.
+- **`apps/mobile/test/` has not been through the pass.** Its self-tests are not named
+  `*.test.*`, which is why the override lists mobile's directories one by one. When the rules
+  move to the top level, exempt it or bring it in line first.
 - **Text replacement by line number is risky.** A `sed '<n>s|…|'` after an edit that shifted the
   lines overwrites the wrong line; `comments-only.mjs` will not notice a comment replaced by
   another comment. Match on the text instead.
-
-## Mobile specifics
-
-- **`apps/mobile/db/convert-store.ts` becomes a pointer.** Its load-bearing list (the cipher
-  pragma, `user_version`, table order, the source and destination guards) is already written
-  out in `packages/key-custody/README.md` → _Before you change the conversion_. Keep only what
-  is mobile-specific, such as expo-sqlite creating the per-account directory when it opens a
-  database by name, which is why this file has no `mkdirSync`.
-- **`apps/mobile/test/` is out of scope.** Its self-tests are not named `*.test.*`, so do not put
-  `apps/mobile/**` in the override; list the directories above one by one.
-- **Much of `core-context.tsx` mirrors desktop's boot path.** The reasoning desktop's comments
-  held now lives in `apps/desktop/README.md` (_Swapping the store in place_, _Invariants a
-  change here must preserve_) and `packages/key-custody/README.md`. Where mobile shares it,
-  point there instead of adding a mobile copy; `apps/mobile/README.md` holds only what differs.
 
 ## Known stale docs to fix on the way
 
