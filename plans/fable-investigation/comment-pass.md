@@ -20,7 +20,7 @@ lint findings in brackets:
 
 | Directory                 |         Lines |
 | ------------------------- | ------------: |
-| `packages/vcard`          |   1,222 (332) |
+
 | `packages/holidays`       |     750 (156) |
 | `packages/sync`           |     715 (227) |
 | `packages/view-models`    |      390 (92) |

@@ -41,7 +41,8 @@
         "apps/mobile/plugins/**",
         "apps/mobile/index.ts",
         "apps/mobile/app.config.ts",
-        "packages/ui/**"
+        "packages/ui/**",
+        "packages/vcard/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
