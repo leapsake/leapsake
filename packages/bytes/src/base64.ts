@@ -10,7 +10,7 @@ export function base64ToBytes(text: string): Uint8Array {
   return base64.decode(text);
 }
 
-/** Encode bytes as lowercase hex, which is safe as an `expo-secure-store` key. */
+/** Encodes bytes as lowercase hex, safe as an `expo-secure-store` key. */
 export function bytesToHex(bytes: Uint8Array): string {
   return hex.encode(bytes);
 }

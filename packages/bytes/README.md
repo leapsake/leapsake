@@ -24,7 +24,9 @@ codec swap cannot change a stored format unnoticed.
 - `deterministicUuid(namespace, name)` — a stable v5-shaped UUID from
   `sha256(namespace ‖ ":" ‖ name)`, so two devices that independently mint "the
   same" content-addressed row produce the same `id` and the existing whole-row LWW
-  merge collapses them.
+  merge collapses them. It stamps the v5 version and RFC 4122 variant bits on a
+  SHA-256 digest, so it validates as a UUID (`z.uuid()`) but is not what a strict
+  RFC v5 generator, which uses SHA-1, would produce. It only needs to be ours.
 
 ## Why this is a package, not a `utils` grab-bag
 
