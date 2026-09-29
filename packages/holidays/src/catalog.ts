@@ -1,73 +1,10 @@
-/**
- * The bundled holiday catalog — the public reference data that ships with the
- * app and works with no network, ever (`@leapsake/holidays` README, OTA:
- * "bundled-first remains the floor").
- *
- * Authored as a TypeScript module rather than JSON so a typo in a recurrence
- * discriminant is a compile error instead of a runtime seed failure, and so the
- * authored timestamps are reviewed as literals in a diff.
- *
- * ## How this becomes rows
- *
- * `@leapsake/core` seeds these into the synced `holidays` table, gated on
- * {@link CATALOG_VERSION} against a device-local mark (research §3: seed by
- * stored version, never by inspecting whether rows exist — the latter re-seeds a
- * device that received the catalog via sync and resurrects deleted rows). Each
- * row's `updatedAt` is the entry's own {@link HolidayEntry.authoredAt}, which is
- * what makes ordinary whole-row LWW correct by construction (research §2.5):
- * every device seeding the same release writes byte-identical rows, and a device
- * that seeds an older release after receiving a newer one simply loses.
- *
- * ## Editing this file
- *
- * - **`authoredAt` is per entry, not per release.** Bump it only on the entries
- *   that actually changed; everything else stays byte-identical and merges as a
- *   no-op. A shared release stamp would push the entire catalog on every update.
- * - **Bump {@link CATALOG_VERSION}** whenever any entry changes, or no device
- *   will re-seed. It is an integer, not semver — the `sync_state` value column
- *   it is compared against holds integers.
- * - **Never delete an entry.** Absence cannot communicate removal to a device
- *   that already seeded it (research §3); set `retiredAt` instead and it seeds
- *   as a tombstone.
- * - **Slugs are fully qualified from day one** (research §2.7): `us-thanksgiving`
- *   and `western-easter`, not `thanksgiving` and `easter`. Expansion is then pure
- *   addition rather than a rename, and no `supersededBy` mechanism is needed.
- *   Three v1 slugs predate the rule being applied consistently — `christmas`,
- *   `hanukkah`, `lunar-new-year`. **They cannot be renamed**: the slug *is* the
- *   identity a row's UUID derives from, so a rename orphans every observance
- *   pointing at it. `orthodox-christmas` therefore sits beside a bare
- *   `christmas` rather than beside a `gregorian-christmas`. Leave the asymmetry
- *   alone; it is cheaper than the migration that would remove it.
- *
- * ## Classification is bundle-side, and deliberately not on the row
- *
- * {@link HolidayEntry.region} and {@link HolidayEntry.tradition} exist to group
- * the browse list, and they stop here — they are **not** columns on the synced
- * `holidays` row, so adding them cost no migration and they add nothing to what
- * every device stores and syncs. Callers join them back on by slug through
- * {@link classificationFor}.
- *
- * The trade that buys is a narrow skew window: a holiday that arrives over sync
- * from a device running a *newer* bundle has no classification on this build and
- * groups under "Other" until this device updates. That is the same degradation
- * `parseRecurrence` already takes for recurrence rules — data syncs, code does
- * not — and it self-heals on the next release. If classification ever needs to be
- * authoritative across builds, promoting it to a column is a strictly additive
- * change; nothing here forecloses it.
- */
+// The bundled catalog, as TypeScript so a typo is a compile error. Read the
+// README's _Editing the catalog_ before changing an entry.
 
 import type { HolidayRecurrence } from "./recurrence.js";
 
-/**
- * Which tradition an entry belongs to, for grouping. `secular` covers national
- * and civic days as well as the genuinely non-religious global ones; everything
- * else names the tradition the occasion comes from.
- *
- * This is **provenance, not an assertion about any person.** That Diwali is
- * `hindu` says where the holiday comes from; it says nothing about who observes
- * it, which is what the `observances` table is for. The README's inference
- * constraints still hold — never derive a person's religion from this field.
- */
+/** The tradition an occasion comes from, or `secular`: provenance, never a
+ *  claim about who observes it. */
 export type HolidayTradition =
   | "secular"
   | "christian"
@@ -78,13 +15,8 @@ export type HolidayTradition =
   | "sikh"
   | "chinese";
 
-/**
- * Where an entry is nationally observed, or `global` for one that is not scoped
- * to a country — which covers both the worldwide secular days (New Year's Day,
- * International Women's Day) and every religious holiday, since a tradition
- * travels with its diaspora and pinning Diwali to `in` would be wrong for the
- * millions who keep it elsewhere.
- */
+/** Where an entry is nationally observed, or `global`, as every religious
+ *  holiday is. */
 export type HolidayRegion =
   | "global"
   | "us"
@@ -95,60 +27,35 @@ export type HolidayRegion =
   | "fr"
   | "au";
 
-/**
- * A single catalog entry, before it becomes a `holidays` row. The recurrence is
- * a live object here and is serialized to its canonical string on the way in.
- */
+/** A catalog entry before it becomes a row, its recurrence not yet
+ *  serialized. */
 export interface HolidayEntry {
   /** Stable, human-readable identity; the row's UUID is derived from it. */
   slug: string;
   name: string;
-  /**
-   * The occasion phrase reminder copy interpolates: "Wish @Violet **a Merry
-   * Christmas**". Carries its own article, because not every greeting takes one
-   * ("Eid Mubarak"). This is what retires the birthday-specific copy baked into
-   * `actionDefs.wish` (research §2.14).
-   *
-   * **Not every occasion is a happy one.** A day of remembrance takes "a
-   * peaceful" or "a meaningful", never "a Happy" — getting this wrong puts the
-   * app's voice badly out of step on exactly the days that matter most.
-   */
+  /** The phrase “Wish @Violet …” takes, with its own article if any; see
+   *  the README on greetings. */
   greeting: string;
   recurrence: HolidayRecurrence;
   /** The tradition this occasion comes from. See {@link HolidayTradition}. */
   tradition: HolidayTradition;
   /** Where it is nationally observed. See {@link HolidayRegion}. */
   region: HolidayRegion;
-  /**
-   * Length in days for a multi-day holiday, for display only. The occurrence
-   * always anchors to the **start** date; "remind during" is a different feature
-   * (research §3).
-   */
+  /** Days a multi-day holiday lasts, for display; it anchors to the start. */
   durationDays?: number;
-  /**
-   * Groups entries that are the same idea with different rules —
-   * `us-mothers-day` and `uk-mothering-sunday`. Display and picker dedup only;
-   * it is not a computation dependency (research §2.13).
-   */
+  /** Groups the same idea under different rules, for display and picker
+   *  dedup only. */
   familyId?: string;
-  /**
-   * Whether it is safe to infer this holiday from the *user's own* locale
-   * without asserting anything about a third party's religion (research §2.12).
-   *
-   * Still unused, and now **largely superseded by {@link region}** for the job it
-   * was authored for: a bare boolean cannot say *which* locale implies a holiday,
-   * so it can only ever mean "implied for a US user", which is what the eight v1
-   * entries carrying it mean. Locale relevance should key on `region` instead.
-   * Left in place because it is a synced column and removing it is a migration.
-   */
+  /** Whether a US user's own locale implies it. Unused; locale relevance
+   *  should key on {@link region}. */
   impliedByLocale?: boolean;
-  /** The catalog release's authored time, epoch ms. See the module doc. */
+  /** When this entry was last authored, epoch ms; see the README. */
   authoredAt: number;
   /** Set instead of deleting; seeds as a tombstone. */
   retiredAt?: number;
 }
 
-/** Readable spelling of an authored date: `authored("2026-07-20")`. */
+/** An authored ISO date as epoch ms, readable in a diff. */
 function authored(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
   return Date.UTC(y, m - 1, d);
@@ -158,75 +65,11 @@ const V1 = authored("2026-07-20");
 const V2 = authored("2026-07-23");
 const V3 = authored("2026-09-11");
 
-/**
- * Bump on any change to {@link CATALOG}. Integer, not semver — see the module
- * doc.
- */
+/** Bump on any change to {@link CATALOG}; an integer, not semver. */
 export const CATALOG_VERSION = 4;
 
-/**
- * ## The lunisolar tables
- *
- * Every `table` entry below runs to **2056**, the ~30-year horizon research §2.8
- * asks for. Past it they stop producing occurrences rather than producing wrong
- * ones — the honest degradation the `table` shape exists for. **Extend them
- * before ~2050**, and re-derive rather than extrapolate: none of these sequences
- * has a period that can be continued by eye.
- *
- * They are here rather than deferred because research §2.9 is explicit that the
- * precomputed path must be proven end-to-end early — a user cannot hand-author
- * these holidays themselves, so the catalog is the only place they can come
- * from, and the recurrence engine must not ossify around arithmetic rules.
- *
- * ### How these dates were derived
- *
- * Both were computed from the source calendars' own rules and then cross-checked
- * against a second, independent implementation (ICU's `Intl` calendar data, via
- * `en-u-ca-hebrew` and `en-u-ca-chinese`), plus a regression against known
- * published dates for years already past. A wrong date here is worse than a
- * missing one — it produces a confidently-wrong reminder on a day that matters
- * to someone — so no date rests on a single source.
- *
- * - **The Hebrew entries** — Hanukkah (25 Kislev), Rosh Hashanah (1 Tishrei),
- *   Yom Kippur (10 Tishrei), Sukkot (15 Tishrei) and Passover (15 Nisan) — come
- *   from one arithmetic implementation of the Hebrew calendar (molad plus the
- *   four dehiyyot), so these dates are **exact**, with no observational or
- *   borderline cases. ICU agrees on every date in all five tables. The
- *   implementation additionally reproduces the Hanukkah table authored at V2
- *   entry for entry, which is what validates it against data already checked.
- *
- *   All five carry the **daytime** date, matching Hanukkah's original
- *   convention: the festival begins at sunset the evening before, so published
- *   "eve of" dates are one day earlier. Do not mix the two conventions.
- * - **Lunar New Year** is the first day of the first Chinese month, which
- *   depends on true astronomical new moons evaluated in **China Standard Time
- *   (UTC+8)**: month 11 is the month containing the December solstice, a leap
- *   month is inserted where a month contains no major solar term, and month 1
- *   follows two months later — three, when a leap month intervenes. Computed
- *   with Meeus' new-moon and solar-longitude series; reproduces 2020–2026 as
- *   published, **including 2034**, where the naive "second new moon after the
- *   solstice" shortcut gives 2034-01-20 and the leap-month rule correctly gives
- *   2034-02-19 (the well-known 2033 anomaly).
- * - **Dragon Boat (5/5) and Mid-Autumn (8/15)** hang off the same Chinese month
- *   boundaries and were derived the same way: Meeus' new-moon series in UTC+8
- *   for the boundary dates, with ICU supplying only which ordinal month carries
- *   which number — the leap structure, an integer. That derivation was **gated
- *   on reproducing all 30 Lunar New Year dates above**, including 2027 and 2030
- *   where ICU alone disagrees, so it demonstrably resolves the precision ICU
- *   loses. Across 2026–2056 the two implementations then agree on every month-5
- *   and month-8 boundary, so these tables rest on two sources rather than one.
- *   A leap-month misnumbering would shift a date by a whole lunar month, not a
- *   day; the catalog test guards that with a window check per entry.
- *
- * Two Lunar New Year dates are astronomically **borderline** — the new moon
- * falls within minutes of local midnight, so the civil date turns on precision
- * rather than on the rule: **2027** (23:56 CST, 4 min before midnight) and
- * **2030** (00:07 CST, 7 min after). ICU disagrees on exactly these two and no
- * others, which is the signature of its lower-precision astronomer rather than a
- * dispute about the calendar. The values kept here match the Meeus computation
- * and the published tables. If either is ever contradicted by the Purple
- * Mountain Observatory's official almanac, that is the authority — change it.
- */
+/** The catalog; its lunisolar tables run to 2056, derived as the README's
+ *  _How the lunisolar tables were derived_ says. */
 export const CATALOG: readonly HolidayEntry[] = [
   // ── Fixed date ────────────────────────────────────────────────────────────
   {
@@ -253,10 +96,8 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "orthodox-christmas",
     name: "Orthodox Christmas",
     greeting: "a Merry Christmas",
-    // Julian 25 December, which lands on Gregorian 7 January for the whole of
-    // 1900–2099. A `fixed` rule is therefore exact across any horizon this app
-    // will see; it is not a Julian-calendar conversion and must not be read as
-    // one.
+    // Julian 25 December is Gregorian 7 January throughout 1900–2099, so a
+    // `fixed` rule is exact; it is no Julian conversion.
     recurrence: { type: "fixed", month: 1, day: 7 },
     tradition: "christian",
     region: "global",
@@ -296,9 +137,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "ie-st-patricks",
     name: "St. Patrick's Day",
     greeting: "a Happy St. Patrick's Day",
-    // Classified `secular`: a saint's day by origin, but it is kept as a
-    // national and cultural occasion by far more people than keep it as a
-    // religious one, and the grouping should match how it is picked.
+    // `secular`: kept far more widely as a national day than a religious one.
     recurrence: { type: "fixed", month: 3, day: 17 },
     tradition: "secular",
     region: "ie",
@@ -418,8 +257,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "christian",
     region: "global",
     familyId: "christmas",
-    // Christmas-as-secular-gift-occasion is safe to imply from a US locale
-    // (research §2.12) — it asserts an occasion, not a religion.
+    // Safe to imply from a US locale: an occasion, not a religion.
     impliedByLocale: true,
     authoredAt: V1,
   },
@@ -474,10 +312,8 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 5, weekday: 1, nth: -1 },
     tradition: "secular",
     region: "us",
-    // Deliberately *not* in the `remembrance` family, though it is a day of
-    // remembrance. That family is the Armistice lineage, and a family exists for
-    // picker dedup — so putting Memorial Day in it would let the picker collapse
-    // it with Veterans Day, two distinct US holidays a US user keeps separately.
+    // Not in the Armistice `remembrance` family, or the picker would collapse
+    // it with Veterans Day.
     authoredAt: V1,
   },
   {
@@ -506,12 +342,8 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "us-columbus-day",
     name: "Columbus Day",
     greeting: "a Happy Columbus Day",
-    // Second Monday in October. Deliberately *not* superseded by the entry
-    // below: research §2.7 reads Columbus Day → Indigenous Peoples' Day as two
-    // entries observed differently by different states, which is a family, not a
-    // succession. They share a date and share nothing else, so they share no
-    // `familyId` either — collapsing them in the picker would be the app taking
-    // a side on which one a user meant.
+    // Second Monday in October. It shares a date with the next entry and no
+    // `familyId`, so the picker takes no side between them.
     recurrence: { type: "nth-weekday", month: 10, weekday: 1, nth: 2 },
     tradition: "secular",
     region: "us",
@@ -529,15 +361,10 @@ export const CATALOG: readonly HolidayEntry[] = [
   },
   {
     slug: "ca-thanksgiving",
-    // "Canadian Thanksgiving", not "Thanksgiving", because a display name has to
-    // stand alone: the browse list is flat today, and two rows reading
-    // "Thanksgiving" would be indistinguishable. It still reads correctly once
-    // the list groups by region.
+    // A display name must stand alone in a flat list or search.
     name: "Canadian Thanksgiving",
     greeting: "a Happy Thanksgiving",
-    // Second Monday in October — the same day as the two entries above, and a
-    // different holiday from all of them. Shares `thanksgiving` with the US
-    // entry, which falls six weeks later.
+    // Second Monday in October; shares `thanksgiving` with the US entry.
     recurrence: { type: "nth-weekday", month: 10, weekday: 1, nth: 2 },
     tradition: "secular",
     region: "ca",
@@ -548,8 +375,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "uk-remembrance-sunday",
     name: "Remembrance Sunday",
     greeting: "a peaceful Remembrance Sunday",
-    // Second Sunday in November — the UK observance, distinct from the fixed
-    // 11 November Armistice/Remembrance Day the family's other entries use.
+    // Second Sunday in November, unlike the family's fixed 11 November.
     recurrence: { type: "nth-weekday", month: 11, weekday: 0, nth: 2 },
     tradition: "secular",
     region: "uk",
@@ -584,8 +410,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "western-good-friday",
     name: "Good Friday",
     greeting: "a blessed Good Friday",
-    // A derivation edge; directed and acyclic, which the resolver enforces at
-    // construction (research §2.13).
+    // A derivation edge, which the resolver keeps acyclic.
     recurrence: { type: "offset", from: "western-easter", days: -2 },
     tradition: "christian",
     region: "global",
@@ -596,9 +421,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "uk-mothering-sunday",
     name: "Mothering Sunday",
     greeting: "a Happy Mothering Sunday",
-    // The fourth Sunday of Lent — Easter − 21 days. The README's own example of
-    // a family: the same idea as `us-mothers-day`, on a rule that has nothing in
-    // common with it.
+    // The fourth Sunday of Lent: `us-mothers-day`'s family, on another rule.
     recurrence: { type: "offset", from: "western-easter", days: -21 },
     tradition: "christian",
     region: "uk",
@@ -610,9 +433,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "orthodox-easter",
     name: "Orthodox Easter",
     greeting: "a Happy Easter",
-    // Its own rule, never a variant of the Western one — the two diverge by up
-    // to five weeks. A build older than this algorithm parses the rule to `null`
-    // and generates nothing, which is the designed skew behaviour.
+    // Its own rule, not a Western variant: the two diverge by up to five weeks.
     recurrence: { type: "computed", algorithm: "orthodox-easter" },
     tradition: "christian",
     region: "global",
@@ -635,9 +456,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "hanukkah",
     name: "Hanukkah",
     greeting: "a Happy Hanukkah",
-    // 25 Kislev — the first day (the daytime date; the festival begins the
-    // preceding evening). Exact: the Hebrew calendar is arithmetic. See the
-    // module doc for derivation.
+    // 25 Kislev, the first day's daytime date.
     recurrence: {
       type: "table",
       dates: [
@@ -682,9 +501,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "rosh-hashanah",
     name: "Rosh Hashanah",
-    // Article-less on purpose: the greeting is a phrase, not a modifier —
-    // "Wish @Grandma Shana Tova". This is what `greeting` carrying its own
-    // article exists for.
+    // Article-less: “Wish @Grandma Shana Tova”.
     greeting: "Shana Tova",
     // 1 Tishrei, daytime.
     recurrence: {
@@ -731,9 +548,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "yom-kippur",
     name: "Yom Kippur",
-    // Not a happy occasion, and "Happy Yom Kippur" is the kind of tone-deafness
-    // a reminders app must never put in someone's mouth. "An easy fast" is the
-    // idiom.
+    // A fast, never “Happy”; “an easy fast” is the idiom.
     greeting: "an easy fast",
     // 10 Tishrei, daytime.
     recurrence: {
@@ -826,8 +641,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "passover",
     name: "Passover",
     greeting: "a Happy Passover",
-    // 15 Nisan, daytime. Eight days is the diaspora reckoning; seven is kept in
-    // Israel. Display only — the occurrence anchors to the start either way.
+    // 15 Nisan, daytime; eight days in the diaspora, seven in Israel.
     recurrence: {
       type: "table",
       dates: [
@@ -872,8 +686,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "lunar-new-year",
     name: "Lunar New Year",
     greeting: "a Happy Lunar New Year",
-    // First day of Chinese month 1, from true new moons in UTC+8. 2027 and 2030
-    // are the borderline pair called out in the module doc.
+    // First day of Chinese month 1, from true new moons in UTC+8.
     recurrence: {
       type: "table",
       dates: [
@@ -918,10 +731,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "lantern-festival",
     name: "Lantern Festival",
     greeting: "a Happy Lantern Festival",
-    // The 15th day of Chinese month 1 — the full moon that closes the New Year
-    // period, and exactly 14 days after it. Deriving it rather than tabulating
-    // it means it inherits Lunar New Year's horizon and its corrections for
-    // free, including the 2034 leap-month case.
+    // Derived, not tabled, so it inherits Lunar New Year's horizon and fixes.
     recurrence: { type: "offset", from: "lunar-new-year", days: 14 },
     tradition: "chinese",
     region: "global",
@@ -931,8 +741,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "dragon-boat-festival",
     name: "Dragon Boat Festival",
     greeting: "a Happy Dragon Boat Festival",
-    // 5th day of Chinese month 5. See the module doc for the derivation and the
-    // gate it had to pass.
+    // 5th day of Chinese month 5.
     recurrence: {
       type: "table",
       dates: [
@@ -977,7 +786,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "mid-autumn-festival",
     name: "Mid-Autumn Festival",
     greeting: "a Happy Mid-Autumn Festival",
-    // 15th day of Chinese month 8 — the harvest full moon.
+    // 15th day of Chinese month 8, the harvest full moon.
     recurrence: {
       type: "table",
       dates: [
@@ -1027,22 +836,12 @@ const BY_SLUG = new Map(CATALOG.map((e) => [e.slug, e]));
 export interface HolidayClassification {
   tradition: HolidayTradition;
   region: HolidayRegion;
-  /**
-   * The single key the browse list sections on: the **region** for a secular
-   * holiday and the **tradition** for every other one. National days group as
-   * "United States" and "France"; religious ones group as "Jewish" and "Hindu" —
-   * which is how someone picking holidays for a particular person reasons about
-   * them, rather than by the calendar mechanism underneath.
-   */
+  /** The key the browse list sections on: region if secular, else tradition. */
   groupKey: HolidayTradition | HolidayRegion;
 }
 
-/**
- * The classification for a slug, or `null` for one this build's bundle does not
- * carry — a user-defined holiday, or a catalog entry that reached this device
- * over sync from a newer bundle. Callers group a `null` under "Other"; see the
- * module doc on why that skew is accepted rather than designed out.
- */
+/** A slug's classification, or `null` for one this bundle lacks, which
+ *  callers group under “Other”. */
 export function classificationFor(slug: string): HolidayClassification | null {
   const entry = BY_SLUG.get(slug);
   if (entry === undefined) return null;

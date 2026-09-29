@@ -124,6 +124,11 @@ The fix is naming discipline, not machinery: name entries `us-thanksgiving`, `we
 addition. If succession is ever genuinely needed, a read-time alias map is a smaller retrofit
 than a schema field.
 
+**A greeting carries its own article**, because not every greeting takes one ("Wish @Grandma Shana
+Tova"), and **not every occasion is a happy one**: a day of remembrance takes "a peaceful" or "a
+meaningful", and Yom Kippur "an easy fast", never "Happy". Getting this wrong puts the app's voice
+out of step on exactly the days that matter most.
+
 Two edges between catalog entries, not to be conflated: **family** (`us-mothers-day` and
 `uk-mothering-sunday` — a `familyId` slug, for display and picker dedup) and **derivation**
 (Good Friday = Easter − 2 — a directed, acyclic computation dependency). Keep one recurrence rule
@@ -174,13 +179,41 @@ than producing wrong ones. The **eight** tables — five Hebrew (Hanukkah, Rosh 
 Sukkot, Passover) and three Chinese (Lunar New Year, Dragon Boat, Mid-Autumn) — are each derived
 from the source calendars' own rules and cross-checked against a second, independent
 implementation; they run to **2056**. Extend them before ~2050 by **re-deriving, never
-extrapolating** — see the note in `src/catalog.ts`.
+extrapolating** — see _How the lunisolar tables were derived_ below.
 
 The Hebrew set is _exact_ (that calendar is arithmetic), and the implementation behind it
 reproduces the originally-authored Hanukkah table entry for entry. The Chinese set rests on Meeus'
 new-moon series in UTC+8, gated on reproducing all 30 Lunar New Year dates — including the two
 borderline years where ICU alone disagrees, which is precisely why ICU is trusted for leap-month
 _structure_ and never for a boundary. Neither set rests on a single source, and neither should.
+
+### How the lunisolar tables were derived
+
+Each was computed from its calendar's own rules and cross-checked against ICU's `Intl` calendars
+(`en-u-ca-hebrew`, `en-u-ca-chinese`), plus published dates for years already past. A wrong date is
+worse than a missing one, so no date rests on a single source; none of these sequences can be
+continued by eye.
+
+- **Hebrew** (Hanukkah 25 Kislev, Rosh Hashanah 1 Tishrei, Yom Kippur 10 Tishrei, Sukkot 15
+  Tishrei, Passover 15 Nisan): one arithmetic implementation, the molad plus the four dehiyyot, so
+  the dates are **exact**; ICU agrees on all of them. All five carry the **daytime** date: the
+  festival begins at sunset the evening before, so published "eve of" dates are a day earlier. Do
+  not mix the two conventions.
+- **Lunar New Year**: the first day of Chinese month 1, from true new moons in **China Standard
+  Time (UTC+8)**. Month 11 contains the December solstice, a leap month is inserted where a month
+  holds no major solar term, and month 1 follows two months later, three when a leap month
+  intervenes. Computed with Meeus' new-moon and solar-longitude series; the naive "second new moon
+  after the solstice" shortcut gives 2034-01-20 where the leap-month rule gives 2034-02-19.
+- **Dragon Boat (5/5) and Mid-Autumn (8/15)**: the same new-moon series for the month boundaries,
+  with ICU supplying only which ordinal month carries which number. Gated on reproducing all 30
+  Lunar New Year dates. A leap-month misnumbering would shift a date by a whole month, so the
+  catalog test checks a window per entry. The Lantern Festival is an `offset` from Lunar New Year,
+  so it inherits that table's horizon and corrections.
+
+Two Lunar New Year dates are **borderline**: the new moon falls minutes from local midnight, **2027**
+(23:56 CST) and **2030** (00:07 CST), and ICU disagrees on exactly these two. The values kept match
+the Meeus computation and the published tables. If the Purple Mountain Observatory's official
+almanac ever contradicts either, it is the authority.
 
 **Why not `date-holidays`:** this is pure tables and arithmetic with no I/O, and that library is
 large and carries locale data the app never reads. Reconsider when Islamic or Hindu/Buddhist
@@ -192,6 +225,20 @@ calendars need computing rather than tabling.
 > escape hatch covers exactly the holidays that are easy to add to the catalog and is
 > structurally incapable of covering the hard ones. Starting US-centric is fine; deferring the
 > lunisolar work on the theory that users will fill the gaps is not.
+
+## Editing the catalog
+
+`src/catalog.ts` is TypeScript rather than JSON, so a typo in a recurrence is a compile error and
+the authored timestamps are reviewed as literals in a diff.
+
+- **`authoredAt` is per entry, not per release.** Bump it only on entries that changed, so the rest
+  stay byte-identical and merge as no-ops.
+- **Bump `CATALOG_VERSION` on any change**, or no device re-seeds. It is an integer, not semver,
+  because the `sync_state` column it is compared against holds integers.
+- **Never delete an entry**; set `retiredAt`, and it seeds as a tombstone.
+- **`impliedByLocale` is unused.** A bare boolean cannot say which locale implies a holiday, so it
+  only ever meant "implied for a US user"; locale relevance should key on `region`. It stays because
+  it is a synced column.
 
 ## OTA: fetch the whole catalog, never a query
 
