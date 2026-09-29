@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 through 3 landed. 4 through 7 are independent of each other.
+1 through 4 landed. 5 through 7 are independent of each other.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -61,11 +61,8 @@ stored format.
 
 ### 4. `apps/website`: use Astro's zod, drop the direct dependency
 
-Astro 7 depends on zod 4 and exports it at `astro/zod`. A separate direct copy can resolve to a
-different instance than the one `astro:content` validates with. Do: import `z` from `astro/zod`
-in `src/content.config.ts`, remove `zod` from `apps/website/package.json`. Acceptance:
-`pnpm --filter @leapsake/website typecheck`, `pnpm test:docs`, and the website test file are
-green; the site builds.
+**✅ Landed 2026-09-28.** `src/content.config.ts` imports `z` from `astro/zod`;
+`test/site.test.ts` → _the docs model_ holds the schema up.
 
 ### 5. One React version, declared once, in a pnpm catalog
 
