@@ -44,7 +44,8 @@
         "packages/ui/**",
         "packages/vcard/**",
         "packages/holidays/**",
-        "packages/sync/**"
+        "packages/sync/**",
+        "packages/view-models/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

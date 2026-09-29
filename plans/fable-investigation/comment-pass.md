@@ -23,7 +23,7 @@ lint findings in brackets:
 
 
 
-| `packages/view-models`    |      390 (92) |
+
 | `packages/export`         |      352 (63) |
 | `packages/crypto`         |     322 (123) |
 | `packages/notifications`  |      247 (28) |
