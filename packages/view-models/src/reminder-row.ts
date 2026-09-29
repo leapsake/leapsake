@@ -30,7 +30,7 @@ const ONBOARDING_LABEL = {
   "about-you": "aboutYou",
 } as const satisfies Record<OnboardingRoute, ReminderOfferLabel>;
 
-/** The label key for one offered action; a `remindMe` label takes the action's `days`. */
+/** The label key for one offered action; `remindMe` takes its `days`. */
 export function reminderOfferLabelOf(
   action: ReminderRowAction,
 ): ReminderOfferLabel {
@@ -57,7 +57,7 @@ export function reminderOfferLabelOf(
   }
 }
 
-/** How a row's removal is worded: a nudge's is "don't ask again", since its tombstone is permanent. */
+/** How a row's removal is worded; a nudge's tombstone is permanent. */
 export type ReminderRemoval = "dismiss" | "remove";
 
 /**
