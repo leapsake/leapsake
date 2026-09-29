@@ -127,7 +127,10 @@ residency and recovery-phrase backpressure in
 | `POST /accounts`                 | optional registration token | register `{ accountId, username, authVerifier, kdfSalt, wrappedMasterKey }`; dup username → `409` |
 | `GET /accounts/lookup?username=` | none (prelogin)             | → `{ accountId, kdfSalt }` \| `404`                                                               |
 | `POST /accounts/session`         | verifier bearer             | → `{ token, expiresAt }` — mint a short-lived session                                             |
-| `GET /accounts/bootstrap`        | verifier bearer             | → `{ wrappedMasterKey, token, expiresAt }` for a joining device                                   |
+| `GET /accounts/bootstrap`        | verifier bearer             | → `{ wrappedMasterKey, wrappedRecoveryKey?, token, expiresAt }` for a joining device              |
+| `GET /accounts/recovery`         | recovery                    | → `{ wrappedMasterKeyRecovery }` for a device that lost its password                              |
+| `POST /accounts/recovery`        | verifier bearer             | replace the recovery door after a phrase rotation                                                 |
+| `POST /accounts/reset`           | recovery                    | replace the password door after a recovery                                                        |
 | `POST /sync/push`                | session                     | append `{ records }` to the account log                                                           |
 | `GET /sync/pull?since=<cursor>`  | session                     | → `{ records, cursor }`                                                                           |
 
@@ -137,6 +140,20 @@ the username-enumeration mitigation; the recovery-authed endpoints
 **failed** logins at the two verifier-checking endpoints share a third throttle
 (the online-guessing mitigation, H2/H3). Defaults and env-var names are centralized
 in `src/config.ts`.
+
+**Each door is replaced by proving the other.** `POST /accounts/recovery` is password-authed
+while its `GET` sibling on the same path is recovery-authed, and that must never be
+"simplified": rotation answers a _leaked phrase_, and gating it on the recovery verifier would
+let whoever leaked it rotate the phrase and lock the owner out. A separate `Recovery`
+authorization scheme keeps the two doors from ever cross-authenticating, and every door's
+three recovery fields are written together, since a partial write would leave the account
+unrecoverable. The recovery throttle is checked **before** authenticating, or it would never see
+the rejected guesses it exists to limit.
+
+Sessions live in memory, keyed by `sha256(token)`, so a memory dump yields no usable bearer; the
+token is 256 random bits, so a lookup miss needs no constant-time compare. Option B serves HTTPS
+only, with no port-80 redirect: clients hold the `https://` URL, and redirects are a front
+proxy's concern.
 
 The routes are dispatched by hand on `node:http`. If they grow past nine, or need middleware
 a second time, Hono supplies routing and `bodyLimit` with no transitive packages.

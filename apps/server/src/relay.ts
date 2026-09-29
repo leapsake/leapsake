@@ -22,60 +22,13 @@ import {
 } from "./config.js";
 import type { RelayStore } from "./store.js";
 
-// `RateLimit` is part of the public `createRelayServer` options surface; re-export
-// it from here so existing importers keep their path while the value lives in config.
+// Part of `createRelayServer`'s options, so importable from here too.
 export type { RateLimit };
 
-/**
- * The blind relay — `sync.md` §2's "least clever option": an authenticated
- * HTTPS endpoint that stores and serves opaque {@link WireRecord}s ordered by an
- * opaque cursor. It can read, merge, and order *nothing* about content; it only
- * orders *delivery*. The routes:
- *
- * - `POST /accounts`           — register `{ accountId, username, authVerifier,
- *                                kdfSalt, wrappedMasterKey }` (b64); dup username → 409.
- * - `GET  /accounts/lookup`    — unauthed prelogin; `?username=` → `{ accountId, kdfSalt }`.
- * - `POST /accounts/session`   — verifier auth; mints a short-lived session token.
- * - `GET  /accounts/bootstrap` — verifier auth; → `{ wrappedMasterKey,
- *                                wrappedRecoveryKey?, token, expiresAt }` for a joining
- *                                device (the wrapped MK, the recovery-key escrow, *and* a session).
- * - `GET  /accounts/recovery`  — **recovery** auth; → `{ wrappedMasterKeyRecovery }`.
- * - `POST /accounts/recovery`  — **verifier** auth; replace the recovery door after a
- *                                phrase rotation. Same path, opposite credential — each
- *                                door is rotated by proving the *other* one.
- * - `POST /accounts/reset`     — **recovery** auth; replace the password door.
- * - `POST /sync/push`          — session auth; append `{ records }` to the account log.
- * - `GET  /sync/pull`          — session auth; `?since=<cursor>` → `{ records, cursor }`.
- *
- * **Two credentials, one durable and one short-lived (threat H3, README.md).**
- * The durable one is the password-derived **verifier**, sent as
- * `Authorization: Bearer <accountId>.<base64(authVerifier)>`; the relay stores only
- * `sha256(verifier)` and constant-time-compares (model.md §9.3). It authenticates the
- * two login endpoints (`/accounts/session`, `/accounts/bootstrap`) — *once per login*,
- * not per request. Each mints a random **session token**, presented on the hot
- * `push`/`pull` path as `Authorization: Session <token>`. That shrinks raw-verifier
- * observation from "every request, forever" to "once per login", the v0.1 half of the
- * H1 mitigation (the other half is TLS; OPAQUE closes it fully at the hosted-relay gate,
- * sync.md §4). Sessions are held **in-memory, per-process** — ephemeral, non-user-data:
- * a relay restart just costs each device one silent re-login, and (like the rate
- * limiters) a multi-node relay still needs a shared session store, the same follow-up as
- * the shared rate-limit counter (README.md). Either way a device may only
- * ever touch its own namespace, taken from the authenticated identity — never the body.
- *
- * Account creation reserves an env-gated **registration-token** seam: access
- * control (who may store bytes) is orthogonal to zero-knowledge (who may read
- * them). If `RELAY_REGISTRATION_TOKEN` is set the relay requires + constant-time-
- * compares it on `POST /accounts`; unset ⇒ the relay is public (the default).
- * This is the host-auth / paid-relay hook — additive, never a one-way door
- * (`plans/encryption/sync.md` → *The account-bootstrap channel*).
- *
- * The two **unauthenticated** routes (`POST /accounts`, `GET /accounts/lookup`)
- * are per-IP **rate-limited** ({@link RateLimit}) — the pragmatic mitigation for
- * the username-existence oracle that the username/password join scheme inherently
- * exposes (README.md).
- */
+// The blind relay: routes, auth and throttles are in the README's _Routes_
+// and _Auth (blind)_.
 
-// --- Trust-boundary validation: every field off the wire is parsed, never trusted. ---
+// Trust-boundary validation: every field off the wire is parsed.
 
 const base64 = z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, "expected base64");
 
@@ -85,11 +38,9 @@ const registerBodySchema = z.object({
   authVerifier: base64,
   kdfSalt: base64,
   wrappedMasterKey: base64,
-  // Inverse escrow wrap(recoveryKey, MK) — lets a password-joining device reveal
-  // the account phrase. Optional, matching wrappedMasterKeyRecovery.
+  // wrap(recoveryKey, MK), so a joining device reveals the account phrase.
   wrappedRecoveryKey: base64.optional(),
-  // Recovery escrow (model.md §6). Optional so a pre-recovery client can still
-  // register; current clients always send both.
+  // The recovery escrow; current clients always send it.
   wrappedMasterKeyRecovery: base64.optional(),
   recoveryVerifier: base64.optional(),
 });
@@ -101,10 +52,7 @@ const resetBodySchema = z.object({
   wrappedMasterKey: base64,
 });
 
-/**
- * Password-authenticated recovery rotation: new recovery-door material, all three
- * fields required (a partial write would leave the account unrecoverable).
- */
+/** Password-authenticated rotation: all three recovery fields, required. */
 const rotateRecoveryBodySchema = z.object({
   wrappedRecoveryKey: base64,
   wrappedMasterKeyRecovery: base64,
@@ -122,18 +70,14 @@ const wireRecordSchema = z.object({
 
 const pushBodySchema = z.object({ records: z.array(wireRecordSchema) });
 
-// --- Helpers. ---------------------------------------------------------------
+// Helpers
 
 function sha256(input: Uint8Array): Uint8Array {
   return Uint8Array.from(createHash("sha256").update(input).digest());
 }
 
-/**
- * The registration-token gate on `POST /accounts`. If `RELAY_REGISTRATION_TOKEN`
- * is unset the relay is public (returns true). If set, the request must carry the
- * matching token in `X-Registration-Token`, compared in constant time. This is
- * the host-auth / paid-relay seam — content-blind, orthogonal to zero-knowledge.
- */
+/** The registration-token gate: open when unset, else a constant-time match
+ *  on `X-Registration-Token`. */
 function registrationTokenOk(req: IncomingMessage): boolean {
   const expected = process.env[ENV.registrationToken];
   if (expected === undefined || expected === "") return true;
@@ -144,10 +88,7 @@ function registrationTokenOk(req: IncomingMessage): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/**
- * A fixed-window, per-IP rate limiter. Expired entries are swept at most once per
- * window, so the map holds only the addresses seen in the last two windows.
- */
+/** A fixed-window, per-IP limiter, swept once a window to stay small. */
 function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
   const hits = new Map<string, { count: number; resetAt: number }>();
   let nextSweepAt = 0;
@@ -172,7 +113,7 @@ function createRateLimiter(limit: RateLimit): (ip: string) => boolean {
 
 class BodyTooLargeError extends Error {}
 
-/** Buffer the request body, rejecting with {@link BodyTooLargeError} past `maxBytes`. */
+/** Buffers the body; past `maxBytes`, a {@link BodyTooLargeError}. */
 function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -197,23 +138,19 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
-/** Answer 413 and close the connection, dropping the rest of the body unbuffered. */
+/** Answers 413 and closes, dropping the rest of the body unbuffered. */
 function sendTooLarge(res: ServerResponse): void {
   res.setHeader("connection", "close");
   sendJson(res, 413, { error: "payload too large" });
 }
 
-/**
- * Authenticate the bearer token against the relay's stored verifier hash.
- * Returns the authenticated account id, or `null` on any failure (no account,
- * malformed token, verifier mismatch) — the caller answers 401 either way.
- */
+/** The account a verifier bearer authenticates, or `null` on any failure. */
 function authenticate(req: IncomingMessage, store: RelayStore): string | null {
   const header = req.headers.authorization;
   if (header === undefined || !header.startsWith("Bearer ")) return null;
   const token = header.slice("Bearer ".length);
 
-  // Split on the first `.`: the account UUID has none, and base64 produces none.
+  // Split on the first `.`: neither a UUID nor base64 contains one.
   const dot = token.indexOf(".");
   if (dot < 0) return null;
   const accountId = token.slice(0, dot);
@@ -235,13 +172,8 @@ function authenticate(req: IncomingMessage, store: RelayStore): string | null {
   return accountId;
 }
 
-/**
- * Authenticate a **recovery** request: the `Authorization: Recovery
- * <accountId>.<base64(recoveryVerifier)>` scheme, checked against the stored
- * recovery-verifier hash (the recovery sibling of {@link authenticate}). A
- * distinct scheme so the password and recovery doors never cross-authenticate.
- * Returns the account id or `null` (no account, no recovery escrow, mismatch).
- */
+/** The account a `Recovery` credential authenticates, or `null`; a scheme of
+ *  its own, so the doors never cross-authenticate. */
 function authenticateRecovery(
   req: IncomingMessage,
   store: RelayStore,
@@ -275,87 +207,54 @@ function authenticateRecovery(
   return accountId;
 }
 
-// --- The server. ------------------------------------------------------------
+// The server
 
 export function createRelayServer(opts: {
   store: RelayStore;
-  /** Per-IP throttle on the unauthenticated endpoints. Defaults generous. */
+  /** Per-IP throttle on the unauthenticated endpoints. */
   rateLimit?: RateLimit;
-  /**
-   * Per-IP throttle on the recovery-authed endpoints (`/accounts/recovery`,
-   * `/accounts/reset`). Defaults tighter than {@link rateLimit} — see
-   * {@link DEFAULT_RECOVERY_RATE_LIMIT}.
-   */
+  /** Per-IP throttle on the recovery-authenticated endpoints. */
   recoveryRateLimit?: RateLimit;
-  /**
-   * Per-IP throttle on **failed** authentications at the verifier-checking login
-   * endpoints (`GET /accounts/bootstrap`, `POST /accounts/session`), the online-
-   * password-guessing mitigation (threats H2/H3, README.md). Its own shared counter,
-   * so a guessing grind never spends — nor is laundered across — the enumeration/
-   * recovery budgets. Defaults tight — see {@link DEFAULT_BOOTSTRAP_RATE_LIMIT}.
-   */
+  /** Per-IP throttle on failed logins, on a counter of its own. */
   bootstrapRateLimit?: RateLimit;
-  /**
-   * Reverse proxies trusted to set `X-Forwarded-For`, so the rate limiters key on
-   * the real client IP rather than the proxy's when the relay runs behind one.
-   * Each entry is an IP, a CIDR range, or a `proxy-addr` preset (`loopback`,
-   * `uniquelocal`, …). Empty (the default) trusts none and ignores the header —
-   * the secure default; see {@link DEFAULT_TRUSTED_PROXIES}.
-   */
+  /** Proxies trusted to set `X-Forwarded-For`; see
+   *  {@link DEFAULT_TRUSTED_PROXIES}. */
   trustedProxies?: readonly string[];
-  /**
-   * Lifetime of a minted session token, in ms (default
-   * {@link DEFAULT_SESSION_TTL_MS}). Short by design — see that constant.
-   */
+  /** A session token's lifetime in ms; see {@link DEFAULT_SESSION_TTL_MS}. */
   sessionTtlMs?: number;
-  /** The largest request body read, in bytes (default {@link DEFAULT_MAX_BODY_BYTES}). */
+  /** The largest request body read, in bytes. */
   maxBodyBytes?: number;
-  /**
-   * In-process TLS (Option B). When set, the relay terminates HTTPS itself with
-   * this cert + key instead of speaking plain HTTP; when omitted, it speaks plain
-   * HTTP and TLS is terminated in front of it (Option A, the default). The two are
-   * orthogonal — a deployment may do both (public TLS at a proxy, re-encrypted to
-   * the relay) when the proxy and relay sit on different hosts.
-   */
+  /** In-process TLS (Option B); omitted, TLS terminates in front (Option A). */
   tls?: { cert: string | Buffer; key: string | Buffer; passphrase?: string };
 }): Server {
   const { store } = opts;
   const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const allow = createRateLimiter(opts.rateLimit ?? DEFAULT_RATE_LIMIT);
-  // A separate counter so recovery-flood throttling never spends (or is spent by)
-  // the enumeration budget — the two surfaces are independent.
+  // Its own counter, independent of the enumeration budget.
   const allowRecovery = createRateLimiter(
     opts.recoveryRateLimit ?? DEFAULT_RECOVERY_RATE_LIMIT,
   );
-  // A third, independent counter for failed bootstrap auths (threat H2, README.md),
-  // so an online password-guessing grind can't spend the enumeration/recovery budgets.
+  // A third counter, for failed logins (threat H2).
   const allowBootstrap = createRateLimiter(
     opts.bootstrapRateLimit ?? DEFAULT_BOOTSTRAP_RATE_LIMIT,
   );
 
-  // Compile the trusted-proxy predicate once. proxy-addr walks `socket + XFF`
-  // from the socket end, hops over each *trusted* address, and returns the first
-  // untrusted one — the real client. An empty trust set never hops, so this just
-  // returns `req.socket.remoteAddress` (today's behavior) and the spoofable XFF
-  // is ignored.
+  // proxy-addr hops trusted addresses from the socket end and returns the first
+  // untrusted one; with none trusted, the socket address.
   const trust = proxyaddr.compile([
     ...(opts.trustedProxies ?? DEFAULT_TRUSTED_PROXIES),
   ]);
   const clientIp = (req: IncomingMessage): string => proxyaddr(req, trust);
 
-  /** Throttle a request by client IP; answers 429 and returns true if over. */
+  /** Throttles by client IP; answers 429 and returns true if over. */
   function throttled(req: IncomingMessage, res: ServerResponse): boolean {
     if (allow(clientIp(req))) return false;
     sendJson(res, 429, { error: "rate limited" });
     return true;
   }
 
-  /**
-   * Throttle a recovery-authed request by client IP against the stricter
-   * recovery budget; answers 429 and returns true if over. Call this *before*
-   * {@link authenticateRecovery} so a wrong-verifier guesser is throttled (a
-   * post-auth check would never see the rejected attempts it's meant to limit).
-   */
+  /** Throttles a recovery request; call it before authenticating, or it never
+   *  sees the rejected guesses. */
   function throttledRecovery(
     req: IncomingMessage,
     res: ServerResponse,
@@ -365,22 +264,18 @@ export function createRelayServer(opts: {
     return true;
   }
 
-  // In-memory session store: sha256(token) → the account it authenticates and its
-  // expiry. Ephemeral and per-process by design (see the header doc); keyed by the
-  // token *hash* so a memory dump never yields a usable bearer. The token itself is
-  // 256-bit random — not password-derived — so a lookup miss leaks nothing and needs
-  // no constant-time compare (unlike the verifier hashes).
+  // Sessions by token hash, in memory; see the README's _Routes_.
   const sessionTtlMs = opts.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const sessions = new Map<string, { accountId: string; expiresAt: number }>();
 
-  /** Drop every expired session; called on each mint so the map stays bounded. */
+  /** Drops expired sessions, on each mint, so the map stays bounded. */
   function purgeExpiredSessions(now: number): void {
     for (const [key, session] of sessions) {
       if (now >= session.expiresAt) sessions.delete(key);
     }
   }
 
-  /** Mint a fresh session token for an authenticated account; returns the wire pair. */
+  /** Mints a session token for an authenticated account. */
   function mintSession(accountId: string): {
     token: string;
     expiresAt: number;
@@ -393,12 +288,7 @@ export function createRelayServer(opts: {
     return { token: bytesToBase64(raw), expiresAt };
   }
 
-  /**
-   * Authenticate a `Authorization: Session <token>` request against a live session.
-   * Returns the account id, or `null` on any failure (missing/malformed header,
-   * unknown token, expired). The session sibling of {@link authenticate} — the hot
-   * `push`/`pull` path uses this so the raw verifier never transits per-request.
-   */
+  /** The account a live `Session` token authenticates, or `null`. */
   function authenticateSession(req: IncomingMessage): string | null {
     const header = req.headers.authorization;
     if (header === undefined || !header.startsWith("Session ")) return null;
@@ -441,19 +331,14 @@ export function createRelayServer(opts: {
     }
   }
 
-  // The request listener is identical over HTTP and HTTPS — TLS (Option B) is purely
-  // a transport wrapper around the same handler, session store, and limiters.
+  // One listener over HTTP or HTTPS.
   const listener = (req: IncomingMessage, res: ServerResponse): void => {
     void handle(req, res).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { error: "internal" });
     });
   };
 
-  // Option B serves HTTPS only — there is deliberately no HTTP→HTTPS redirect
-  // listener: clients hold the relay's `https://` URL directly, and port-80
-  // handling is a front-proxy (Option A) concern. If one were ever wanted, add a
-  // second `createHttpServer` bound to :80 here whose handler 301s to the https
-  // origin. (`https.Server` extends `http.Server`, so the return type is unchanged.)
+  // Option B serves HTTPS only, with no port-80 redirect.
   return opts.tls === undefined
     ? createHttpServer(listener)
     : createHttpsServer(opts.tls, listener);
@@ -471,7 +356,7 @@ export function createRelayServer(opts: {
 
     if (method === "POST" && url.pathname === "/accounts") {
       if (throttled(req, res)) return;
-      // Access-control seam (content-blind) — checked before anything is stored.
+      // Access control, checked before anything is stored.
       if (!registrationTokenOk(req)) {
         sendJson(res, 401, { error: "registration token required" });
         return;
@@ -519,8 +404,7 @@ export function createRelayServer(opts: {
 
     if (method === "GET" && url.pathname === "/accounts/lookup") {
       if (throttled(req, res)) return;
-      // Unauthed prelogin: a joining device knows only the username, and needs
-      // the account id + public salt to derive its KEK and authenticate.
+      // Prelogin: a joining device needs the id and salt to derive its KEK.
       const username = (url.searchParams.get("username") ?? "")
         .trim()
         .toLowerCase();
@@ -538,12 +422,10 @@ export function createRelayServer(opts: {
     }
 
     if (method === "POST" && url.pathname === "/accounts/session") {
-      // The steady-state login: verifier auth *once*, in exchange for a short-lived
-      // session token that carries the hot `push`/`pull` path (threat H3, README.md).
+      // The login: the verifier once, for a session token (threat H3).
       const accountId = authenticate(req, store);
       if (accountId === null) {
-        // Failed auth here is the same online-guessing surface as bootstrap, so it
-        // shares that budget (a wrong-verifier grind can't be laundered across the two).
+        // The same guessing surface as bootstrap, so the same budget.
         if (!allowBootstrap(clientIp(req))) {
           sendJson(res, 429, { error: "rate limited" });
           return;
@@ -558,9 +440,7 @@ export function createRelayServer(opts: {
     if (method === "GET" && url.pathname === "/accounts/bootstrap") {
       const accountId = authenticate(req, store);
       if (accountId === null) {
-        // A failed auth consumes the per-IP bootstrap budget; once exhausted we 429 so
-        // a password-guessing grind is throttled (threat H2, README.md). A legit
-        // device authenticates successfully and never touches this counter.
+        // Only a failure spends the login budget (threat H2).
         if (!allowBootstrap(clientIp(req))) {
           sendJson(res, 429, { error: "rate limited" });
           return;
@@ -568,10 +448,8 @@ export function createRelayServer(opts: {
         sendJson(res, 401, { error: "unauthorized" });
         return;
       }
-      // Authenticated: hand back this account's opaque wrap(MK, KEK) so the joining
-      // device can unwrap the master key locally (the relay never reads it), plus a
-      // session token so the same verifier auth that joined also seeds sync — the
-      // joining device never has to log in a second time.
+      // wrap(MK, KEK) for the joining device, and a session, so it never
+      // logs in twice.
       const account = store.getAccount(accountId);
       if (account === undefined) {
         sendJson(res, 404, { error: "not found" });
@@ -579,8 +457,7 @@ export function createRelayServer(opts: {
       }
       sendJson(res, 200, {
         wrappedMasterKey: bytesToBase64(account.wrappedMasterKey),
-        // The inverse escrow so a joining device reveals the account phrase;
-        // absent on pre-unification accounts.
+        // Absent on older accounts.
         ...(account.wrappedRecoveryKey === undefined
           ? {}
           : {
@@ -593,8 +470,7 @@ export function createRelayServer(opts: {
 
     if (method === "GET" && url.pathname === "/accounts/recovery") {
       if (throttledRecovery(req, res)) return;
-      // Recovery-authed: hand back wrap(MK, recoveryKey) so a device that lost
-      // its password can unwrap MK from the recovery phrase. Opaque to the relay.
+      // wrap(MK, recoveryKey), for a device that lost its password.
       const accountId = authenticateRecovery(req, store);
       if (accountId === null) {
         sendJson(res, 401, { error: "unauthorized" });
@@ -614,16 +490,11 @@ export function createRelayServer(opts: {
     }
 
     if (method === "POST" && url.pathname === "/accounts/recovery") {
-      // **Password-authed, not recovery-authed** — the one thing about this
-      // endpoint that must never be "simplified" to match its GET sibling on the
-      // same path. Rotation exists to answer a *leaked phrase*; gating it on the
-      // recovery verifier would hand whoever leaked it the power to rotate the
-      // phrase themselves and lock the owner out of their own account. Proving
-      // knowledge of the password is the whole point.
+      // ⚠️ Password-authed, unlike the GET: a leaked phrase must not be able to
+      // rotate itself. See the README's _Routes_.
       const accountId = authenticate(req, store);
       if (accountId === null) {
-        // Same online-guessing surface as the other verifier-authed endpoints, so
-        // it spends the same budget (H2).
+        // The same guessing surface, so the same budget (threat H2).
         if (!allowBootstrap(clientIp(req))) {
           sendJson(res, 429, { error: "rate limited" });
           return;
@@ -652,9 +523,7 @@ export function createRelayServer(opts: {
 
     if (method === "POST" && url.pathname === "/accounts/reset") {
       if (throttledRecovery(req, res)) return;
-      // Recovery-authed: replace the password door with new material so the
-      // recovered device can authenticate going forward. The recovery escrow +
-      // verifier are untouched, so the same phrase keeps working.
+      // Replaces the password door; the phrase keeps working.
       const accountId = authenticateRecovery(req, store);
       if (accountId === null) {
         sendJson(res, 401, { error: "unauthorized" });
@@ -691,8 +560,7 @@ export function createRelayServer(opts: {
         sendJson(res, 400, { error: "invalid request" });
         return;
       }
-      // The account is the *authenticated* identity, never the body — a device
-      // can only ever push into its own namespace.
+      // The authenticated account, never the body's.
       store.append(accountId, parsed.data.records.map(decodeRecord));
       sendJson(res, 200, { ok: true });
       return;
