@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 through 7 landed; only 8 remains.
+All eight landed. Step 8 found the bug still present, so its re-check repeats on each Expo SDK bump.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -82,12 +82,11 @@ scripts linked as its examples.
 
 ### 8. Retire the Hermes await-in-ternary scan if the engine has fixed it
 
-`scripts/hermes-await-in-ternary.test.mjs` scans source for a shape Hermes miscompiled. Whether
-the Hermes shipped with the pinned Expo SDK still does cannot be read from source. Do: on an iOS
-simulator, a dev-client build with the shape reintroduced in a throwaway function that logs its
-result; if the value is correct, delete the scan and its `vitest.config.ts` include; if not,
-leave it and note the SDK version checked in the scan's header (a behaviour fact, under two
-lines). Re-check on each Expo SDK bump until it goes.
+**✅ Checked 2026-09-29: not fixed, scan kept.** Two awaits in a branch still came back as `3`
+on Expo SDK 56.0.11 / React Native 0.85.3; the scan's header names the SDK. Re-check on each
+Expo SDK bump until it goes: a throwaway module imported from `apps/mobile/index.ts`, logging
+the shape at two and four awaits, read on the dev client with `xcrun simctl spawn booted log
+stream`. If both come back right, delete the scan and its `vitest.config.ts` include.
 
 ## Not a step here: the mobile E2E harness
 
