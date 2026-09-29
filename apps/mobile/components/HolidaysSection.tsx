@@ -9,21 +9,8 @@ import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * The Holidays section on the Person and Pet screens, ported from the desktop
- * `HolidaysSection` — the mirror of the "Observed by" field on a holiday.
- * Observing from either direction writes the same row, so which surface a user
- * reaches for is only a matter of what they're looking at.
- *
- * **Both directions write immediately, with no Save.** An observance is a
- * boolean about a pair — there is no draft to lose, no half-said state to hold
- * back, and each is one tap to reverse from the other side. So Add pushes the
- * catalog ({@link HolidayPicker}) and Remove clears the answer in place, which
- * is the same `setObservers` call with the other value.
- *
- * The row's other link is the observance's **reminder schedule**, which is
- * neither the holiday's nor the bearer's but the pair's: two people who observe
- * the same holiday can be reminded about entirely different things, and the rule
- * only exists once the observance does.
+ * The holidays someone observes, each written at once with no Save, and
+ * linking to that observance's own reminder schedule.
  */
 export function HolidaysSection({
   bearerType,
@@ -38,8 +25,7 @@ export function HolidaysSection({
   onChanged: () => void;
 }) {
   const core = useCore();
-  // Only what this bearer keeps: what they could still be offered is the
-  // picker's business (see `splitBearerHolidays`).
+  // Only what this bearer keeps; what is addable is the picker's business.
   const { observed } = splitBearerHolidays(holidays);
 
   function confirmRemove(holiday: BearerHolidayCandidate) {

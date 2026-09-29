@@ -7,13 +7,7 @@ import { HolidayBrowser } from "./HolidayBrowser";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/**
- * A holiday as a staged row: what both sources of one agree on. The create
- * screen picks from the catalog (`HolidayListItem`) and the edit screen seeds
- * from what a bearer already observes (`BearerHolidayCandidate`), and the two
- * differ in ways — an observer count, a stored answer — that a row neither shows
- * nor writes.
- */
+/** A staged holiday: what the catalog and a bearer's candidates agree on. */
 export interface StagedHoliday {
   id: string;
   name: string;
@@ -22,27 +16,8 @@ export interface StagedHoliday {
 }
 
 /**
- * Holidays on the **create** and **edit** screens — the staged counterpart to
- * {@link HolidaysSection}, whose picks become `core.holidays.setObservers` calls
- * when the form is saved. See {@link StagedMilestonesSection} for why staging
- * works this way.
- *
- * Unlike the detail section this reads `core.holidays.list()`, the plain catalog:
- * on the create screen `listForBearer` needs a bearer that doesn't exist yet, and
- * on the edit screen what the bearer already observes is staged in `entries`
- * rather than re-read. That list deliberately *includes* hidden holidays (the
- * browse screen is where a user unhides one), so the picks are run back through
- * `splitBearerHolidays` to apply the same rule the detail section got for free:
- * never offer a hidden holiday, since observing one would be a no-op.
- *
- * Browsing the catalog is {@link HolidayBrowser}, shared with the "Add holiday"
- * screen a saved record's page pushes to — one list, so the create and edit
- * paths cannot drift. What this supplies is the list of what is still addable:
- * the whole catalog minus what is already staged here.
- *
- * Per-observance reminder schedules aren't offered here. They belong to the
- * observance rather than the holiday, and the row that edits them lives on the
- * detail page, where the observance is real.
+ * Holidays staged on a form, from the plain catalog, since there is no bearer
+ * yet. It includes hidden holidays, so `splitBearerHolidays` drops them.
  */
 export function StagedHolidaysSection({
   entries,

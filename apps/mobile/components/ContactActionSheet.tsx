@@ -8,30 +8,14 @@ export interface SheetItem {
   key: string;
   glyph: string;
   label: string;
-  /** A muted trailing note — "profile" where a link doesn't open a conversation. */
+  /** A muted trailing note: "profile" where a link opens no conversation. */
   hint?: string;
   danger?: boolean;
   onPress: () => void;
 }
 
-/**
- * Everything a contact-method row can do, once the row itself has spent its one
- * tap on the likeliest of them.
- *
- * A row has several sensible actions — a number can be texted, called, or opened
- * in WhatsApp — but only one tap, so the rest need somewhere to live. This is
- * that somewhere, and it holds Edit and Remove too: those used to sit *in* the
- * row as links, which is what stopped the row body from being tappable at all.
- * Moving them here is what freed the tap.
- *
- * Built on the same `Modal` + backdrop + bottom panel as
- * {@link SelectField}'s picker, deliberately rather than by extracting a shared
- * sheet: two sheets is not yet a pattern, and the layout is small enough that a
- * premature abstraction would cost more than the duplication. There were three
- * for a while — the New tab's chooser was the other — and it went with the tab
- * rather than being generalised, which is the outcome the duplication was
- * betting on.
- */
+/** Every action a contact-method row holds beyond its one tap, then Edit and
+ *  Remove. */
 export function ContactActionSheet({
   visible,
   title,
@@ -67,9 +51,7 @@ export function ContactActionSheet({
             accessibilityRole="button"
             style={local.option}
             onPress={() => {
-              // Close before acting: leaving the modal mounted while the OS
-              // switches apps means it is still there on the way back, and a
-              // pushed screen would arrive behind it.
+              // Close first: a pushed screen would arrive behind the modal.
               onClose();
               item.onPress();
             }}
@@ -137,7 +119,7 @@ const local = StyleSheet.create({
   dangerLabel: {
     color: colors.danger,
   },
-  /** Pushed to the trailing edge, where it reads as a qualifier not a second label. */
+  /** At the trailing edge, a qualifier rather than a second label. */
   hint: {
     marginLeft: "auto",
     fontSize: 13,

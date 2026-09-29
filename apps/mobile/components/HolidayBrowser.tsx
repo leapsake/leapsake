@@ -11,22 +11,8 @@ export interface BrowsableHoliday {
 }
 
 /**
- * Pick holidays out of the catalog — the shared body of the create form's
- * Holidays section ({@link StagedHolidaysSection}) and the "Add holiday" screen
- * a record's page pushes to.
- *
- * **The whole list is on show, and the field narrows it.** Adding used to be a
- * two-character typeahead, which meant a user who didn't already know a
- * holiday's name could not find one at all; browsing is the point and searching
- * is the shortcut. It lives here rather than in either caller because the two
- * paths had drifted apart once before, the create form ending up with the better
- * half of a list the detail page also needed.
- *
- * What it does *not* decide is which holidays are addable or what adding one
- * means. The create form appends to an array it will write later; the screen
- * writes an observance immediately. Both hand in a list they have already
- * filtered — hidden ones out, already-kept ones out — because where that list
- * comes from is exactly what differs between them.
+ * The whole catalog on show, narrowed by a field, for both ways of adding a
+ * holiday; each caller decides what is addable and what adding means.
  */
 export function HolidayBrowser<T extends BrowsableHoliday>({
   addable,
@@ -48,9 +34,8 @@ export function HolidayBrowser<T extends BrowsableHoliday>({
     <>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Search</Text>
-        {/* By `testID` for the harness, not by its label: "Search" is also a
-            tab, and an empty input carries no accessibility text of its own —
-            see the note in `PersonFields`. */}
+        {/* An E2E anchor: "Search" is also a tab, and an empty input has no
+            accessibility text. */}
         <TextInput
           testID="holiday-search"
           style={styles.input}

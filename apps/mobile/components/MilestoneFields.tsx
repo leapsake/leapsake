@@ -45,12 +45,7 @@ export function milestoneProblem(
   return undefined;
 }
 
-/**
- * Whether the draft says nothing yet: no date and no note, whatever kind is
- * showing. A kind alone is the picker's own default rather than an answer, so a
- * row in this state is the "Add milestone" tap nobody followed through on — see
- * {@link milestoneRowPending}.
- */
+/** No date and no note; the kind showing is only the picker's default. */
 export function milestoneDraftEmpty(draft: MilestoneDraft): boolean {
   return (
     draft.month.trim() === "" &&
@@ -61,22 +56,8 @@ export function milestoneDraftEmpty(draft: MilestoneDraft): boolean {
 }
 
 /**
- * One milestone's fields, ported from the desktop `MilestoneForm` (minus its
- * relationship-binding "with whom?" branches, which belong with the deferred
- * Relationships increment): a kind — constrained to those the bearer type can
- * hold — any subset of a partial date, an optional note, and the staggered
- * reminder schedule.
- *
- * Controlled throughout, with no submit of its own, like {@link PersonFields} and
- * {@link ContactMethodFields}: whoever owns the draft sees every keystroke. That
- * is what lets {@link StagedMilestonesSection} keep every row open and live, and
- * what leaves the writing to whichever Save the caller has.
- *
- * The **reminder schedule** is the one thing that folds away (`collapseSchedule`),
- * because it is a list editor rather than a field: a birthday's defaults alone are
- * three switches, three pickers and three numbers, and a form of four open
- * milestones would be nothing but reminder rules. Collapsed it still says how many
- * are on, and opening it costs a tap and changes nothing.
+ * One milestone's kind, partial date, note and reminder schedule, with no
+ * submit of its own; the schedule can fold away, saying how many are on.
  */
 export function MilestoneFields({
   draft,
@@ -90,7 +71,7 @@ export function MilestoneFields({
   onChange: (draft: MilestoneDraft) => void;
   errors: MilestoneDraftErrors;
   bearerType: MilestoneBearerType;
-  /** Put the reminder schedule behind a disclosure — see above. */
+  /** Put the reminder schedule behind a disclosure. */
   collapseSchedule?: boolean;
   /** Fill a screen of its own, in a scroll view. */
   scroll?: boolean;
@@ -117,7 +98,7 @@ export function MilestoneFields({
         onChange={(kind) => onChange(milestoneDraftWithKind(draft, kind))}
       />
 
-      {/* `milestone-year` is load-bearing for the harness: see subflows/stage-birthday.yaml. */}
+      {/* `milestone-year` is an E2E anchor: subflows/stage-birthday.yaml. */}
       <DatePartsFields
         label={TEXT.date}
         value={draft}
@@ -132,11 +113,7 @@ export function MilestoneFields({
         <Text style={styles.fieldLabel}>
           {draft.kind === "other" ? TEXT.label : TEXT.note}
         </Text>
-        {/*
-          Addressable for the same reason `milestone-year` above is: empty, it offers a
-          driver nothing to select it by, and Flow 2 of the crucial-flow catalog types a
-          note here and reads it back from the edit form.
-        */}
+        {/* An E2E anchor: empty, it offers a driver nothing to select. */}
         <TextInput
           testID="milestone-note"
           style={styles.input}

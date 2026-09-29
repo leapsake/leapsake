@@ -4,31 +4,14 @@ import { ChipTextField } from "./ChipTextField";
 import { styles } from "../lib/styles";
 
 /**
- * A record's stored tags as this field's value: labels, space-separated, which
- * `parseTagNames` reads back.
- *
- * It lives here because it is the inverse of what the field produces, and
- * because every screen that writes a person or a pet needs it — including the
- * ones that never show a tag. `people.update` and `pets.update` *replace* the
- * whole tag set from their third argument, so a name-and-gender screen that
- * passed `[]` would quietly strip them; instead it carries the raw string
- * through the draft untouched and hands it back.
+ * Stored tags as this field's value. Every writer of a person or pet needs
+ * it: `update` replaces the tag set, so passing `[]` would strip them.
  */
 export const tagsRawOf = (tags: readonly Tag[]): string =>
   tags.map((tag) => tagLabel(tag.name)).join(" ");
 
-/**
- * The editable Tags field: the whole of the screen behind a record's **Edit
- * tags**, and the closing question on the create form — the counterpart to
- * {@link TagsField}, which renders the same tags read-only (and linked) on the
- * detail screens.
- *
- * It lives outside {@link PersonFields} and {@link PetFields} because the create
- * form puts it *last*, below the staged milestones, contacts and holidays,
- * rather than tucked in with the name and gender. Tagging is the one thing on
- * that form you can only really do once you've written down who this is, so it
- * reads as a closing step rather than another identity field.
- */
+/** The editable Tags field, apart from the name fields so a form can put it
+ *  last; {@link TagsField} is the read-only one. */
 export function TagsInput({
   label,
   value,

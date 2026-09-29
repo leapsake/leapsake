@@ -8,25 +8,8 @@ import { colors, styles } from "../lib/styles";
 import { useCore } from "../lib/core-context";
 
 /**
- * The "Gifts" section on a Person or Pet screen, ported from the desktop
- * `GiftsSection`. One list of what they are down for, outstanding first and given
- * ones sunk, so the section reads as a shopping list for this person.
- *
- * **The tick writes where it stands**, like its counterpart on the idea's own
- * page ({@link GiftIdeaRecipientsSection}) — a link is ticked or it isn't, so
- * there is no half-state to hold back and nothing a Save would add. It is the
- * ✓/○ the row already showed, now the control rather than a report of one:
- * ticking a gift off is the single commonest thing anybody does to this list,
- * and it should not cost a screen.
- *
- * Adding pushes the capture screen with this recipient already settled, because
- * a gift is an *idea* plus who it suits, and the idea has a title, a URL and a
- * pool to autocomplete against that belong to `/gifts/new`. Removing unlinks the
- * idea from this recipient; the idea itself carries on existing for anybody
- * else, which is why the confirm says so.
- *
- * The idea's own page is still where its title and link are changed — those
- * belong to the idea rather than to any one recipient.
+ * What someone is down for, given ones last. The tick writes where it stands;
+ * Remove unlinks the idea from them, and the idea lives on.
  */
 export function GiftsSection({
   recipientType,
@@ -119,11 +102,7 @@ export function GiftsSection({
   );
 }
 
-/**
- * An idea's link, opened in the device browser — the mobile stand-in for the
- * desktop row's `<a target="_blank">`. A URL the OS can't open (a typo, a scheme
- * with no handler) surfaces as an alert rather than failing silently.
- */
+/** An idea's link in the browser; one the OS cannot open raises an alert. */
 export function GiftLink({ url }: { url: string }) {
   return (
     <Pressable
