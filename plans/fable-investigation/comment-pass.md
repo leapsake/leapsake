@@ -18,17 +18,24 @@ remains:
 **Step 7: everything else, by directory, `scripts/` last.** Comment lines by directory, with
 lint findings in brackets:
 
-| Directory              |         Lines |     | Directory                 |    Lines |
-| ---------------------- | ------------: | --- | ------------------------- | -------: |
-| `packages/ui`          |   1,276 (300) |     | `packages/notifications`  | 247 (28) |
-| `packages/vcard`       |   1,222 (332) |     | `packages/contact-links`  | 208 (38) |
-| `packages/holidays`    |     750 (156) |     | `packages/store-layout`   | 142 (49) |
-| `packages/sync`        |     715 (227) |     | `packages/contact-import` | 134 (26) |
-| `apps/server`          |     429 (178) |     | `apps/website`            | 102 (52) |
-| `packages/view-models` |      390 (92) |     | `packages/gifts`          |  80 (17) |
-| `packages/export`      |      352 (63) |     | `packages/bytes`          |  64 (18) |
-| `packages/crypto`      |     322 (123) |     | `packages/highlight`      |  60 (13) |
-| `scripts`              | 2,440 (1,579) |     |                           |          |
+| Directory                 |         Lines |
+| ------------------------- | ------------: |
+| `packages/vcard`          |   1,222 (332) |
+| `packages/holidays`       |     750 (156) |
+| `packages/sync`           |     715 (227) |
+| `packages/view-models`    |      390 (92) |
+| `packages/export`         |      352 (63) |
+| `packages/crypto`         |     322 (123) |
+| `packages/notifications`  |      247 (28) |
+| `packages/contact-links`  |      208 (38) |
+| `packages/store-layout`   |      142 (49) |
+| `packages/contact-import` |      134 (26) |
+| `packages/gifts`          |       80 (17) |
+| `packages/bytes`          |       64 (18) |
+| `packages/highlight`      |       60 (13) |
+| `apps/server`             |     429 (178) |
+| `apps/website`            |      102 (52) |
+| `scripts`                 | 2,440 (1,579) |
 
 Measured 2026-09-18 over non-test `.ts`/`.tsx`/`.mjs`/`.js`. A comment line is one starting
 with `//`, `*` or `/*`. When step 7 lands, the rules move to the top level of `.oxlintrc.json`

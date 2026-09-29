@@ -40,7 +40,8 @@
         "apps/mobile/components/**",
         "apps/mobile/plugins/**",
         "apps/mobile/index.ts",
-        "apps/mobile/app.config.ts"
+        "apps/mobile/app.config.ts",
+        "packages/ui/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
