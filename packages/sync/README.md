@@ -30,6 +30,35 @@ against a live relay), so the rebuild starts from working code rather than from 
 `syncableRepos` in [`@leapsake/core`](../core/README.md), which is the composition root and
 the one place that says which repositories may leave the device. A guard test pins that set.
 
+## The recovery escrow
+
+A relay-bound account's recovery escrow is what a _fresh_ device recovers from, and it changes
+only over the network. Rotating the phrase still **works offline**, because a security action
+must not wait on connectivity: the local doors rotate at once, and the escrow is left **pending**
+(a device-local flag set _before_ the attempt, so a crash mid-publish leaves it set) for
+`flushPendingRecoveryEscrow` at the top of the next sync. Until it lands the _old_ phrase still
+recovers the account, so the client must tell the user to keep it until this device syncs.
+
+- **All three recovery fields go up together**: the escrow a fresh device unwraps MK from, its
+  inverse (so a password-joining device can reveal the same phrase), and the verifier hash that
+  authenticates a recovery. A subset would authenticate a recovery it cannot complete.
+- **A device that signed out before flushing keeps the flag** and publishes nothing, since its
+  recovery key went with the sign-out. Unlocking with the phrase restores it, and the next sync
+  flushes.
+- **`convergeRecoveryKey` flushes first and never pulls while its own rotation is pending**, or
+  the rotating device would fetch the old escrow and overwrite the key behind a phrase it has
+  already shown. It also re-arms a device whose recovery key was cleared at sign-out. It runs once
+  per launch, not per sync. Two devices rotating within one offline window resolve as **last
+  flush wins**, and the loser's displayed phrase stops working: accepted.
+- **`runAccountSync` requires the `keyStore`**, so no client can skip the flush and leave the relay
+  holding an escrow whose phrase nobody has.
+
+A 409 on registration is `isUsernameTakenError`, which a client **forks on** rather than reports:
+the username is either the user's own account (merge into it) or a stranger's (pick another).
+Check it before rewording the error, since prose loses the status code. `reconcileOnJoin` pulls,
+then only **counts** the duplicates the join introduced for review: it never merges, since a
+wrong merge is destructive, and never pushes, since the normal sync does.
+
 ## The four pieces
 
 | Module              | What it is                                                         |
