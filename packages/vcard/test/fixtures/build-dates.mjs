@@ -2,26 +2,8 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/**
- * Regenerate `dates-v3.vcf` / `dates-v4.vcf` — the probe files behind
- * `../../README.md` → *Two rules that point in opposite directions*, which
- * answer "what does iOS Contacts
- * actually do with a year-less date?" by measurement rather than by reading a
- * spec. `dates.test.ts` asserts what *our* parser makes of them; the part no
- * test can cover is what Apple makes of them, which is why they are checked in
- * as importable files rather than built inline.
- *
- * **To re-run the device half:** AirDrop both to an iPhone, add all contacts,
- * and read each card's date field. Every card is tagged
- * `ORG:LEAPSAKE-DATE-TEST`, so one search finds all 16 for deletion afterwards.
- * The card names carry the expected answer. Results as of 2026-09-07 are in
- * that README; the two that decided the format were `03-noyear-basic`
- * (works — so the standard spelling is safe) and `08`/`09-anniversary-*`
- * (ignored entirely — so `ANNIVERSARY` must never be written).
- *
- * One card per spelling, named so the Contacts list tells you which is which.
- * vCard demands CRLF, so the lines are joined explicitly rather than with "\n".
- */
+// Regenerates the iOS date probe files; the README's _Two rules_ says how to
+// re-run them on a device.
 
 const ORG = "LEAPSAKE-DATE-TEST";
 
@@ -41,9 +23,7 @@ function card(version, last, props) {
 /** The cases both versions share. Expected result is in the name. */
 function commonCases(version) {
   return [
-    // Controls: a date that HAS a year, in both legal spellings. If either of
-    // these fails the file itself is being rejected and nothing else means
-    // anything.
+    // Controls with a year: if either fails, the file itself was rejected.
     card(version, "01-control-full-extended", ["BDAY:1985-04-12"]),
     card(version, "02-control-full-basic", ["BDAY:19850412"]),
 
@@ -54,8 +34,7 @@ function commonCases(version) {
       "BDAY;X-APPLE-OMIT-YEAR=1604:1604-04-12",
     ]),
 
-    // The same question for a labelled date, which is the path every milestone
-    // kind other than birthday would take.
+    // The same question for a labelled date, as other milestone kinds go.
     card(version, "06-abdate-noyear-basic", [
       "item1.X-ABDATE:--0412",
       "item1.X-ABLABEL:_$!<Anniversary>!$_",
@@ -73,8 +52,7 @@ function build(version, extra = []) {
   return lines.join("\r\n") + "\r\n";
 }
 
-// ANNIVERSARY is a vCard 4.0 property and does not exist in 3.0, so it is only
-// worth asking the 4.0 file about it.
+// ANNIVERSARY exists only in vCard 4.0.
 const v4Extra = [
   card("4.0", "08-anniversary-noyear-basic", ["ANNIVERSARY:--0412"]),
   card("4.0", "09-anniversary-full", ["ANNIVERSARY:1985-04-12"]),
