@@ -52,7 +52,8 @@
         "packages/contact-links/**",
         "packages/store-layout/**",
         "packages/contact-import/**",
-        "packages/gifts/**"
+        "packages/gifts/**",
+        "packages/bytes/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
