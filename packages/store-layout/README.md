@@ -83,6 +83,14 @@ need not be recreated" and cost a compatibility path through the most delicate c
 app — including a mobile heuristic that inferred _"a store is encrypted"_ from the presence
 of a key or a sidecar. **An install predating the custody work must be recreated.**
 
+**`replace` swaps one account for another in a single write**, keeping the outgoing entry's
+position. As `add` then `remove` it would be two writes, and a crash between them leaves both ids
+listed: the device boots the old store while an entry claims the destination, which defeats a
+merge's stranded-destination sweep; the reverse order boots Unauthenticated. The position matters
+because with no `activeAccountId` the first entry boots. With `oldId` absent it is a plain add, so
+re-running a merge that already landed changes nothing. It serves the merge flow, which has no
+client until v0.2.
+
 **A store in the wrong custody state is refused, never silently fixed.** Encrypted where an
 Unauthenticated store belongs, or plaintext where an account's store belongs, both raise. The
 alternative — converting on the fly — is what the old boot path did, and it is precisely

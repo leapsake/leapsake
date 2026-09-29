@@ -1,14 +1,5 @@
-/**
- * Where a client keeps its stores (encryption `model.md` §7.4). Pure string
- * derivation, deliberately free of any filesystem: desktop joins these onto
- * `app.getPath("userData")`, mobile onto expo-sqlite's database directory, and
- * tests onto a temp dir.
- *
- * The load-bearing rule the design states — *"new work must not assume a single
- * fixed database path"* — is enforced by this module being the only place a store
- * location is spelled out. Nothing else in the app should contain the string
- * `leapsake.db`.
- */
+// Store paths relative to the app-data root. ⚠️ The only place a store path is
+// spelled out; nothing else may contain `leapsake.db`.
 
 /** The store filename, identical in every location. */
 const STORE_FILE = "leapsake.db";
@@ -16,11 +7,7 @@ const STORE_FILE = "leapsake.db";
 /** The directory holding every per-account store. */
 const STORES_DIR = "stores";
 
-/**
- * The Unauthenticated store's slot (§7.2) — the one plaintext store a client may hold before
- * any account exists. It is a reserved slot rather than an account id, which is
- * why it can never collide with one: account ids are UUIDs.
- */
+/** The plaintext store's reserved slot, which no UUID account id can match. */
 export const UNAUTHENTICATED_STORE_SLOT = "local";
 
 /** The directory for one account's store, relative to the app-data root. */
@@ -33,9 +20,5 @@ export function storePath(slot: string): string {
   return `${storeDir(slot)}/${STORE_FILE}`;
 }
 
-/**
- * The roster file, relative to the app-data root (§7.4). It sits *outside*
- * `stores/` on purpose: it must be readable before — and independently of — any
- * store, since you cannot enumerate accounts from inside files you cannot decrypt.
- */
+/** The roster file, outside `stores/`, readable before any store. */
 export const ROSTER_PATH = "accounts.json";
