@@ -23,15 +23,36 @@ The reader tolerates the real-world spread of exports — v2.1/3.0/4.0, folded l
 properties, quoted parameters, bare 2.1 types, `X-APPLE-OMIT-YEAR`, partial `BDAY`s — because a
 card arrives from whoever made it. The writer emits one dialect: vCard 4.0, CRLF, folded at 75
 octets, `PRODID` naming us so an importer can detect the dialect before trusting any
-`X-LEAPSAKE-*`.
+`X-LEAPSAKE-*`. The device probes imported 3.0 and 4.0 identically, so 4.0 costs nothing, and it is
+the version `GENDER`, `RELATED` and `KIND` come from. A pet goes out as `KIND:x-pet`, which Apple
+Contacts reads as an ordinary person: an accepted loss, since our own reader brings it back as a
+pet.
 
 Anything Leapsake has no column for (NOTE, ORG, PHOTO, a free-text address country) is routed to
 `dropped` rather than discarded, so the import review can show the user exactly what will not
 land.
 
+An address's country is stored as an ISO code, and `ADR`'s own country component is a free-text
+name whose spelling depends on the exporter's locale ("USA", "États-Unis"). So it is kept only when
+it already is a code, with Apple's grouped `X-ABADR` code as the fallback; a name is **never mapped
+to a code here**, since a wrong guess files somebody's address in the wrong country. A network
+Leapsake has never heard of keeps the source's word as its platform, since the account is still a
+real way to reach somebody.
+
 **Why not `vcard4` or `ical.js`:** `vcard4` reads only v4, and Apple exports 2.1/3.0. A parser
 defect here costs a bad import of a user-chosen file, not a network exploit. Switch when a
 library reads 2.1/3.0/4.0 and Apple's `item1.X-AB*` groups and passes `test/fixtures/` unchanged.
+
+## The trust boundary
+
+The renderer parses a dropped file and sends `ParsedContact`s over IPC, so the main process
+re-validates them with `parsedContactSchema` before any write. It is **permissive on names**, so a
+nameless card reaches the ingest engine's per-contact guard and fails alone rather than failing the
+whole import at the boundary. The writer-only fields carry **defaults** rather than being required,
+so a renderer one build behind still validates. An unknown milestone kind or relationship role is
+**refused, never coerced**: the parser's mapping and the writer's must agree, and this is where they
+are made to. The package depends only on `@leapsake/schema`; `@leapsake/contact-import` builds the
+real ports over repositories.
 
 ## Two rules that point in opposite directions, and only evidence separates them
 
@@ -57,6 +78,13 @@ other people's files, never emitted.
 
 There is no "prefer the standard" rule that survives both.
 
+**To re-run the device half**, regenerate the files with `node test/fixtures/build-dates.mjs`,
+AirDrop both to an iPhone, add all contacts, and read each card's date field. Each card's name
+carries its expected answer, and every card is tagged `ORG:LEAPSAKE-DATE-TEST`, so one search finds
+all 16 for deletion afterwards. The two that decided the format were `03-noyear-basic` (works, so
+the standard spelling is safe) and `08`/`09-anniversary-*` (ignored entirely, so `ANNIVERSARY` is
+never written).
+
 **Both are measurements, so both expire.** Re-run `test/fixtures/` against a device — never
 re-argue the reasoning — when either ground moves: **any iOS release that touches contact import** (does
 Contacts still read `--0412`?), and **the day a non-Apple client ships** (a consumer that reads
@@ -71,6 +99,13 @@ that lives in only one of the two importers is a bug waiting for whichever path 
 to take. `apple-labels.ts` is that one file: the `_$!<Work>!$_` constant unwrapping, and the
 `DATE_KINDS` map from a date's label to a milestone kind.
 
+Apple's `CNLabel*` constants are wrapped tokens (`CNLabelWork` is literally `_$!<Work>!$_`) that
+only `CNLabeledValue.localizedString(forLabel:)` unwraps, and neither the exported vCard nor the API
+`expo-contacts` reads calls it. Unwrapping is safe because the wrapper is a decades-old
+AddressBook sentinel no user can type in the Contacts UI. Anything unwrapped is free text, a
+custom label or Android's already-localised value, and passes through untouched: we never
+title-case someone's "Beach House".
+
 `DATE_KINDS` is what a **foreign** label means: our own cards carry the kind outright in
 `X-LEAPSAKE-MILESTONE-KIND`, and that parameter wins ahead of any lookup. It covers eight of the
 ten kinds, derived from `kindDefs` so a reworded label cannot silently stop matching — keyed by the
@@ -79,7 +114,9 @@ dropped — "Date (Beach house closing)" — rather than guessed into `other`, s
 mints a milestone.
 
 The two exclusions are permanent and unrelated to each other: `birthday` fills the contact's
-birthday rather than minting a dated milestone, and `other`'s label _is_ the user's note, which no
+birthday rather than minting a dated milestone, and only when the dedicated field (`BDAY`, iOS's
+`CNContactBirthdayKey`) is empty, so a card spelling its birthday twice never mints a second; both
+importers check that word inline, above the lookup. And `other`'s label _is_ the user's note, which no
 map can resolve. `FROM_A_LABEL` is exhaustive over `MilestoneKind`, so an eleventh kind fails the
 build until somebody decides which side it falls on — and that decision **pays twice**, since the
 iOS Contacts path gains the same kinds in the same change.
@@ -118,6 +155,29 @@ The edge itself works the same way, and `ingestContacts` leans on it: a `RELATED
 partners' cards, so the shared `X-LEAPSAKE-REL-ID` is what stops one relationship being imported as
 two. That is why the engine resolves references in a second phase — the first cannot know whether
 the other end exists yet, and writing from each card would double every edge.
+
+## How an import fails
+
+`ingestContacts` gives **each contact its own transaction**, so one bad card rolls back only
+itself, and collects per-contact errors rather than throwing. Its ports are wired over raw repos,
+not core's transaction-wrapping methods, because the driver's transactions do not nest.
+
+- **A milestone a bearer cannot hold is refused alone** (a pet has no anniversary): letting the
+  schema throw would roll back the whole card, name, tags and relations with it. The error is
+  reported only once the card commits, so a card that rolls back for another reason leaves no
+  phantom.
+- **An edge whose other card was skipped still lands**, as a named relation using the name the
+  parser recovered, because the file plainly states it. A wedding that would have hung off that edge
+  lands once on the entity instead, where the user can rebind it; binding it to the stub would say
+  the marriage survived the skip.
+- **Without `X-LEAPSAKE-REL-ID`, an edge is keyed by the unordered pair of uids, never the role**,
+  since the halves carry inverse roles (`mother`, `son`). Two entities related two ways then collapse
+  to one edge: the safer error, and unreachable from a file we wrote.
+- **The self pointer and the address-book link are written inside the card's transaction**, so a
+  rollback never leaves either pointing at nobody. Two cards claiming the self is the review's to
+  settle; the last one wins.
+- **A nameless card from an address book** is nearly always a business, so it is remembered as seen
+  and skipped rather than refused on every later read.
 
 ## The reader still lags the writer, by less
 

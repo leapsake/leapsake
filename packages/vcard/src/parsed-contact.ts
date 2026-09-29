@@ -7,39 +7,16 @@ import {
 } from "@leapsake/schema";
 import { z } from "zod";
 
-/**
- * The Leapsake-shaped intermediate a parsed contact file yields: one entry per
- * card, already mapped onto the fields Leapsake stores (a Person + its contact
- * methods + an optional birthday) rather than the source format's own vocabulary.
- * The parser (format-specific) produces these; the ingest engine (format-agnostic)
- * consumes them. Keeping the intermediate here — depending only on `@leapsake/schema`
- * — is what lets the same shape cross the IPC boundary and be re-validated in the
- * main process before any write.
- *
- * Names may be **incomplete** on purpose. A source card with only an `FN`
- * ("Acme Corp") or a mononym leaves `lastName` empty rather than inventing one.
- * Leapsake now stores such a person as they came — a Person needs *some* name,
- * not a first and a last one — so these cards import rather than being refused;
- * only a card with no name at all is turned away.
- *
- * Empty string is this type's "absent", because it is what a source file's own
- * empty field yields; {@link nameInputFrom} is the one place that translates
- * that into the `null` the Person schema spells it with.
- */
+/** A card's name, possibly partial; `""` is absent until
+ *  {@link nameInputFrom} turns it into `null`. */
 export interface ParsedName {
   firstName: string;
   middleName: string | null;
   lastName: string;
 }
 
-/**
- * A {@link ParsedName} as `createPerson` input: trimmed, with every part that
- * the card left blank collapsed to `null`.
- *
- * Both sides of the import need exactly this — the engine's "is there a name at
- * all?" guard and the port that actually writes the row — and they must agree,
- * or a card passes the guard and then fails `personSchema` mid-batch.
- */
+/** A {@link ParsedName} as `createPerson` input, blanks as `null`; the ingest
+ *  guard and the writing port both use it, so they agree. */
 export function nameInputFrom(name: ParsedName): {
   firstName: string | null;
   middleName: string | null;
@@ -57,18 +34,8 @@ export function nameInputFrom(name: ParsedName): {
 }
 
 /**
- * Somebody the card names as related to its contact — a vCard `RELATED` giving a
- * plain name ("Ruth Dakin") rather than pointing at another card.
- *
- * A *named* relation becomes an **unpublished** person on import: a name attached
- * to the contact, absent from People & Pets until they turn out to be more than
- * that. Which is exactly what the source says — the card records a spouse's
- * name, not a spouse.
- *
- * A relation that instead **points at another card** ({@link ParsedRelated.otherUid})
- * becomes a real edge between two published entities, provided that card was
- * imported too; if it was skipped, it degrades to the named form above, since
- * the fact is true either way.
+ * Somebody a card names as related: by name, imported as an unpublished
+ * person, or by another card's `UID`, imported as an edge between the two.
  */
 export interface ParsedRelated {
   /** The name as the card writes it; split into parts at write time. */
@@ -77,41 +44,22 @@ export interface ParsedRelated {
   role: RelationshipRole;
   /** The card's own `TYPE`, kept as the qualifier when `role` is `other`. */
   roleNote: string | null;
-  /**
-   * The `UID` of the other end's own card, when the edge points at one rather
-   * than merely naming somebody — a published↔published relationship, written as
-   * `RELATED;VALUE=uri:urn:uuid:…`.
-   *
-   * `null` for every unpublished relation, whose whole point is that they have
-   * no card, and for a reference whose card is **not in the file** — that one
-   * cannot be resolved to anybody and stays in `dropped` instead.
-   *
-   * When it is set, {@link ParsedRelated.name} was recovered from that card's
-   * own `FN`, because a reference carries no name of its own.
-   */
+  /** The other end's card `UID` from `RELATED;VALUE=uri`, whose `FN` gave the
+   *  name; `null` for a named relation. */
   otherUid: string | null;
-  /**
-   * The Leapsake `relationships.id` this edge is, as `X-LEAPSAKE-REL-ID`.
-   *
-   * The edge appears on **both** cards — that is what vCard means by `RELATED` —
-   * so this is what lets an importer recognise the two halves as one
-   * relationship rather than two, which is exactly how `ingestContacts` uses it.
-   * `null` for any foreign card.
-   */
+  /** `X-LEAPSAKE-REL-ID`, which joins the edge's halves on both cards; `null`
+   *  for a foreign card. */
   relationshipId: string | null;
 }
 
-/** One parsed email — the address as written plus a display label. */
+/** One parsed email: the address as written plus a display label. */
 export interface ParsedEmail {
   label: string;
   address: string;
 }
 
-/**
- * One parsed phone. `country` is only ever an ISO-3166 alpha-2 code (the shape
- * the schema demands) — a source number that carries no reliable country stays
- * `null` rather than guessing. `smsCapable` is `false` only for fax lines.
- */
+/** One parsed phone; `country` is ISO-3166 alpha-2 or `null`, never guessed,
+ *  and `smsCapable` is `false` only for fax. */
 export interface ParsedPhone {
   label: string;
   number: string;
@@ -131,152 +79,67 @@ export interface ParsedPostal {
   country: string | null;
 }
 
-/**
- * One parsed social profile. `platform` is a `@leapsake/contact-links` id where
- * the source named something recognisable, and the source's own word otherwise —
- * a card is allowed to carry an account on a network Leapsake has never heard
- * of, and dropping it would lose a real contact method to keep a list tidy.
- *
- * `url` is set when the source gave one (an `X-SOCIALPROFILE` usually does),
- * which is what lets an unrecognised platform still open.
- */
+/** One parsed social profile; an unrecognised `platform` keeps the source's
+ *  word, and its `url` still opens. */
 export interface ParsedSocial {
   label: string;
   platform: string;
   handle: string;
   url: string | null;
-  /**
-   * The platform's own opaque account id, where the platform keys DMs on one it
-   * does not publish beside the handle (X, Discord).
-   *
-   * `null` for a foreign card — no source spells it in a form worth guessing at
-   * — and read from `X-SOCIALPROFILE;X-LEAPSAKE-USERID=` on one of ours. It gets
-   * a parameter of its own precisely because it is stored, unrecoverable from
-   * the handle, and would otherwise be the one thing missing from the file the
-   * user is told is their backup.
-   */
+  /** The opaque account id some platforms key DMs on, from our own
+   *  `X-LEAPSAKE-USERID`; `null` for a foreign card. */
   platformUserId: string | null;
 }
 
-/**
- * A **partial** civil date — a source card may give only a month and day
- * (`--MM-DD`) with no year. `day` implies `month` (never a lone day), the same
- * rule the milestone schema enforces.
- */
+/** A partial civil date, as in `--MM-DD`; a day always has a month. */
 export interface ParsedPartialDate {
   year: number | null;
   month: number | null;
   day: number | null;
 }
 
-/**
- * The birthday-shaped spelling of {@link ParsedPartialDate}, kept because
- * `ParsedContact.birthday` reads better with it and because it is the name this
- * package already exports. The two are the same shape: a birthday was the only
- * date Leapsake imported until anniversaries joined it.
- */
+/** {@link ParsedPartialDate}, named for `ParsedContact.birthday`. */
 export type ParsedBirthday = ParsedPartialDate;
 
-/**
- * A dated occasion a source card records **besides** the birthday — an iOS/Android
- * contact "date" entry, or a vCard `ANNIVERSARY`.
- *
- * The `kind` is resolved by the *parser* (the format-specific half), the same
- * division {@link ParsedRelated} uses for `RELATED;TYPE=` → `RelationshipRole`:
- * only labels Leapsake has a kind for become entries here, and everything else
- * is surfaced in `dropped[]` instead. That keeps the guesswork in one place and
- * lets the boundary schema validate against the real milestone vocabulary.
- *
- * A card's birthday never arrives here — it fills {@link ParsedContact.birthday},
- * whichever field the platform happened to carry it in.
- */
+/** A dated occasion besides the birthday, its kind resolved by the parser;
+ *  a date with no kind goes to `dropped[]` instead. */
 export interface ParsedDate {
   /** The milestone kind this date lands on. */
   kind: MilestoneKind;
-  /** The source's own label, for the review UI and for an `other` kind's note. */
+  /** The source's own label, for the review and an `other` kind's note. */
   label: string;
   date: ParsedPartialDate;
-  /**
-   * The milestone's free text. Distinct from {@link ParsedDate.label}: for kind
-   * `other` the note *is* the label (that is what `note` means on that kind), and
-   * for every other kind it is an annotation the label does not carry.
-   *
-   * `null` from the parser today — no source card has a place for it — and
-   * written as a parameter on the `X-ABDATE` line rather than a property of its
-   * own, so it rides the date it annotates.
-   */
+  /** The milestone's note, from `X-LEAPSAKE-MILESTONE-NOTE`; for `other` it is
+   *  the label. */
   note: string | null;
   /** The Leapsake `milestones.id`, for a card we wrote. `null` otherwise. */
   id: string | null;
-  /**
-   * The `relationships.id` this milestone is stored on, when its bearer is a
-   * relationship rather than a person or a pet — a wedding belongs to the edge,
-   * not to either partner.
-   *
-   * Such a milestone is written on **both** partners' cards, carrying the same
-   * {@link ParsedDate.id}: one fact, two cards, an id that identifies the halves,
-   * exactly as {@link ParsedRelated.relationshipId} does for the edge itself.
-   * `null` for a milestone the entity bears itself.
-   */
+  /** The relationship bearing this milestone, written on both partners' cards
+   *  with one {@link ParsedDate.id}; else `null`. */
   relationshipId: string | null;
 }
 
-/**
- * A source field Leapsake has no home for yet (a free-text NOTE, an organisation,
- * a photo, a URL, a free-text address country…). Surfaced — not silently dropped —
- * so the review UI can show the user exactly what will not be imported.
- */
+/** A source field Leapsake has no home for, shown in the review. */
 export interface DroppedField {
   property: string;
   value: string;
 }
 
-/** One parsed contact — everything one source card contributed, Leapsake-shaped. */
+/** Everything one source card contributed, Leapsake-shaped. */
 export interface ParsedContact {
-  /**
-   * The entity's stable id — a vCard `UID`, which for a card **we** wrote is the
-   * `people.id`/`pets.id` it came from. `null` for a card that carries none.
-   *
-   * **A matching key, never the id of a row an import creates.** It is what lets
-   * the review say "you already have this person" instead of quietly making a
-   * second copy of them, and what lets a `RELATED;VALUE=uri` resolve to a real
-   * person rather than an unpublished stub. Writing these ids back verbatim
-   * would be a *restore*, which is `plans/v0-2.md` → *Export*.
-   */
+  /** The card's `UID`: a matching key, never the id of an imported row. */
   uid: string | null;
-  /**
-   * What kind of thing the card is about — a vCard `KIND` (RFC 6350 §6.1.4,
-   * which allows x-names, so a pet is `KIND:x-pet`). Any other kind, ours or a
-   * stranger's, reads as `"individual"`: Leapsake has two shapes, and a card
-   * saying `group` is far closer to a person than to a pet.
-   */
+  /** The card's `KIND`: `x-pet` is a pet, and anything else a person. */
   kind: "individual" | "pet";
-  /**
-   * Whether this card **claims** to be the user themselves — the `self_person`
-   * pointer, written as `X-LEAPSAKE-SELF:TRUE`.
-   *
-   * A claim on the way in and a *decision* on the way back out: the import
-   * review starts every such card opted out and replaces this with the user's
-   * answer before the importer sees it, so somebody else's export can never
-   * silently take the pointer over.
-   */
+  /** `X-LEAPSAKE-SELF`: the card's claim, which the review replaces with the
+   *  user's answer before import. */
   isSelf: boolean;
-  /**
-   * `X-LEAPSAKE-CREATED` — epoch ms, or `null` for a card without one.
-   *
-   * **Read but not applied**: no `create` input accepts a `createdAt`, so an
-   * imported entity is stamped with the moment it was imported. Honouring this
-   * needs the row-level `insert`, which is the restore door (`plans/v0-2.md` →
-   * *Export*); it is parsed now so the round trip is honest and restore has it
-   * waiting.
-   */
+  /** `X-LEAPSAKE-CREATED` in epoch ms: read, but not applied on import. */
   createdAt: number | null;
-  /** `REV` — epoch ms. Like {@link ParsedContact.createdAt}, read but not
-   *  applied: a fresh row gets a fresh `updated_at`. */
+  /** `REV` in epoch ms; read, like {@link ParsedContact.createdAt}. */
   updatedAt: number | null;
   name: ParsedName;
-  /** The source display name (vCard `FN`), kept for the review UI even when the
-   *  structured name was derived from it. `null` when the card carried none. */
+  /** The card's `FN`, kept for the review, or `null`. */
   displayName: string | null;
   gender: z.infer<typeof genderSchema> | null;
   emails: ParsedEmail[];
@@ -284,38 +147,21 @@ export interface ParsedContact {
   postals: ParsedPostal[];
   socials: ParsedSocial[];
   birthday: ParsedBirthday | null;
-  /** Dated occasions other than the birthday (anniversaries today). */
+  /** Dated occasions other than the birthday. */
   dates: ParsedDate[];
   related: ParsedRelated[];
-  /**
-   * The entity's tags — a vCard `CATEGORIES` list.
-   *
-   * Note what the store will do with these: a tag name is `[\p{L}\p{N}]+` and
-   * nothing else, so a foreign card's "Close friends" lands as two tags. Our own
-   * names went through that same filter on the way in and so survive intact.
-   */
+  /** `CATEGORIES`; the store splits a foreign “Close friends” into two tags. */
   tags: string[];
   dropped: DroppedField[];
 }
 
-// ---------------------------------------------------------------------------
 // Boundary schema
-// ---------------------------------------------------------------------------
 
-/**
- * Validates a `ParsedContact` at the main-process trust boundary — the renderer
- * parses the dropped file and sends these over IPC, so the payload is untrusted
- * and re-parsed here (as every write channel is). Deliberately **permissive on
- * names**: `firstName`/`lastName` may be empty here so the mononym/org-only case
- * reaches the ingest engine's per-contact guard (which records a friendly error)
- * rather than throwing at the boundary and failing the whole import.
- */
+/** Re-validates a renderer's `ParsedContact` in the main process; names may be
+ *  empty, so the ingest guard reports a nameless card alone. */
 export const parsedContactSchema = z.object({
   uid: z.string().nullable(),
-  // The writer-only fields carry defaults rather than being required, so a
-  // payload built before they existed still validates. They cost nothing on the
-  // way in — the parser fills every one of them with the default anyway — and
-  // the alternative is a boundary that rejects a renderer one build behind.
+  // Defaults, not required, so a renderer one build behind still validates.
   kind: z.enum(["individual", "pet"]).default("individual"),
   isSelf: z.boolean().default(false),
   createdAt: z.number().int().nullable().default(null),
@@ -366,9 +212,7 @@ export const parsedContactSchema = z.object({
       day: z.number().int().nullable(),
     })
     .nullable(),
-  // A kind that isn't one Leapsake knows is refused rather than coerced, for the
-  // same reason `related.role` is: the parser's mapping and the writer's must
-  // agree, and this is the boundary that makes them.
+  // An unknown kind is refused, not coerced, as `related.role` is below.
   dates: z.array(
     z.object({
       kind: milestoneKindSchema,
@@ -383,9 +227,7 @@ export const parsedContactSchema = z.object({
       relationshipId: z.string().nullable().default(null),
     }),
   ),
-  // A role that isn't one Leapsake knows is a payload we refuse rather than
-  // silently coerce — the renderer's mapping and the writer's must agree, and
-  // this is the boundary that makes them.
+  // An unknown role is refused, not coerced: parser and writer must agree.
   related: z.array(
     z.object({
       name: z.string().min(1),
@@ -399,14 +241,10 @@ export const parsedContactSchema = z.object({
   dropped: z.array(z.object({ property: z.string(), value: z.string() })),
 });
 
-/** A `ParsedContact[]` payload — validates the `import.preview` channel args. */
+/** Validates the `import.preview` channel's `ParsedContact[]`. */
 export const parsedContactsSchema = z.array(parsedContactSchema);
 
-/**
- * The reviewed decisions the `import.commit` channel accepts. Kept here beside
- * {@link parsedContactSchema} so the whole trust-boundary shape lives in one
- * place and the desktop app needs no zod of its own.
- */
+/** The reviewed decisions the `import.commit` channel accepts. */
 export const importDecisionsSchema = z.array(
   z.object({
     action: z.enum(["create", "skip"]),
