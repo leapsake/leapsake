@@ -8,20 +8,8 @@ import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 
 /**
- * Pick holidays for one person or pet — the screen behind the Holidays section's
- * **Add holiday**, and the body both bearer routes render. The list itself is
- * {@link HolidayBrowser}, shared with the create form so the two paths cannot
- * drift; what this adds is the bearer, and therefore what adding *means*.
- *
- * **There is no Save.** An observance is a boolean about a pair, so there is no
- * draft to lose and nothing to hold back: each tap writes, and the section this
- * returns to is the readback. It is also one tap to undo there, which is the
- * other half of why writing straight through is safe here and not on a form.
- *
- * What this visit added is listed as it goes, so the list shrinking under the
- * user's thumb reads as "that worked" rather than as a row going missing.
- * Hidden holidays never appear — `splitBearerHolidays` keeps them out, since
- * observing one would be a no-op.
+ * Add holidays for one bearer, each tap writing at once with no Save. What
+ * this visit added is listed, so a shrinking list reads as success.
  */
 export function HolidayPicker({
   bearerType,

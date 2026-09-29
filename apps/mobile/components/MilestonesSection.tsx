@@ -12,19 +12,8 @@ import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 /**
- * The Milestones section shared by the Person, Pet, and relationship detail
- * screens, ported from the desktop `MilestonesSection`. It lists the bearer's
- * timeline: an entry's **own** milestones and, on a person or pet, the ones drawn
- * from a relationship they participate in — those labelled "· with <partner>" and
- * linking out to that relationship's page, because they are stored on the edge.
- *
- * Every bearer gets the same Add / Edit / Remove. The person and pet screens
- * rendered it `readOnly` for a while, their milestones having been folded into
- * the one form behind the page's Edit; that prop is gone with the form, and
- * three screens now agree on what a milestone row can do.
- *
- * Remove deletes in place via a native `Alert` confirm — mirroring the person/pet
- * delete — then calls `onChanged` so the detail screen refetches its view.
+ * A bearer's milestones, and a person's or pet's from their relationships,
+ * which link out to the edge they live on. Remove confirms, then refetches.
  */
 export function MilestonesSection({
   bearerType,
@@ -85,9 +74,7 @@ export function MilestonesSection({
               <Text style={styles.rowText}>{heading}</Text>
               <View style={styles.rowMeta}>
                 <Text style={styles.muted}>{date === "" ? "—" : date}</Text>
-                {/* A relationship-origin entry is read-only wherever it appears:
-                    it lives on the relationship, which owns its editing — link
-                    out to it. */}
+                {/* Read-only here: the relationship owns its editing. */}
                 {fromRelationship ? (
                   entry.relationshipId !== null ? (
                     <Link

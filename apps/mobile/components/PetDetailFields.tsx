@@ -1,11 +1,7 @@
 import { type Gender, type Pet, genderLabel } from "@leapsake/schema";
 import { DetailField } from "./DetailField";
 
-/**
- * A pet's own scalar fields at the top of their detail screen — the mirror of
- * {@link PersonDetailFields}, and read it for why these are read-only. A pet's
- * name is one field rather than three.
- */
+/** A pet's name and gender, read-only, as {@link PersonDetailFields}. */
 export function PetDetailFields({
   pet,
   gender,

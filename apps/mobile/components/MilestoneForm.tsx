@@ -13,12 +13,8 @@ import { useCore } from "../lib/core-context";
 
 type MilestoneSubmit = Extract<MilestoneDraftResult, { ok: true }>;
 
-/**
- * A milestone on a screen of its own, the add and edit routes a relationship's
- * page pushes to: {@link useMilestoneForm}'s draft rendered by
- * {@link MilestoneFields}, with Save in the native header. The screen owns the
- * core call. The entity form stages milestones instead ({@link StagedMilestonesSection}).
- */
+/** A milestone on a screen of its own, Save in the header; the screen owns
+ *  the core call. */
 export function MilestoneForm({
   title,
   bearerType,
@@ -30,7 +26,8 @@ export function MilestoneForm({
   title?: string;
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
-  /** The kind to open on when creating, where the caller knows which is wanted. */
+  /** The kind to open on when creating, where the caller knows which is
+   *  wanted. */
   initialKind?: MilestoneKind;
   onSubmit: (input: MilestoneSubmit["input"]) => Promise<void>;
 }) {
@@ -46,8 +43,8 @@ export function MilestoneForm({
   const { update } = form;
   const savedId = milestone?.id;
   const savedKind = milestone?.kind;
-  // Loads the saved milestone's stored schedule over the kind's defaults, unless
-  // the user has already edited the schedule.
+  // Loads the saved milestone's stored schedule over the kind's defaults,
+  // unless the user has already edited the schedule.
   useEffect(() => {
     if (savedId === undefined || savedKind === undefined) return;
     let active = true;

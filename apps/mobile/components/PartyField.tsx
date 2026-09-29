@@ -23,11 +23,8 @@ const COPY = {
 } as const;
 
 /**
- * The other party to a relationship: somebody already in the app, or a name
- * typed past the end of the list. Once chosen, a row with Edit and Remove.
- *
- * Nothing is written until the screen saves or Edit is tapped. Edit writes a
- * new party through `commit`, then opens their page; with no `commit` it waits.
+ * The other party: someone in the app, or a name typed past the list. Edit
+ * writes a new one through `commit` and opens their page.
  */
 export function PartyField({
   label,

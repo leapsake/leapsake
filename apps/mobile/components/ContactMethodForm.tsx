@@ -21,10 +21,7 @@ const TEXT = {
   handleRequired: "Enter a handle or a profile link before saving.",
 } as const;
 
-/**
- * One contact method on a screen of its own: {@link useContactMethodForm}'s draft
- * rendered by {@link ContactMethodFields}, with Save in the native header.
- */
+/** One contact method on a screen of its own, Save in the header. */
 export function ContactMethodForm({
   title,
   start,

@@ -15,16 +15,8 @@ export interface RecipientCandidate {
   label: string;
 }
 
-/**
- * The "For…" section on a gift idea's edit screen, ported from the desktop
- * `GiftIdeaRecipientsSection` — the idea end of the same link a person's "Gifts"
- * section shows from the other side. Adding someone here writes the row their
- * page would; ticking the box here is the tick they would see.
- *
- * Each row used to open an occasion/target-date editor behind an Edit. Occasion
- * and date were the only things it edited, so with those gone the row's whole
- * state is its checkbox, and it sits in the row rather than behind anything.
- */
+/** Who a gift idea is for: the other end of a person's Gifts section, each
+ *  row's whole state its checkbox. */
 export function GiftIdeaRecipientsSection({
   ideaId,
   recipients,

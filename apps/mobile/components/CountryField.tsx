@@ -7,14 +7,8 @@ import { styles } from "../lib/styles";
 type CountryOption = { code: string; name: string };
 
 /**
- * The mobile stand-in for desktop's 183-country `<select>` — a thin
- * {@link Typeahead} over `contactCountryOptions`, keyed by ISO alpha-2 code. The
- * field is optional (`clearable`), and out-of-list codes (e.g. from a future
- * import) are preserved on display, falling back to the raw code, mirroring the
- * desktop select appending an unknown current value.
- *
- * The value is the ISO alpha-2 code (already uppercase in the option list), or
- * `null` when unset; the schema's `countryCodeSchema` accepts it as-is.
+ * An optional country as its ISO alpha-2 code, or `null`. A code outside the
+ * list still displays, as the raw code.
  */
 export function CountryField({
   value,

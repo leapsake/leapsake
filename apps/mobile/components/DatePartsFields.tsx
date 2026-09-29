@@ -9,11 +9,8 @@ const PARTS = ["month", "day", "year"] as const;
 
 type Part = (typeof PARTS)[number];
 
-/**
- * A date typed as three numbers, month then day then year, under one heading.
- * Controlled and rule-free: the caller decides what is wrong, and the error
- * shows only once focus has left all three fields.
- */
+/** A date as month, day and year under one heading; the caller's error
+ *  shows once focus has left all three. */
 export function DatePartsFields({
   label,
   value,
@@ -40,7 +37,7 @@ export function DatePartsFields({
       <View style={local.row}>
         {PARTS.map((part) => (
           <View key={part} style={part === "year" ? local.wide : local.narrow}>
-            {/* Hidden because the input below carries the same words as its name. */}
+            {/* Hidden: the input below carries these words as its name. */}
             <Text
               style={styles.fieldLabel}
               accessibilityElementsHidden

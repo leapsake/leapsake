@@ -16,7 +16,7 @@ export function PetFields({
 
   return (
     <>
-      {/* Load-bearing for the harness — see the note in {@link PersonFields}. */}
+      {/* An E2E anchor, as in {@link PersonFields}. */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Name</Text>
         <TextInput

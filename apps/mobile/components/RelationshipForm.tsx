@@ -24,13 +24,8 @@ const TEXT = {
 } as const;
 
 /**
- * One relationship on a screen of its own, the add and edit routes a person's
- * or a pet's page pushes to: {@link useRelationshipForm}'s draft rendered by
- * {@link RelationshipFields}, with Save in the native header. The route builds
- * the draft, since only it knows whether it is adding, materialising an
- * inference, or revising a stored edge, and `onSubmit` is the difference.
- * `canChangeOther` is false wherever the write behind the screen can't re-pick
- * the other end.
+ * One relationship on a screen of its own. The route builds the draft and
+ * `onSubmit`, since only it knows whether it adds, materialises or revises.
  */
 export function RelationshipForm({
   title,

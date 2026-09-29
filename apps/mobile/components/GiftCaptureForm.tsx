@@ -39,11 +39,9 @@ export function GiftCaptureForm({
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: PartyOption[];
-  /** Open with the box already ticked — the completed-gift-reminder hand-off,
-   *  where the answer to "record what you gave" is that you gave it. */
+  /** Open ticked, for the hand-off from a completed gift reminder. */
   startGiven?: boolean;
-  /** Called after a successful save — the screen decides whether that means
-   *  reloading in place or navigating away. */
+  /** After a save; the screen decides whether to reload or leave. */
   onSaved?: () => void;
 }) {
   const core = useCore();
@@ -100,7 +98,8 @@ export function GiftCaptureForm({
   );
 }
 
-/** A gift, and who it is for with a tick each (or the one fixed recipient's). */
+/** A gift, and who it is for with a tick each (or the one fixed
+ *  recipient's). */
 export function GiftCaptureFields({
   fields,
   onIdentityChange,

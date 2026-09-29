@@ -14,8 +14,8 @@ const SHOW_LABEL = "Show password";
 const HIDE_LABEL = "Hide password";
 
 /**
- * A masked text field with a Show/Hide toggle beside it. `style` is the box: the
- * row wears it, and the input takes it back minus the border, background and padding.
+ * A masked field with a Show/Hide toggle. `style` is the box: the row wears
+ * it, and the input takes it back minus border, background and padding.
  */
 export function PasswordInput({ style, ...rest }: TextInputProps) {
   const [visible, setVisible] = useState(false);

@@ -31,10 +31,8 @@ const TEXT = {
   },
 } as const;
 
-/**
- * The create/edit form for a Reminder: {@link useReminderForm}'s draft rendered by
- * {@link ReminderFields}, with Save in the native header. The screen owns the core call.
- */
+/** A reminder's create or edit form, Save in the header; the screen owns the
+ *  core call. */
 export function ReminderForm({
   title,
   reminder,
@@ -46,7 +44,8 @@ export function ReminderForm({
   onSubmit: (input: ReminderSubmit["input"]) => Promise<void>;
 }) {
   const form = useReminderForm(reminder);
-  // Until a year is typed, it follows the month and day to their next occurrence.
+  // Until a year is typed, it follows the month and day to their next
+  // occurrence.
   const [yearTouched, setYearTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const headerRight = useHeaderSave({
@@ -69,8 +68,7 @@ export function ReminderForm({
   return (
     <>
       <Stack.Screen
-        // The back title is spelled out because the detail screen this is pushed
-        // from has none, which would leave a bare chevron.
+        // Spelled out: the detail screen below has no title to borrow.
         options={{ title, headerBackTitle: TEXT.back, headerRight }}
       />
       <ReminderFields

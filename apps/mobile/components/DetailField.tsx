@@ -1,11 +1,7 @@
 import { Text, View } from "react-native";
 import { styles } from "../lib/styles";
 
-/**
- * One row of a detail screen's definition list: a muted label over its value.
- * Read-only — changing what it shows is the small screen behind the **Edit**
- * beside it ({@link EditLink}).
- */
+/** A read-only detail row: a muted label over its value. */
 export function DetailField({
   label,
   value,

@@ -22,10 +22,8 @@ const TEXT = {
   titleRequired: "Give the gift idea a title before saving.",
 };
 
-/**
- * The edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
- * {@link GiftIdeaFields}, with Save in the native header. The screen owns the core call.
- */
+/** A gift idea's edit form, Save in the header; the screen owns the core
+ *  call. */
 export function GiftIdeaForm({
   title,
   idea,

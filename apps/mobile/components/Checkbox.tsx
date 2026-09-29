@@ -7,24 +7,11 @@ import {
 } from "react-native";
 import { colors } from "../lib/styles";
 
-/** Whether a box is empty, ticked, or — the tri-state some-but-not-all case —
- *  mixed. A mixed box fills like a ticked one, because *something* is selected,
- *  but wears a dash instead of a tick. */
+/** Empty, ticked, or mixed, which fills like ticked but wears a dash. */
 export type CheckedState = boolean | "mixed";
 
-/**
- * The box alone, with no tap target or accessibility role of its own — for a row
- * that is itself the checkbox and carries both.
- *
- * There is deliberately no standalone checkbox *control* beside this. There was
- * one, and it had exactly two callers: a select-all on an import checklist that
- * no longer exists, and a reminder's completion, which is a button among that
- * reminder's other offers now (`app/reminders/[id]/index.tsx`). A tick that
- * stands on its own turns out to be the wrong shape for this app twice over —
- * it is a small target on screens whose every other control is full width, and
- * it renders a decision as a property. Where a whole row toggles, the row wears
- * the role and this draws the box.
- */
+/** The box alone, for a row that is itself the checkbox and carries the
+ *  tap target and role. */
 export function CheckboxBox({
   checked,
   style,
