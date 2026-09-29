@@ -1,44 +1,20 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { EncryptedRecord } from "@leapsake/sync";
 
-/**
- * The blind relay's own store — *not* the app's domain schema (plans/encryption/
- * sync.md §2). It holds two things and nothing more:
- *
- * - `relay_account` — per account: a *hash* of the auth verifier (never the
- *   verifier itself), the public KDF salt, a unique `username`, and the
- *   *ciphertext* `wrap(MK, password-KEK)` (the "protected symmetric key").
- *   The hash is all the relay needs to authenticate; a leak of it does not
- *   expose the KEK (model.md §9.3), and the wrapped master key is opaque
- *   ciphertext — the relay stores it for a second device to fetch and unwrap,
- *   but can never read it (`plans/encryption/sync.md`).
- * - `relay_record` — the append log of opaque {@link EncryptedRecord}s. The
- *   autoincrement `seq` *is* the delivery cursor — the relay's own ordering,
- *   never a content clock (the P2P invariant, sync.md §3 #2).
- *
- * It is deliberately trivial: a blind blob store can be, because the envelope
- * does the hard work. It uses `node:sqlite` directly — there is no domain
- * `SqliteDriver` here to reuse, and nothing portable to keep.
- */
+// The relay's own store: accounts (a verifier hash, salt, username and
+// ciphertext) and an append log whose `seq` is the delivery cursor.
 
 export interface RelayAccount {
   authVerifierHash: Uint8Array;
   kdfSalt: Uint8Array;
-  /** Ciphertext `wrap(MK, KEK)` — opaque to the relay. */
+  /** Ciphertext `wrap(MK, KEK)`, opaque to the relay. */
   wrappedMasterKey: Uint8Array;
-  /**
-   * Ciphertext `wrap(recoveryKey, MK)`, opaque to the relay; absent on
-   * pre-unification accounts. Handed to a password-joining device so it recovers
-   * the account recovery key from MK alone and reveals the account phrase.
-   */
+  /** Ciphertext `wrap(recoveryKey, MK)`, so a joining device reveals the
+   *  account's phrase; absent on older accounts. */
   wrappedRecoveryKey?: Uint8Array;
-  /**
-   * Ciphertext `wrap(MK, recoveryKey)` — the recovery escrow, opaque to the relay
-   * (under a full 256-bit key). Absent on accounts registered before recovery
-   * escrow existed.
-   */
+  /** Ciphertext `wrap(MK, recoveryKey)`: the recovery escrow. */
   wrappedMasterKeyRecovery?: Uint8Array;
-  /** `sha256(recoveryVerifier)` — authenticates a recovery without the key. */
+  /** `sha256(recoveryVerifier)`, authenticating a recovery without the key. */
   recoveryVerifierHash?: Uint8Array;
 }
 
@@ -46,12 +22,8 @@ export interface RelayAccount {
 export type RegisterResult = "created" | "exists" | "username-taken";
 
 export interface RelayStore {
-  /**
-   * Register an account. Idempotent on `accountId` (re-registering the same id is
-   * a no-op that keeps the first → `"exists"`). A `username` already held by a
-   * *different* account is rejected (`"username-taken"` → 409). Otherwise inserts
-   * and returns `"created"`.
-   */
+  /** Registers an account; the same id again is `"exists"`, another account's
+   *  username `"username-taken"`. */
   registerAccount(
     accountId: string,
     username: string,
@@ -63,46 +35,35 @@ export interface RelayStore {
     recoveryVerifierHash: Uint8Array | undefined,
   ): RegisterResult;
   getAccount(accountId: string): RelayAccount | undefined;
-  /**
-   * Replace an account's password door (verifier hash, salt, wrapped MK) — the
-   * recovery-authenticated reset. The recovery escrow + verifier are untouched.
-   */
+  /** Replaces the password door, as the recovery-authenticated reset does. */
   setCredentials(
     accountId: string,
     authVerifierHash: Uint8Array,
     kdfSalt: Uint8Array,
     wrappedMasterKey: Uint8Array,
   ): void;
-  /**
-   * Replace an account's **recovery** material — all three fields at once, because
-   * they are one key seen from three angles and a partial write would leave the
-   * account unrecoverable. The password door is untouched.
-   *
-   * The mirror image of {@link RelayStore.setCredentials}: that one is
-   * recovery-authenticated and rewrites the password door; this one is
-   * password-authenticated and rewrites the recovery door. Neither can be used to
-   * seize an account with the credential it replaces.
-   */
+  /** Replaces all three recovery fields at once; neither door can be replaced
+   *  with the credential it replaces. */
   setRecovery(
     accountId: string,
     wrappedRecoveryKey: Uint8Array,
     wrappedMasterKeyRecovery: Uint8Array,
     recoveryVerifierHash: Uint8Array,
   ): void;
-  /** Prelogin: resolve a username to its account id + public salt, or undefined. */
+  /** Prelogin: a username's account id and public salt, or undefined. */
   getAccountByUsername(
     username: string,
   ): { accountId: string; kdfSalt: Uint8Array } | undefined;
   /** Append records to one account's blind log, each taking the next `seq`. */
   append(accountId: string, records: EncryptedRecord[]): void;
-  /** Records for this account with `seq > since`, plus the advanced cursor. */
+  /** This account's records after `since`, and the advanced cursor. */
   pull(
     accountId: string,
     since: number,
   ): { records: EncryptedRecord[]; cursor: number };
 }
 
-/** node:sqlite hands BLOBs back as a Buffer; normalize to a plain Uint8Array. */
+/** A `node:sqlite` BLOB, a Buffer, as a plain Uint8Array. */
 function bytes(value: Uint8Array): Uint8Array {
   return Uint8Array.from(value);
 }
@@ -141,9 +102,8 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       ON relay_record (account_id, seq);
   `);
 
-  // Recovery escrow columns — added in place for stores created before recovery
-  // existed (CREATE TABLE IF NOT EXISTS won't alter an existing table). Both
-  // nullable; a duplicate-column error on a fresh DB is expected and ignored.
+  // Added in place, as `IF NOT EXISTS` never alters a table; a duplicate
+  // column is the expected steady state.
   for (const column of [
     "wrapped_recovery_key BLOB",
     "wrapped_master_key_recovery BLOB",
@@ -219,11 +179,9 @@ export function createRelayStore(db: DatabaseSync): RelayStore {
       wrappedMasterKeyRecovery,
       recoveryVerifierHash,
     ) {
-      // Idempotent on the account id — re-registering the same device's account
-      // keeps the first registration untouched.
+      // Idempotent: the first registration of an id stands.
       if (getAccount(accountId) !== undefined) return "exists";
-      // A username is one account's forever; a different account claiming it is
-      // a conflict, not an overwrite (the UNIQUE index is the backstop).
+      // A username is one account's forever; the UNIQUE index backs this up.
       if (getAccountByUsername(username) !== undefined) return "username-taken";
 
       db.prepare(

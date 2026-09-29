@@ -150,6 +150,15 @@ a second time, Hono supplies routing and `bodyLimit` with no transitive packages
 PORT=4000 pnpm --filter @leapsake/server dev   # add RELAY_DB=:memory: for a throwaway store
 ```
 
+**Seeding an account for hand-testing.** The 409 fork and the merge both need an account that
+already exists on the relay. `scripts/seed-account.ts` makes one, with a person the tester
+probably also has (`--duplicate`, default "Jane Wainwright"; `""` for none) and one unique to it:
+
+```sh
+pnpm --filter @leapsake/server exec tsx scripts/seed-account.ts \
+  --relay http://localhost:4000 --username mary --password 'hunter2 hunter2'
+```
+
 **Production** — the relay bundles to a single self-contained ESM file
 (`dist/index.mjs`) with **no runtime `node_modules`**: esbuild inlines `zod`,
 `proxy-addr`, `@noble/ciphers`, and the workspace packages, leaving only Node
@@ -238,6 +247,15 @@ All knobs are env vars, centralized in [`src/config.ts`](./src/config.ts):
 | `RELAY_RATE_LIMIT_MAX` / `_WINDOW_MS`           | `60` / `60000` | unauthenticated-endpoint throttle                                                                                                                                  |
 | `RELAY_RECOVERY_RATE_LIMIT_MAX` / `_WINDOW_MS`  | `10` / `60000` | recovery-endpoint throttle                                                                                                                                         |
 | `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` / `_WINDOW_MS` | `10` / `60000` | failed-login throttle (bootstrap + session)                                                                                                                        |
+
+The three throttles guard different things. Enumeration (`lookup`, registration) is an accepted
+oracle, so its limit is generous. The recovery routes are gated by a 256-bit verifier, so their
+limit is flood protection rather than the guard, and low because a real client touches them
+only during a rare manual recovery. Failed logins at `bootstrap` and `session` are the online
+password-grinding surface (H2), so only _failures_ spend that budget. All three are per IP;
+keying by account would open a lockout DoS. Leave `RELAY_TRUSTED_PROXIES` empty unless a proxy
+really fronts the relay: a trusted one's `X-Forwarded-For` is believed, and a forged header
+could otherwise mint fresh buckets.
 
 ### Backups
 

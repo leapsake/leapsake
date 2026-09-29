@@ -10,37 +10,12 @@ import {
 import { createRelayServer } from "./relay.js";
 import { createRelayStore } from "./store.js";
 
-/**
- * Runnable entry for the blind relay (plans/encryption/sync.md §2). Defaults are
- * dev-friendly; override with `PORT` and `RELAY_DB` (a file path, or `:memory:`),
- * and tune the unauthenticated-endpoint throttle with `RELAY_RATE_LIMIT_MAX` /
- * `RELAY_RATE_LIMIT_WINDOW_MS` (the enumeration mitigation, README.md).
- * The recovery-authed endpoints (`/accounts/recovery`, `/accounts/reset`) have
- * their own tighter throttle, tuned with `RELAY_RECOVERY_RATE_LIMIT_MAX` /
- * `RELAY_RECOVERY_RATE_LIMIT_WINDOW_MS`, and failed logins at `/accounts/bootstrap`
- * are throttled via `RELAY_BOOTSTRAP_RATE_LIMIT_MAX` /
- * `RELAY_BOOTSTRAP_RATE_LIMIT_WINDOW_MS` (the online-guessing mitigation,
- * threat H2, README.md). All defaults + env-var names live in `./config`.
- *
- * Behind a reverse proxy, set `RELAY_TRUSTED_PROXIES` (comma-separated IPs / CIDR
- * ranges / `proxy-addr` presets like `loopback`, `uniquelocal`) so the rate
- * limiters key on the real client IP from `X-Forwarded-For`; unset trusts no
- * proxy and ignores the header (the secure default). Short-lived login sessions
- * (threat H3, README.md) carry the hot sync path; tune their lifetime with
- * `RELAY_SESSION_TTL_MS`.
- *
- * TLS: terminate it **in front** (Option A — a proxy; the default) or **in-process**
- * (Option B) by setting `RELAY_TLS_CERT` + `RELAY_TLS_KEY` (PEM file paths; plus
- * `RELAY_TLS_KEY_PASSPHRASE` for an encrypted key). See apps/server/README.md → Deploy.
- *
- * Still deferred (see README.md → *Threat register*, H3): replay defense and a
- * shared cross-process session + rate-limit store for multi-node relays (the
- * single-node proxy-aware client IP is done).
- */
+// The relay's runnable entry, configured by the env vars in `./config`; see
+// the README's _Configuration_.
 const port = Number(process.env[ENV.port] ?? DEFAULT_PORT);
 const dbPath = process.env[ENV.dbPath] ?? DEFAULT_DB_PATH;
 
-/** Parse a `MAX` / `WINDOW_MS` env pair into a RateLimit (undefined → built-in default). */
+/** A `MAX` and `WINDOW_MS` env pair as a RateLimit, or undefined. */
 function rateLimitFromEnv(
   max: string | undefined,
   windowMs: string | undefined,
@@ -66,13 +41,13 @@ const bootstrapRateLimit = rateLimitFromEnv(
   process.env[ENV.bootstrapRateLimitWindowMs],
 );
 
-// Comma-separated trusted proxies → string[] (empty when unset; trims blanks).
+// Comma-separated trusted proxies, empty when unset.
 const trustedProxies = (process.env[ENV.trustedProxies] ?? "")
   .split(",")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
 
-// Session-token lifetime (undefined → built-in default in createRelayServer).
+// Session-token lifetime; undefined takes the relay's default.
 const sessionTtlEnv = process.env[ENV.sessionTtlMs];
 const sessionTtlMs =
   sessionTtlEnv === undefined ? undefined : Number(sessionTtlEnv);
@@ -80,8 +55,7 @@ const sessionTtlMs =
 const maxBodyEnv = process.env[ENV.maxBodyBytes];
 const maxBodyBytes = maxBodyEnv === undefined ? undefined : Number(maxBodyEnv);
 
-// In-process TLS (Option B): set BOTH the cert and key paths, or neither. Both ⇒ the
-// relay speaks HTTPS itself; neither ⇒ plain HTTP (terminate TLS in front, Option A).
+// In-process TLS (Option B): the cert and key paths, both or neither.
 const tlsCertPath = process.env[ENV.tlsCert];
 const tlsKeyPath = process.env[ENV.tlsKey];
 if ((tlsCertPath === undefined) !== (tlsKeyPath === undefined)) {
@@ -98,12 +72,8 @@ const tls =
         passphrase: process.env[ENV.tlsKeyPassphrase],
       };
 
-// The relay must sit behind TLS — terminated in front (Option A) or in-process
-// (Option B, `tls` above). It can't detect a front proxy except via a configured
-// trusted-proxy set, so a production run with neither TLS nor a trusted proxy is
-// assumed to be exposed on raw HTTP, and we warn loudly (the H3 deploy gate: never
-// serve the relay on plain HTTP anywhere real). Dev runs (NODE_ENV unset) and any
-// TLS/proxy config stay quiet. See apps/server/README.md → Deploy.
+// A production run with neither TLS nor a trusted proxy is taken to be on raw
+// HTTP, and warns loudly.
 if (
   process.env.NODE_ENV === "production" &&
   trustedProxies.length === 0 &&
