@@ -22,26 +22,13 @@ import type {
 import { PLATFORMS, bareHandle, findPlatform } from "@leapsake/contact-links";
 import { appleLabelText, dateKindFor } from "./apple-labels.js";
 
-/**
- * A hand-rolled vCard reader — parse-only, no dependency. vCard is a simple
- * line-oriented format (RFC 6350 / RFC 2426), and this repo already hand-rolls
- * its civil-date math and migration runner rather than pulling libraries; a
- * parse-only reader for the handful of properties Leapsake maps is well within
- * that grain and keeps the renderer bundle lean. It tolerates the real-world
- * spread of exports (Apple, Google, Outlook): v2.1/3.0/4.0, folded lines,
- * grouped properties, quoted parameters, `TYPE=` labels, and partial `BDAY`s.
- *
- * Anything Leapsake has no column for (NOTE, ORG, PHOTO, a free-text address
- * country, …) is routed to `dropped` for the review UI rather than discarded, so
- * the user always sees what will not be imported.
- */
+// The vCard reader: v2.1, 3.0 and 4.0, liberally. Anything unmapped goes to
+// `dropped` for the review; see the README's _Parse liberally_.
 
-/** The set of formats the importer can recognise. A discriminated union so new
- *  formats (CSV, LDIF) slot in as extra branches without touching callers. */
+/** The formats the importer recognises, as a union new formats extend. */
 export type DetectedFormat = { format: "vcard" } | { format: "unknown" };
 
-/** Longest a surfaced "dropped" value is kept — enough to be recognisable in the
- *  review UI without shipping a whole base64 photo across IPC. */
+/** Longest a dropped value is kept: recognisable, but no base64 photo. */
 const DROPPED_VALUE_CAP = 300;
 
 /** vCard properties this reader maps to real Leapsake fields. */
@@ -58,18 +45,12 @@ const HANDLED = new Set([
   "IMPP",
   "X-SOCIALPROFILE",
   "URL",
-  // Apple's own spelling of a labelled date, the grouped label that names it (and
-  // names a custom `ADR`/`TEL`/`EMAIL` too), and the grouped ISO country code for
-  // an address. The latter two are metadata *about* another property rather than
-  // data of their own — like a `TYPE=` parameter — so they are consumed by the
-  // property they describe, never surfaced as dropped.
+  // Apple's labelled date, and the grouped label and address country that
+  // other properties consume, so neither is ever dropped.
   "X-ABDATE",
   "X-ABLABEL",
   "X-ABADR",
-  // The card's own identity, and the tags it carries. `UID`, `KIND` and `REV`
-  // sat in `STRUCTURAL` until they were read; they are listed here now because
-  // they map to real fields, and leaving them in a set named "neither mapped nor
-  // user-visible" is how the next reader concludes they are still ignored.
+  // The card's own identity, and the tags it carries.
   "UID",
   "KIND",
   "REV",
@@ -78,12 +59,7 @@ const HANDLED = new Set([
   "X-LEAPSAKE-CREATED",
 ]);
 
-/**
- * `RELATED;TYPE=` → the role the named person holds relative to the contact.
- * The vocabulary is RFC 6350 §6.6.6; the half of it that describes a kind of
- * acquaintance rather than a kinship has no Leapsake role and comes through as
- * `other` carrying the source word, which is more use than dropping it.
- */
+/** `RELATED;TYPE=` to a role; an unmapped word becomes an `other` note. */
 const RELATED_ROLES: Record<string, RelationshipRole> = {
   spouse: "spouse",
   child: "child",
@@ -95,33 +71,13 @@ const RELATED_ROLES: Record<string, RelationshipRole> = {
   colleague: "coworker",
 };
 
-/**
- * Whether a `RELATED` value points at another card rather than naming somebody.
- *
- * RFC 6350 lets the value be a URI (`urn:uuid:…`, `mailto:…`) or, with
- * `VALUE=text`, a plain name. A `urn:uuid:` naming a card **in this same file**
- * resolves against it; every other URI (a `mailto:`, or a uuid whose card is not
- * here) names somebody this file cannot describe, and stays in `dropped`.
- */
+/** Whether a `RELATED` value is a URI rather than a plain name. */
 function isReference(value: string): boolean {
   return /^[a-z][a-z0-9+.-]*:/i.test(value.trim());
 }
 
-/**
- * Map one `RELATED` to a relation, or `null` when it names nobody we can reach.
- *
- * Two forms, and the difference is whether the other end has a card of its own.
- * An unpublished person is *named* (`VALUE=text`), because a name attached to
- * this contact is all the store holds of them. A published one is *pointed at*
- * (`VALUE=uri:urn:uuid:…`) — and since a pointer carries no name, theirs is read
- * from the card it points at, which `parseVCards` indexed before building any
- * contact. That index is why this takes `namesByUid`: the edge and the card it
- * references may arrive in either order, and usually do.
- *
- * The **ingest** side still has work the parser cannot do for it: this says
- * "these two cards are related", and the engine is what turns one such fact,
- * written on both cards, into a single relationship — see `ingest.ts`.
- */
+/** One `RELATED` as a relation, named or pointing at a card in `namesByUid`;
+ *  `null` when it names nobody this file holds. */
 function relatedFrom(
   p: Property,
   namesByUid: Map<string, string>,
@@ -129,10 +85,8 @@ function relatedFrom(
   const value = unescapeValue(p.value).trim();
   if (value === "") return null;
 
-  // Whose card this points at, and what to call them. A reference carries no
-  // name of its own, so the name has to come from the card it names — and a
-  // reference to a card **not in this file** is one we cannot import at all, so
-  // it stays in `dropped`, exactly where it was before any of this was read.
+  // A reference takes its name from the card it names; one to a card not in
+  // this file stays in `dropped`.
   let otherUid: string | null = null;
   let name = value;
   if (isReference(value)) {
@@ -146,19 +100,12 @@ function relatedFrom(
   const relationshipId = paramValue(p, "X-LEAPSAKE-REL-ID");
   const exact = paramValue(p, "X-LEAPSAKE-ROLE");
 
-  // Our own card carries the **exact** role beside the standard one, because
-  // Leapsake has 41 roles and RFC 6350 gives seven words. Preferring it is what
-  // stops `mother` coming back as `parent` and `cousin` as `other` — the
-  // degradation that was unavoidable while only `TYPE` was read.
+  // Our own card's exact role beats the standard `TYPE`.
   if (exact !== null && exact in roleDefs) {
     const role = exact as RelationshipRole;
     return {
       name,
-      // A note qualifies an `other` role and nothing else, which is the rule
-      // `createRelationshipInputSchema` enforces on the way in too. For that
-      // role the writer puts the note in `TYPE` **bare**, so it is read from the
-      // raw parameter rather than `typesOf`, whose upper-casing would otherwise
-      // return "Muse" as "muse".
+      // Only `other` has a note, read raw since `typesOf` upper-cases.
       roleNote: role === "other" ? rawNote(p) : null,
       role,
       otherUid,
@@ -177,19 +124,12 @@ function relatedFrom(
       relationshipId,
     };
   }
-  // An unmapped TYPE becomes the note on an `other` role, so "TYPE=muse" reads
-  // as "muse" on the row rather than vanishing. A RELATED with no TYPE at all
-  // says only that they are related, which is what the note then says.
+  // An unmapped `TYPE` is the note; with none, the note is “related”.
   const note = types.find((t) => !TYPE_NOISE.has(t.toUpperCase())) ?? "related";
   return { name, role: "other", roleNote: note, otherUid, relationshipId };
 }
 
-/**
- * The first `TYPE` that is not parameter noise, **as the card spelled it** —
- * the note on an `other` role, which is a user's own word ("Muse", "Beach
- * house") and so must keep its casing. `null` when the card gave none, which is
- * what the writer emits for an `other` role whose note is itself absent.
- */
+/** The first non-noise `TYPE` in the card's own casing, or `null`. */
 function rawNote(p: Property): string | null {
   const raw = (p.params.get("TYPE") ?? []).find(
     (t) => !TYPE_NOISE.has(t.trim().toUpperCase()),
@@ -197,8 +137,7 @@ function rawNote(p: Property): string | null {
   return raw === undefined ? null : nullIfEmpty(raw.trim());
 }
 
-/** Structural / metadata properties that are neither mapped nor user-visible
- *  data — silently ignored (not surfaced as "dropped"). */
+/** Structural properties, ignored rather than surfaced as dropped. */
 const STRUCTURAL = new Set([
   "BEGIN",
   "END",
@@ -212,16 +151,12 @@ const STRUCTURAL = new Set([
 interface Property {
   name: string; // upper-cased, group prefix stripped
   group: string | null; // lower-cased `item1.` prefix, or null when ungrouped
-  params: Map<string, string[]>; // KEY (upper) -> values; bare types under "TYPE"
+  params: Map<string, string[]>; // upper-cased KEY; bare types under "TYPE"
   value: string; // raw, still escaped
 }
 
-/**
- * Detect whether a dropped file is a vCard, by content signature (`BEGIN:VCARD`,
- * tolerant of a BOM / leading whitespace) or a `.vcf` filename. Content wins, so
- * a mislabelled or extensionless file still imports; the union return type is the
- * seam future format detectors extend.
- */
+/** Detects a vCard by its `BEGIN:VCARD` content, else a `.vcf` name, so a
+ *  mislabelled file still imports. */
 export function detectContactFormat(input: {
   text: string;
   filename?: string;
@@ -234,7 +169,7 @@ export function detectContactFormat(input: {
   return { format: "unknown" };
 }
 
-/** Parse every `BEGIN:VCARD`…`END:VCARD` block in `text` into a ParsedContact. */
+/** Parses every `BEGIN:VCARD` block in `text` into a ParsedContact. */
 export function parseVCards(text: string): ParsedContact[] {
   const lines = unfold(stripBom(text));
   const cards: Property[][] = [];
@@ -255,10 +190,8 @@ export function parseVCards(text: string): ParsedContact[] {
     if (prop) current.push(prop);
   }
 
-  // Two passes, because a `RELATED` may point at another card in the same file
-  // by `UID` instead of naming anybody — and the name it does not carry is that
-  // card's own `FN`. Indexing every card's UID→`FN` first is what lets the build
-  // below resolve one without the property order, or the card order, mattering.
+  // Every card's `UID` to `FN` first, so a `RELATED` reference resolves
+  // whichever order the cards arrive in.
   const namesByUid = new Map<string, string>();
   for (const props of cards) {
     const uid = uidOf(props);
@@ -268,9 +201,7 @@ export function parseVCards(text: string): ParsedContact[] {
   return cards.map((props) => buildContact(props, namesByUid));
 }
 
-/** A card's `UID` with the `urn:uuid:` prefix off, for the index above. Kept
- *  beside {@link displayNameOf} so the pre-pass reads the two the same way the
- *  main pass does. */
+/** A card's `UID` without its `urn:uuid:` prefix. */
 function uidOf(props: Property[]): string | null {
   const p = props.find((prop) => prop.name === "UID");
   return p === undefined ? null : parseUid(p.value);
@@ -281,25 +212,19 @@ function displayNameOf(props: Property[]): string | null {
   return p === undefined ? null : nullIfEmpty(unescapeValue(p.value).trim());
 }
 
-/** `UID:urn:uuid:<id>` → `<id>`; any other spelling kept as it came. */
+/** `urn:uuid:<id>` to `<id>`; any other spelling kept as it came. */
 function parseUid(raw: string): string | null {
   const value = unescapeValue(raw).trim();
   return nullIfEmpty(value.replace(/^urn:uuid:/i, "").trim());
 }
 
-// ---------------------------------------------------------------------------
 // Line handling
-// ---------------------------------------------------------------------------
 
 function stripBom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-/**
- * Un-fold per RFC 6350 §3.2: a CRLF (or bare LF) followed by a single space or
- * tab continues the previous logical line. Splits on either line ending and drops
- * blank lines, so downstream only ever sees whole property lines.
- */
+/** Unfolds continuation lines into whole property lines, dropping blanks. */
 function unfold(text: string): string[] {
   const physical = text.split(/\r\n|\r|\n/);
   const logical: string[] = [];
@@ -313,12 +238,7 @@ function unfold(text: string): string[] {
   return logical;
 }
 
-/**
- * Split one property line into its name+params half and its value at the first
- * **unquoted** colon (a quoted parameter value may itself contain a colon), then
- * parse the name (group prefix stripped) and parameters. Returns `null` for a
- * line with no colon.
- */
+/** Splits a property line at its first unquoted colon; `null` if none. */
 function parseProperty(line: string): Property | null {
   const colon = indexOfUnquoted(line, ":");
   if (colon === -1) return null;
@@ -327,8 +247,7 @@ function parseProperty(line: string): Property | null {
 
   const segments = splitUnquoted(header, ";");
   let rawName = segments[0] ?? "";
-  // A group prefix is stripped from the name but kept: it is what ties Apple's
-  // `item2.X-ABDATE` to the `item2.X-ABLabel` that says what the date is.
+  // The group is kept: it ties `item2.X-ABDATE` to `item2.X-ABLabel`.
   const dot = rawName.indexOf(".");
   let group: string | null = null;
   if (dot !== -1) {
@@ -373,7 +292,7 @@ function indexOfUnquoted(s: string, char: string): number {
   return -1;
 }
 
-/** Split on `sep` outside double quotes (parameter parsing, not value escapes). */
+/** Splits on `sep` outside double quotes, for parameters. */
 function splitUnquoted(s: string, sep: string): string[] {
   const out: string[] = [];
   let quoted = false;
@@ -400,11 +319,9 @@ function unquote(s: string): string {
     : t;
 }
 
-// ---------------------------------------------------------------------------
 // Value escaping
-// ---------------------------------------------------------------------------
 
-/** Un-escape a vCard text value: `\n`/`\N` → newline, `\, \; \\` → the literal. */
+/** Unescapes a text value: `\n` to newline, any other escape to its literal. */
 function unescapeValue(s: string): string {
   let out = "";
   for (let i = 0; i < s.length; i++) {
@@ -420,15 +337,7 @@ function unescapeValue(s: string): string {
   return out;
 }
 
-/**
- * Split a structured value into components on an **unescaped** delimiter — `;`
- * for the structured properties (N, ADR), `,` for the list ones (CATEGORIES).
- *
- * The delimiter is a parameter rather than there being a second copy of this
- * loop, because the thing that is easy to get wrong is the same in both cases:
- * a delimiter *inside* a component is escaped, and a splitter that does not know
- * that turns one tag holding a comma into two tags.
- */
+/** Splits on an unescaped delimiter: `;` for `N` and `ADR`, `,` for lists. */
 function splitStructured(value: string, delimiter = ";"): string[] {
   const out: string[] = [];
   let buf = "";
@@ -447,7 +356,7 @@ function splitStructured(value: string, delimiter = ";"): string[] {
   return out;
 }
 
-/** Component `i` of a structured value, un-escaped and trimmed; `""` if absent. */
+/** Component `i` of a structured value, unescaped and trimmed, or `""`. */
 function component(parts: string[], i: number): string {
   return parts[i] !== undefined ? unescapeValue(parts[i]).trim() : "";
 }
@@ -456,9 +365,7 @@ function nullIfEmpty(s: string): string | null {
   return s === "" ? null : s;
 }
 
-// ---------------------------------------------------------------------------
 // Field mapping
-// ---------------------------------------------------------------------------
 
 function buildContact(
   props: Property[],
@@ -481,15 +388,10 @@ function buildContact(
   let createdAt: number | null = null;
   let updatedAt: number | null = null;
   let birthday: ParsedBirthday | null = null;
-  // A birthday spelled as a labelled date rather than as `BDAY`. Held apart and
-  // resolved after the loop so the dedicated property wins wherever it appears in
-  // the card, exactly as the device importer lets iOS's dedicated birthday field
-  // beat a birthday-labelled entry in its `dates` list.
+  // A birthday-labelled date, used after the loop only if `BDAY` is absent.
   let labelledBirthday: ParsedBirthday | null = null;
 
-  // Apple hangs what a date means, and what country an address is in, off sibling
-  // properties in the same group. Both are collected before the pass that needs
-  // them, since the lines may arrive in either order.
+  // Grouped labels and countries first, since sibling lines come in any order.
   const groupLabels = new Map<string, string>();
   const groupCountries = new Map<string, string>();
   for (const p of props) {
@@ -502,9 +404,7 @@ function buildContact(
   }
 
   for (const p of props) {
-    // The user's own word for this property, when Apple's grouped `X-ABLABEL`
-    // gives one. It names a contact method as readily as it names a date, and
-    // for a custom label it is the *only* thing that does.
+    // The user's own word for this property, from Apple's grouped `X-ABLABEL`.
     const groupLabel = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
 
     switch (p.name) {
@@ -514,27 +414,18 @@ function buildContact(
       case "FN":
         fn = nullIfEmpty(unescapeValue(p.value).trim());
         break;
-      // The entity's stable id. Our own writer spells it `urn:uuid:<people.id>`
-      // (RFC 6350 §6.7.6 prefers a URN), so the scheme comes off — but a `UID`
-      // in any other form is still this card's id to whoever wrote it, and is
-      // kept verbatim rather than refused. What it is *used* for is matching,
-      // never as the id of the row we create: see `plans/v0-2.md` → *Export*.
+      // Our `urn:uuid:` prefix comes off; any other form is kept verbatim.
       case "UID":
         uid = parseUid(p.value);
         break;
-      // RFC 6350 §6.1.4, which allows an x-name — so a pet is `KIND:x-pet`.
-      // Anything else (`individual`, `org`, `group`, or a kind we have never
-      // heard of) is read as an individual: Leapsake has two shapes, and a card
-      // that says `group` is far closer to a person than to a pet.
+      // A pet is `KIND:x-pet`; any other kind reads as a person.
       case "KIND":
         kind =
           unescapeValue(p.value).trim().toLowerCase() === "x-pet"
             ? "pet"
             : "individual";
         break;
-      // A list value, not a structured one: each tag is escaped on its own and
-      // joined on a *raw* comma, which is what makes a tag containing a comma
-      // survive as one tag rather than becoming two.
+      // Split on raw commas only, so a tag holding an escaped comma stays one.
       case "CATEGORIES":
         tags = splitStructured(p.value, ",")
           .map((t) => unescapeValue(t).trim())
@@ -563,10 +454,7 @@ function buildContact(
           phones.push({
             label: phoneLabel(types, groupLabel),
             number,
-            // Both ride as parameters on the `TEL` they qualify, because a
-            // standard `TEL` has nowhere to put either: RFC 6350 folds an
-            // extension into the number and carries no ISO country at all.
-            // Absent from a foreign card, which is what `null` then means.
+            // Our own parameters; `null` on a foreign card.
             extension: paramValue(p, "X-LEAPSAKE-EXT"),
             country: paramValue(p, "X-LEAPSAKE-COUNTRY"),
             smsCapable: !types.includes("FAX"),
@@ -588,17 +476,14 @@ function buildContact(
       case "IMPP":
       case "X-SOCIALPROFILE": {
         const social = socialFrom(p, groupLabel);
-        // A value naming no service at all stays visible in the review UI's
-        // "not imported" list rather than becoming a row pointing nowhere.
+        // A value naming no service stays in the review's “not imported”.
         if (social) socials.push(social);
         else dropField(dropped, p.name, p.value);
         break;
       }
       case "URL": {
-        // A `URL` is only a social profile when its host says so — a personal
-        // homepage or a company site is not one, and guessing would turn every
-        // card's website into a fake Instagram row. Anything unrecognised keeps
-        // its old behaviour and is surfaced as dropped.
+        // A `URL` is a social profile only when its host names a platform;
+        // anything else is dropped.
         const social = socialFrom(p, groupLabel);
         if (social && findPlatform(social.platform)) socials.push(social);
         else dropField(dropped, "URL", p.value);
@@ -610,8 +495,7 @@ function buildContact(
         else dropField(dropped, "BDAY", p.value);
         break;
       }
-      // RFC 6350 §6.2.6. An unqualified anniversary is a wedding anniversary;
-      // the card does not name the spouse, so it lands on the person.
+      // A wedding anniversary; with no spouse named, it lands on the person.
       case "ANNIVERSARY": {
         const parsed = parseDateValue(p);
         if (parsed) {
@@ -626,31 +510,13 @@ function buildContact(
         } else dropField(dropped, "ANNIVERSARY", p.value);
         break;
       }
-      // How Apple actually writes a dated occasion: `item2.X-ABDATE` carries the
-      // value and `item2.X-ABLabel` carries the label, which is the only thing
-      // saying what the date *is* — unless the card is **ours**, in which case
-      // `X-LEAPSAKE-MILESTONE-KIND` says it outright. Contacts exports an
-      // anniversary this way and never as RFC 6350's `ANNIVERSARY`, so a card
-      // straight out of the iPhone used to lose every date it had.
-      //
-      // Two paths, and which one runs is decided by that parameter:
-      //
-      //  - **Our own card** — the kind is read, and every one of the ten survives
-      //    along with its note, its id and the relationship that bears it.
-      //  - **Anybody else's** — the same three outcomes as the device importer,
-      //    routed through the same {@link dateKindFor} map: a birthday-labelled
-      //    entry fills the birthday only if `BDAY` didn't, a label naming one of
-      //    the eight recoverable kinds becomes that milestone, and anything else
-      //    is dropped *by name* — "Date (Beach house closing)" — rather than
-      //    guessed into `other`.
+      // Apple's dated occasion: our own card names its kind outright; a
+      // foreign one goes through {@link dateKindFor}, as on the device.
       case "X-ABDATE": {
         const parsed = parseDateValue(p);
         const exact = milestoneKindParam(p);
-        // The label is what a human reads in Contacts, and normally the only
-        // thing naming the date. A card that carries the kind outright but no
-        // `X-ABLABEL` is still fully described, so the kind's own label stands
-        // in rather than the whole date being dropped — `ParsedDate.label` is
-        // `min(1)` at the boundary and must never be empty.
+        // With a kind but no `X-ABLABEL`, the kind's label stands in, since
+        // `ParsedDate.label` may never be empty.
         const group = p.group === null ? "" : (groupLabels.get(p.group) ?? "");
         const text =
           group !== "" || exact === null ? group : kindDefs[exact].label;
@@ -658,32 +524,17 @@ function buildContact(
           dropField(dropped, "X-ABDATE", p.value);
           break;
         }
-        // ⚠️ The parameter wins **here**, ahead of the birthday short-circuit
-        // below. A store holding two birthday-kind milestones exports the first
-        // as `BDAY` and the second as a "Birthday"-labelled `X-ABDATE`; without
-        // this ordering the second is swallowed by `labelledBirthday` and lost.
-        // The branch after it is the foreign-card rule and must stay as it was:
-        // an iPhone card that spells its birthday twice still collapses to one.
+        // ⚠️ Ahead of the birthday rule below, or our second birthday-kind
+        // milestone would be swallowed by `labelledBirthday`.
         if (exact !== null) {
           dates.push({
             kind: exact,
             label: text,
             date: parsed,
-            // The writer omits `-NOTE` when the note already *is* the label,
-            // which is what it means on an `other`-kind milestone — so that kind
-            // recovers its note from the label alone, and no other kind invents
-            // one it never had.
-            //
-            // Except when the label is the kind's own generic word, which is
-            // what a **note-less** `other` is written as: reading "Other" back as
-            // a note would invent free text the user never typed. The cost is
-            // that somebody whose note is literally "Other" loses it — a note
-            // that displays identically either way (`milestoneLabel`).
+            // An `other` recovers its note from the label, unless the label is
+            // “Other” itself, which a note-less `other` is written as.
             note: noteFor(p, exact, text),
-            // Both are the **file's** ids, and neither is written back as a row
-            // id: `-ID` is what says "one fact on two cards" to `ingestContacts`,
-            // and `-REL` names an edge that only exists once the import has
-            // created it. Restoring ids verbatim is `plans/v0-2.md` → *Export*.
+            // The file's ids, for matching halves; never used as row ids.
             id: paramValue(p, "X-LEAPSAKE-MILESTONE-ID"),
             relationshipId: paramValue(p, "X-LEAPSAKE-MILESTONE-REL"),
           });
@@ -713,9 +564,7 @@ function buildContact(
         break;
       case "RELATED": {
         const relation = relatedFrom(p, namesByUid);
-        // A reference to another card is not a name we can import, so it stays
-        // visible in the review UI's "not imported" list rather than silently
-        // going nowhere.
+        // An unresolvable reference stays in the review's “not imported”.
         if (relation) related.push(relation);
         else dropField(dropped, "RELATED", p.value);
         break;
@@ -728,18 +577,11 @@ function buildContact(
   }
 
   return {
-    // The card's own identity. `uid` is what lets the review recognise a card as somebody
-    // already stored instead of importing a second copy of them, and it is the
-    // hinge the graph and milestone reciprocals hang off — a `RELATED` pointing
-    // at `urn:uuid:…` can only resolve because the card it points at reports
-    // one. **It is a matching key, never the id of the row an import creates**;
-    // writing the file's ids back verbatim is a restore, which is increment 6.
+    // A matching key, never the id of the row an import creates.
     uid,
     kind,
     isSelf,
-    // Read for the round trip's sake and for increment 6, but **inert today**:
-    // no `create` input accepts a `createdAt`, so an imported entity is stamped
-    // with the moment it was imported. Honouring this is the restore door.
+    // Read, but not applied: an imported entity is stamped when imported.
     createdAt,
     updatedAt,
     name: deriveName(nParts, fn),
@@ -757,12 +599,8 @@ function buildContact(
   };
 }
 
-/**
- * Derive first/middle/last. A structured `N` with a given name wins; otherwise
- * fall back to splitting `FN` (first token = first name, the rest = last name).
- * A single-token `FN` (mononym / organisation) leaves `lastName` empty — never
- * fabricated; the review UI makes the user supply it before import.
- */
+/** First, middle and last from `N`, else from splitting `FN`; a single token
+ *  leaves `lastName` empty rather than inventing one. */
 function deriveName(nParts: string[] | null, fn: string | null): ParsedName {
   const family = nParts ? component(nParts, 0) : "";
   const given = nParts ? component(nParts, 1) : "";
@@ -785,11 +623,8 @@ function deriveName(nParts: string[] | null, fn: string | null): ParsedName {
     };
   }
   if (tokens.length === 1) {
-    // A single token that *is* the family name says the card is a surname-only
-    // person ("Martini", filed under `N:Martini;;;;`) — not a mononym who also has a
-    // surname. Putting it in both slots would duplicate it, which is what the
-    // export round-trip caught: we write exactly this card for a person whose
-    // only stored name part is a last name.
+    // A lone token equal to the family name is a surname-only person, as we
+    // write one, so it fills only the last name.
     const first = tokens[0] === family ? "" : tokens[0];
     return { firstName: first, middleName: null, lastName: family };
   }
@@ -807,7 +642,7 @@ function mapAddress(
   dropped: DroppedField[],
   groupLabel = "",
 ): ParsedPostal | null {
-  // Structured ADR: PO Box; Extended; Street; Locality; Region; Postal; Country.
+  // ADR: PO Box; Extended; Street; Locality; Region; Postal; Country.
   const poBox = component(parts, 0);
   const extended = component(parts, 1);
   const street = component(parts, 2);
@@ -822,8 +657,7 @@ function mapAddress(
   const line2 = street ? nullIfEmpty(extended || poBox) : null;
 
   const country = countryCode(countryRaw, isoHint);
-  // A free-text name we could not turn into a code is reported rather than lost;
-  // once the code is known the name adds nothing, so it is not.
+  // A country name with no code is reported as dropped; with one, it is not.
   if (country === null && countryRaw !== "") {
     dropField(dropped, "ADR country", countryRaw);
   }
@@ -839,22 +673,8 @@ function mapAddress(
   };
 }
 
-/**
- * An address's country as the ISO 3166-1 alpha-2 code the schema stores, or
- * `null` when the card gives nothing that can be turned into one.
- *
- * `ADR`'s own country component is a free-text *name*, and which name depends on
- * who exported the card and in what locale ("United States", "USA", "États-Unis")
- * — so it is kept only when it already is a code. Apple, however, writes the code
- * itself into an `X-ABADR` alongside the address (`item1.ADR` ⇄ `item1.X-ABADR`),
- * which is read as the fallback: be liberal in what we accept. Mapping a name to
- * a code ourselves is the one thing not done here — that needs a locale-aware
- * country table, and guessing wrong files somebody's address in the wrong country.
- *
- * The device importer has no equivalent: `expo-contacts`' newer `Contact` API
- * carries only the free-text name, so an address read off the phone keeps landing
- * without a country. Accepting less there is not a reason to accept less here.
- */
+/** An address's ISO 3166-1 alpha-2 country: `ADR`'s own if it is a code, else
+ *  Apple's grouped `X-ABADR`; never mapped from a name. */
 function countryCode(
   countryRaw: string,
   isoHint: string | null,
@@ -866,21 +686,8 @@ function countryCode(
   return null;
 }
 
-/**
- * Parse a date-valued property (`BDAY`, `ANNIVERSARY`, `X-ABDATE`) into a partial
- * civil date, honouring Apple's way of saying "no year".
- *
- * vCard has a spelling for a year-less date (`--MM-DD`) but the Contacts app does
- * not use it: it writes a placeholder year into the value and names that year in
- * an `X-APPLE-OMIT-YEAR` parameter — `BDAY;X-APPLE-OMIT-YEAR=1604:1604-07-06`.
- * Read the parameter back out and the year is a year again only when it is one
- * somebody meant. Without this, every birthday saved without a year imports as a
- * person born in 1604: silently wrong, which is worse than the device importer's
- * failure mode of merely losing the year.
- *
- * A parameter naming a *different* year than the value carries is not Apple's
- * placeholder convention, so the year stays.
- */
+/** A date property as a partial date, dropping the placeholder year Apple
+ *  names in `X-APPLE-OMIT-YEAR` when it matches the value's. */
 function parseDateValue(p: Property): ParsedPartialDate | null {
   const parsed = parsePartialDate(unescapeValue(p.value).trim());
   if (parsed === null || parsed.year === null) return parsed;
@@ -891,13 +698,8 @@ function parseDateValue(p: Property): ParsedPartialDate | null {
     : parsed;
 }
 
-/**
- * Parse a vCard date value (`BDAY`, `ANNIVERSARY`) into a partial civil date.
- * Handles v4 basic `19920309`, extended `1992-03-09`, year-less `--0309` /
- * `--03-09`, year-only `1992`, and any leading date of a date-time (`…T…`).
- * Upholds day⇒month (a lone day is dropped). Returns `null` when nothing usable
- * is present.
- */
+/** A basic, extended, year-less or year-only date value, or a date-time's
+ *  date, as a partial date; a lone day is dropped. */
 function parsePartialDate(raw: string): ParsedPartialDate | null {
   const dateOnly = raw.split("T")[0].trim();
   if (dateOnly === "") return null;
@@ -925,17 +727,8 @@ function parsePartialDate(raw: string): ParsedPartialDate | null {
   return { year, month, day };
 }
 
-/**
- * A vCard timestamp as epoch ms — the inverse of the writer's `formatTimestamp`,
- * which emits `2026-09-07T01:35:00Z`.
- *
- * Deliberately delegated to `Date.parse` rather than hand-rolled, unlike
- * {@link parsePartialDate} above: a *civil* date has no timezone and must not be
- * shifted by one, which is why that one is parsed by hand — but `REV` and
- * `X-LEAPSAKE-CREATED` are instants, where the offset is the point. Anything
- * unparseable (or a card that writes `REV` in some other dialect) yields `null`
- * rather than throwing, so one bad line never costs the whole card.
- */
+/** A timestamp as epoch ms, or `null`; `Date.parse` suits an instant, where a
+ *  civil date must never shift by a timezone. */
 function parseTimestamp(raw: string): number | null {
   const text = raw.trim();
   if (text === "") return null;
@@ -957,34 +750,20 @@ function toInt(s: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-// ---------------------------------------------------------------------------
-// TYPE → label mapping
-// ---------------------------------------------------------------------------
+// TYPE to label mapping
 
 /** All `TYPE=` values on a property, upper-cased (bare 2.1 types included). */
 function typesOf(p: Property): string[] {
   return (p.params.get("TYPE") ?? []).map((t) => t.toUpperCase());
 }
 
-/**
- * A single-valued parameter's text, or `null` when the property does not carry
- * it — how every `X-LEAPSAKE-*` fact is read back.
- *
- * The writer puts these facts in *parameters* rather than properties precisely
- * because an unknown parameter is invisible to any parser, while an unknown
- * property would land in this reader's own `dropped` list and fill a user's
- * re-import review with noise about their own file. Reading one is therefore
- * always a lookup here, never a `case` in the property switch.
- */
+/** A single-valued parameter, or `null`: how `X-LEAPSAKE-*` facts are read. */
 function paramValue(p: Property, key: string): string | null {
   const value = p.params.get(key)?.[0];
   return value === undefined ? null : nullIfEmpty(value.trim());
 }
 
-/**
- * A milestone's free text: the parameter that carries it, or — for the one kind
- * whose note *is* its label — the label the writer left it as.
- */
+/** A milestone's note: its parameter, or for `other` the label itself. */
 function noteFor(
   p: Property,
   kind: MilestoneKind,
@@ -996,21 +775,8 @@ function noteFor(
   return label;
 }
 
-/**
- * The milestone kind a date carries **outright**, or `null` for a card that
- * carries none — which is every card but ours.
- *
- * This is the reason `DATE_KINDS` never has to be exact. Apple's convention leaves the
- * sibling `X-ABLABEL` as the only thing saying what a date *is*, and a label is
- * a guess: kind `other` wears the user's own note ("Beach house closing") as its
- * label, which no map could ever resolve back. Carrying the kind in a parameter
- * means the label stays the thing a human reads in Contacts while the kind stays
- * exact for us — so our own file needs no label guessing at all.
- *
- * An unrecognised value falls back to the label lookup rather than failing: a
- * kind we have never heard of is a card from a *newer* Leapsake, and the label
- * beside it is still worth reading.
- */
+/** The kind our own card names outright, or `null`; an unknown kind, from a
+ *  newer Leapsake, falls back to the label. */
 function milestoneKindParam(p: Property): MilestoneKind | null {
   const raw = paramValue(p, "X-LEAPSAKE-MILESTONE-KIND");
   return raw !== null && isMilestoneKind(raw) ? raw : null;
@@ -1043,20 +809,7 @@ function postalLabel(types: string[], groupLabel = ""): string {
   return labelFrom(types, { HOME: "Home", WORK: "Work" }, groupLabel);
 }
 
-/**
- * Map a source's word for a network onto a `@leapsake/contact-links` platform id.
- *
- * vCard names a service in three different ways depending on the property and
- * the exporter: `IMPP` puts it in the URI scheme (`xmpp:`, `skype:`), and both
- * `IMPP` and `X-SOCIALPROFILE` may repeat it in `TYPE=` or `X-SERVICE-TYPE=`.
- * All of them are matched case-insensitively against the registry's ids and
- * names, so "Twitter" reaches `x` via the alias table below.
- *
- * An unmatched word is returned lowercased and stored as-is rather than dropped:
- * an account on a network Leapsake has never heard of is still a real way to
- * reach somebody, and `socialProfileSchema` accepts any platform string for
- * exactly this reason.
- */
+/** Source words for a network that differ from its platform id or name. */
 const PLATFORM_ALIASES: Record<string, string> = {
   twitter: "x",
   messenger: "facebook",
@@ -1078,14 +831,8 @@ function platformIdFor(raw: string): string {
   return match?.id ?? word;
 }
 
-/**
- * Read an `IMPP` or `X-SOCIALPROFILE` into a {@link ParsedSocial}, or `null` when
- * the card names no service and gives no usable value.
- *
- * The value may be a bare handle, a `service:handle` URI, or a full profile URL.
- * A URL is kept in `url` as well as reduced to a handle, since that is what makes
- * an unrecognised platform openable at all.
- */
+/** An `IMPP` or `X-SOCIALPROFILE` as a {@link ParsedSocial}, keeping a URL
+ *  whole too; `null` when it names no service. */
 function socialFrom(p: Property, groupLabel = ""): ParsedSocial | null {
   const value = unescapeValue(p.value).trim();
   if (value === "") return null;
@@ -1094,7 +841,7 @@ function socialFrom(p: Property, groupLabel = ""): ParsedSocial | null {
     p.params.get("X-SERVICE-TYPE")?.[0] ??
     typesOf(p).find((t) => !TYPE_NOISE.has(t) && t !== "HOME" && t !== "WORK");
 
-  // `IMPP` values are URIs; the scheme names the service when no parameter does.
+  // An `IMPP` URI's scheme names the service when no parameter does.
   const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(value);
   const scheme = schemeMatch?.[1]?.toLowerCase();
   const isWebUrl = scheme === "http" || scheme === "https";
@@ -1118,15 +865,12 @@ function socialFrom(p: Property, groupLabel = ""): ParsedSocial | null {
     platform,
     handle: bareHandle(rest.replace(/^\/\//, "")),
     url: isWebUrl ? value : null,
-    // No *foreign* card spells a platform's opaque account id in a form worth
-    // guessing at, so it stays absent for one. Our own writer emits it as a
-    // parameter, because it is stored, unrecoverable from the handle, and would
-    // otherwise be missing from the one file the user is told is their backup.
+    // Only our own cards carry the opaque account id.
     platformUserId: paramValue(p, "X-LEAPSAKE-USERID"),
   };
 }
 
-/** The registrable word of a URL's host — `www.instagram.com` → `instagram`. */
+/** The registrable word of a URL's host: `www.instagram.com` is `instagram`. */
 function hostWord(url: string): string {
   const host = /^[a-z]+:\/\/([^/?#]+)/i.exec(url)?.[1] ?? "";
   const parts = host
@@ -1136,21 +880,8 @@ function hostWord(url: string): string {
   return parts[0] ?? "";
 }
 
-/**
- * Turn a property's `TYPE`s into a display label: the sibling `X-ABLABEL` wins
- * outright; then the first recognised type; then the first non-noise type,
- * title-cased; otherwise "Other". Guarantees a non-empty label (contact-method
- * labels are `min(1)`).
- *
- * **`groupLabel` is what iOS Contacts itself shows.** Apple puts a standard
- * label in `TYPE` and a user's own words in a grouped `X-ABLABEL`
- * (`item1.TEL` + `item1.X-ABLABEL:Beach house`), so a card straight out of an
- * iPhone carries every custom label that way and only that way — and until this
- * argument existed, every one of them arrived here as "Other". It is already
- * unwrapped through `appleLabelText` by the caller, so an Apple constant
- * (`_$!<Home>!$_`) reads as "Home" rather than beating the `TYPE` with a
- * sentinel.
- */
+/** A never-empty label: the unwrapped `groupLabel`, else the first known
+ *  `TYPE`, else the first non-noise one, else “Other”. */
 function labelFrom(
   types: string[],
   known: Record<string, string>,
@@ -1170,17 +901,14 @@ function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-// ---------------------------------------------------------------------------
 // Dropped fields
-// ---------------------------------------------------------------------------
 
 function dropField(
   dropped: DroppedField[],
   property: string,
   raw: string,
 ): void {
-  // PHOTO/LOGO values can be large embedded base64 — record their presence, not
-  // the payload, so a review payload never balloons across IPC.
+  // A PHOTO or LOGO is recorded by presence, not its base64 payload.
   const value =
     property === "PHOTO" || property === "LOGO"
       ? "(embedded image)"
