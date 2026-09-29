@@ -1,19 +1,6 @@
 import { useRef, useState } from "react";
 
-/**
- * A queue for writes that must not overtake each other.
- *
- * Sections where a user can add or remove rows in quick succession — a holiday
- * observance, a gift suggestion — fire one write per interaction. Left
- * concurrent, a submission started mid-flight supersedes the previous one and a
- * pick made during a rapid type→Enter→type→Enter is silently dropped. Each
- * operation is therefore chained onto the last.
- *
- * **The rejection handler is what keeps the queue alive.** Without it a single
- * failed write leaves the chained promise rejected, every later operation chains
- * off that rejection and never runs, and the surface wedges with no visible
- * cause. Failures are recorded in `error` and the chain continues.
- */
+/** Chains writes so a rapid second pick can't overtake or drop the first. */
 export function useSerializedWrites({
   onSuccess,
 }: {
@@ -31,6 +18,8 @@ export function useSerializedWrites({
       .then(() => operation())
       .then(
         () => onSuccess?.(),
+        // Recording the failure keeps the chain resolved, or every later
+        // write would chain off the rejection and never run.
         (reason: unknown) => setError(String(reason)),
       )
       .finally(() => setBusy(false));

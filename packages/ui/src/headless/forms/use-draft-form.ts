@@ -1,14 +1,12 @@
 import { useCallback, useState } from "react";
 
-/** What a form's shaping function returns: the value to save, or error codes by field. */
+/** A shaping function's result: the value to save, or error codes by field. */
 export type Shaped<Ok, Errors> =
   | ({ ok: true } & Ok)
   | { ok: false; errors: Errors };
 
-/**
- * A form's draft, and what its shaping function makes of it on every render. `submit()`
- * returns the shaped value, or null while the draft is invalid.
- */
+/** A form's draft and its shaping on every render; `submit()` returns the
+ *  shaped value, or null while the draft is invalid. */
 export function useDraftForm<Draft extends object, Ok, Errors extends object>(
   initial: () => Draft,
   shape: (draft: Draft) => Shaped<Ok, Errors>,

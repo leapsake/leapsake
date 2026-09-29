@@ -11,20 +11,7 @@ import { highlightMatch } from "../highlight.js";
 import { Combobox, ComboboxOptionDetail } from "../primitives/Combobox.js";
 import styles from "./ChipTextField.module.css";
 
-/**
- * A controlled text field whose `@mentions` and `#tags` read as **chips** — a
- * tinted run that behaves as one thing — with a typeahead for both. The draft,
- * the two grammars and the picker's results are {@link useChipDraft}'s; this is
- * the DOM half. Enter, Tab or a click commits the highlighted suggestion as a chip.
- *
- * A `"prose"` field's hidden input carries the stored text, tokens and all, to
- * `FormData`; a `"tags"` field's visible text is its stored value, so it keeps
- * its own `name`.
- *
- * Chips are atomic: the caret rests at a chip's edges but never inside it, and a
- * range reaching into one widens to take it whole. Clicking through to a person
- * or a tag page is the saved `ReminderText`'s job, not the composer's.
- */
+/** The DOM half of {@link useChipDraft}: mentions and tags as chips. */
 export function ChipTextField({
   name,
   grammar = "prose",
@@ -40,11 +27,7 @@ export function ChipTextField({
   grammar?: "prose" | "tags";
   value: string;
   onChange: (value: string) => void;
-  /**
-   * Look up people, pets and tags for the picker. Injected rather than reached
-   * for, and it must be stable (a module-level function, or `useCallback`) —
-   * `useDebouncedSearch` takes it as an effect dependency.
-   */
+  /** Finds people, pets and tags; must be stable, as an effect uses it. */
   search: (query: string) => Promise<SearchHit[]>;
   multiline?: boolean;
   rows?: number;
@@ -91,8 +74,7 @@ export function ChipTextField({
       query: activeQuery ?? "",
       results,
       onSelect: pick,
-      // Escape dismisses the picker for this fragment and swallows the key so it
-      // reaches nothing else — but only when there is a picker to dismiss.
+      // Escape dismisses an open picker for this fragment and swallows the key.
       onEscape: (event) => {
         if (results.length === 0) return;
         event.preventDefault();
@@ -100,13 +82,7 @@ export function ChipTextField({
       },
     });
 
-  /**
-   * Tab completes the highlighted suggestion, exactly as Enter does — the fast
-   * way to close a `@mention` or `#tag` you have already typed enough of. It is
-   * only swallowed when it actually picks, so Tab still moves focus when no
-   * picker is open; Shift+Tab always moves focus, since stepping backwards is how
-   * you leave a field without committing what you were typing.
-   */
+  /** Tab picks like Enter, else moves focus; Shift+Tab always leaves. */
   function onFieldKeyDown(
     event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
@@ -123,10 +99,7 @@ export function ChipTextField({
     chips.edit(e.target.value);
   }
 
-  /**
-   * Keep the caret out of the chips, and the fragment in step with caret-only
-   * moves (arrow keys, clicks, drags).
-   */
+  /** Keeps the caret out of chips, and the fragment in step with it. */
   function onFieldSelect(
     e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
@@ -222,17 +195,8 @@ export function ChipTextField({
   );
 }
 
-/**
- * The runs the backdrop paints, as `data-run` attributes rather than text: the
- * stylesheet puts each one back with `content: attr(data-run)`. Generated content
- * is invisible to `textContent`, which matters because this field sits *inside*
- * its `<label>` — a mirrored copy of the text as real nodes would land in the
- * label's accessible name (and in anything else that reads the label's text).
- *
- * A trailing newline gets a space so the mirror renders the same final empty line
- * the field does; without it the two heights differ by a line and the scroll sync
- * drifts.
- */
+// Runs go in `data-run`, not text, to stay out of the enclosing label's name.
+// A trailing newline gains a space so the mirror's height matches the field's.
 function mirrorRuns(draft: ComposerDraft): { text: string; chip: boolean }[] {
   const runs = splitDraft(draft).map((run) => ({
     text: run.text,

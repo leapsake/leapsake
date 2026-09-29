@@ -10,7 +10,7 @@ import {
 } from "@leapsake/schema";
 import { useDraftForm } from "./use-draft-form.js";
 
-/** The milestone form's state, starting from the milestone being edited or from blanks. */
+/** The milestone form's state, from the milestone being edited or blanks. */
 export function useMilestoneForm(start: {
   bearerType: MilestoneBearerType;
   milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note">;

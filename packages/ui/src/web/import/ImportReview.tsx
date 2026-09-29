@@ -6,24 +6,14 @@ import { readyToSubmit } from "../patterns/form-problem.js";
 import notReady from "../patterns/not-ready.module.css";
 import styles from "./ImportOverlay.module.css";
 
-/**
- * A person already in Leapsake that an incoming contact looks like.
- *
- * Declared structurally rather than imported from `@leapsake/core`, keeping the
- * package off the data layer — core's `DuplicateMatch` stays assignable.
- */
+/** A person an incoming contact looks like; core's `DuplicateMatch` fits. */
 export interface ImportDuplicateMatch {
   tier: string;
   name: string;
   reasons: string[];
 }
 
-/**
- * An entity the incoming card **is**, rather than one it resembles — its `UID`
- * names something already stored. Structural for the same reason as
- * {@link ImportDuplicateMatch}: core's `AlreadyStored` stays assignable without
- * this package reaching for the data layer.
- */
+/** The stored entity an incoming card's `UID` names. */
 export interface ImportAlreadyStored {
   type: "person" | "pet";
   id: string;
@@ -34,8 +24,7 @@ export interface ImportAlreadyStored {
 export interface ImportPreviewEntry {
   index: number;
   matches: ImportDuplicateMatch[];
-  /** Set when this card's `UID` names an entity already stored — a certainty,
-   *  unlike `matches`, which are resemblances. `null` for a foreign card. */
+  /** The stored entity this card's `UID` names; `null` for a foreign card. */
   alreadyStored?: ImportAlreadyStored | null;
 }
 
@@ -50,40 +39,18 @@ export interface ImportOutcome {
   created: number;
   skipped: number;
   errors: { index: number; contact: ParsedContact; message: string }[];
-  /**
-   * Whether to offer “which of these is you?” — the app's call, since it is the
-   * side that knows whether a self-person is already set.
-   */
+  /** Whether to offer “which of these is you?”. */
   offerPickSelf: boolean;
 }
 
 interface Row {
   contact: ParsedContact;
   action: "create" | "skip";
-  /**
-   * Whether the user has agreed that this card is *them* — deliberately not the
-   * same thing as `contact.isSelf`, which is only what the **card claims**.
-   *
-   * Starting at `false` for every card, whatever it says, is what makes the
-   * claim safe to honour at all: opting in is an explicit act, so dropping
-   * somebody else's export in can never silently take over the `self_person`
-   * pointer. It also means this component needs no idea whether a self is
-   * already set — the answer is the same either way.
-   */
+  /** Whether the user agreed this card is them, whatever it claims. */
   setSelf: boolean;
 }
 
-/**
- * The review step: after a dropped contact file is parsed, show what will be
- * imported — per contact its name (editable, so a mononym / organisation card
- * with no last name can be fixed before commit), its contact methods and
- * birthday, anything that won't be imported, and a flag when it looks like
- * someone already in Leapsake — then commit only on the user's confirm.
- *
- * Every read and write is injected. What happens *after* a commit — revalidating,
- * routing to the duplicate review or the list — is the app's decision, reached
- * through `onDone` and `onPickSelf`.
- */
+/** Shows what a parsed contact file will import; commits on confirm. */
 export function ImportReview({
   contacts,
   onPreview,
@@ -173,8 +140,7 @@ export function ImportReview({
     );
   }
 
-  /** The user answering the card's "this is you" claim. Only one card can be the
-   *  self, so agreeing to one withdraws it from every other. */
+  /** Answers a card's “this is you”; agreeing to one withdraws the rest. */
   function toggleSelf(index: number) {
     setRows((prev) =>
       prev.map((row, i) => ({ ...row, setSelf: i === index && !row.setSelf })),
@@ -184,8 +150,7 @@ export function ImportReview({
   async function confirm() {
     setPhase("committing");
     const committed = await onCommit(
-      // The card's claim is replaced by the user's answer on the way out, so
-      // what the importer acts on is only ever what was agreed to here.
+      // The importer sees the user's answer, never the card's own claim.
       rows.map((row) => ({
         action: row.action,
         contact: { ...row.contact, isSelf: row.setSelf },
@@ -304,9 +269,7 @@ function ContactRow({
   const skipped = action === "skip";
   const needsName =
     contact.name.firstName.trim() === "" || contact.name.lastName.trim() === "";
-  // Suppressed when the card is known to be one we already hold: "already in
-  // Leapsake" is the same news, said with certainty, and saying both would read
-  // as two separate problems with one row.
+  // A known card already says so; a resemblance would repeat it.
   const topMatch = alreadyStored ? undefined : matches[0];
 
   return (
@@ -343,11 +306,7 @@ function ContactRow({
         </p>
       )}
 
-      {/*
-        Shown only when the card claims it, so a foreign file never offers this
-        at all — and unticked whatever the card says, because agreeing is the
-        user's act rather than the file's.
-      */}
+      {/* Offered only when the card claims it, and never pre-ticked. */}
       {contact.isSelf && !skipped && (
         <label className={styles.selfClaim}>
           <input
@@ -397,19 +356,14 @@ function ContactDetail({
   if (contact.birthday) {
     bits.push(m.import.birthday(formatBirthday(contact.birthday)));
   }
-  // The source's own label, not the kind's — the review's job is to show what
-  // the card said, and the label is what the user will recognise.
+  // The card's own label, not the kind's: what the user recognises.
   for (const d of contact.dates)
     bits.push(m.import.labelledValue(d.label, formatBirthday(d.date)));
   if (bits.length === 0) return null;
   return <p className={styles.detail}>{m.import.detailLine(bits)}</p>;
 }
 
-/**
- * A parsed birthday for display. Built from parts rather than a `Date` because a
- * vCard birthday is routinely partial — a month and day with no year is the
- * common case, and there is no date to construct.
- */
+/** Formats a birthday from parts, since a vCard birthday often has no year. */
 function formatBirthday(b: ParsedBirthday): string {
   const month =
     b.month === null

@@ -6,7 +6,7 @@ import {
 import type { ContactMethod, ContactMethodKind } from "@leapsake/schema";
 import { useDraftForm } from "./use-draft-form.js";
 
-/** The contact method form's state, starting from the method being edited or a blank kind. */
+/** The contact method form's state, from the method edited or a blank kind. */
 export function useContactMethodForm(
   start?: ContactMethodKind | ContactMethod,
 ) {

@@ -5,7 +5,7 @@ import {
 } from "@leapsake/schema";
 import { useDraftForm } from "./use-draft-form.js";
 
-/** The reminder form's state, starting from the reminder being edited or from blanks. */
+/** The reminder form's state, from the reminder being edited or blanks. */
 export function useReminderForm(
   reminder?: Pick<Reminder, "title" | "body" | "dueDate">,
 ) {

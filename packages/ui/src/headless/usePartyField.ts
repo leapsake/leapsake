@@ -7,10 +7,8 @@ import {
 } from "@leapsake/schema";
 import { useState } from "react";
 
-/**
- * Who a party field holds. A `new` one is only a name until the screen saves, or
- * until Edit writes them; `addedHere` marks one the field wrote.
- */
+/** Who a party field holds; a `new` one is a name until saved or edited,
+ *  and `addedHere` marks one the field wrote. */
 export type PartyChoice =
   | {
       kind: "existing";
@@ -30,11 +28,8 @@ export interface CommittedParty {
   relationshipId: string;
 }
 
-/**
- * A chosen party's Edit and Remove. Edit writes a new party through `commit`, then
- * opens them, and is offered on one only when there is a `commit`. Remove clears
- * the field, taking the relationship with it when Edit wrote them.
- */
+/** A chosen party's Edit (writes a new one through `commit`, then opens it)
+ *  and Remove (also removes the relationship Edit wrote). */
 export function usePartyField({
   value,
   onChange,
@@ -101,10 +96,8 @@ export function usePartyField({
   };
 }
 
-/**
- * The `commit` for a relationship's other end: it writes the relationship too, so
- * there is none until the draft has a role, and a note if the role is `other`.
- */
+/** The `commit` for a relationship's other end, which writes the relationship
+ *  too; none until the draft has a role, and a note for `other`. */
 export function relationshipCommit(
   draft: RelationshipDraft,
   commitOther?: (
@@ -120,7 +113,7 @@ export function relationshipCommit(
   return (party) => commitOther(party, role, role === "other" ? note : null);
 }
 
-/** The partner a couple's occasion starts on: their one explicit partner, if any. */
+/** The one explicit partner a couple's occasion starts on, if any. */
 export function onlyPartnerOf(
   neighbors: readonly RelationshipNeighbor[],
 ): PartyChoice | null {

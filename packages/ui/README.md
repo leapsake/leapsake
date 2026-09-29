@@ -149,6 +149,10 @@ catalog concern rather than something to keep catching in review. Concatenating
 user-visible text in a component — `` `${name} (hidden)` ``, `" · with " + label`,
 `items.join(", ")` — is the specific thing this forbids.
 
+`common` holds only verbs that are the same action wherever they appear. One
+English word often needs several translations by context, so a surface that
+wants its own wording gets its own key rather than widening `common`.
+
 A dedicated i18n library will land eventually. Nothing here assumes which one:
 components read a plain typed object, so adopting it replaces `messages/en.ts`
 and `messages/context.tsx` and touches no component.
@@ -157,6 +161,33 @@ Two things this does _not_ cover, both tracked as the wider i18n workstream:
 `@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`, the role labels),
 which mobile reads directly; and the strings still inline in `apps/desktop`
 screens that haven't moved into this package yet.
+
+## Chip fields
+
+`ChipTextField` (web) and mobile's counterpart share `useChipDraft`, which holds the
+draft, which `@mention` or `#tag` the caret is in, and the picker's hits; each
+platform keeps only caret placement, keys, focus and markup. Two grammars:
+
+- **`"prose"`**, a reminder's title and body: the value is the _stored_ text, mention
+  tokens and all (`@[Violet Bick](person:<uuid>)`), shown as `@Violet Bick`. Only
+  `#` runs are tags. On web a hidden input carries the stored text to `FormData`.
+- **`"tags"`**, a Tags field: the text is the stored value and every word chips.
+
+The draft is **state**, not re-derived from `value`, because a `#family` still being
+typed and a committed one read identically and only the second is a chip. It is
+re-seeded when `value` stops matching what the draft serialises to, which is how a
+parent resetting the field looks. Chips are atomic: the caret rests at their edges,
+and a selection reaching into one widens to take it whole. The web backdrop paints
+its runs through `content: attr(data-run)` because the field sits inside its
+`<label>`, and real text nodes would join the label's accessible name.
+
+## Import review and the self claim
+
+A vCard can claim to be the user (`contact.isSelf`). `ImportReview` offers “this is
+you” only for a card that claims it, **never pre-ticked**, and passes the user's
+answer to the importer in place of the claim, so dropping in somebody else's export
+can never silently take over the `self_person` pointer. Agreeing on one card
+withdraws it from the rest.
 
 ## Feature ports
 
@@ -182,6 +213,19 @@ A port lives in `headless/`, not beside the components that read it: it is types
 plus a React context, and `apps/mobile` reads the same interface from its own
 React Native components. `@leapsake/ui/web` re-exports `GiftsPorts` so a web host
 sees one import surface.
+
+## Acknowledgements
+
+`headless/acknowledgements.ts` lists what the shipped app is built from that others
+made. It is a **licence obligation, not a courtesy**: the app icon is OpenMoji
+artwork under CC BY-SA 4.0, which requires attribution wherever the work is
+distributed, and a binary counts, so the repo's `NOTICE` alone would not discharge
+it. Both clients render the one list, so no credit can appear on one platform only.
+
+The entries stay out of the message catalog: they are proper nouns, licence names
+and URLs, and a licence name must stay byte-exact. Each `use` is one sentence a
+non-developer can read. Build-time-only tools (oxlint, vitest, the icon pipeline)
+are absent, since they are not in the binary.
 
 ## React is a peer dependency
 

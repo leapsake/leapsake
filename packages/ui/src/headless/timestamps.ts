@@ -1,17 +1,9 @@
-/**
- * Render an epoch-ms timestamp in the user's locale — the “Created”/“Updated”
- * footer every view screen carries.
- */
+/** An epoch-ms timestamp in the user's locale, for a view's footer. */
 export function formatTimestamp(ms: number): string {
   return new Date(ms).toLocaleString();
 }
 
-/**
- * The same instant, short enough for a footer that carries both timestamps on
- * one line: no seconds, two-digit year. Bookkeeping is read at a glance or not
- * at all, and {@link formatTimestamp}'s full form is twice as wide for a
- * precision nobody wants from it.
- */
+/** The same instant with no seconds and a two-digit year, for one line. */
 export function formatTimestampCompact(ms: number): string {
   return new Date(ms).toLocaleString(undefined, {
     dateStyle: "short",

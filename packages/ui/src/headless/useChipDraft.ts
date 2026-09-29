@@ -17,31 +17,7 @@ import { useDebouncedSearch } from "./useDebouncedSearch.js";
 
 type Selection = { start: number; end: number };
 
-/**
- * The state behind a `ChipTextField` on either platform: the draft and its chips,
- * which `@mention` or tag the caret is in, and the picker's results for it. Each
- * platform's field keeps only its own text-input handling — placing the caret,
- * keys, focus — and its markup.
- *
- * Two grammars, for the two places tags are typed:
- *
- * - **`"prose"`** — a reminder's title/body. `value`/`onChange` carry the
- *   *stored* text, mention tokens and all (`@[Violet Bick](person:<uuid>)`),
- *   while the field shows `@Violet Bick`. Only `#`-prefixed runs are tags.
- * - **`"tags"`** — a Person/Pet/GiftIdea Tags field, where the text *is* the
- *   stored value and every word is a tag (see `parseTagNames`), so every word
- *   chips.
- *
- * The draft ({@link ComposerDraft}) is **state**, not something re-derived from
- * `value` each render, because a chip is partly invisible in the text: a `#family`
- * still being typed and one already committed read identically, and only the
- * second is a chip. It is re-seeded whenever `value` stops matching what the draft
- * serialises to, which is what a parent resetting the field looks like from here.
- *
- * Which trigger the caret sits in decides three things: which detector runs
- * ({@link activeMentionQuery} vs {@link activeTagQuery}), which hits are kept
- * (people/pets vs `tag`), and which insert helper splices the choice in.
- */
+/** The state behind a `ChipTextField` on either platform. */
 export function useChipDraft({
   grammar,
   value,
@@ -54,20 +30,14 @@ export function useChipDraft({
   onChange: (value: string) => void;
   /** Must be stable — `useDebouncedSearch` takes it as an effect dependency. */
   search: (query: string) => Promise<SearchHit[]>;
-  /**
-   * Move the field's own caret. Called only when that caret is now wrong — a
-   * pick, or an edit that took a whole chip; doing it on every keystroke is what
-   * breaks IME composition.
-   */
+  /** Moves the field's caret, only when wrong: every keystroke breaks IME. */
   placeCaret: (caret: number) => void;
 }) {
   const prose = grammar === "prose";
 
-  // The caret offset drives fragment detection; `null` until the field is
-  // touched, so a fresh field with pre-filled text doesn't spuriously open.
+  // `null` until touched, so a pre-filled field doesn't open its picker.
   const [caret, setCaret] = useState<number | null>(null);
-  // Where the caret was before the move being handled — the direction an arrow
-  // key was travelling, which is what carries it over a chip rather than into it.
+  // The caret before this move; its direction steps it over a chip.
   const previousCaret = useRef<number | null>(null);
   // A dismiss or a completed pick suppresses the picker until the user types.
   const [suppressed, setSuppressed] = useState(false);
@@ -136,10 +106,10 @@ export function useChipDraft({
   return {
     /** The draft the field shows: its text, and which runs of it are chips. */
     live,
-    /** What the caret's `@mention` or tag says so far, or `null` outside one. */
+    /** The caret's `@mention` or tag so far, or `null` outside one. */
     activeQuery,
     results,
-    /** The field's displayed text changed: chips move, grow or go whole with it. */
+    /** The displayed text changed: chips move, grow or go whole with it. */
     edit(text: string) {
       const edited = applyDraftEdit(live, text);
       commit(edited.draft, edited.caret, edited.tookChip);

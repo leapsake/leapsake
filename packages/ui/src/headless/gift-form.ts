@@ -1,17 +1,4 @@
-/**
- * The gift forms' logic, without their markup.
- *
- * The web forms and the React Native ones are honest ports of each other — the
- * markup differs because the platforms do — but what a recipient *is* while it's
- * being authored, and how a party is keyed, are domain rules identical in both.
- * They were two hand-kept copies, and only the web one was under test.
- *
- * This module used to be four times this size, holding a giving row, a
- * suggestion's target fields, an idea's own occasions, a staged-occasion
- * resolver, and a per-party context that fetched each party's occasion pool and
- * prior gifts. All of it existed to serve occasions and dates, which are out of
- * v0.1 scope; a recipient is now a party and a checkbox.
- */
+// The gift forms' logic, without their markup, shared by web and mobile.
 import type { GiftIdea, GiftPartyType } from "@leapsake/schema";
 import type { Shaped } from "./forms/use-draft-form.js";
 import type { GiftCaptureInput, PartyOption } from "./gifts-ports.js";
@@ -31,8 +18,7 @@ export const newRecipientEntry = (option: PartyOption): RecipientEntry => ({
   given: false,
 });
 
-/** One recipient as a capture-payload entry. Takes the bare party rather than a
- *  {@link PartyOption} — the payload has no use for a label. */
+/** One recipient as a capture-payload entry, from the bare party. */
 export function captureRecipientOf(
   party: { type: GiftPartyType; id: string },
   given: boolean,
@@ -40,18 +26,8 @@ export function captureRecipientOf(
   return { party: { type: party.type, id: party.id }, given };
 }
 
-/**
- * The idea a capture should point at: the one already in the pool whose title
- * matches exactly (case-insensitively), or a brand-new one. Near-duplicate
- * *different* titles are still allowed — tolerated by design, and the
- * reconciliation pass is where that is dealt with.
- *
- * `core.gifts.capture` does no such matching of its own — handed a title it mints
- * an idea — so this is the only thing standing between "Socks" typed twice and
- * two Socks. It lives here because both writers need it and they are nowhere near
- * each other: the capture screen, which has the pool on hand, and the entity
- * form's save, which lists it at write time.
- */
+/** The pool's idea with this exact title, ignoring case, or a new one. The
+ *  only dedup a capture gets: `core.gifts.capture` mints on every title. */
 export function giftIdeaOf(
   draft: { title: string; url: string },
   pool: readonly { id: string; title: string }[],

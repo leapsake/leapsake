@@ -1,19 +1,8 @@
 import { type KeyboardEvent, useId, useState } from "react";
 
 /**
- * The listbox half of a WAI-ARIA combobox: which option is active, how the
- * keyboard moves it, and the ids that tie the field to the list.
- *
- * Zero DOM — it returns state and handlers, not markup — so a React Native
- * renderer drives its own list from the same hook. {@link onKeyDown} is the web
- * transport; a renderer with no DOM key event commits through `selectActive`
- * instead (mobile's `ChipTextField` calls it from `onSubmitEditing`).
- *
- * It deliberately does **not** own the query or fetch anything. The three
- * comboboxes this was extracted from get their query from three different
- * places (local state, a caret position inside a larger text field, a filter
- * box), and `results` may arrive from memory or over IPC — see
- * {@link useDebouncedSearch} for the async case.
+ * The listbox half of a WAI-ARIA combobox, with no DOM. It owns neither the
+ * query nor the fetch; mobile commits through `selectActive`.
  */
 export function useTypeahead<T>({
   query,
@@ -25,22 +14,15 @@ export function useTypeahead<T>({
   query: string;
   results: readonly T[];
   onSelect: (option: T) => void;
-  /**
-   * Escape, forwarded with its event. Left to the caller because the three
-   * call sites mean genuinely different things by it — clear the field, clear
-   * the query, or dismiss the picker for this fragment only — and one of them
-   * suppresses the browser default while the others must not.
-   */
+  /** Escape, forwarded with its event: each call site means something else. */
   onEscape?: (event: KeyboardEvent) => void;
 }) {
   const listboxId = useId();
   const [activeIndex, setActiveIndex] = useState(0);
   const [lastQuery, setLastQuery] = useState(query);
 
-  // A new query means a new list, so the highlight returns to the top.
-  // Adjusting state during render is React's documented way to derive state
-  // from a changed input, and unlike an effect it leaves no frame in which the
-  // old index points into the new results.
+  // A new query resets the highlight during render, so no frame pairs the
+  // old index with the new results.
   if (query !== lastQuery) {
     setLastQuery(query);
     setActiveIndex(0);
@@ -49,11 +31,7 @@ export function useTypeahead<T>({
   const open = results.length > 0;
   const optionId = (index: number) => `${listboxId}-opt-${index}`;
 
-  /**
-   * Commit the highlighted option, reporting whether there was one. Callers use
-   * the answer to decide what the key that got them here should do next — swallow
-   * it, or let it through to whatever it means when no picker is open.
-   */
+  /** Commits the highlighted option; returns whether there was one. */
   function selectActive(): boolean {
     const option = results[activeIndex];
     if (option === undefined) return false;

@@ -4,26 +4,7 @@ import type {
   ObservanceBearerType,
 } from "@leapsake/schema";
 
-/**
- * Every user-visible string the package renders.
- *
- * **Messages that take values are functions, not templates with holes.** The
- * catalog owns the whole sentence; a component only supplies data. That is what
- * makes a component unable to assemble a sentence out of fragments — the failure
- * mode isn't discouraged, it's unavailable — and it's what lets a later catalog
- * handle plural rules, word order and grammatical agreement without any component
- * changing.
- *
- * A dedicated i18n library will replace `en` and the provider eventually. Nothing
- * here assumes which one: components read a plain typed object, so adopting
- * FormatJS/Lingui/i18next is a swap of the two files under `messages/`, not a
- * rewrite of the components.
- *
- * **On sharing keys:** `common` holds only verbs that are genuinely the same
- * action wherever they appear. One English word often needs several translations
- * depending on context — if a surface ever needs its own wording, give it its own
- * key rather than widening `common`.
- */
+/** Every user-visible string the package renders. */
 export interface Messages {
   common: {
     edit: string;
@@ -210,8 +191,7 @@ export interface Messages {
     skip: string;
     include: string;
     needsName: string;
-    /** That an incoming card **is** someone already here — its `UID` names them.
-     *  A certainty, unlike {@link duplicateWarning}'s resemblance. */
+    /** An incoming card whose `UID` names someone already here: a certainty. */
     alreadyStored: (name: string) => string;
     /** The card says it is the user themselves; ticking it makes it so. */
     selfClaim: string;
@@ -236,7 +216,7 @@ export interface Messages {
   };
 
   contactMethodForm: {
-    /** “Add email” / “Add phone” / “Add address” — one whole heading per kind. */
+    /** “Add email”, “Add phone”, “Add address”: a whole heading per kind. */
     addHeading: (kind: ContactMethodKind) => string;
     editHeading: (kind: ContactMethodKind) => string;
     submitAdd: string;
@@ -260,7 +240,7 @@ export interface Messages {
     handlePlaceholder: string;
     /** The optional opaque id, named after the platform that wants one. */
     userId: (platform: string) => string;
-    /** Why that field exists, said in terms of what the row will do without it. */
+    /** Why that field exists: what the row will do without it. */
     userIdHint: (platform: string) => string;
     profileUrl: string;
     /** Whether the phone reaches a platform addressed by number. */
@@ -279,7 +259,7 @@ export interface Messages {
     justTheDay: string;
     save: string;
     editFull: string;
-    /** What ticking anything actually buys — a reminder at a time, not a to-do. */
+    /** What ticking anything buys: a reminder at a time, not a to-do. */
     caption: string;
     /** The one delivery question for the whole occasion. */
     deliveryLegend: string;
@@ -326,7 +306,7 @@ export interface Messages {
     dateOutOfRange: string;
     /** Shown when Save is pressed on an “Other” milestone with no label. */
     labelRequired: string;
-    /** Shown when Save is pressed with an “Other” reminder that has no label. */
+    /** Shown when Save is pressed on an “Other” reminder with no label. */
     reminderLabelRequired: string;
     /** Shown when Save is pressed before the “with whom?” person is chosen. */
     withWhomRequired: string;
