@@ -65,86 +65,39 @@ import {
   type MobileNotificationScheduler,
 } from "./notification-scheduler";
 
-/**
- * The account surface (custody Phase 1). Kept deliberately separate from
- * {@link CoreApi}: creating an account isn't a transactional core op, so —
- * exactly like desktop's separate `window.account` bridge (not folded into
- * `window.api`) — it lives in its own context rather than on the core.
- */
+/** The account surface: custody acts, which are not transactional core ops. */
 export interface AccountApi {
   status(): Promise<SyncStatus>;
-  /**
-   * **Create an account on this device** (`model.md` §7.2.1) — the act that
-   * turns encryption on: nothing leaves the phone. Under *encryption follows
-   * custody* an account is the only thing that encrypts the store, so without
-   * this the store would stay plaintext forever.
-   *
-   * Returns the one-time recovery phrase for its single reveal.
-   */
+  /** Create an account here, encrypting the store; returns the one-time phrase. */
   createAccount(args: {
     username: string;
     password: string;
   }): Promise<{ accountId: string; recoveryKey: string }>;
-  /**
-   * **Sign out** (`model.md` §7.3): close the store and forget the keys that open
-   * it, so the password is needed to get back in. The data stays on this device,
-   * encrypted — {@link AccountApi.forgetAccount} is the one that removes it. Rebuilds
-   * in place, landing on the unlock gate the bootstrap already hosts.
-   */
+  /** Forget the keys that open the store and land on the unlock gate. */
   signOut(): Promise<void>;
-  /**
-   * What the Forget-account confirmation needs to word itself (`model.md`
-   * §7.3.1). `durableBackup` is whether anything claims to keep a copy — `false`
-   * whenever nobody said otherwise, which is what makes forgetting the last
-   * device read as the deletion it is.
-   */
+  /** `durableBackup` is false unless something claims to keep a copy. */
   forgetInfo(): Promise<{
     username?: string;
     durableBackup: boolean;
   }>;
-  /**
-   * **Forget account** (`model.md` §7.3): remove this account, its store, and its
-   * unlock doors from this device, leaving it in the accountless state a fresh
-   * install is in.
-   */
+  /** Remove this account, its store and its doors from this device. */
   forgetAccount(): Promise<void>;
-  /**
-   * Factory reset: erase all local data, the encryption keys, and the recovery
-   * sidecar, then rebuild the app in place as a fresh install (there is no
-   * relaunch primitive on mobile, so this re-runs the bootstrap). Unrecoverable.
-   */
+  /** Erase all local data and keys, then re-run the bootstrap as a fresh install. */
   factoryReset(): Promise<void>;
-  /**
-   * Replace this device's recovery phrase, gated on the account password
-   * (`model.md` §6). Returns the new phrase to show **once** — there is no way to
-   * see it again.
-   */
+  /** Replace the recovery phrase, gated on the password; shown once. */
   rotateRecoveryPhrase(password: string): Promise<{ recoveryPhrase: string }>;
 }
 
-// Build the core exactly once for the whole app and share it through context.
-// This is the multi-screen successor to the proof screen's per-effect bootstrap
-// (old App.tsx): open the on-device SQLite file, run the shared migrations on
-// expo-sqlite, then `createCore`. Every screen reads the ready CoreApi via
-// `useCore()` and calls it in-process — no IPC, unlike desktop.
 const CoreContext = createContext<CoreApi | null>(null);
 
 const AccountContext = createContext<AccountApi | null>(null);
-// A monotonically-increasing counter bumped whenever the provider changes rows
-// behind a screen's back. `useFocusedData` depends on it, so a bump re-runs the
-// focused screen's load — the in-process analogue of desktop's
-// `router.revalidate()` (reactive invalidation). Defaults to 0 (no provider →
-// never invalidates, so a screen used outside CoreProvider still renders).
+// Bumped when the provider changes rows behind a screen's back, so the focused
+// screen re-reads. Without a provider it stays 0 and never invalidates.
 const DataVersionContext = createContext(0);
-/** The *Degraded* state as a screen needs it: why this device cannot prove which
- *  master key is the account's (see {@link CustodyBanner}). */
+/** Why this device cannot prove which master key is the account's. */
 interface DegradedCustody {
   detail: string;
 }
-// This device's stable id (Inc 1, `ensureLocalDeviceId`) — the state mirror
-// of `CoreProvider`'s `deviceId` ref, so a screen (the notification settings
-// section, §7) can address `notificationSettings.setPolicy`/`get` for *this*
-// device without reaching into a ref.
 const DeviceIdContext = createContext<string | null>(null);
 
 /** Access the ready CoreApi. Throws if used outside a (loaded) CoreProvider. */
@@ -165,20 +118,12 @@ export function useAccount(): AccountApi {
   return account;
 }
 
-/**
- * The reactive-invalidation signal: a counter that bumps when the provider
- * changed rows itself — new phone contacts, regenerated birthday reminders. Add
- * it to a `useFocusedData` load's deps so the focused screen re-reads.
- */
+/** Add to a `useFocusedData` load's deps to re-read when the provider writes. */
 export function useDataVersion(): number {
   return useContext(DataVersionContext);
 }
 
-/**
- * This device's id (Inc 1). Throws if used outside a (loaded) CoreProvider,
- * like {@link useCore} — by the time `core` is non-null the boot effect has
- * already minted or read it, so the two never disagree.
- */
+/** This device's id. Throws if used outside a (loaded) CoreProvider. */
 export function useDeviceId(): string {
   const deviceId = useContext(DeviceIdContext);
   if (deviceId === null) {
@@ -191,48 +136,24 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [core, setCore] = useState<CoreApi | null>(null);
   const [account, setAccount] = useState<AccountApi | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // The boot-time at-rest unlock prompt (model.md §6, §7.5): set when this
-  // device's enclave key is gone but a sidecar survives, so the user must supply
-  // a secret before the DB can open. `doors` says which are available — the
-  // password leads, the phrase is the forgot-password fallback. `resolve` feeds
-  // the answer back to the awaiting bootstrap; a wrong one re-sets this with an
-  // `error`.
+  // Set while the bootstrap waits on the unlock gate; `resolve` answers it, and
+  // a wrong secret re-sets it with an `error`.
   const [recoveryPrompt, setRecoveryPrompt] = useState<{
     error?: string;
     doors: { password: boolean; phrase: boolean };
     resolve: (answer: UnlockAnswer) => void;
   } | null>(null);
-  // Why this device cannot prove which master key is the account's, when that is
-  // the case: the *Degraded* state (custody slice 10, `model.md` §7.5). Set by every
-  // bootstrap run, so a repaired device clears it by re-opening. Unlike
-  // {@link recoveryPrompt} it does not block the app — that is the whole point — it
-  // raises a standing banner.
+  // Set by every bootstrap run, so a repaired device clears it by re-opening.
+  // Unlike the prompt it does not block the app; it raises a standing banner.
   const [degraded, setDegraded] = useState<DegradedCustody | null>(null);
-  // Reactive invalidation: bumped whenever something outside the focused screen
-  // changed rows, so it (via `useFocusedData` → `useDataVersion`) re-reads.
   const [dataVersion, setDataVersion] = useState(0);
-  // The state mirror of the `deviceId` ref below (Inc 1) — set at the same
-  // point, so a screen (the notification settings section, §7) can read this
-  // device's id via `useDeviceId()` without reaching into a ref.
+  // Mirrors the `deviceId` ref, set at the same moment, for `useDeviceId()`.
   const [deviceIdState, setDeviceIdState] = useState<string | null>(null);
-  // Bumped by a factory reset to re-run the bootstrap effect after the data +
-  // keys have been wiped, so the app re-mints a fresh key over an empty DB in
-  // place — the mobile stand-in for desktop's process relaunch.
+  // Bumping this re-runs the bootstrap in place after a store swap.
   const [resetVersion, setResetVersion] = useState(0);
-  // The live core, mirrored in a ref so the AppState (foreground) listener — set
-  // up once, before the core is built — can reach the *current* core (which a
-  // later join/recover swaps) to regenerate system reminders on foreground.
+  // The current core, for listeners set up once before any core is built.
   const coreRef = useRef<CoreApi | null>(null);
-  // This device's stable id (`ensureLocalDeviceId`) — minted once at boot,
-  // independent of any account, and read back unchanged after. Keys the
-  // `notification_settings` row this device's own reconcile and (eventually)
-  // its settings screen address.
   const deviceId = useRef<string | null>(null);
-  // The OS-backed notification scheduler port (Inc 3 §3's
-  // `expo-notifications` adapter) — stateless, so it's built once here
-  // (lazily, the manual `useRef` equivalent of `useState`'s lazy initializer)
-  // rather than inside the boot effect, which only runs once per boot/reset
-  // but this doesn't need to wait for.
   const notificationScheduler = useRef<MobileNotificationScheduler | null>(
     null,
   );
@@ -241,41 +162,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    /**
-     * Is this core still the live one?
-     *
-     * **Both reconciles below outlive the core they were handed.** They are
-     * fired-and-forgotten at boot, on foreground, and after every write, and
-     * each awaits several round trips to SQLite — while a factory reset,
-     * forget-account, join or recover can close that driver and swap the core
-     * mid-flight. What the old core then throws is
-     * `ERR_ACCESS_CLOSED_RESOURCE` ("Call to function
-     * 'NativeDatabase.prepareAsync' has been rejected → Access to closed
-     * resource"), and the `catch`es below used to report it as a failure.
-     *
-     * It is not one — the work was simply cancelled — and reporting it costs
-     * more than noise: on a dev client every `console.error` raises a LogBox
-     * banner across the bottom of the screen, exactly where the tab bar is, so
-     * a reset that worked perfectly leaves the app looking broken and the tab
-     * bar unhittable. That is how it was found (Flow 1, Android, 2026-08-31):
-     * the erase succeeded and the flow died on `tab-search is not visible`.
-     *
-     * The identity check is the whole test, because every path that closes a
-     * driver nulls or replaces `coreRef.current` in the same breath, before
-     * awaiting anything. Checked *before* starting (nothing to do) and again in
-     * the `catch` (the teardown happened mid-flight), and it guards the writes
-     * too: a stale reconcile must not bump `dataVersion` for a store that is
-     * gone.
-     */
+    // Background work outlives its core when a store swap closes the driver,
+    // which then throws; every closer replaces `coreRef` first, so check it.
     const isLiveCore = (coreApi: CoreApi) => coreRef.current === coreApi;
 
-    /**
-     * Reconcile automated (`system`) reminders — upcoming birthdays — against the
-     * given core, then, only if anything changed, bump the data version so the
-     * focused screen re-reads. Runs at boot and on foreground (a new local day
-     * can bring a birthday into range). Best-effort: a failure must never break
-     * the app.
-     */
+    // Best-effort, like the two below: a failure must never break the app.
     const regenerateSystemReminders = async (coreApi: CoreApi) => {
       if (!isLiveCore(coreApi)) return;
       try {
@@ -291,22 +182,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    /**
-     * The second reconcile, one layer out: compute this device's desired
-     * OS notifications from its policy + the live reminder set
-     * (`@leapsake/notifications`' `planNotifications`), diff against what the
-     * OS actually has pending, and drive the scheduler port through the delta
-     * (`reconcileNotificationSchedule`). Same triggers as
-     * `regenerateSystemReminders` above — boot, foreground — plus every
-     * mutating `CoreApi` call, via `buildCore`'s second `withSyncKick` layer
-     * below (the "kick after every write" mechanism from `@leapsake/sync`),
-     * so completion, snooze, milestone edits, and this device's own policy
-     * changes all reconcile without a bespoke call at each site.
-     *
-     * `deviceId.current` is `null` only in the brief window before boot mints
-     * it (§1); every other caller runs after. Best-effort throughout, like
-     * `regenerateSystemReminders` above.
-     */
     const reconcileNotifications = async (coreApi: CoreApi) => {
       const scheduler = notificationScheduler.current;
       const id = deviceId.current;
@@ -315,10 +190,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       try {
         const [policy, reminders, pending] = await Promise.all([
           coreApi.notificationSettings.get(id),
-          // `listNotifiable`, not `list`: the reminder *list* deliberately
-          // shows only what each action's own window puts on display, while
-          // the schedule has to reach a year out — nothing else advances it
-          // until the app is opened again.
+          // Not `list`, which is windowed: the schedule reaches a year out,
+          // since nothing advances it until the app is opened again.
           coreApi.reminders.listNotifiable(),
           scheduler.listPending(),
         ]);
@@ -333,13 +206,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    /**
-     * Bring in any phone contact this device has not seen, once the user has
-     * switched that on by importing (`lib/device-contacts-sync.ts`, which has
-     * the rules). Runs ahead of the two reconciles above at boot and on
-     * foreground, so a new contact's birthday reaches Home and the OS schedule
-     * in the same pass rather than the next one. Best-effort, like them.
-     */
     const bringInNewContacts = async (coreApi: CoreApi) => {
       if (!isLiveCore(coreApi)) return;
       try {
@@ -354,11 +220,6 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // A contact added while the app is open — typed on another device and
-    // arriving over iCloud, say — should not wait for the next foreground. The
-    // new contact's own commit reconciles reminders, so this needs neither of
-    // the reconciles above.
-    //
     // Android rejects the observer without READ_CONTACTS, so it attaches only
     // once permission exists and retries on each foreground.
     let contactsSub: ReturnType<typeof addContactsChangeListener> | null = null;
@@ -379,32 +240,24 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       void watchContacts();
       if (coreRef.current !== null) {
         const core = coreRef.current;
-        // Sequenced, not parallel `void`s: `reconcileNotifications` reads
-        // `reminders.list()` fresh, so it must not race the regenerate write
-        // below — see the boot-time pairing's comment for the bug this fixes.
+        // Sequenced: each step reads what the one before it wrote.
         void bringInNewContacts(core)
           .then(() => regenerateSystemReminders(core))
           .then(() => reconcileNotifications(core));
       }
     });
 
-    // Park the bootstrap on the unlock gate until the user submits a secret. The
-    // gate is told which doors this store has, so it can lead with the password
-    // and only offer the phrase as the forgot-password fallback (§7.5).
+    // Parks the bootstrap on the unlock gate until the user submits a secret.
     const requestUnlock = (request: UnlockRequest) =>
       new Promise<UnlockAnswer>((resolve) =>
         setRecoveryPrompt({ ...request, resolve }),
       );
 
     (async () => {
-      // The same keystore instance that backs the account surface below.
       const keyStore = secureStoreKeyStore();
 
-      // Mint-or-read this device's stable id (Inc 1) — touches only the OS
-      // keychain, so it's safe before custody state is even known, and must
-      // be ready before the first `reconcileNotifications` call below. The
-      // state mirror follows in the same tick so `useDeviceId()` and this ref
-      // never disagree.
+      // Keychain only, so it is safe before custody is known; notifications
+      // need it before their first reconcile.
       deviceId.current = await ensureLocalDeviceId(keyStore);
       setDeviceIdState(deviceId.current);
 
@@ -433,13 +286,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           : null,
       );
 
-      // Wrap a freshly created core so every mutating call reconciles this
-      // device's local notifications (Inc 3 §6). `withSyncKick` is the
-      // "kick after every mutation" wrapper from `@leapsake/sync`, reused here
-      // rather than threading a new port through `@leapsake/core`.
-      // `reconcileNotifications` reads `coreRef.current` rather than closing
-      // over the core being built here, since that ref is set synchronously
-      // right after, before anything can call into the wrapped object.
+      // Every mutating call reconciles this device's notifications.
       const buildCore = (): CoreApi =>
         withSyncKick(createCore(driver), () => {
           if (coreRef.current !== null) {
@@ -450,13 +297,11 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       const bootedCore = buildCore();
       coreRef.current = bootedCore;
       setCore(bootedCore);
-      // Sequenced: `reconcileNotifications` reads `reminders.list()` fresh, so
-      // it must run after the regenerate write lands, not racing it — a boot
-      // right after a milestone edit or a day rollover would otherwise plan
-      // off the pre-regenerate `dueDate` and schedule a day off.
+      // Sequenced: planning before the regenerate lands schedules off a stale
+      // `dueDate`, a day wrong after a rollover or a milestone edit.
       void bringInNewContacts(bootedCore)
         .then(() => regenerateSystemReminders(bootedCore))
-        .then(() => reconcileNotifications(bootedCore)); // new contacts, birthdays atop Home, then the second reconcile, one layer out
+        .then(() => reconcileNotifications(bootedCore));
       /**
        * **Turn this device's Unauthenticated store into an account's encrypted one** — the
        * irreversible half of creating an account here (§7.2.1):
