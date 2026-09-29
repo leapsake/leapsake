@@ -11,11 +11,7 @@ import {
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/**
- * A gift being authored on this form: the draft the write will use, plus a key to
- * address the row by. See {@link StagedContact}, which is the same idea for the
- * same reasons.
- */
+/** A gift being created on the form, keyed for React. */
 export interface StagedGift {
   key: string;
   draft: GiftDraft;
@@ -25,29 +21,8 @@ export interface StagedGift {
 export const giftRowsValid = (entries: readonly StagedGift[]): boolean =>
   entries.every((row) => giftDraftValid(row.draft));
 
-/**
- * Gifts on the **create** screen — the staged counterpart to
- * {@link GiftsSection}, held in memory until the form is saved and then written
- * through `core.gifts.capture`. See {@link StagedMilestonesSection} for why
- * staging works this way.
- *
- * Everything here is a gift being *added*, because a record being created has no
- * gifts yet. It briefly served a saved record too, and so carried a set of ticks
- * and removals staged against rows that already existed; a saved recipient's
- * gifts are ticked and dropped where they are listed now, which is a write and
- * not a draft, so that half is gone.
- *
- * This section used to take an `occasions` pool as a prop, because a gift's
- * occasion could name a milestone staged on this same form — one that had no id
- * yet. That forward reference is why the screen had to build a pool of staged
- * keys and the write had to map them back (`resolveStagedOccasion`), and why
- * `applyEntityForm` had to write milestones first and gifts last. A gift now
- * names nothing but the entity the form is about, so all of it is gone.
- *
- * The idea pool *is* read here, being ordinary catalog data: `gifts/new.tsx` gets
- * it from a route loader this section doesn't have, so this fetches it the way
- * {@link StagedHolidaysSection} fetches the holiday catalog.
- */
+/** Gifts staged on the create form; it reads the idea pool itself, as
+ *  {@link StagedHolidaysSection} reads the holiday catalog. */
 export function StagedGiftsSection({
   entries,
   onChange,
@@ -80,9 +55,7 @@ export function StagedGiftsSection({
 
       {entries.map((row) => (
         <View key={row.key} style={[styles.row, styles.inlineForm]}>
-          {/* The row's identity line, as every staged section has: what it is so
-              far, next to the way out of it. Blank until it is named, because
-              "New gift" is the one thing the fields below already say. */}
+          {/* Says which gift this Remove is for; blank until it is named. */}
           <View style={styles.sectionHeader}>
             <Text style={styles.fieldLabel}>
               {row.draft.title.trim() === ""
@@ -110,8 +83,7 @@ export function StagedGiftsSection({
             onChange={(given) => patch(row.key, { ...row.draft, given })}
           />
 
-          {/* The one thing a gift cannot do without, said where it is missing
-              rather than only as a disabled Save at the top of the screen. */}
+          {/* A name, said where it is missing, not only at Save. */}
           {!giftDraftValid(row.draft) && (
             <Text style={styles.danger}>This gift needs a name.</Text>
           )}

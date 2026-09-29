@@ -6,24 +6,8 @@ import { useContactReach } from "../lib/use-contact-reach";
 import { styles } from "../lib/styles";
 
 /**
- * The ways to reach someone, on the reminder that asks you to.
- *
- * "Wish @Violet a happy birthday" says *what*; this says *how*, and is the whole
- * of what the channel-specific reminders used to be. Scheduling "call Violet" and
- * "text Violet" as separate errands asked, weeks ahead, a question only the
- * moment can answer — so the acknowledgment is one row, and the choice of
- * channel is these buttons, made when the reminder actually fires.
- *
- * One button per method, not per action: a phone that is also on WhatsApp offers
- * several things, and this is a strip on a reminder rather than the person's
- * Contact section, so it shows the **likeliest** thing per method and leaves the
- * rest to that screen. The label names the method, so two numbers read as "Text
- * — Mobile" and "Text — Work" rather than as the same button twice.
- *
- * ⚠️ It renders **nothing** when there is nothing to offer, rather than an empty
- * state: the collect prompt is a CTA the view-model decides on (`reminderCtaOf`,
- * the `contact` kind), so an empty strip here would be the second thing on
- * screen saying the same absence.
+ * The ways to reach someone, on the reminder that asks you to: the likeliest
+ * action per method. ⚠️ Renders nothing with none; a CTA asks for one.
  */
 export function ContactReachButtons({
   methods,
@@ -82,20 +66,15 @@ export function ContactReachButtons({
 
 const local = StyleSheet.create({
   named: { marginTop: 8 },
-  /** Wraps rather than scrolls: a dozen methods is rare, and a strip that runs
-   *  off the edge hides the ways to reach someone behind a gesture. */
+  /** Wraps rather than scrolls, so no way to reach someone is hidden. */
   strip: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
     marginTop: 8,
   },
-  /** The one place a reminder's buttons are **not** full-width: these are a set
-   *  of like things (one per method) rather than a set of choices, their labels
-   *  are short, and stacking six of them would push the reminder's actual offers
-   *  off the screen. They keep the shared secondary box, so they still read as
-   *  buttons — just as a strip of them. `minHeight` matches `buttonBlock`, since
-   *  a smaller target is no easier to hit for being one of several. */
+  /** Not full-width, unlike a reminder's other buttons: a strip of like
+   *  things. `minHeight` matches `buttonBlock`. */
   button: {
     minHeight: 44,
     justifyContent: "center",
