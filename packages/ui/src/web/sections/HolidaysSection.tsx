@@ -17,18 +17,8 @@ export interface BearerHoliday {
 }
 
 /**
- * The Holidays section on a Person or Pet screen — the mirror of the “Observed
- * by” field on a holiday. Adding an observance from either direction writes the
- * same row, so which surface a user reaches for is purely a matter of what they
- * happen to be looking at.
- *
- * Each row links to that observance's reminder schedule rather than editing
- * anything here, because the reminder rule bears on the *observance*: two people
- * who observe the same holiday can be reminded about entirely different things.
- *
- * Writes are serialised (see {@link useSerializedWrites}): a submission started
- * mid-flight would supersede the previous one and silently drop a pick during a
- * rapid type→Enter→type→Enter.
+ * A person's or pet's holidays, the mirror of a holiday's “Observed by”. Each
+ * row links to its observance's own reminder schedule.
  */
 export function HolidaysSection({
   bearerType,
@@ -49,8 +39,7 @@ export function HolidaysSection({
   const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
-  // What this bearer keeps, and what it can still be offered — hidden holidays
-  // are deliberately absent from the second (see {@link splitBearerHolidays}).
+  // Hidden holidays are never offered; see {@link splitBearerHolidays}.
   const { observed, addable } = splitBearerHolidays(holidays);
 
   return (

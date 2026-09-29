@@ -1,10 +1,7 @@
 import type { Gender } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
-/**
- * The Gender picker shared by the People & Pets forms: a `<select name="gender">`
- * whose empty option means “unset”, which the write path reads back as null.
- */
+/** The Gender picker; its empty option is “unset”, read back as null. */
 export function GenderField({
   value,
   onChange,

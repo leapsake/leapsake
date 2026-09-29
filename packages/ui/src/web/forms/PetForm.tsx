@@ -16,11 +16,8 @@ import { FormShell } from "../patterns/FormShell.js";
 import { Field } from "../primitives/Field.js";
 import { GenderField } from "../primitives/GenderField.js";
 
-/**
- * The create/edit form for Pets: {@link usePetForm}'s draft rendered by
- * {@link PetFields}. Passing `candidates` adds the create-only Relationships
- * section, opened with one row so a pet's owner can be named in the same pass.
- */
+/** The pet form; `candidates` adds the create-only Relationships, with one
+ *  row open so the owner can be named. */
 export function PetForm({
   title,
   pet,
@@ -35,9 +32,9 @@ export function PetForm({
   pet?: Pet;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  /** Backs the Tags field's existing-tag picker; must be stable across renders. */
+  /** Backs the Tags field's picker; must be stable across renders. */
   search: (query: string) => Promise<SearchHit[]>;
-  /** Relationship candidates; when present, the create-mode Relationships section shows. */
+  /** Relationship candidates, which show the create-only Relationships. */
   candidates?: readonly RelationshipCandidate[];
   submitLabel: string;
   /** Where Cancel returns to (the list for create, the pet view for edit). */

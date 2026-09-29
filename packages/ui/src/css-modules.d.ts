@@ -1,7 +1,5 @@
-// Ambient (script, no imports) so `declare module` is a true global fallback:
-// `import styles from "./X.module.css"` yields a class-name map. The package
-// ships raw source, so each consuming bundler resolves the stylesheet itself;
-// this only teaches tsc what the import evaluates to.
+// Ambient, so any `*.module.css` import types as a class-name map; each
+// consuming bundler resolves the stylesheet itself.
 declare module "*.module.css" {
   const classes: { readonly [key: string]: string };
   export default classes;

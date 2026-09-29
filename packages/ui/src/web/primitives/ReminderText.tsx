@@ -9,20 +9,8 @@ import { entityBasePath } from "../../headless/routes.js";
 import { useUi } from "../adapter.js";
 
 /**
- * Render freeform reminder text with its inline `#tags` linked to their tag pages
- * and its `@mentions` linked to the person/pet they name. The reminder's resolved
- * {@link Tag}s supply tag ids (keyed by normalized name); its {@link
- * ResolvedMention}s supply each target's **current** label (keyed by
- * `type:id`) — a rename shows through. Both keep their sigil, so a mention reads
- * as `@Violet Bick` here exactly as it did in the composer that wrote it.
- *
- * A mention whose target is gone (`label`
- * null) or unresolved falls back to the token's snapshot name as plain text; a
- * `#token`/mention with no match — which shouldn't happen, since both are derived
- * from this very text — likewise falls back to plain text. Segment order is
- * stable, so the array index is a safe key.
- *
- * The text itself is user content, so nothing here comes from the catalog.
+ * Reminder text with its tags and mentions linked, each mention by its
+ * target's current name; anything unresolved stays plain text.
  */
 export function ReminderText({
   text,

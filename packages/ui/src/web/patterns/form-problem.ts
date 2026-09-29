@@ -1,9 +1,10 @@
-/** Tells the user why the form cannot be saved yet. The one place to swap in our own modal. */
+/** Tells the user why the form cannot be saved yet, in a native dialog. */
 export function showFormProblem(message: string): void {
   window.alert(message);
 }
 
-/** Whether a press may submit: never while a write is in flight, and not while `problem` is set, which it shows. */
+/** Whether a press may submit: not while writing, nor while `problem` is set,
+ *  which it shows. */
 export function readyToSubmit(
   submitting: boolean,
   problem: string | undefined,

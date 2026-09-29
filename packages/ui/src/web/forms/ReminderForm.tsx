@@ -13,10 +13,7 @@ import { ChipTextField } from "../fields/ChipTextField.js";
 import { FormShell } from "../patterns/FormShell.js";
 import { StackedField } from "../primitives/Field.js";
 
-/**
- * The create/edit form for a Reminder: {@link useReminderForm}'s draft rendered by
- * {@link ReminderFields}. `#tags` and `@mentions` are typed inline and parsed on save.
- */
+/** The reminder form; tags and mentions are typed inline, parsed on save. */
 export function ReminderForm({
   reminder,
   search,

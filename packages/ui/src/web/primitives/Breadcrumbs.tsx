@@ -8,14 +8,8 @@ export interface Crumb {
   href?: string;
 }
 
-/**
- * A breadcrumb trail; the final crumb is the current page and is not linked.
- *
- * The trail is entirely caller-supplied — the package deliberately ships no
- * “home” crumb, because which route is home is an application decision (on
- * desktop it is People & Pets at `/people`; a client with different top-level
- * navigation would answer differently).
- */
+/** A caller-supplied breadcrumb trail; the last crumb, the current page, is
+ *  not linked. */
 export function Breadcrumbs({ trail }: { trail: readonly Crumb[] }) {
   const { Link } = useUi();
   const m = useMessages();

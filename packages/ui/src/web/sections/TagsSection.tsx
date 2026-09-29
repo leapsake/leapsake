@@ -6,13 +6,7 @@ import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
-/**
- * The Tags section shared by the Person and Pet view screens — a first-class
- * section alongside Relationships and Milestones rather than a row in the
- * identity list. It is display-only: each tag links to its own page, and tags
- * are added/removed back on the create/edit form (the “Edit tags” affordance
- * here opens that form), where they save as a whole set with the entity.
- */
+/** A person's or pet's tags, display-only; they are edited on the form. */
 export function TagsSection({
   bearerType,
   bearerId,

@@ -4,15 +4,8 @@ import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
-/**
- * The “Mentioned in” section shared by the Person and Pet view screens — the
- * reverse of an inline `@mention`. Lists every reminder whose text mentions this
- * entity (including its own system birthday reminder), each linking to the
- * reminder. Display-only, and always rendered with an empty placeholder — a
- * first-class section alongside Tags and Milestones. A mention isn't edited here;
- * it lives in the reminder text, so the row opens the reminder's edit screen,
- * where changing the text re-derives the backlink.
- */
+/** The reminders whose text mentions this person or pet, each opening its
+ *  editor; always rendered, with a placeholder when empty. */
 export function MentionedInSection({
   reminders,
 }: {

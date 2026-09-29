@@ -4,12 +4,7 @@ import { onTestFinished } from "vitest";
 import { MessagesProvider, en } from "../src/messages/index.js";
 import { UiProvider, type UiAdapter } from "../src/web/index.js";
 
-/**
- * A host adapter built from plain DOM elements — no router, no framework. It is
- * what the package's contract actually requires, so testing against it proves a
- * component works for *any* conforming client rather than for react-router
- * specifically.
- */
+/** A host adapter of plain DOM elements: the contract, and no router. */
 export const testAdapter: UiAdapter = {
   Link: ({ href, children, ...rest }) => (
     <a href={href} {...rest}>
@@ -23,11 +18,7 @@ export const testAdapter: UiAdapter = {
   ),
 };
 
-/**
- * Render a component with the two things every package component may reach for:
- * the host adapter and the message catalog. Tests assert against `en`, so a
- * changed string shows up as a failing test rather than silently passing.
- */
+/** Renders with the host adapter and the `en` catalog. */
 export function renderWithUi(ui: ReactElement) {
   return render(
     <MessagesProvider messages={en}>
@@ -36,10 +27,8 @@ export function renderWithUi(ui: ReactElement) {
   );
 }
 
-/**
- * Records, per submit, whether the form stopped it. Listens below the React root,
- * so it sees the form's own handling; then stops the post itself, as jsdom can't.
- */
+/** Records, per submit, whether the form stopped it, then stops the post
+ *  itself, as jsdom can't. */
 export function recordSubmits(): () => boolean[] {
   const stopped: boolean[] = [];
   const record = (event: Event) => {

@@ -11,11 +11,8 @@ import {
 } from "../fields/RelationshipFields.js";
 import { FormShell } from "../patterns/FormShell.js";
 
-/**
- * Add or edit a relationship from a subject's page: {@link useRelationshipForm}'s
- * draft rendered by {@link RelationshipFields}. With `initial` the other end is
- * fixed and only its role is edited; core derives the subject's own.
- */
+/** The relationship form; with `initial` the other end is fixed and only its
+ *  role is edited. */
 export function RelationshipForm({
   subjectType,
   candidates = [],

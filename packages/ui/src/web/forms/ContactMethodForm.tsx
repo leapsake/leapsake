@@ -23,10 +23,7 @@ type SetField = <K extends keyof ContactMethodDraft>(
   value: ContactMethodDraft[K],
 ) => void;
 
-/**
- * The add/edit form for one of a person's contact methods, its kind fixed by the
- * route: {@link useContactMethodForm}'s draft rendered by {@link ContactMethodFields}.
- */
+/** The form for one contact method, its kind fixed by the route. */
 export function ContactMethodForm({
   kind,
   entry,
@@ -188,7 +185,7 @@ export function ContactMethodFields({
                   {option.name}
                 </option>
               ))}
-              {/* A stored platform this build doesn't know stays selectable. */}
+              {/* A stored platform this build doesn't know stays. */}
               {platform === undefined && (
                 <option value={fields.platform}>{fields.platform}</option>
               )}

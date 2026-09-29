@@ -16,10 +16,7 @@ import { FormShell } from "../patterns/FormShell.js";
 import { Field } from "../primitives/Field.js";
 import { GenderField } from "../primitives/GenderField.js";
 
-/**
- * The create/edit form for People: {@link usePersonForm}'s draft rendered by
- * {@link PersonFields}. Passing `candidates` adds the create-only Relationships section.
- */
+/** The person form; `candidates` adds the create-only Relationships. */
 export function PersonForm({
   title,
   person,
@@ -34,12 +31,12 @@ export function PersonForm({
   person?: Person;
   /** Space-separated existing tag labels; empty on create. */
   tagNames?: string;
-  /** Backs the Tags field's existing-tag picker; must be stable across renders. */
+  /** Backs the Tags field's picker; must be stable across renders. */
   search: (query: string) => Promise<SearchHit[]>;
-  /** Relationship candidates; when present, the create-mode Relationships section shows. */
+  /** Relationship candidates, which show the create-only Relationships. */
   candidates?: readonly RelationshipCandidate[];
   submitLabel: string;
-  /** Where Cancel returns to (the list for create, the person view for edit). */
+  /** Where Cancel returns to. */
   cancelTo: string;
   submitting: boolean;
 }) {

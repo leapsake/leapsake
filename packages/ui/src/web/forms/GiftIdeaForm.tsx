@@ -5,10 +5,7 @@ import { ChipTextField } from "../fields/ChipTextField.js";
 import { FormShell } from "../patterns/FormShell.js";
 import { StackedField } from "../primitives/Field.js";
 
-/**
- * The create/edit form for a GiftIdea: {@link useGiftIdeaForm}'s draft rendered by
- * {@link GiftIdeaFields}. `required` catches an empty title; a blank one, the hook.
- */
+/** The gift idea form; `required` catches an empty title, the hook a blank. */
 export function GiftIdeaForm({
   idea,
   tagNames = "",
@@ -19,9 +16,9 @@ export function GiftIdeaForm({
   idea?: GiftIdea;
   /** Comma-separated existing tag names; empty on create. */
   tagNames?: string;
-  /** Backs the Tags field's existing-tag picker; must be stable across renders. */
+  /** Backs the Tags field's picker; must be stable across renders. */
   search: (query: string) => Promise<SearchHit[]>;
-  /** Where Cancel returns to — the recipient's page when launched from there. */
+  /** Where Cancel returns to. */
   cancelTo?: string;
   submitting: boolean;
 }) {

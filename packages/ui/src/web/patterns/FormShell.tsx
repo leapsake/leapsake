@@ -4,10 +4,8 @@ import { useUi } from "../adapter.js";
 import styles from "./not-ready.module.css";
 import { readyToSubmit } from "./form-problem.js";
 
-/**
- * The frame every create/edit form shares: a posting `<form>` to its own route,
- * and a Save/Cancel pair, in a header when there is a `title` and at the foot when not.
- */
+/** The frame every create/edit form shares: a posting `<form>` to its route,
+ *  and Save/Cancel in a header with a `title`, else at the foot. */
 export function FormShell({
   title,
   submitLabel,
@@ -22,13 +20,9 @@ export function FormShell({
   submitLabel: string;
   cancelTo: string;
   submitting: boolean;
-  /** Why the form isn't ready, if it isn't. Save stays pressable and says this when pressed. */
+  /** Why the form isn't ready; Save stays pressable and says this. */
   problem?: string;
-  /**
-   * Content between the form and its fieldset — in practice, hidden inputs
-   * carrying values resolved from what the user typed. They sit outside the
-   * fieldset so disabling it can never drop them.
-   */
+  /** Hidden inputs outside the fieldset, so disabling it never drops them. */
   beforeFields?: ReactNode;
   children: ReactNode;
 }) {

@@ -10,11 +10,7 @@ import { useMessages } from "../../messages/index.js";
 import { MultiAddCombobox } from "../primitives/MultiAddCombobox.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
-/**
- * The "For…" section on a gift idea's edit screen — the idea end of the same link
- * a person's Gifts section shows from the other side. Adding someone here writes
- * the row their page would; ticking the box here is the tick they would see.
- */
+/** A gift idea's “For…” section: the same links a Gifts section shows. */
 export function GiftIdeaRecipientsSection({
   ideaId,
   recipients,
@@ -32,8 +28,7 @@ export function GiftIdeaRecipientsSection({
   const m = useMessages();
   const { busy, error, run } = useSerializedWrites({ onSuccess: onChanged });
 
-  // Parties already on this idea drop out of the add field — which is also why
-  // there is no re-gift warning any more: they are simply already in the list.
+  // Parties already on this idea drop out of the add field.
   const already = new Set(
     recipients.map((r) =>
       partyKey({ type: r.recipientType, id: r.recipientId }),

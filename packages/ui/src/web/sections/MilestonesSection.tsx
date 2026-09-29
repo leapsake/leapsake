@@ -13,16 +13,8 @@ import { DataTable } from "../primitives/DataTable.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
 /**
- * The Milestones section shared by the Person, Pet, and Relationship view
- * screens — the dated facts of a bearer's life. It renders a {@link
- * MilestoneTimelineEntry} list: an entry's **own** milestones are editable in
- * place (Edit / Remove), while milestones drawn from a relationship the bearer
- * participates in are shown **read-only** (labelled with the other party) and
- * link out to the relationship's page — its single, canonical edit surface.
- *
- * An unbound relationship-kind milestone (a Wedding stored on a Person while its
- * spouse was unknown) additionally offers a “Set spouse” affordance to bind it
- * to a relationship later.
+ * A bearer's milestones: its own are editable here, while a relationship's
+ * are read-only and link to the relationship's page.
  */
 export function MilestonesSection({
   bearerType,
@@ -81,8 +73,7 @@ export function MilestonesSection({
                     </Link>
                   );
                 }
-                // An unbound relationship-kind milestone (e.g. a Wedding stored
-                // on the Person while its spouse was unknown) can be bound later.
+                // A wedding stored while the spouse was unknown can be bound.
                 const canRebind =
                   bearerType === "person" &&
                   milestone.bearerType === "person" &&

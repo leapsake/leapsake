@@ -12,15 +12,8 @@ import { DataTable } from "../primitives/DataTable.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
 /**
- * The Relationships section shared by the Person and Pet view screens. It lists
- * the subject's neighbors — both stored edges and the ones the inference engine
- * computes — already oriented + labelled by the data layer, and presented
- * uniformly: the explicit/derived distinction is a backend detail and never
- * surfaces in the UI. Every row offers Edit and Remove; under the hood an
- * explicit edge is updated/soft-deleted by id, while a derived edge is addressed
- * by its identity (other endpoint + base role) — editing it materialises a
- * stored edge, removing it records a suppression. Those path decisions live in
- * `@leapsake/ui/headless`'s route builders, not here.
+ * A subject's relationships, stored and derived alike, each with Edit and
+ * Remove; the headless route builders tell the two apart.
  */
 export function RelationshipsSection({
   subjectType,
@@ -68,8 +61,7 @@ export function RelationshipsSection({
               header: "",
               cell: (neighbor) => (
                 <>
-                  {/* Only a stored edge has a relationship page to open; a
-                      derived edge has no id and must be materialised first. */}
+                  {/* Only a stored edge has a page. */}
                   {neighbor.origin === "explicit" && (
                     <>
                       <Link href={`/relationships/${neighbor.relationshipId}`}>

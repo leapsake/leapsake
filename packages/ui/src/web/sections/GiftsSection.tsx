@@ -7,15 +7,8 @@ import { useUi } from "../adapter.js";
 import { GiftCaptureForm } from "../gifts/GiftCaptureForm.js";
 import { EmptyState, Section } from "../primitives/Section.js";
 
-/**
- * The "Gifts" section on a Person or Pet screen. One consolidated capture form on
- * top — name a gift, tick it if they already have it — over the list of what they
- * are down for. Outstanding ideas lead and given ones sink, so the section reads
- * as a shopping list for this person.
- *
- * The tick is the whole state a row has, so it is the row's own control rather
- * than something behind an Edit: there is nothing else to edit.
- */
+/** A person's or pet's gifts: a capture form over the list, whose tick is a
+ *  row's only state. */
 export function GiftsSection({
   recipientType,
   recipientId,
@@ -66,10 +59,8 @@ export function GiftsSection({
                   aria-disabled={busy}
                   onChange={(e) => {
                     if (busy) return;
-                    // Read the box *now*: `run` defers the write, and by the
-                    // time it fires React has restored this controlled input to
-                    // the value the props still say, so a deferred read would
-                    // send back the state the user just changed away from.
+                    // Read now: by the deferred write, React has reset the
+                    // controlled input to the old value.
                     const next = e.target.checked;
                     run(() => setGiven(row.id, next));
                   }}

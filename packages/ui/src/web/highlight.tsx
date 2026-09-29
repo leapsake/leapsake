@@ -8,17 +8,7 @@ import type { ReactNode } from "react";
 
 export type { HighlightMode };
 
-/**
- * Render platform-agnostic {@link HighlightSegment}s as React: each matched run
- * becomes a `<mark>` — the semantic element for text highlighted because it's
- * relevant to the user's current activity (here, the search query) — and the
- * rest renders as plain text. All the matching/folding lives in
- * `@leapsake/highlight`; this is the web's thin rendering wrapper (a React Native
- * renderer would map the same segments to styled `<Text>`).
- *
- * This split — portable segments in one package, a five-line renderer per
- * platform — is the pattern the rest of this package follows.
- */
+/** Renders {@link HighlightSegment}s, each matched run as a `<mark>`. */
 function render(segments: HighlightSegment[]): ReactNode {
   return (
     <>
@@ -29,12 +19,7 @@ function render(segments: HighlightSegment[]): ReactNode {
   );
 }
 
-/**
- * Wrap the portion of `text` that the user's `term` matched in a `<mark>`. The
- * fold mirrors the search service (accent/case for `"text"`, digits for
- * `"phone"`, comma/whitespace-insensitive for `"address"`) so the highlight
- * aligns with how the result matched. See {@link highlightSegments}.
- */
+/** Marks what `term` matched in `text`, folding as the search service does. */
 export function highlightMatch(
   text: string,
   term: string,
@@ -43,11 +28,8 @@ export function highlightMatch(
   return render(highlightSegments(text, term, mode));
 }
 
-/**
- * Highlight a birthday reason (a formatted date like “October 31, 1990”) against
- * the user's query — month-name queries fold like text, numeric queries mark the
- * structural date pieces they name. See {@link highlightBirthdaySegments}.
- */
+/** Marks a formatted birthday against the query; see
+ *  {@link highlightBirthdaySegments}. */
 export function highlightBirthday(text: string, term: string): ReactNode {
   return render(highlightBirthdaySegments(text, term));
 }

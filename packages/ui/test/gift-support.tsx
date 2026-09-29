@@ -9,11 +9,7 @@ import {
 } from "../src/web/index.js";
 import { testAdapter } from "./support.js";
 
-/**
- * A fake for the application's gift ports: every write resolves, unless a test
- * overrides it. Returned so a test can assert what the UI asked the application
- * to do.
- */
+/** Fake gift ports whose writes resolve unless a test overrides them. */
 export function fakeGiftsPorts(over: Partial<GiftsPorts> = {}): GiftsPorts {
   return {
     capture: vi.fn(async () => {}),
@@ -24,7 +20,7 @@ export function fakeGiftsPorts(over: Partial<GiftsPorts> = {}): GiftsPorts {
   };
 }
 
-/** Render a gift surface with both the UI adapter and the gift ports mounted. */
+/** Renders a gift surface with the UI adapter and the gift ports. */
 export function renderWithGifts(ui: ReactElement, ports: GiftsPorts) {
   return render(
     <MessagesProvider messages={en}>

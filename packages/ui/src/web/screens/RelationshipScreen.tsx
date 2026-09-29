@@ -18,14 +18,8 @@ export interface RelationshipPartner {
   roleLabel: string;
 }
 
-/**
- * A relationship's detail page — the canonical home for managing the
- * relationship's milestones (Wedding, First Date, Met). The same milestones also
- * surface read-only on each partner's timeline (see {@link MilestonesSection}),
- * but they are added/edited/removed here. Editing the roles or deleting the
- * relationship reuses the subject-scoped relationship screens, addressed through
- * the first endpoint.
- */
+/** A relationship's page, where its milestones are managed; partners' pages
+ *  show them read-only. */
 export function RelationshipScreen({
   trail,
   relationshipId,
@@ -43,8 +37,7 @@ export function RelationshipScreen({
   const m = useMessages();
   const relPath = `/relationships/${relationshipId}`;
 
-  // The relationship's own milestones, as editable timeline entries (this page
-  // is where they're managed).
+  // The relationship's own milestones, editable here.
   const entries: MilestoneTimelineEntry[] = milestones.map((milestone) => ({
     milestone,
     origin: "own",

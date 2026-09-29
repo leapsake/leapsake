@@ -1,12 +1,6 @@
 import type { ReactNode } from "react";
 
-/**
- * A labelled control, on one line: “Name [input]”.
- *
- * The control is rendered *inside* the `<label>`, which associates the two
- * without an id on either — one less thing to keep unique, and the association
- * can't drift the way a `htmlFor`/`id` pair can.
- */
+/** A labelled control on one line, inside its `<label>` so no id is needed. */
 export function Field({
   label,
   children,
@@ -21,12 +15,7 @@ export function Field({
   );
 }
 
-/**
- * A labelled control with the label on its own line above it — for longer inputs
- * (a URL, a note, a mention-aware text field) where an inline label crowds them.
- *
- * Same implicit association as {@link Field}.
- */
+/** A labelled control with its label on the line above, for longer inputs. */
 export function StackedField({
   label,
   children,

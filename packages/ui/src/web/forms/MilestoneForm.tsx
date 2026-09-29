@@ -28,14 +28,11 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => ({
   }),
 }));
 
-/** Day options 1–31; a day with no month is refused on Save, not by the range. */
+/** Day options 1–31; a day with no month is refused on Save. */
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
-/**
- * Add/edit form for a milestone: {@link useMilestoneForm}'s draft rendered by
- * {@link MilestoneFields}. A relationship kind added from a Person also asks
- * "with whom?" ({@link WithWhomFields}), from `candidates` and `neighbors`.
- */
+/** The milestone form; a relationship kind added from a person also asks
+ *  {@link WithWhomFields}. */
 export function MilestoneForm({
   bearerType,
   milestone,
@@ -48,9 +45,9 @@ export function MilestoneForm({
 }: {
   bearerType: MilestoneBearerType;
   milestone?: Milestone;
-  /** The kind to open on when creating, where the caller knows which is wanted. */
+  /** The kind to open on when creating, if the caller knows. */
   initialKind?: MilestoneKind;
-  /** The milestone's stored schedule, else its kind's defaults; absent on create. */
+  /** The stored schedule, else the kind's defaults; absent on create. */
   initialSchedule?: ReminderRuleInput[];
   candidates?: readonly RelationshipCandidate[];
   neighbors?: readonly RelationshipNeighbor[];
@@ -119,11 +116,8 @@ function milestoneProblem(
   return undefined;
 }
 
-/**
- * A milestone's fields, posted under the names the write path reads: a kind the
- * bearer can hold, any subset of a partial date, a note, and the reminder
- * schedule as JSON on a hidden input.
- */
+/** A milestone's fields; the reminder schedule posts as JSON on a hidden
+ *  input. */
 export function MilestoneFields({
   bearerType,
   fields,

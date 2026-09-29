@@ -7,22 +7,12 @@ import { useMessages } from "../messages/index.js";
 import { highlightBirthday, highlightMatch } from "./highlight.js";
 import { Combobox, ComboboxOptionDetail } from "./primitives/Combobox.js";
 
-/**
- * Persistent global search, mounted in the app chrome. A WAI-ARIA combobox: the
- * input keeps focus while arrow keys move `aria-activedescendant` over the
- * results listbox, Enter opens the active entity, Escape clears. ⌘K (or Ctrl+K)
- * focuses the input from anywhere.
- *
- * Navigation arrives as `onNavigate` rather than through the `UiAdapter`: this is
- * the only component that navigates imperatively, and the adapter is deliberately
- * two members wide. If a second one ever needs it, promote it there instead of
- * growing a second prop.
- */
+/** Global search in the app chrome; ⌘K or Ctrl+K focuses it from anywhere. */
 export function SearchBar({
   search,
   onNavigate,
 }: {
-  /** Must be stable across renders — `useDebouncedSearch` holds it as a dependency. */
+  /** Must be stable, as `useDebouncedSearch` holds it as a dependency. */
   search: (query: string) => Promise<SearchHit[]>;
   onNavigate: (href: string) => void;
 }) {
@@ -42,8 +32,7 @@ export function SearchBar({
     query: term,
     results,
     onSelect: go,
-    // Escape empties the bar, which also collapses the listbox — this one is
-    // always live, so there is nothing else to dismiss.
+    // Escape empties the bar, which also collapses the listbox.
     onEscape: () => setTerm(""),
   });
 
@@ -73,8 +62,7 @@ export function SearchBar({
         const reasons = hit.reasons.filter((r) => r.facet !== "name");
         return (
           <>
-            {/* Tag results render with the "#" sigil; the sigil sits outside
-                the highlighted span since it's never part of the match. */}
+            {/* The “#” sits outside the highlight: it is never matched. */}
             {hit.entityType === "tag" && "#"}
             {highlightMatch(hit.title, term)}
             {reasons.length > 0 && (

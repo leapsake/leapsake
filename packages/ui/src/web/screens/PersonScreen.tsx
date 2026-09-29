@@ -26,13 +26,7 @@ import { RelationshipsSection } from "../sections/RelationshipsSection.js";
 import { TagsSection } from "../sections/TagsSection.js";
 import { formatTimestamp } from "../../headless/index.js";
 
-/**
- * A person's page: who they are, then every section that hangs off them.
- *
- * Purely presentational — every value arrives as a prop and every write leaves
- * through `onChanged` or the gift ports. The host supplies the breadcrumb trail,
- * because which route is “home” is a client decision.
- */
+/** A person's page: who they are, then every section that hangs off them. */
 export function PersonScreen({
   trail,
   person,
@@ -74,10 +68,7 @@ export function PersonScreen({
     <main>
       <Breadcrumbs trail={trail} />
 
-      {/* Both halves of an unresolved pair carry this, so the way back to the
-          review is on whichever person the user happens to open. It stays until
-          the pair is merged or marked “not the same” — the only two things that
-          take it out of the candidate set. */}
+      {/* On both halves of a pair, until it is merged or marked distinct. */}
       {duplicateCount > 0 && (
         <p role="status">
           {m.person.duplicates(duplicateCount)}{" "}

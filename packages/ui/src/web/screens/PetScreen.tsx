@@ -23,10 +23,7 @@ import { RelationshipsSection } from "../sections/RelationshipsSection.js";
 import { TagsSection } from "../sections/TagsSection.js";
 import { formatTimestamp } from "../../headless/index.js";
 
-/**
- * A pet's page. The same shape as {@link PersonScreen} minus what pets don't
- * have: no contact methods, no merge, and a single name rather than three.
- */
+/** A pet's page: {@link PersonScreen} without contacts, merge or name parts. */
 export function PetScreen({
   trail,
   pet,
