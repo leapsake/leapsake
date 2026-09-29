@@ -1,40 +1,10 @@
-// The testing-trophy orchestrator — the single harness that runs every automated tier
-// this machine can reach and prints one combined verdict.
-//
-// It owns the *tier registry* (below): each layer of the trophy maps to a `pnpm test:*`
-// script (the scripts stay the source of truth for *how* a tier runs; this file decides
-// *which* tiers run and *reports* the result). Tiers marked `blocked` are gates that
-// aren't built yet (currently just E2E — the mobile native tiers are built and `ready`) —
-// they are surfaced as ⏳ BLOCKED, never silently skipped, so principle #6 ("everything
-// reachable, or explicitly blocked — not waived") stays visible. See CONTRIBUTING.md →
-// Testing for the principles this registry answers to.
-//
-// Two kinds of BLOCKED, both ⏳: *statically* blocked (a tier not built yet, e.g. e2e) and
-// *runtime* blocked (a built tier whose environment isn't reachable here — e.g. the iOS
-// native tier when no simulator is booted). The mobile native tiers run per platform
-// (`pnpm test:native --platform=<x>`) and report the latter via **exit code 3**; this file
-// maps a ready tier's child exit code 0 → PASS, 3 → BLOCKED (not a failure), anything else
-// → FAIL. So `pnpm test:all` shows each platform's reachable-or-blocked status explicitly
-// instead of hiding an un-booted platform inside one aggregate row.
-//
-// Usage:
-//   node scripts/test-all.mjs                 all ready tiers + report blocked ones (⏳)
-//   node scripts/test-all.mjs --fast          static + node only (skip native/e2e rows)
-//   node scripts/test-all.mjs --only=lint,node   just those tiers (by key)
-//   node scripts/test-all.mjs --strict        a BLOCKED tier fails the run (release-gate mode)
-//   node scripts/test-all.mjs --provision     device tiers prepare their own environment
-//   node scripts/test-all.mjs --platforms=ios device tiers for those platforms only
-//
-// Exit code: non-zero if any *ready* tier failed, if `--only` names a blocked tier, or if
-// `--strict` and any blocked tier was in scope. Blocked tiers otherwise don't fail the run.
+// The testing-trophy orchestrator: every reachable tier, one verdict. Its flags
+// and exit codes are in `CONTRIBUTING.md` → _Testing_.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// layer = the trophy layer this proves; key = CLI selector; script = the pnpm script to run.
-// device = true marks the emulator/simulator/native-host tiers (mobile native + E2E):
-// they need a booted device beyond the Node process, so `--fast` (the inner loop, `pnpm
-// test`) skips them regardless of ready/blocked. `pnpm test:all` still runs them. This is
-// what keeps `pnpm test` fast now that `native` is built (`ready`) rather than `blocked`.
+// `layer` is what a tier proves, `key` its selector, `script` its pnpm script;
+// `device` tiers need a booted device, so `--fast` skips them.
 export const TIERS = [
   {
     key: "format",
@@ -58,10 +28,7 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // Cheap, but it guards something the other static tiers can't see: a version bump
-    // that missed a manifest is invisible until an artifact ships with the wrong number
-    // on it, and store versions are permanent and monotonic (CONTRIBUTING.md ->
-    // Versioning and releases).
+    // A version bump that missed a manifest, invisible until it ships.
     key: "versions",
     layer: "static",
     label: "version agreement (one version across every manifest)",
@@ -69,10 +36,7 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // Same shape of guard as `versions`, for the same reason: the app icons are generated
-    // from one SVG and committed, so the failure mode is a source edit that never got
-    // re-rendered — invisible until a store listing wears the old face. Compares hashes
-    // rather than re-rendering, so it needs no rasterizer and stays a static tier.
+    // An icon source edit never re-rendered; hashes, so no rasterizer.
     key: "icons",
     layer: "static",
     label: "icon agreement (every raster matches its source in assets/icon/)",
@@ -80,10 +44,7 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // A third guard of the same family as `versions` and `icons`: what it protects is
-    // a *public URL*. A slug in a markdown file's frontmatter publishes it to
-    // leapsake.com, so a renamed slug silently moves a page that links already point
-    // at — and nothing else in the repo would notice.
+    // A renamed doc slug silently moving a public page.
     key: "docs",
     layer: "static",
     label: "docs manifest (every published slug is recorded)",
@@ -91,12 +52,7 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // The fourth guard of the `versions`/`icons`/`docs` family, and the one with the
-    // longest memory: it reads every blob ever committed, because a secret deleted in the
-    // next commit is still in the history forever. `network: true` keeps it out of the
-    // inner loop — it wants the pinned gitleaks binary, and 4s is too slow for `pnpm test`
-    // — but `pnpm test:all` runs it, and `--strict` fails the release if it could not run
-    // at all. See scripts/secret-scan.mjs for the two modes; this is the cheap one.
+    // A secret anywhere in history; `network`, as it fetches its scanner.
     key: "secrets",
     layer: "static",
     label: "secret scan (no credentials anywhere in git history)",
@@ -119,15 +75,8 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // The one-React guard. It belongs here and not in `static` because it needs a real
-    // renderer build: the only faithful signal for "one React in the bundle" is the
-    // sourcemap's source list (apps/desktop/scripts/check-single-react.mjs).
-    //
-    // It is ordered after the vitest tiers because it is the one static-ish tier that
-    // does a real build (~2s) rather than reading files. Note that it does *not* flip the
-    // native SQLite binary to the Electron ABI the way `pnpm dev` does — measured, not
-    // assumed: electron-vite externalizes `better-sqlite3-multiple-ciphers` and never
-    // loads it, so the binary is untouched and the vitest tiers are safe either side.
+    // One React, from a real renderer build's sourcemap; it leaves the SQLite
+    // ABI alone, so it may run on either side of Vitest.
     key: "bundle",
     layer: "static",
     label: "renderer bundle (exactly one react + one react-dom)",
@@ -143,10 +92,7 @@ export const TIERS = [
     status: "ready",
     device: true,
     platforms: ["android"],
-    // Needs a prepared Android environment (booted emulator + installed dev client +
-    // running Metro); `pnpm test:native` (scripts/test-native.mjs) exits 3 (→ BLOCKED)
-    // if no emulator is booted, and fails with the exact setup command if the dev client
-    // or Metro is missing.
+    // Exits 3 with no emulator booted; names the setup command otherwise.
   },
   {
     key: "native-ios",
@@ -157,9 +103,7 @@ export const TIERS = [
     status: "ready",
     device: true,
     platforms: ["ios"],
-    // Same shape as Android on a booted iOS simulator; exits 3 (→ BLOCKED) when no sim
-    // is booted or Xcode's simctl is absent (e.g. a non-macOS host), so the iOS gate is
-    // reported as blocked-here, never silently skipped.
+    // Exits 3 with no simulator booted or no Xcode.
   },
   {
     key: "e2e",
@@ -169,15 +113,8 @@ export const TIERS = [
     status: "ready",
     device: true,
     platforms: ["ios", "android"],
-    // The whole `beta` bar, Flow 4's door acts included (CONTRIBUTING.md → *The E2E release gate*, its
-    // rung table), plus `rc`'s out-of-band custody assertions on Flows 1 and 4. What `rc` still owes is the key-store row, deferred (see
-    // `lib/custody-assertions.mjs`); 6/7a ship with sync. Green and re-runnable on both
-    // the iOS simulator and the Android emulator. An un-booted device reports BLOCKED via
-    // exit 3, which --strict treats as a failure.
-    //
-    // Note `test:e2e` is `scripts/test-e2e.mjs`, NOT `test-all --only=e2e`: the tier's
-    // own script running the orchestrator would loop, exactly as test-native.mjs's
-    // header describes for the native tiers.
+    // The crucial-flow catalog; its own script, as calling the orchestrator
+    // back would loop.
   },
 ];
 
@@ -193,13 +130,11 @@ const listArg = (args, name) => {
   );
 };
 
-/** The tiers a run covers. `--platforms` drops device tiers for no listed platform. */
+/** The tiers a run covers; `--platforms` drops other platforms' devices. */
 export function selectTiers(tiers, { only, fast, platforms }) {
   let selected = tiers;
   if (only) selected = selected.filter((t) => only.has(t.key));
-  // --fast = the inner loop: ready tiers that need nothing beyond this Node process —
-  // no device (emulator/simulator/native host) and no network (the secret scan fetches its
-  // pinned scanner on first use). `--only` overrides, so either can be forced by key.
+  // --fast: tiers needing no device or network; `--only` can force either.
   else if (fast)
     selected = selected.filter(
       (t) => t.status === "ready" && !t.device && !t.network,
@@ -212,7 +147,7 @@ export function selectTiers(tiers, { only, fast, platforms }) {
   return selected;
 }
 
-/** What a tier's script is passed: its own args, `--provision`, and one `--platform` of several. */
+/** A tier's arguments: its own, `--provision`, and one `--platform`. */
 export function argsFor(tier, { provision, platforms }) {
   const covered = (tier.platforms ?? []).filter(
     (p) => !platforms || platforms.has(p),
@@ -228,10 +163,8 @@ export function argsFor(tier, { provision, platforms }) {
   ];
 }
 
-// Each tier runs its own `pnpm run <script>`. `pnpm` is resolved from PATH (shell:true on
-// Windows so `pnpm.cmd` is found); every dev running this already has pnpm on PATH. Extra
-// args (e.g. `--platform=ios`) are forwarded to the script after `--` so pnpm passes them
-// through rather than parsing them as its own flags.
+// `pnpm run <script> -- <args>`, so pnpm forwards the args; the shell on
+// Windows finds `pnpm.cmd`.
 const spawnPnpm = (script, extra = []) =>
   spawnSync(
     "pnpm",
@@ -245,9 +178,7 @@ const spawnPnpm = (script, extra = []) =>
 function main(args) {
   const fast = args.includes("--fast");
   const strict = args.includes("--strict");
-  // Forwarded to the `device: true` tiers, which are the only ones with an environment to
-  // prepare. See scripts/lib/mobile-harness.mjs → provisioning. `pnpm release` passes this so a
-  // release is one command; the inner loop leaves it off and gets the faster failure.
+  // For device tiers only; `pnpm release` passes it, the inner loop doesn't.
   const provision = args.includes("--provision");
   const only = listArg(args, "only");
   const platforms = listArg(args, "platforms");
@@ -276,8 +207,7 @@ function main(args) {
   const results = [];
   for (const tier of selected) {
     if (tier.status === "blocked") {
-      // `--only=<blocked>` means the dev explicitly asked for a tier that isn't built:
-      // that's a hard failure. Otherwise a blocked tier is reported, not run.
+      // Asking for an unbuilt tier by name fails; otherwise it is reported.
       const failed = strict || (only && only.has(tier.key));
       console.log(`\n⏳ ${tier.label} — BLOCKED (${tier.note})`);
       results.push({
@@ -293,11 +223,7 @@ function main(args) {
     const start = Date.now();
     const run = spawnPnpm(tier.script, extra);
     const ms = Date.now() - start;
-    // A ready tier's child exit code: 0 = pass, 3 = runtime-blocked (environment not
-    // reachable here, e.g. no device booted — reported ⏳, not a failure), else fail. Only
-    // the mobile native tiers currently emit 3; the others only ever exit 0 or non-zero.
-    // `--strict` (release-gate) upgrades a runtime-blocked tier to a failure, mirroring how
-    // statically-blocked tiers are treated under --strict.
+    // Exit 3 is blocked here, not failed, unless `--strict`.
     if (run.status === 3) {
       results.push({ tier, status: strict ? "blocked-fail" : "blocked", ms });
     } else {

@@ -365,6 +365,25 @@ one line per flow:
   ⚠ out-of-band custody: not asserted on Android — no app data-container path
 ```
 
+The checks in `custody-assertions.mjs` hold to two rules: they **never call into app code**
+(an app saying "I am encrypted" is what a build that encrypted nothing would also say), and
+they only ever add to an on-screen assertion. Their traps:
+
+- **A bare `new DatabaseSync(path)` creates the file**, so a check for "does the roster exist?"
+  would plant one and pass. They check existence first and open read-only; if a `-wal` ever
+  appears, they read a temp copy, so no recovery is ever written into the app's container.
+- **A store is judged by its first sixteen bytes, never opened**, in four states: SQLite's own
+  magic, ciphertext, missing, and **empty**, which SQLite leaves on open until the first write
+  and which the two flows answer differently.
+- **The roster is one row holding a JSON blob**, `{ version, accounts }`, so counting rows says
+  1 for a device with no accounts. Doors are asserted by **rows**, since `CREATE TABLE IF NOT
+  EXISTS` runs on every open. "The plaintext original is gone" means the `.db`, not
+  `stores/local/`, which survives a conversion empty.
+- The on-disk names are **mirrored**, not imported, from `packages/store-layout` and
+  `apps/mobile/db/`, which ship TypeScript a `.mjs` cannot reach; the tests' fixtures notice a
+  move. The OS key store has no host-side read (`simctl keychain` has no read verb), so that row
+  is printed as not asserted on every run.
+
 **How to confirm the checks still bite**, which is worth doing after touching either file —
 an assertion that never fires looks exactly like one that passes. The unit test
 (`pnpm exec vitest run scripts/lib`) is the durable answer; against a real container, point

@@ -24,15 +24,31 @@ pnpm mobile      # Expo dev server
 ## Testing
 
 The trophy is orchestrated by [`scripts/test-all.mjs`](scripts/test-all.mjs), which owns the
-tier registry and documents its flags and exit codes in its own header. It is first-party
-rather than turbo or nx because it encodes narrower rules on purpose (a blocked tier exits 3);
-reach for one when a third tool needs the tier registry. In the inner loop:
+tier registry: each tier is a `pnpm test:*` script, which stays the source of truth for _how_
+it runs, while the orchestrator decides _which_ tiers run and reports one verdict. It is
+first-party rather than turbo or nx because it encodes narrower rules on purpose (a blocked
+tier exits 3); reach for one when a third tool needs the tier registry. In the inner loop:
 
 ```sh
 pnpm test        # fast: static + unit + integration + coverage gate. No emulator.
 pnpm test:all    # everything reachable; unreachable tiers report ⏳ BLOCKED, never skipped
 pnpm test:node   # just Vitest
 ```
+
+Its flags: `--fast` runs only tiers needing nothing beyond this Node process (no device, no
+network); `--only=<keys>` runs just those tiers; `--strict` makes a blocked tier fail the run
+(release-gate mode); `--provision` lets the device tiers prepare their own environment; and
+`--platforms=<list>` keeps only those platforms' device tiers. **BLOCKED comes two ways**, both
+⏳: a tier not built yet, and a built tier whose environment is not reachable here, which a
+tier's script reports by **exiting 3** (the mobile tiers with no device booted). So exit 0 is
+pass, 3 is blocked, anything else fails. The run exits non-zero if a ready tier failed, if
+`--only` names a blocked tier, or under `--strict` if any blocked tier was in scope.
+
+The static guards each protect something invisible until it ships: `versions` a manifest a
+bump missed, `icons` an SVG edit never re-rendered, `docs` a renamed slug silently moving a
+public page, and `secrets` a secret anywhere in history, which is forever. `secrets` needs its
+pinned scanner, so it runs under `test:all` rather than the inner loop. `bundle` does a real
+renderer build for its one-React check and, measured, does not flip the native SQLite ABI.
 
 ### The principles
 

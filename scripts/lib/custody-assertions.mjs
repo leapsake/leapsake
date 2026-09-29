@@ -1,28 +1,5 @@
-// The **out-of-band half** of the crucial-flow catalog: what the app's bytes on disk say,
-// as opposed to what its screen says.
-//
-// Every other assertion in the E2E tier reads the accessibility tree, and that is a real
-// hole: a build that rendered "your data is encrypted" and encrypted nothing would pass
-// the whole suite green. These checks step outside the app and read the files
-// (`plans/testing/crucial-flows.md` → *Asserting on custody*, which owns the table and the
-// rules). Four of the catalog's five rows are here; the fifth is the OS key store, and
-// {@link KEY_STORE_NOTE} says where that one stands.
-//
-// **Two rules from the catalog shape everything below, and both are load-bearing:**
-//
-//   - *Never call into app code.* An app reporting "I am encrypted" is exactly the
-//     evidence a build that encrypted nothing would also produce. Nothing here imports
-//     from the app, and the store database is never opened — its custody is decided from
-//     sixteen bytes.
-//   - *Only in addition to an on-screen assertion, never instead of one.* These attach to
-//     flows that already assert on screen (`scripts/test-e2e.mjs`).
-//
-// **Why this is a separate module from the harness.** `mobile-harness.mjs` owns
-// environment plumbing and says nothing about what a flow asserts; these are assertions.
-// Keeping them here, as pure functions over one directory path, is also the only way they
-// get tested: their *negative* cases — the ones that prove a check can go red at all — are
-// unreachable from a simulator, and an assertion that never fires looks exactly like one
-// that passes. See `custody-assertions.test.mjs`.
+// The E2E tier's out-of-band half: what the app's bytes on disk say. See
+// `apps/mobile/maestro/README.md` → _The out-of-band half_.
 import {
   closeSync,
   copyFileSync,
@@ -38,44 +15,25 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-// The on-disk layout, spelled here because it cannot be imported: the definitions live in
-// `packages/store-layout/src/paths.ts` and `apps/mobile/db/{doors,roster-storage}.ts`,
-// which are TypeScript the package publishes unbuilt — there is no `.js` for a `.mjs`
-// script to reach. Mirrored, not owned: if a path moves there, it moves here, and the
-// fixtures in the test file (which use these same names) are what will notice.
+// The on-disk layout, mirrored from TypeScript a `.mjs` cannot import; a move
+// there moves here.
 const STORES_DIR = "stores";
 const UNAUTHENTICATED_SLOT = "local"; // `UNAUTHENTICATED_STORE_SLOT` in paths.ts
 const STORE_FILE = "leapsake.db";
 const DOORS_FILE = "doors.db"; // `doorsPath` in apps/mobile/db/doors.ts
-const ROSTER_FILE = "leapsake-roster.db"; // `ROSTER_DB` in apps/mobile/db/roster-storage.ts
+const ROSTER_FILE = "leapsake-roster.db"; // `ROSTER_DB` in roster-storage.ts
 
 /** The 16-byte magic every unencrypted SQLite file starts with. */
 const SQLITE_MAGIC = "SQLite format 3";
 
-/**
- * The row this module does not assert, printed on every run — a pass included, so the gap
- * is visible rather than merely absent.
- *
- * `xcrun simctl keychain` offers `add-cert`, `add-root-cert` and `reset`, and **no read
- * verb**, which is why the harness's `wipe` resets the whole keychain rather than
- * inspecting it. Deferred deliberately, not overlooked: an in-app inspection screen is
- * refused on principle (see the header), so this row needs a host-side answer that does
- * not exist yet.
- */
+/** The unasserted key-store row, printed on every run, as `simctl keychain`
+ *  has no read verb. */
 export const KEY_STORE_NOTE =
   "key store: not asserted — `simctl keychain` has no read verb " +
   "(plans/testing/crucial-flows.md → Asserting on custody)";
 
-/**
- * What is sitting at a store path, decided **without opening a database** — the harness's
- * copy of `apps/desktop/src/main/db/sqlite-header.ts`, four states and all.
- *
- * `empty` is a real state rather than a curiosity: SQLite creates the file on open and
- * writes no header until the first write, so a store that was opened and never written
- * matches *neither* magic. Folding it into `encrypted` (as "not plaintext" would) is the
- * bug the desktop original documents, and the two callers below want to answer it
- * differently — so it is kept distinct here and decided there.
- */
+/** What sits at a store path, from its header alone, as desktop's
+ *  `sqlite-header.ts` does; `empty` stays distinct. */
 export function fileState(path) {
   let size;
   try {
@@ -98,23 +56,8 @@ export function fileState(path) {
 }
 
 /**
- * Run one query against a database **without touching the app's copy of it**.
- *
- * ⚠️ **A bare `new DatabaseSync(path)` creates the file.** That is not a detail: a check
- * asking "does the roster exist?" would then answer by planting a roster in a live app's
- * container — passing, and destroying the evidence, in one move. So: `existsSync` first
- * (absence is an answer, not something to open), and `readOnly` after.
- *
- * The read is in place because neither `expo-sqlite` nor `apps/mobile/db/` sets
- * `journal_mode = WAL`, so there is nothing uncheckpointed to miss and no `-shm` a
- * read-only connection would need to write. If a `-wal` sidecar ever does appear, the
- * database is snapshotted to a temp directory and the **copy** is opened read-write, so
- * SQLite may recover the log into a file nobody else owns — never into the app's.
- *
- * @returns `{ rows }`, or `{ error }` with a message worth printing. A table that does not
- * exist reads as zero rows: `doors.ts` and `roster-storage.ts` both `CREATE TABLE IF NOT
- * EXISTS` on every open, read included, so its absence means "nothing was ever written",
- * which is precisely what a caller counting rows wants to hear.
+ * One query that never touches the app's copy: ⚠️ `DatabaseSync` creates a
+ * file, so check it exists, then read only. Returns `{ rows }` or `{ error }`.
  */
 function queryAll(dbPath, sql) {
   if (!existsSync(dbPath)) return { rows: [] };
@@ -134,7 +77,7 @@ function queryAll(dbPath, sql) {
           copyFileSync(`${dbPath}${ext}`, `${openPath}${ext}`);
         }
       }
-      options = {}; // the copy is disposable, so let WAL recovery run
+      options = {}; // the copy is disposable, so WAL recovery may run
     }
 
     const db = new DatabaseSync(openPath, options);
@@ -158,7 +101,7 @@ const storeDir = (root, slot) => join(root, STORES_DIR, slot);
 const storePath = (root, slot) => join(storeDir(root, slot), STORE_FILE);
 const doorsDbPath = (root, slot) => join(storeDir(root, slot), DOORS_FILE);
 
-/** Every slot directory under `stores/`, whether or not it still holds a store file. */
+/** Every slot directory under `stores/`, holding a store file or not. */
 function slots(root) {
   try {
     return readdirSync(join(root, STORES_DIR), { withFileTypes: true })
@@ -170,14 +113,8 @@ function slots(root) {
   }
 }
 
-/**
- * The accounts this device knows about (encryption `model.md` §7.4).
- *
- * ⚠️ **The roster is one row holding a JSON blob**, not a row per account —
- * `roster (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL)` — and the blob is
- * `{ version, accounts: [...] }` (`packages/store-layout/src/roster.ts`). Counting rows
- * would answer 1 for a device with no accounts at all.
- */
+/** The device's accounts. ⚠️ The roster is one row of JSON, so a row count
+ *  says 1 even with none. */
 function readRoster(root) {
   const { rows, error } = queryAll(
     join(root, ROSTER_FILE),
@@ -200,11 +137,8 @@ function readRoster(root) {
   return { accounts: parsed.accounts };
 }
 
-/**
- * Which doors one slot holds, by `kind` — never the blob, which is opaque ciphertext and
- * none of a custody check's business. The table is `door`, singular
- * (`apps/mobile/db/doors.ts`).
- */
+/** Which doors a slot holds, by `kind` from the `door` table, never the
+ *  blob. */
 function readDoorKinds(root, slot) {
   const { rows, error } = queryAll(
     doorsDbPath(root, slot),
@@ -220,15 +154,8 @@ function report(root, failures) {
   return [`in ${root}:`, ...failures, KEY_STORE_NOTE].join("\n  ");
 }
 
-/**
- * **Flow 1's out-of-band half** — a first run mints nothing.
- *
- * The store is plaintext and sits in the Unauthenticated slot, no account store exists,
- * the roster is empty, and no door has been written anywhere.
- *
- * @param root the app's SQLite directory (iOS: `<container>/Documents/SQLite`)
- * @returns `undefined` when every check holds, else a printable report
- */
+/** Flow 1's check on the SQLite directory `root`: a first run mints nothing.
+ *  Returns `undefined`, or a printable report. */
 export function custodyUnauthenticated(root) {
   const failures = [];
 
@@ -247,11 +174,8 @@ export function custodyUnauthenticated(root) {
         "Flow 1 leaves the app booted, so the store it booted should be on disk",
     );
   } else if (state === "empty") {
-    // Deliberately a failure rather than a shrug. The app opens the derived store path
-    // and runs migrations on boot (`apps/mobile/lib/core-context.tsx`), and a migration
-    // is a write — so by the time Flow 1's on-screen assertions pass, the header is
-    // written. Zero bytes means the store was created and never touched, which is a fact
-    // about boot ordering worth surfacing once rather than accepting forever.
+    // A failure: boot's migrations write the header before Flow 1 passes, so
+    // zero bytes means something skipped them.
     failures.push(
       `${STORES_DIR}/${UNAUTHENTICATED_SLOT}/${STORE_FILE} is zero bytes — the store was ` +
         "created but never written, so no migration has run against it",
@@ -292,20 +216,12 @@ export function custodyUnauthenticated(root) {
   return report(root, failures);
 }
 
-/**
- * **Flow 4's out-of-band half** — an account turned encryption on.
- *
- * The store is now ciphertext under `stores/<accountId>/`, the plaintext original is gone,
- * the roster names exactly one account, and both doors exist.
- *
- * @param root the app's SQLite directory (iOS: `<container>/Documents/SQLite`)
- * @returns `undefined` when every check holds, else a printable report
- */
+/** Flow 4's check on `root`: one account, its store ciphertext, both doors,
+ *  the plaintext gone. `undefined`, or a report. */
 export function custodyAuthenticated(root) {
   const failures = [];
 
-  // 0. The roster first — it is what names the account, so everything else is keyed on it
-  //    and reporting the rest without it would be noise about a slot nobody claims.
+  // 0. The roster first: it names the account everything else is keyed on.
   const roster = readRoster(root);
   if (roster.error !== undefined) return report(root, [roster.error]);
   if (roster.accounts.length !== 1) {
@@ -322,7 +238,7 @@ export function custodyAuthenticated(root) {
     return report(root, ["the account roster's one entry has no id"]);
   }
 
-  // 1. Store custody + location. This is the check the whole exercise exists for.
+  // 1. Store custody and location: the point of the whole exercise.
   const state = fileState(storePath(root, id));
   if (state === "plaintext") {
     failures.push(
@@ -330,19 +246,14 @@ export function custodyAuthenticated(root) {
         "account's store is PLAINTEXT: this build encrypted nothing",
     );
   } else if (state !== "encrypted") {
-    // `empty` fails here where it passes in Flow 1: the converter writes the whole
-    // encrypted copy before the original is dropped, so zero bytes is a real defect.
+    // Unlike Flow 1, `empty` fails: the converter writes the whole copy first.
     failures.push(
       `the account's store at ${STORES_DIR}/${id}/${STORE_FILE} is ${state} — the ` +
         "conversion should have written a full encrypted copy",
     );
   }
 
-  // 2. The plaintext original is gone.
-  //
-  // ⚠️ **"Gone" means the file, not the directory.** `stores/local/` survives a conversion
-  // as an empty directory while its `.db` is deleted, so a check written against the
-  // directory goes red against a correct app.
+  // 2. ⚠️ The plaintext `.db` is gone; its directory survives, empty.
   const localState = fileState(storePath(root, UNAUTHENTICATED_SLOT));
   if (localState !== "absent") {
     failures.push(
@@ -351,11 +262,7 @@ export function custodyAuthenticated(root) {
     );
   }
 
-  // 3. Both doors.
-  //
-  // ⚠️ Asserted on **rows**, not on the file: `readBlob` and `writeBlob` both run
-  // `CREATE TABLE IF NOT EXISTS` on every open, so an empty `door` table can exist without
-  // a door ever having been written.
+  // 3. ⚠️ Both doors, by rows: an empty `door` table exists after any open.
   const doors = readDoorKinds(root, id);
   if (doors.error !== undefined) failures.push(doors.error);
   else {
