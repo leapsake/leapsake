@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 through 4 landed. 5 through 7 are independent of each other.
+1 through 5 landed. 6 and 7 are independent of each other.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -66,16 +66,9 @@ stored format.
 
 ### 5. One React version, declared once, in a pnpm catalog
 
-Root and mobile pin `react` 19.2.3; desktop pins 19.2.7. `apps/desktop/scripts/check-single-react.mjs`
-exists to catch the symptom (two Reacts in the renderer bundle); a `catalog:` in
-`pnpm-workspace.yaml` removes the cause. Expo's `bundledNativeModules.json` names 19.2.3 for
-this SDK, and Expo is the stricter consumer, so **the catalog pins what Expo names**; check with
-`pnpm exec expo install --check` in `apps/mobile` before choosing.
-
-Do: `catalog:` entries for `react`, `react-dom`, `@types/react`, `@types/react-dom`; every
-workspace `package.json` that lists them uses `catalog:`. Keep `check-single-react.mjs`: it also
-catches a bundler dedupe mistake, which a catalog cannot. Acceptance: `pnpm install` changes
-nothing but the pins; `pnpm test:bundle` is green; `pnpm ios` still builds.
+**✅ Landed 2026-09-29.** `pnpm-workspace.yaml` → `catalog:` pins React Native's embedded
+renderer version; desktop's dedupe is gone and `pnpm test:bundle` holds it up
+(`apps/desktop/README.md` → _One React, pinned in the catalog_).
 
 ### 6. `scripts/release/index.mjs`: `parseArgs` from `node:util`
 
