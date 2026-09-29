@@ -56,7 +56,8 @@
         "packages/bytes/**",
         "packages/highlight/**",
         "apps/server/**",
-        "apps/website/**"
+        "apps/website/**",
+        "scripts/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

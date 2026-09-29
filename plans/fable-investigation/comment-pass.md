@@ -35,7 +35,7 @@ lint findings in brackets:
 
 
 
-| `scripts`                 | 2,440 (1,579) |
+
 
 Measured 2026-09-18 over non-test `.ts`/`.tsx`/`.mjs`/`.js`. A comment line is one starting
 with `//`, `*` or `/*`. When step 7 lands, the rules move to the top level of `.oxlintrc.json`
