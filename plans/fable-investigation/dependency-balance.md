@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 through 6 landed. 7 and 8 are independent of each other.
+1 through 7 landed; only 8 remains.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -77,13 +77,8 @@ invocation and rejects an unknown flag.
 
 ### 7. Write down the rule for external binaries
 
-Two conventions exist and neither is written down: `scripts/icons.mjs` requires Homebrew's
-`rsvg-convert` and `magick` and refuses without them; `scripts/lib/ensure-gitleaks.mjs`
-downloads a pinned, checksummed `gitleaks`. Both are right for what they do, so the rule is the
-line between them: **a tool a test tier needs is fetched pinned and checksummed, so the tier is
-the same on every machine and runner; a tool only a regeneration script needs may be a Homebrew
-prerequisite, with a `--check` that needs nothing.** Do: one paragraph in `CONTRIBUTING.md` →
-_Testing_, and nothing else; both scripts already obey it.
+**✅ Landed 2026-09-29.** `CONTRIBUTING.md` → _Testing_ → _Where each tier lives_, with both
+scripts linked as its examples.
 
 ### 8. Retire the Hermes await-in-ternary scan if the engine has fixed it
 
