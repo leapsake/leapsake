@@ -42,7 +42,7 @@ Measured 2026-09-19, non-test lines, third-party packages declared directly:
 
 ## Steps, each a commit
 
-1 through 5 landed. 6 and 7 are independent of each other.
+1 through 6 landed. 7 and 8 are independent of each other.
 
 ### 1. Cap the relay's request body, bound the limiter, answer malformed JSON with 400
 
@@ -72,13 +72,8 @@ renderer version; desktop's dedupe is gone and `pnpm test:bundle` holds it up
 
 ### 6. `scripts/release/index.mjs`: `parseArgs` from `node:util`
 
-The hand-rolled `parseArgs` at the top of the file is the one thing in `scripts/` with a direct
-platform replacement (the file already uses `process.loadEnvFile`, the same instinct). Do:
-replace it with `parseArgs` from `node:util` using `allowPositionals`, declaring the
-`VALUE_FLAGS` as `type: "string"` and the rest as `type: "boolean"`; keep the `--flag=value` and
-`--flag value` forms both working. Acceptance: `scripts/release/*.test.mjs` green;
-`pnpm release --help` prints the same text; each documented invocation in `CONTRIBUTING.md` →
-_Versioning and releases_ parses to the same `{ positional, flags, values }`.
+**✅ Landed 2026-09-29.** `scripts/release/args.mjs`; `args.test.mjs` pins every documented
+invocation and rejects an unknown flag.
 
 ### 7. Write down the rule for external binaries
 
