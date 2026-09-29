@@ -4,37 +4,8 @@ import { SearchInput } from "./SearchInput";
 import { styles } from "../lib/styles";
 
 /**
- * The mobile stand-in for desktop's `<datalist>` — a labelled autocomplete over a
- * long or possibly-unfamiliar list (a Country, a relationship candidate). Short,
- * fully-known enums use the native {@link SelectField} instead; a long list on a
- * field too narrow to show its matches inline uses {@link PickerField}.
- *
- * A chosen value shows as a row with a *Change* action (plus *Clear* when
- * `clearable`); otherwise a filter field drives a pressable list. It's
- * autocomplete-style: nothing lists until `minChars` are typed (default 2,
- * matching the search tab) so the field never dumps its whole list.
- *
- * **That filter is the Search tab's own field** ({@link SearchInput}), which is
- * what it has always behaved like: type, and rows appear underneath. It used to
- * be a plain box, so the one control in the app that searches as you type looked
- * like the ones that don't — and unlike them it has no submit, which the 🔍 is
- * what says.
- *
- * Generic over the option object `T`. The caller maps its own value to/from an
- * option (`getKey`/`getLabel`, and the `value`/`onChange` pair); list rows and the
- * chosen-value row default to `getLabel` but can be customized via `renderOption`
- * / `renderValue` (e.g. a country flag). To reset the live query when the field's
- * context changes — a dependent picker after its parent selection moves — give the
- * element a React `key`, which remounts it fresh.
- *
- * ## Multi-add
- *
- * With `multi`, the field holds no value of its own: each pick calls `onChange`
- * and resets the query, leaving the field open for the next one. That is what
- * lets a holiday's observers be added one after another without a round trip
- * through a screen per person — the caller renders the added rows beneath and
- * passes `exclude` so a pick stops being suggested. `value` is ignored in this
- * mode; pass `null`.
+ * Autocomplete over a long list, listing nothing under `minChars` (the app's
+ * README → Form controls). Give it a `key` to reset its query.
  */
 export function Typeahead<T>({
   label,
@@ -61,38 +32,25 @@ export function Typeahead<T>({
   getLabel: (option: T) => string;
   renderOption?: (option: T) => ReactNode;
   renderValue?: (option: T) => ReactNode;
-  /** Rarely needed — the field's own label is already visible above it. Only
-   *  worth setting when the input carries information the label doesn't. */
+  /** Rarely needed: the field's own label is already visible above it. */
   placeholder?: string;
   clearable?: boolean;
   minChars?: number;
-  /** Stay open after each pick and never show a chosen-value row. */
+  /** Stay open after each pick, holding no value; pass `value` as `null`. */
   multi?: boolean;
-  /** Keys already chosen — dropped from suggestions so nothing can be added twice. */
+  /** Keys already chosen — dropped from suggestions so nothing can be added
+   *  twice. */
   exclude?: ReadonlySet<string>;
-  /**
-   * Extra options built from what has been typed, listed **after** the matches —
-   * how a picker offers to create the thing you were looking for.
-   *
-   * Offered alongside matches rather than only when there are none: typing "Ruth"
-   * when a "Ruthie" exists is still allowed to mean a new Ruth. They are ordinary
-   * options, so they pick, reset the query and close the field exactly as a real
-   * match does, and the caller tells the two apart by what it built.
-   */
+  /** Options built from the typing, after the matches even when there are
+   *  some: "Ruth" may mean a new Ruth beside a "Ruthie". */
   createOptions?: (query: string) => readonly T[];
-  /**
-   * Put on the filter input, for the E2E harness. An empty `TextInput` carries no
-   * accessibility text, so a driver can otherwise only reach this field by its
-   * *position* — which the keyboard's reflow makes unreliable, the same trap the
-   * add screen's name fields carry `testID`s to avoid.
-   */
+  /** On the filter input: an empty `TextInput` has no accessibility text. */
   testID?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [query, setQuery] = useState("");
 
-  // Chosen and not re-picking: show the value with Change (+ optional Clear).
-  // Never in multi mode, where there is no single chosen value to show.
+  // Chosen and not re-picking: the value, with Change and optional Clear.
   if (!multi && value !== null && !editing) {
     return (
       <View style={styles.field}>
@@ -139,8 +97,7 @@ export function Typeahead<T>({
               exclude?.has(getKey(o)) !== true,
           )
           .slice(0, 20);
-  // Built from the untrimmed-case text, since it becomes a name rather than a
-  // search key. Last, so the real matches are what the eye lands on first.
+  // From the typed case, since it becomes a name; last, after the matches.
   const offered =
     q.length < minChars
       ? matches
@@ -165,8 +122,7 @@ export function Typeahead<T>({
             style={styles.row}
             onPress={() => {
               onChange(option);
-              // Multi-add stays in search mode and keeps the keyboard up, so
-              // the next pick is one more tap-and-type rather than a reopen.
+              // Multi-add keeps the keyboard up for the next pick.
               if (!multi) setEditing(false);
               setQuery("");
             }}

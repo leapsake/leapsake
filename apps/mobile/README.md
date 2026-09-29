@@ -61,6 +61,20 @@ the plugin on iOS — rather than to switch backup off wholesale. It is wholesal
 exclusion rule **fails open**: a renamed slot or a new plaintext artifact silently stops matching,
 and nothing goes red. Off fails closed.
 
+## One header, drawn by us
+
+`components/AppHeader.tsx` replaces the platform header on both navigators, so iOS and Android
+share one design and screens still just declare `title` and `headerRight`.
+
+- **One row: back, title, actions.** It never crowds, because Back and the tab screens' 🔍 ➕
+  cannot meet: Back comes only from the root stack's `back` prop, which is absent at a stack's
+  root, and the tab navigator grants none. A screen can opt out (`headerBackVisible: false`), never
+  in.
+- **The title shrinks on scroll and never leaves**, since it answers "where am I?". The actions
+  keep their size: a control should not get harder to hit the further you read.
+- **The top inset comes from the context**, never a constant, because `DegradedFrame` zeroes it
+  under its banner.
+
 ## A reminder row is a link; its detail screen acts
 
 - **A Home row is a link and nothing else**, so nothing on the list can complete, delete or
@@ -437,9 +451,7 @@ Forms here are ports of the desktop forms — keep them behaviorally faithful (s
 same validation) and adapt only the input controls, because React Native has no `<select>`
 and no `<datalist>`.
 
-Four components cover every case, and each one's doc-comment states which list shape it is
-for and why the other three are wrong for it — read those rather than a table here, since
-they sit next to the code that has to honour them:
+Four components cover every case. Pick by the shape of the list:
 
 | Component                                       | The list it is for                                                |
 | ----------------------------------------------- | ----------------------------------------------------------------- |
@@ -448,8 +460,28 @@ they sit next to the code that has to honour them:
 | [`Typeahead`](./components/Typeahead.tsx)       | a long list picked _inline_, where the field can afford the width |
 | [`PickerField`](./components/PickerField.tsx)   | a long **closed** list picked in a sheet, when it cannot          |
 
-[`SegmentedControl`](./components/SegmentedControl.tsx) is the fifth, and not a picker: it
-is for a genuinely small, glanceable, mutually-exclusive choice (`EntityTypeToggle`).
+- **`SelectField`** is the native picker: a dropdown inline on Android, a field row opening the
+  wheel in a sheet on iOS. Wrapping pills were retired for these because they read well only
+  at a handful of options.
+- **`SuggestField`** suggests rather than constrains: the list is short enough to show whole,
+  and anything typed is as valid an answer. Behind a sheet the suggestions cost one line until
+  asked for. Its sheet is half a screen, lifted over the keyboard, and does not scroll, so a
+  longer list wants a `Typeahead`.
+- **`Typeahead`** lists nothing until two characters are typed, so it never dumps its whole
+  list. `createOptions` offers to create what was typed, listed after the matches. With `multi`
+  it stays open after each pick, for adding several in a row.
+- **`PickerField`** exists because a `Typeahead` needs width: a relationship's Role shares its
+  line with the Name it qualifies. Its sheet is three quarters of a screen and scrolls, shows the
+  whole list until the first keystroke, and has its filter at the top, so it needs no keyboard
+  avoidance.
+
+All three sheet and inline filters wear the Search tab's own field, since they too filter a list
+under them. Nothing commits until a row is tapped, so leaving by the backdrop or Cancel leaves
+the value alone.
+
+[`SegmentedControl`](./components/SegmentedControl.tsx) is the fifth, and not a picker: it is
+for a question whose answer reshapes the form beneath it, where seeing every answer side by
+side is the point (`EntityTypeToggle`).
 
 Prefer a native element over novel custom UI for any of these.
 

@@ -2,16 +2,8 @@ import { Pressable, Text, View, StyleSheet } from "react-native";
 import { colors, styles } from "../lib/styles";
 
 /**
- * A two-or-three-segment pill: every option visible at once with the chosen one
- * filled. Extracted from {@link EntityTypeToggle}, which drew it first, once the
- * gift capture form needed the same control for the same reason.
- *
- * Note that {@link SelectField} records the retirement of a wrapping-pill control
- * for finite enums, on the grounds that "pills only read well at a handful of
- * options and gave no affordance for longer ones". This is for the case that
- * survived that: a **question whose answer reshapes the form beneath it**, where
- * seeing both answers side by side is the point. Anything longer, or anything
- * that is merely a field, still belongs in a `SelectField` or a `Typeahead`.
+ * Two or three segments, all visible, the chosen one filled: for a question
+ * whose answer reshapes the form beneath it (the app's README).
  */
 export function SegmentedControl<T extends string>({
   options,

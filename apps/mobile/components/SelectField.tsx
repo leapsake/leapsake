@@ -11,20 +11,8 @@ import { Picker } from "@react-native-picker/picker";
 import { colors, radius, styles } from "../lib/styles";
 
 /**
- * The mobile stand-in for desktop's `<select>` over a short, fully-known list — a
- * milestone Kind, a Gender. Replaces the old wrapping-pill control for
- * these finite enums (pills only read well at a handful of options and gave no
- * affordance for longer ones). Long, possibly-unfamiliar lists (a relationship
- * Role, a Country) stay on the typeahead pattern instead.
- *
- * Renders the real native picker via `@react-native-picker/picker`: on Android a
- * `<Picker>` is already a tap-to-open dropdown dialog, so we show it inline; on
- * iOS the picker is a wheel, so we show a field row with the current label and
- * open the wheel in a Done-dismissable bottom sheet on tap.
- *
- * Generic over the option value so it serves string enums and nullable choices
- * alike. Values are addressed by their index internally, sidestepping the Picker's
- * awkwardness with `null`/`""` sentinels and keeping `onChange` exact.
+ * A short, finite enum as the native picker (the app's README → Form
+ * controls). Indexed internally, since the Picker mishandles `null` and `""`.
  */
 export function SelectField<T extends string | null>({
   label,
@@ -37,14 +25,7 @@ export function SelectField<T extends string | null>({
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
-  /**
-   * Harness anchor for the control that *opens* this field. The wheel's own
-   * options are not addressable on iOS — the accessibility tree exposes only the
-   * picker's current value — so a driver reaches a choice by opening the field,
-   * swiping a notch, and asserting the value it landed on. This id is what makes
-   * the "open the field" half of that deterministic when a screen carries more
-   * than one select.
-   */
+  /** Anchors the control that opens the field: iOS exposes no wheel options. */
   testID?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -57,9 +38,7 @@ export function SelectField<T extends string | null>({
 
   const picker = (
     <Picker
-      // Android: the Picker *is* the control that opens, so the anchor sits here.
-      // On iOS it's the field row below, and the wheel this renders into is a
-      // modal the id would be wasted on.
+      // On Android the Picker is what opens; on iOS the field row below is.
       testID={Platform.OS === "ios" ? undefined : testID}
       selectedValue={String(selectedIndex)}
       onValueChange={(idx) => onChange(options[Number(idx)]!.value)}
@@ -72,7 +51,8 @@ export function SelectField<T extends string | null>({
     </Picker>
   );
 
-  // Android: the Picker is itself a labelled, tap-to-open dropdown — show inline.
+  // Android: the Picker is itself a labelled, tap-to-open dropdown — show
+  // inline.
   if (Platform.OS !== "ios") {
     return (
       <View style={styles.field}>
@@ -129,8 +109,7 @@ const local = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.sm,
   },
-  // The wheel says what the field is, so this bar carries only the way out of
-  // it — no title to sit opposite, so Done takes the whole width and the end.
+  // The wheel says what the field is, so the bar holds only Done.
   doneOnly: {
     justifyContent: "flex-end",
   },
