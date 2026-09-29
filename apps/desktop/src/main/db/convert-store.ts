@@ -15,33 +15,11 @@ export function convertStoreToEncrypted(opts: {
   toPath: string;
   key: Uint8Array;
 }): void {
-  copyStoreUnderNewKey({
-    fromPath: opts.fromPath,
-    toPath: opts.toPath,
-    toKey: opts.key,
-  });
-}
+  const { fromPath, toPath, key } = opts;
 
-/** The shared body of both doors, so their guards cannot drift apart. */
-function copyStoreUnderNewKey(opts: {
-  fromPath: string;
-  fromKey?: Uint8Array;
-  toPath: string;
-  toKey: Uint8Array;
-}): void {
-  const { fromPath, fromKey, toPath, toKey } = opts;
-
-  // Each door refuses the other's source, naming itself, not a key failure.
-  const sourceState = storeFileState(fromPath);
-  if (fromKey === undefined) {
-    if (sourceState !== "plaintext") {
-      throw new Error(
-        "Refusing to convert: the source store is not a plaintext database.",
-      );
-    }
-  } else if (sourceState !== "encrypted") {
+  if (storeFileState(fromPath) !== "plaintext") {
     throw new Error(
-      "Refusing to re-key: the source store is not an encrypted database.",
+      "Refusing to convert: the source store is not a plaintext database.",
     );
   }
   if (storeFileState(toPath) !== "absent") {
@@ -54,12 +32,7 @@ function copyStoreUnderNewKey(opts: {
 
   // The guard proved the destination absent, so anything there later is ours.
   try {
-    // "encrypted" only means *not plaintext*, so a wrong `fromKey` is caught by
-    // this open, before the ATTACH creates anything.
-    const db =
-      fromKey === undefined
-        ? new Database(fromPath)
-        : openEncryptedDatabase(fromPath, fromKey);
+    const db = new Database(fromPath);
     try {
       const [{ user_version: userVersion }] = db.pragma("user_version", {
         simple: false,
@@ -69,7 +42,7 @@ function copyStoreUnderNewKey(opts: {
       db.pragma("cipher='sqlcipher'");
       db.prepare("ATTACH DATABASE ? AS enc KEY ?").run(
         toPath,
-        rawKeyLiteral(toKey),
+        rawKeyLiteral(key),
       );
 
       const objects = db
@@ -107,7 +80,7 @@ function copyStoreUnderNewKey(opts: {
     }
 
     // Prove the result opens under the key; the original is still intact.
-    openEncryptedDatabase(toPath, toKey).close();
+    openEncryptedDatabase(toPath, key).close();
   } catch (error) {
     // Best-effort, so a retry is not refused by the overwrite guard. A kill
     // runs no `catch`, which is what the callers' pre-convert sweep is for.
@@ -118,19 +91,6 @@ function copyStoreUnderNewKey(opts: {
     }
     throw error;
   }
-}
-
-/**
- * Copy an encrypted store into a new one under `toKey`, leaving the original
- * untouched and openable until the roster names the replacement.
- */
-export function rekeyStore(opts: {
-  fromPath: string;
-  fromKey: Uint8Array;
-  toPath: string;
-  toKey: Uint8Array;
-}): void {
-  copyStoreUnderNewKey(opts);
 }
 
 /**

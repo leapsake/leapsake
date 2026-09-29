@@ -25,9 +25,6 @@ export interface AccountRoster {
   add(entry: RosterEntry): Promise<void>;
   /** Removes an account, as Forget account does; a no-op when absent. */
   remove(id: string): Promise<void>;
-  /** Swaps one account for another in one write, keeping its position; with
-   *  `oldId` absent, a plain add. See the README. */
-  replace(oldId: string, entry: RosterEntry): Promise<void>;
 }
 
 /** The on-disk shape, versioned for a later migration. */
@@ -93,18 +90,6 @@ export function createAccountRoster(storage: RosterStorage): AccountRoster {
       const remaining = accounts.filter((a) => a.id !== id);
       // No write when nothing changed, so nothing unchanged can be corrupted.
       if (remaining.length !== accounts.length) await save(remaining);
-    },
-
-    async replace(oldId, entry) {
-      const accounts = await load();
-      const at = accounts.findIndex((a) => a.id === oldId);
-      if (at === -1) {
-        await save(upsert(accounts, entry));
-        return;
-      }
-      accounts[at] = entry;
-      // Any other row with the incoming id is now a duplicate.
-      await save(accounts.filter((a, i) => i === at || a.id !== entry.id));
     },
   };
 }

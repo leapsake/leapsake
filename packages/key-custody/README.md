@@ -178,7 +178,7 @@ return in v0.2; what they did is at the tag `relay-clients-final`. `bindRelayToA
 | The user means                                               | The act                                                                                                                                                                                                                                                               | Where                                                                      |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | _"Publish the account that is already here"_                 | **bind a relay.** Nothing is minted and nothing is re-encrypted, so the same password and the same recovery phrase keep working. Account creation mints the auth verifier and both master-key wrappings with no relay in sight _precisely_ so this adds no new ritual | `bindRelayToAccount` (`src/bind-relay.ts`)                                 |
-| _"Move this data into the account I already have elsewhere"_ | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under _that_ account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`)                                | both clients' merge flows, at the tag `relay-clients-final`                |
+| _"Move this data into the account I already have elsewhere"_ | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under _that_ account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`)                                | both clients' merge flows, at the tag `relay-clients-final`, with desktop's `rekeyStore` and the roster's single-write `replace` |
 
 Three constraints hold the pair together. Each is enforced and explained where it lives; they
 are listed here because they are easy to undo from a distance:
@@ -454,9 +454,8 @@ SQLCipher has the reverse. **A change to either must preserve:**
 - **`user_version` is carried across.** It is the migration runner's watermark and `ATTACH` does
   not copy it; losing it re-runs every migration against tables that exist.
 - **Tables before indexes, views and triggers.** `sqlite_master` order does not guarantee it.
-- **Each door refuses the wrong source.** The plaintext converter refuses an encrypted store,
-  and desktop's re-key refuses a plaintext one, each naming its own door, so a caller bug is not
-  reported as a key failure.
+- **The source must be plaintext.** The converter refuses an encrypted store with its own
+  message, so a caller bug is not reported as a key failure.
 - **The destination must be absent.** A retry into a half-filled store would copy every row
   twice. A leftover from a killed attempt is swept first by `clearUnclaimedDestination`, which
   removes it only when no roster entry names it; a named one is somebody's live account.
