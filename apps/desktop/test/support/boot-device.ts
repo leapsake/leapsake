@@ -23,25 +23,14 @@ import { createAccountOnThisDevice } from "../../src/main/db/create-account-flow
 import { openAppDatabase } from "../../src/main/db/open.js";
 import { jsonFileStorage } from "../../src/main/db/roster-storage.js";
 
-/**
- * A throwaway desktop profile, driven through the *real* main-process boot path.
- *
- * Custody's defining properties are invisible above the driver — which store is
- * open, whether it is ciphertext, which keys the keychain holds — so the suites
- * that test them cannot use an in-memory driver fixture. They need a `userData`
- * directory, the roster that lives outside every store, and the same
- * `openAppDatabase` the app calls. This is that setup, shared rather than copied
- * because {@link BootDevice.bootAndRepair} models `openActiveStore`'s ordering, and
- * a second hand-rolled copy of that ordering would quietly drift from it.
- */
+/** A throwaway desktop profile, driven through the real main-process boot path;
+ *  see `apps/desktop/README.md` → _Database_. */
 export interface BootDevice {
   userData: string;
   keyStore: ReturnType<typeof createInMemoryKeyStore>;
   roster(): AccountRoster;
-  /**
-   * The steady state an account holder is in: an account exists, the store is
-   * encrypted at its per-account path, both doors sit beside it, and it holds data.
-   */
+  /** An account holder's steady state: an encrypted per-account store holding
+   *  data, with both doors beside it. */
   deviceWithAccount(password: string): Promise<{
     accountId: string;
     dbPath: string;
@@ -51,12 +40,8 @@ export interface BootDevice {
     answer: { door: "password" | "phrase"; secret: string },
     onRequest?: (doors: { password: boolean; phrase: boolean }) => void,
   ): Promise<SqliteDriver>;
-  /**
-   * Re-open the way `index.ts`'s `openActiveStore` actually does: the same
-   * `establishKeySession` call, in the same place, so this harness cannot drift from
-   * the app's ordering. `established` is that call's verdict — `"degraded"` when this
-   * device could not prove the account's master key (custody slice 10).
-   */
+  /** Re-open as `openActiveStore` does; `established` is the key session's
+   *  verdict, `"degraded"` when this device cannot prove the master key. */
   bootAndRepair(
     answer: { door: "password" | "phrase"; secret: string },
     onRequest?: (doors: { password: boolean; phrase: boolean }) => void,
@@ -125,8 +110,8 @@ export function makeBootDevice(label: string): BootDevice {
         },
       });
 
-      // The first Authenticated open is what writes the recovery sidecar, and it is
-      // the state the app is actually in when the user acts on the account.
+      // The first Authenticated open writes the recovery sidecar, and is the
+      // state the app is in when the user acts on the account.
       const dbPath = join(userData, storePath(accountId));
       const opened = await openAppDatabase({
         dbPath,

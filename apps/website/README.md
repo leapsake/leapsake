@@ -152,7 +152,7 @@ copy, and a schema built from one instance is then checked by another.
 
 - **`/privacy`** renders `PRIVACY.md`, which opens with an HTML comment of internal
   notes: how each claim was verified, and a `plans/` link. Astro passes raw HTML
-  through, so `src/lib/strip-comments.mjs` drops HTML comments, and `test/privacy.test.ts`
+  through, so `src/lib/strip-comments.mjs` drops HTML comments, and `test/site.test.ts`
   asserts the built page holds none, so losing the plugin fails a test rather than leaking.
   It hooks Sätteri, Astro's default Markdown processor, because remark plugins would need
   `@astrojs/markdown-remark` back; it is a plain object rather than `defineMdastPlugin`,
@@ -167,7 +167,7 @@ copy, and a schema built from one instance is then checked by another.
 
 A doc's loader writes `docs-manifest.json` sorted, and only when it changes, since it
 runs on every hot reload. `LEAPSAKE_DOCS_ROOT` points it at a scratch tree, which is how
-`test/docs.test.ts` tests collisions against real files without leaving a fixture in
+`test/site.test.ts` tests collisions against real files without leaving a fixture in
 the repo to be published.
 
 ## Styling

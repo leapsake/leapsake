@@ -97,6 +97,14 @@ run carries over.
 | **Mobile native**   | `pnpm test:native` drives the in-app self-test on a booted emulator/simulator via Maestro and asserts PASS from the CLI                                                  |
 | **E2E**             | the crucial-flow catalog per platform, driven through the real UI — [`plans/testing/crucial-flows.md`](plans/testing/crucial-flows.md), and _The E2E release gate_ below |
 
+**The driver contract has a coverage forcer.** `pnpm test:coverage` runs the shared
+`runDriverContract` spec, with desktop's wrong-key open test, against the production desktop
+driver and fails below 100% coverage of `encrypted-sqlite-driver.ts`. The number is not the
+point: a new driver code path fails the gate until a contract case exercises it, so the one spec
+both drivers run grows when the driver does. It is desktop-only, since the mobile driver cannot
+load under Node and its in-app self-test runs the same contract, and it has its own config,
+`vitest.coverage.config.ts`, so `pnpm test:node` stays coverage-free and fast.
+
 Component tests need two things Vitest does not give them by default, since the suite runs
 without globals: a `// @vitest-environment jsdom` docblock, and an explicit
 `afterEach(cleanup)`. Assert what a user perceives — roles, text, the `name` a field submits

@@ -4,6 +4,10 @@ The release command, `pnpm release`. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 releases_ states the policy; this file is the reasoning behind the code that enforces it, kept
 beside that code. `pnpm release --help` prints the commands.
 
+It lives in `scripts/` rather than a package because it has one consumer, and its pure logic
+(the version and tag algebra) carries tests because its mistakes are permanent: a store version
+cannot go backwards.
+
 ## The iOS target (`targets/ios.mjs`)
 
 App Store Connect, from a local archive, with no Xcode session anywhere: `expo prebuild`

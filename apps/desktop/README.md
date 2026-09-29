@@ -233,7 +233,15 @@ the synchronous calls in resolved promises, and `transaction` in manual
 keeps its expo-sqlite adapter and the integration suites run **this** driver: they
 build it through the production open path over a throwaway temp file
 (`test/support/encrypted-test-driver.ts`), because the encrypted backend cannot key
-an in-memory database.
+an in-memory database. They live in the app because the app is where the driver is
+supplied to `core`.
+
+Suites that test custody itself go one level further, through
+`test/support/boot-device.ts`: which store is open, whether it is ciphertext and which
+keys the keychain holds are invisible above the driver, so they need a real `userData`
+profile, the roster outside every store, and the same `openAppDatabase` the app calls.
+Its `bootAndRepair` follows `openActiveStore`'s ordering, which is why it is shared
+rather than copied: a second hand-rolled copy of that ordering would drift from it.
 
 **Whether the store is encrypted at all is a custody question, not a desktop one.** A
 device with no account holds a plaintext store and no keys; creating, joining, or
