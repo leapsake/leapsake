@@ -15,27 +15,17 @@ import { SuggestField } from "./SuggestField";
 import { styles } from "../lib/styles";
 
 /**
- * The prefix marking a Type option as "social, on this platform"; the rest of
- * the value is the platform id, and {@link OTHER_SOCIAL} — the prefix with no id
- * after it — is the one that names no platform. A prefix rather than a second
- * dropdown because *what a contact method is* is one question to the user:
- * "Instagram" is an answer to it in the same way "Email" is, and asking for the
- * kind first only to ask which platform second was making them spell out a
- * classification they had already made.
+ * Marks a Type option as social, the platform id after it: "Instagram"
+ * answers the Type question as "Email" does, in one dropdown.
  */
 const SOCIAL_PREFIX = "social:";
 
-/** A profile on a platform the registry has no template for — see below. */
+/** A profile on a platform the registry has no template for. */
 const OTHER_SOCIAL = SOCIAL_PREFIX;
 
 /**
- * What a new method can be, in the order the Type dropdown offers them: the
- * three kinds that are their own answer, then every platform Leapsake knows how
- * to open, then the catch-all for the ones it doesn't.
- *
- * The platforms come from the registry rather than being listed here, so adding
- * one to `@leapsake/contact-links` puts it in this dropdown — the same bargain
- * `PHONE_PLATFORMS` makes with the "Also reachable on" checkboxes.
+ * The Type options: three kinds, then every platform the registry knows, then
+ * the catch-all. A platform added to `@leapsake/contact-links` appears here.
  */
 const TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "email", label: "Email" },
@@ -53,11 +43,7 @@ const PLATFORM_OPTIONS = TYPE_OPTIONS.filter((option) =>
   option.value.startsWith(SOCIAL_PREFIX),
 );
 
-/**
- * Which Type option a draft is sitting on. A social row answers with its
- * platform, and a platform the registry has never heard of — one the user named
- * by hand — answers with the catch-all, which is exactly where they typed it.
- */
+/** Which Type option a draft is on; an unknown platform is the catch-all. */
 function typeValueOf(draft: ContactMethodDraft): string {
   if (draft.kind !== "social") return draft.kind;
   return findPlatform(draft.platform) === undefined
@@ -79,7 +65,7 @@ export function ContactMethodFields({
   onChange: (draft: ContactMethodDraft) => void;
   /** Points the draft at a kind and, for social, a platform. */
   setKind: (kind: ContactMethodKind, platform?: string) => void;
-  /** Show the Type dropdown — a row being added, rather than one being revised. */
+  /** Show the Type dropdown, for a row being added. */
   canChangeKind?: boolean;
 }) {
   const set = <K extends keyof ContactMethodDraft>(
@@ -103,12 +89,7 @@ export function ContactMethodFields({
     setKind("social", keepTyped ? draft.platform : id);
   }
 
-  /**
-   * A one-word name for the row, free text with the kind's usual answers behind
-   * a sheet. Narrow by nature, so wherever the kind has a single field that *is*
-   * the row — an address, a number, a handle — it shares that field's line
-   * rather than spending one of its own: see {@link pairedWithLabel}.
-   */
+  // The row's one-word name, sharing the line of the field it names.
   const labelField = (
     <SuggestField
       label="Label"
@@ -137,9 +118,7 @@ export function ContactMethodFields({
         />
       ) : null}
 
-      {/* Postal keeps the Label on its own line: it has five fields of its own
-          and no single one of them is the one the Label names. The other three
-          kinds pair it with theirs, below. */}
+      {/* Postal's Label has its own line: no one field is the one it names. */}
       {kind === "postal" ? labelField : null}
 
       {kind === "email"
@@ -195,12 +174,8 @@ export function ContactMethodFields({
             <Text style={styles.fieldValue}>Can receive texts</Text>
           </Pressable>
 
-          {/* Whether this number is on WhatsApp is the one thing Leapsake
-              cannot work out for itself, and the only thing standing between a
-              stored number and a tap that opens the conversation. Asked here,
-              once, rather than guessed — and rendered from the registry, so a
-              platform added to `@leapsake/contact-links` shows up without this
-              form changing. */}
+          {/* Whether a number is on WhatsApp cannot be worked out, so it is
+              asked; the list comes from the registry. */}
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Also reachable on</Text>
             {PHONE_PLATFORMS.map((option) => {
@@ -252,12 +227,6 @@ export function ContactMethodFields({
               onChangeText={(value) => set("line2", value)}
             />
           </View>
-          {/* "City" and "State" rather than the full "City / town" and
-              "State / province / county": the slash-lists were the honest label
-              for an address form that doesn't know which country it is in, but
-              they cost two lines to say what one word gets across, and the
-              country is right below. When the form learns to name these from
-              the country, it names them one word at a time. */}
           <View style={styles.fieldPair}>
             <View style={styles.fieldPairWide}>
               <View style={styles.field}>
@@ -297,10 +266,7 @@ export function ContactMethodFields({
 
       {kind === "social" ? (
         <>
-          {/* A saved row's kind is fixed, so it has no Type dropdown to change
-              the platform from — this is that dropdown with the kinds taken
-              out, and the only place a stored Instagram profile can become a
-              Telegram one. A row being added doesn't need it: Type just said. */}
+          {/* A saved row has no Type dropdown; this changes its platform. */}
           {canChangeKind ? null : (
             <SelectField
               label="Platform"
@@ -310,12 +276,8 @@ export function ContactMethodFields({
             />
           )}
 
-          {/* The catch-all's one field, and the reason `platform` is a free
-              string rather than an enum: a profile on something Leapsake has no
-              template for is still worth keeping, and a name the user typed
-              reads back better than a bare URL. Shown whenever the platform
-              isn't one the registry knows — which is both the row that just
-              picked "Other" and the saved row that did so months ago. */}
+          {/* For a platform the registry does not know, which is why
+              `platform` is free text rather than an enum. */}
           {platform === undefined ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Platform name</Text>
@@ -329,9 +291,6 @@ export function ContactMethodFields({
             </View>
           ) : null}
 
-          {/* "…or link" rather than "…or profile link": sharing the line costs
-              this field a third of the width, and the Profile URL field below
-              says the longer word anyway. */}
           {pairedWithLabel(
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Handle or link</Text>
@@ -346,10 +305,7 @@ export function ContactMethodFields({
             </View>,
           )}
 
-          {/* Offered only where an opaque id reaches further than the handle
-              does — that is the entire reason the field exists, and showing it
-              on Telegram (whose username already opens a chat) would be asking
-              for something that buys nothing. */}
+          {/* Only where an opaque id reaches further than the handle. */}
           {platform?.acceptsUserId === true ? (
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>

@@ -19,14 +19,8 @@ export function PersonFields({
 
   return (
     <>
-      {/*
-        `testID`s here are load-bearing for the harness, not decoration — the
-        same anchor set `account-*` joined. An empty `TextInput` carries no
-        accessibility text, so a driver can only reach these by their *position*
-        relative to the label above them; on the add screen, where the keyboard
-        reflows a long form as it opens, that resolved to the wrong field or to
-        nothing about half the time, and the typing landed silently elsewhere.
-      */}
+      {/* E2E anchors: an empty `TextInput` has no accessibility text, and
+          position misses once the keyboard reflows the form. */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>First name</Text>
         <TextInput

@@ -8,23 +8,13 @@ import {
 import { CheckboxBox } from "./Checkbox";
 import { styles } from "../lib/styles";
 
-/** Shortest query the idea suggestions act on, so the title field never dumps the
- *  whole idea list under itself. */
+/** Shortest query the idea suggestions act on, so none dumps the whole list. */
 const MIN_SUGGEST_CHARS = 2;
 
-/**
- * A gift as a form holds it: every field as typed, nothing parsed or resolved —
- * the same idea as `PersonDraft` and `ContactMethodDraft`, and held for the
- * same reason, since a half-typed field has to survive being looked at.
- *
- * It used to carry a `kind` naming which of two arms was live, a list of dated
- * giving rows, and a suggestion's target occasion and date. All three served a
- * data model with a separate dated `gifts` table; there is one table now, and
- * what it holds about a recipient is {@link given}.
- */
+/** A gift as a form holds it: every field as typed, nothing parsed. */
 export interface GiftDraft {
   title: string;
-  /** The link, once the title field has recognised one — see {@link giftUrlOf}. */
+  /** The link, once the title field recognises one; see {@link giftUrlOf}. */
   url: string;
   /** Whether they already have it. */
   given: boolean;
@@ -35,53 +25,21 @@ export function emptyGiftDraft(given = false): GiftDraft {
 }
 
 /**
- * Whether the row says anything at all — the "Add gift" tap nobody followed
- * through on. Such a row is neither written nor allowed to hold up the Save: an
- * empty row is a question the user declined to answer. See
- * {@link contactRowPending}, which draws the same line for the same reason.
- *
- * A ticked box on a nameless gift is not "something said": the tick is about a
- * gift, and there is no gift.
+ * An untouched row, neither written nor holding up the Save. A tick on a
+ * nameless gift says nothing: there is no gift.
  */
 export function giftDraftEmpty(draft: GiftDraft): boolean {
   return draft.title.trim() === "" && draft.url.trim() === "";
 }
 
-/**
- * Whether the row would write cleanly or be skipped — the Save gate.
- *
- * A gift needs a name and nothing else, so the only way to be half-said is to
- * have pasted a link without ever naming the thing.
- */
+/** The Save gate: a gift needs a name, so a link alone is half-said. */
 export function giftDraftValid(draft: GiftDraft): boolean {
   return giftDraftEmpty(draft) || draft.title.trim() !== "";
 }
 
 /**
- * What a gift **is** — its name and its link.
- *
- * The name and the link share one field. They are never both typed: a gift is
- * either something you thought of, which you name, or something you found, which
- * you paste and then name. So the field takes either, `giftUrlOf` says which just
- * arrived, and a recognised link drops out of the field into a chip beneath it,
- * leaving the field free to go on asking for the name. Pasting a second link
- * replaces the first. This was a permanently-visible "Link (optional)" input that
- * most captures left empty.
- *
- * The detection is only run on a **paste** ({@link pastedIntoField}) and on blur,
- * never on an ordinary keystroke: `https://e` already parses, so a field that
- * checked every character would swallow the first nine of a hand-typed URL and
- * put the rest in the name. Blur is the backstop that catches the hand-typed one
- * once it is finished.
- *
- * The title field is a plain `TextInput` with its own suggestion list rather than
- * a {@link Typeahead}: it's desktop's free-text-plus-`<datalist>` input, where an
- * existing idea is a shortcut and a brand-new title is the normal case, so it
- * must never collapse into a "chosen option" row.
- *
- * Above it there used to be an Idea / Already-gave-it segmented control, whose
- * answer decided which of two tables the save wrote to and reshaped every field
- * below. One table later, the question is a checkbox on the recipient.
+ * A gift's name and link in one field: a pasted link drops into a chip below.
+ * Checked on paste and blur only, since `https://e` already parses.
  */
 export function GiftIdentityFields({
   draft,
@@ -94,8 +52,7 @@ export function GiftIdentityFields({
 }) {
   const trimmedTitle = draft.title.trim();
 
-  // Existing ideas the typed title could mean. An exact match is already what
-  // submitting does, so it isn't offered as a shortcut to itself.
+  // An exact match is what submitting does, so it is not offered.
   const suggestions =
     trimmedTitle.length < MIN_SUGGEST_CHARS
       ? []
@@ -107,7 +64,7 @@ export function GiftIdentityFields({
           )
           .slice(0, 20);
 
-  /** File a recognised link and leave the name alone; otherwise it's the name. */
+  /** File a recognised link and leave the name alone; else it is the name. */
   function typed(next: string) {
     const url = pastedIntoField(draft.title, next) ? giftUrlOf(next) : null;
     onChange(url === null ? { ...draft, title: next } : { ...draft, url });
@@ -120,7 +77,7 @@ export function GiftIdentityFields({
   }
 
   return (
-    // Load-bearing for the harness — see the note in `PersonFields`.
+    // An E2E anchor, as in `PersonFields`.
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>Gift</Text>
       <TextInput

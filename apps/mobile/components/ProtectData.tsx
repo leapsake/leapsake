@@ -7,33 +7,10 @@ import { PasswordInput } from "./PasswordInput";
 import { useAccount } from "../lib/core-context";
 import { colors, styles } from "../lib/styles";
 
-/**
- * **Turning encryption on, and the one-time reveal that follows it** — the two
- * halves of custody Phase 0.5 (`encryption/model.md` §7.2.1) as reusable pieces.
- *
- * They lived inside `app/settings.tsx` until 2026-09-13 and moved here unchanged
- * when the **import** screen grew an offer to protect the device *before* bringing
- * an address book into it (`app/import.tsx`). Two screens now need the identical
- * flow, and duplicating a form that mints keys and shows a phrase exactly once is
- * the last thing worth copy-pasting: a divergence between the copies would be a
- * divergence in what the user's data is sealed under.
- *
- * **They stay a pair.** {@link CreateAccountForm} hands its caller a phrase and
- * nothing else; every caller owes the user {@link RecoveryKeyReveal} immediately
- * afterwards, because that phrase is never derivable again and is shown exactly
- * once (`model.md` §6.1). A caller that drops it on the floor has silently taken
- * the user's forgot-password backstop away.
- */
+// Account creation and the one-time reveal, always a pair: a caller that
+// skips the reveal has lost the user's only sight of their phrase.
 
-/**
- * A humble, dependency-free password hint. It does not score entropy (no
- * zxcvbn) — it enforces the length floor and steers toward a passphrase, which
- * is the guidance that actually helps for a key-deriving secret.
- *
- * Exported because the relay-bound signup step in `app/settings.tsx` shares it:
- * the same advice has to hold wherever a password becomes a key, and two copies
- * would be two different floors.
- */
+/** The length floor, and a nudge toward a passphrase; no entropy score. */
 export function passwordHint(password: string): string {
   if (password === "") return "";
   if (password.length < MIN_PASSWORD_LENGTH) {
@@ -46,21 +23,8 @@ export function passwordHint(password: string): string {
 }
 
 /**
- * **Create an account on this device** (`model.md` §7.2.1) — the act that turns
- * encryption on. Entirely local: no relay, no email, nothing transmitted. The
- * mobile mirror of desktop's `CreateAccount`. The copy is a tightened version of
- * desktop's (two paragraphs down to one, *owner, 2026-08-21*) rather than a
- * different message — both points below still have to survive the trim:
- *
- * 1. **Promise access, not safety.** An account protects against *this device
- *    losing its security settings*; it does nothing about a lost or broken
- *    phone. Borrowing the user's SaaS instincts and then violating them on the
- *    worst day is the failure mode to avoid, so backups are named rather than
- *    implied.
- * 2. **"Account" is our vocabulary, not the user's.** A username and password
- *    that never leave the phone are *accountless* in every sense a user cares
- *    about. The heading softens the word; the mechanism is unchanged.
- *
+ * Create an account here, which turns encryption on; nothing is sent. Its
+ * copy promises access, not safety: an account is no backup.
  */
 export function CreateAccountForm({
   onCreated,
@@ -114,14 +78,8 @@ export function CreateAccountForm({
         nothing is sent anywhere. They protect access to your data, not the data
         itself: if this phone is lost or breaks, only a backup brings it back.
       </Text>
-      {/*
-        `testID`s here are load-bearing for the harness, not decoration. Both
-        password fields are `secureTextEntry` with identical (empty) accessibility
-        text, so a driver has nothing to tell them apart by and taps on the confirm
-        field silently landed elsewhere — the wall slices 8 and 9 both hit. An
-        explicit id is the anchor set the crucial-flow catalog grows "as flows
-        need them"; this flow needs them.
-      */}
+      {/* E2E anchors: two secure fields have identical, empty accessibility
+          text (maestro/README.md). */}
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>Username</Text>
         <TextInput
@@ -176,8 +134,8 @@ export function CreateAccountForm({
 }
 
 /**
- * The one-time recovery-key reveal. Irreversible: the key is never re-derivable,
- * so the user must save it and tick the acknowledgement before continuing.
+ * The one-time recovery-key reveal. The key is never derivable again, so the
+ * user must tick that they saved it before continuing.
  */
 export function RecoveryKeyReveal({
   recoveryKey,
@@ -197,8 +155,7 @@ export function RecoveryKeyReveal({
         lose both, your data cannot be recovered.
       </Text>
       <RecoveryPhraseWords phrase={recoveryKey} />
-      {/* An id rather than its text, as the account fields above carry: a driver
-          must hit this exact row, or Done stays disabled two steps away. */}
+      {/* An id, since a driver must hit this row or Done stays disabled. */}
       <Pressable
         testID="recovery-acknowledged"
         accessibilityRole="checkbox"
@@ -224,9 +181,7 @@ export function RecoveryKeyReveal({
   );
 }
 
-/** The numbered word grid + a copy button — used by the one-time reveal, which
- *  since custody slice 8 is the *only* place a phrase is ever displayed (at
- *  account creation, and at the rotation that replaces it). */
+/** The numbered word grid and a copy button, for the one-time reveal. */
 function RecoveryPhraseWords({ phrase }: { phrase: string }) {
   const [copied, setCopied] = useState(false);
   const words = phrase.split(" ");

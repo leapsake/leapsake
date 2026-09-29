@@ -20,38 +20,8 @@ const TEXT = {
 };
 
 /**
- * A controlled `TextInput` whose `@mentions` and `#tags` read as **chips**, with
- * a typeahead for both — the mobile twin of the web `ChipTextField`. The draft,
- * the two grammars and the picker's results are {@link useChipDraft}'s; this is
- * the React Native half.
- *
- * React Native styles runs of a `TextInput`'s text natively, so the draft goes in
- * as nested `<Text>` children and each chip carries the same tint the desktop
- * backdrop paints. Chips are atomic: the caret rests at their edges but never
- * inside (snapped through the controlled `selection`), and an edit reaching
- * into one takes the whole chip.
- *
- * The results list renders inline beneath the field (the parent `ScrollView`
- * keeps `keyboardShouldPersistTaps="handled"` so a tap lands before the keyboard
- * dismisses). Which suggestion is highlighted, and the debounce in front of the
- * search, come from `@leapsake/ui/headless` — the same two hooks the desktop field
- * uses, so "what does Return commit" has one answer on both clients.
- *
- * ## Committing a suggestion
- *
- * A tap always works. On a hardware keyboard, **Return** commits the highlighted
- * row: `submitBehavior="submit"` — set only while the picker is open — is the one
- * way to make Return reach us on a multiline `TextInput` without inserting a
- * newline first. **Tab** is best-effort by construction. React Native has no
- * refusable key event, so a Tab is caught as the character it inserts and the pick
- * replaces that edit; on Android `onKeyPress` fires for soft-keyboard input only
- * (and no soft keyboard has a Tab key), and on iOS a hardware Tab is often
- * consumed by UIKit's focus navigation before it reaches the field. Where the
- * platform delivers it Tab completes; where it doesn't, Return and tapping do.
- *
- * There is no arrow-key or Escape handling: on a `TextInput` the arrows move the
- * caret and RN surfaces no event to intercept, so the highlight stays on the first
- * row — which is the suggestion the picker is usually open for.
+ * A `TextInput` whose `@mentions` and `#tags` are atomic chips, with a
+ * typeahead for both; the draft and grammars are {@link useChipDraft}'s.
  */
 export function ChipTextField({
   grammar = "prose",
@@ -69,13 +39,7 @@ export function ChipTextField({
   style?: StyleProp<TextStyle>;
   multiline?: boolean;
   placeholder?: string;
-  /**
-   * Harness anchor for the input itself. An empty `TextInput` carries no
-   * accessibility text, so two of these on one screen — a reminder's Title and
-   * its Details — are indistinguishable to a driver, the same problem the add
-   * screen's name fields and the account form's two password fields already
-   * carry ids for.
-   */
+  /** On the input: an empty `TextInput` has no accessibility text. */
   testID?: string;
 }) {
   const prose = grammar === "prose";
@@ -85,8 +49,8 @@ export function ChipTextField({
   // Set by `onKeyPress` for the one `onChangeText` that a Tab caused, so that
   // edit can be replaced by the pick instead of applied.
   const tabPressed = useRef(false);
-  // A one-shot forced caret, applied for a single render after a pick or a snap,
-  // then released (undefined) so the field returns to uncontrolled selection.
+  // A caret forced for one render after a pick or a snap, then released so
+  // the field's selection is uncontrolled again.
   const [selection, setSelection] = useState<
     { start: number; end: number } | undefined
   >(undefined);
@@ -126,9 +90,8 @@ export function ChipTextField({
         style={style}
         selection={selection}
         submitBehavior={open ? "submit" : undefined}
-        // `open` guarantees a highlighted row, so Return is never swallowed for
-        // nothing; with the picker closed the prop is absent and Return means
-        // what it always did (a newline here, submit in a single-line field).
+        // Only while open, which guarantees a highlighted row: the one way
+        // Return reaches a multiline field without inserting a newline first.
         onSubmitEditing={() => {
           selectActive();
         }}
@@ -137,8 +100,8 @@ export function ChipTextField({
           tabPressed.current = key === "Tab" || key === "\t";
         }}
         onChangeText={(text) => {
-          // A Tab arrives as an inserted character rather than a key we can
-          // refuse, so the pick stands in for the edit it would have made.
+          // A Tab arrives as the character it inserts, which RN cannot refuse,
+          // so the pick replaces that edit. Best-effort: UIKit may take it.
           if (tabPressed.current) {
             tabPressed.current = false;
             if (selectActive()) return;
@@ -147,9 +110,8 @@ export function ChipTextField({
         }}
         onSelectionChange={(e) => {
           const next = e.nativeEvent.selection;
-          // Keep the caret out of the chips. A tap that lands inside one is
-          // carried to the nearer edge; an arrow step is carried the way it was
-          // already going, so ← steps over a whole chip rather than into it.
+          // Keep the caret out of the chips: a tap goes to the nearer edge, an
+          // arrow step on the way it was going.
           const snapped =
             next.start === next.end ? chips.snap(next).end : next.end;
           if (snapped !== next.end) {
@@ -184,8 +146,8 @@ export function ChipTextField({
               <Pressable
                 key={`${hit.entityType}:${hit.entityId}`}
                 accessibilityRole="button"
-                // Which row Return will take — the native counterpart of the web
-                // listbox's `aria-selected`.
+                // Which row Return will take — the native counterpart of the
+                // web listbox's `aria-selected`.
                 accessibilityState={{ selected: highlighted }}
                 style={[
                   chipStyles.option,
@@ -194,8 +156,7 @@ export function ChipTextField({
                 onPress={() => pick(hit)}
               >
                 <Text style={[styles.rowText, { color: colors.accent }]}>
-                  {/* Tag hits show the "#" sigil; it sits outside the
-                      highlighted run since it's never part of the match. */}
+                  {/* The "#" is never part of the match. */}
                   {hit.entityType === "tag" ? "#" : ""}
                   {highlightMatch(hit.title, activeQuery ?? "")}
                 </Text>
@@ -221,10 +182,7 @@ export function ChipTextField({
 }
 
 const chipStyles = {
-  // The tint behind an `@Name` or a `#tag` as it is typed. Background only — the
-  // desktop field paints the same tint from a backdrop layer that can't afford a
-  // weight or size change (see ChipTextField.module.css), and the two should
-  // read the same.
+  // Background only, to match desktop's backdrop, which cannot change weight.
   chip: {
     backgroundColor: colors.accentTint,
   },
@@ -242,8 +200,7 @@ const chipStyles = {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  // The row Return commits, in the same wash the chips carry — so the highlight
-  // reads as "this is the one that becomes a chip".
+  // The row Return commits, in the chips' wash.
   optionHighlighted: {
     backgroundColor: colors.accentTint,
   },
