@@ -28,6 +28,46 @@ keeping them here made packages that only wanted an id — `@leapsake/reminders`
 did — declare a dependency on the security package. The rule now: **depend on
 `crypto` only if you handle keys or ciphertext.**
 
+## The at-rest doors
+
+**The db-key** is a random 256-bit key minted at account creation and held only in the OS
+keychain, which each client hands to SQLCipher in its raw `x'<hex>'` form (no KDF: it is already
+random). It is **not** a `key_wrap` row, because that table lives inside the database the key
+opens. At-rest protects the _file_; the master-key envelope lives inside the decrypted database.
+The two compose and never interact.
+
+The keychain is not forever: a new machine, an OS reinstall or an org move's Team-ID change lose
+it while the file survives. So two sidecar files beside the store can each reopen the db-key:
+
+- **The password door** (`password-sidecar.ts`): `"LSKP1" ‖ salt(16) ‖ wrap(dbKey, KEK)`. The salt
+  travels in the file because the account row that holds it is inside the database the key is
+  needed to open; salts are public, so this costs nothing. It is the **account's own** salt, so the
+  KEK is the one that already wraps the master key: one Argon2 pass, and one thing to keep in step
+  when the password changes. That is also why opening it **returns the key material**: the boot
+  already holds what unwraps the master key, and a device whose enclave went with the keychain is
+  repaired with no second 19 MiB pass, which takes minutes on Hermes. The verifier comes back too,
+  to tell a current sidecar from a stale one. Sealing takes the KEK its caller just derived, and a
+  KEK paired with the wrong salt writes a sidecar that never opens, so callers go through
+  `sealPasswordDoor` in `@leapsake/key-custody`.
+- **The recovery door** (`recovery.ts`): `"LSKR1" ‖ wrap(dbKey, recoveryKey)`, opaque under a
+  full-entropy key, so safe in plain view. The recovery key is also kept in the keychain so later
+  steps reuse the one phrase rather than minting a second; that costs nothing, since the phrase is
+  for when the keychain is gone.
+
+Distinct magics mean a swapped file fails on the magic, not inside the AEAD, and callers word
+every failure the same way ("that password doesn't open this database"), since telling a user
+which part failed says more than it should. **`readRecoveryKey` never mints.** An Unauthenticated
+device holds no keys, and a "show my recovery phrase" button that minted one handed out 24 words
+that unlocked nothing; only account creation mints.
+
+## The recovery phrase
+
+The recovery key is shown as a **BIP39 24-word mnemonic** (`@scure/bip39`), not base64: words
+survive a phone call, autocorrect and a mangled paste; the last word is a checksum, so a typo fails
+with "that phrase is wrong" rather than an opaque unwrap failure; and the same wordlist can later
+serve pairing codes and key-verification fingerprints. It is only the UI codec: the 32 key bytes
+are unchanged.
+
 ## Pinned algorithms & parameters
 
 These are recorded as named constants in the source, each carrying a versioned

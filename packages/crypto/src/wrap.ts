@@ -1,31 +1,18 @@
 import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
 import { randomBytes } from "@noble/ciphers/utils.js";
 
-/**
- * The wrap/AEAD algorithm identifier written into every `key_wrap.alg` column
- * (plans/encryption/model.md §3). Recording it per-row lets the security
- * review swap the primitive later without reshaping stored data — old rows keep
- * decrypting under the id they were written with.
- *
- * `xchacha20poly1305.raw@1`: XChaCha20-Poly1305 AEAD, 24-byte random nonce
- * prepended to the ciphertext+tag, no associated data. Pure-JS via
- * `@noble/ciphers`, so it runs identically on Node, Electron, and React Native
- * (which lacks `crypto.subtle`).
- */
+/** The AEAD id every `key_wrap.alg` records, so old rows keep decrypting after
+ *  the primitive changes. */
 export const ALG = "xchacha20poly1305.raw@1";
 
 /** XChaCha20-Poly1305 nonce length, prepended to each sealed blob. */
 const NONCE_BYTES = 24;
 
-/** Poly1305 authentication-tag length, the minimum a valid ciphertext can carry. */
+/** Poly1305's tag length, the least a valid ciphertext carries. */
 const TAG_BYTES = 16;
 
-/**
- * AEAD-encrypt `plaintext` under a 32-byte `key`, returning
- * `nonce(24) ‖ ciphertext+tag`. A fresh random nonce per call means the same
- * plaintext+key never produces the same output, so callers may seal freely
- * without tracking nonces.
- */
+/** Seals `plaintext` as `nonce(24) ‖ ciphertext+tag`, a random nonce each
+ *  call. */
 export function seal(
   plaintext: Uint8Array,
   key: Uint8Array,
@@ -38,17 +25,8 @@ export function seal(
   return out;
 }
 
-/**
- * Reverse {@link seal}: split off the leading nonce and AEAD-decrypt. Throws if
- * the key is wrong or any byte was tampered with — Poly1305 authentication
- * fails closed, which is what makes a flipped ciphertext byte unrecoverable
- * rather than silently wrong.
- *
- * Length-guards before the split: a blob too short to hold nonce + tag can't be a
- * genuine sealed value, so we reject it with a clear error instead of feeding a
- * negative-length remainder into the AEAD. This keeps a hostile/corrupt relay record
- * from crashing the sync pull loop in an opaque way.
- */
+/** Opens a sealed value, throwing on a wrong key, a tampered byte, or a blob
+ *  too short to hold a nonce and tag. */
 export function open(sealed: Uint8Array, key: Uint8Array): Uint8Array {
   if (sealed.length < NONCE_BYTES + TAG_BYTES) {
     throw new Error("sealed blob too short");
@@ -58,12 +36,8 @@ export function open(sealed: Uint8Array, key: Uint8Array): Uint8Array {
   return xchacha20poly1305(key, nonce).decrypt(ciphertext);
 }
 
-/**
- * Wrap a key under a wrapping key. Wrapping a key is just sealing its 32 bytes,
- * so this is {@link seal} under a name that reads correctly at the call site
- * (plans/encryption/model.md §3 — "the envelope is rows, not codepaths").
- */
+/** {@link seal}, named for wrapping a key. */
 export const wrapKey = seal;
 
-/** Unwrap a key wrapped by {@link wrapKey}; {@link open} under a clearer name. */
+/** {@link open}, named for unwrapping a key. */
 export const unwrapKey = open;
