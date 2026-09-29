@@ -1,5 +1,5 @@
-// The release phases, each runnable on its own: plan, build, publish, record, abandon.
-// Targets are passed in, so the tests drive these with stubs.
+// The release phases, each runnable alone; targets are passed in, for tests.
+
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
@@ -18,15 +18,13 @@ import { coreOf } from "./version.mjs";
 
 const BUILD_EPOCH_MS = Date.UTC(2026, 0, 1);
 
-/** Minutes since 2026-01-01 UTC, the same clock `apps/mobile/app.config.ts` reads. */
+/** The build-number clock `apps/mobile/app.config.ts` reads. */
 export function buildNumberNow(now = Date.now()) {
   return Math.floor((now - BUILD_EPOCH_MS) / 60_000);
 }
 
-/**
- * Each target's cell at this stage: `ready`, `blocked` (policy, with a note) or `failed`
- * (a ready cell whose checks do not hold). Only `failed` fails a release.
- */
+/** Each target's cell: `ready`, `blocked` by policy, or `failed` checks,
+ *  which alone fails a release. */
 export async function evaluateCells(targets, ctx, { checks = true } = {}) {
   const cells = [];
   for (const target of targets) {
@@ -57,14 +55,14 @@ export async function evaluateCells(targets, ctx, { checks = true } = {}) {
   return cells;
 }
 
-/** A marker rung needs only its own requirements; a building one needs the target's too. */
+/** A marker rung's own requirements, plus the target's when it builds. */
 function cellChecks(target, tier) {
   return tier.marker
     ? (tier.requires ?? [])
     : [...(target.preflight ?? []), ...(tier.requires ?? [])];
 }
 
-/** What a workflow reads to build its matrices: one row per gate, build and publish job. */
+/** A workflow's matrices: a row per gate, build and publish job. */
 export function planJson({ tag, version, stage, buildNumber }, cells) {
   const ready = cells.filter((cell) => cell.status === "ready");
   const building = ready.filter((cell) => !cell.marker);
@@ -104,10 +102,8 @@ export function planJson({ tag, version, stage, buildNumber }, cells) {
 const manifestPath = (out, id) => join(out, `${id}.json`);
 const receiptPath = (dir, id) => join(dir, `${id}.receipt.json`);
 
-/**
- * Build one target into `<out>/<id>/` and describe it in `<out>/<id>.json`. Spends nothing.
- * The build number comes from the caller, pinned for Expo through `LEAPSAKE_BUILD_NUMBER`.
- */
+/** Builds one target into `<out>/<id>/`, described in `<id>.json`, at the
+ *  caller's pinned build number; spends nothing. */
 export async function buildInto(target, ctx, { buildNumber, out, commit }) {
   process.env.LEAPSAKE_BUILD_NUMBER = String(buildNumber);
   const built = await target.build(ctx);
@@ -155,7 +151,7 @@ export function builtIn(dir) {
     });
 }
 
-/** The artifact a target's `publish()` receives: the manifest, with its files made absolute. */
+/** What `publish()` receives: the manifest, its files made absolute. */
 function artifactFrom(dir, manifest) {
   const files = Object.fromEntries(
     Object.entries(manifest.files).map(([name, path]) => [
@@ -170,11 +166,8 @@ function artifactFrom(dir, manifest) {
   };
 }
 
-/**
- * Publish every ready cell: a marker cell through `release()`, any other from its build
- * manifest in `from`. One target failing does not stop the others. Writes one receipt
- * file per success into `receiptsOut`.
- */
+/** Publishes every ready cell, one failure not stopping the rest, and
+ *  writes a receipt per success. */
 export async function publishAll(
   cells,
   ctx,
@@ -271,7 +264,7 @@ export function recordReceipts(root, tag, receipts) {
   return { recorded, lost };
 }
 
-/** Delete a tag nothing shipped from, locally and at `remote` when it is there. */
+/** Deletes a tag nothing shipped from, locally and at `remote`. */
 export function abandonTag(root, tag, { remote = "origin" } = {}) {
   const commit = tagSha(root, tag);
   if (commit === null) throw new Error(`${tag} does not exist here`);

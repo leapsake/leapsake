@@ -1,8 +1,5 @@
-// A minimal Google Play Developer API client: authenticate, open an edit, upload a
-// bundle, update tracks, commit.
-//
-// Transport only. Which track a rung ships to, and whether a release is held for manual
-// publishing, live in `targets/android.mjs`.
+// A minimal Google Play Developer API client: the transport, not the policy,
+// which lives in `targets/android.mjs`.
 import { createPrivateKey, sign as signPayload } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -11,8 +8,7 @@ const BASE = "https://androidpublisher.googleapis.com";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 
-// Google rejects an assertion whose lifetime exceeds an hour. The access token it returns
-// is re-minted a minute before it lapses.
+// Google's maximum assertion lifetime; the token renews a minute early.
 const ASSERTION_TTL_S = 60 * 60;
 const TOKEN_RENEW_MARGIN_S = 60;
 
@@ -49,7 +45,7 @@ const base64url = (input) => Buffer.from(input).toString("base64url");
 const app = (packageName) =>
   `/androidpublisher/v3/applications/${encodeURIComponent(packageName)}`;
 
-/** Build the client from the service-account JSON named by `GOOGLE_PLAY_SERVICE_ACCOUNT_PATH`. */
+/** The client, from the service account file the environment names. */
 export function googlePlayFromEnv() {
   return createGooglePlay({
     credentialsPath: resolve(
@@ -119,7 +115,7 @@ export function createGooglePlay({ credentialsPath, onRetry = warn }) {
     const text = await response.text();
     const parsed = text ? safeJson(text) : undefined;
     if (!response.ok || !parsed?.access_token) {
-      // The token endpoint answers with `error`/`error_description`, not the API's shape.
+      // The token endpoint's errors are shaped unlike the API's.
       const detail =
         [parsed?.error, parsed?.error_description].filter(Boolean).join(": ") ||
         text.slice(0, 500) ||
@@ -173,16 +169,11 @@ export function createGooglePlay({ credentialsPath, onRetry = warn }) {
     return parsed;
   }
 
-  /**
-   * One API call. `path` is a route; `query` values are strings or arrays.
-   *
-   * Retries transport failures and 429/5xx. `retry: false` opts out for a call whose
-   * repeat is not harmless — the bundle upload, whose recovery is a fresh edit.
-   */
+  /** One API call, retrying transport failures and 429 or 5xx, unless `retry:
+   *  false`, as the bundle upload is. */
   async function request(method, path, options = {}) {
     const { query, body, binary, retry = true, timeoutMs } = options;
-    // The upload host is a prefix on the path, not a different base: `new URL` would
-    // discard a base path against an absolute route.
+    // A path prefix, as `new URL` drops a base path for an absolute route.
     const url = new URL(binary ? `/upload${path}` : path, BASE);
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value === undefined || value === null) continue;
@@ -216,7 +207,7 @@ export function createGooglePlay({ credentialsPath, onRetry = warn }) {
   const put = (path, options) => request("PUT", path, options);
   const del = (path, options) => request("DELETE", path, options);
 
-  /** Upload an AAB into an open edit. Returns Google's `Bundle` (`versionCode`, hashes). */
+  /** Uploads an AAB into an open edit; returns Google's `Bundle`. */
   async function uploadBundle(packageName, editId, aabPath) {
     return post(`${app(packageName)}/edits/${editId}/bundles`, {
       query: { uploadType: "media" },
@@ -225,20 +216,15 @@ export function createGooglePlay({ credentialsPath, onRetry = warn }) {
     });
   }
 
-  /**
-   * Run `body` inside an edit: commit it on success, abandon it on failure.
-   *
-   * Nothing an edit contains takes effect until the commit, so an abandoned edit costs
-   * nothing and burns no version code. `commit: false` always abandons, which is what a
-   * dry run wants — it proves the upload works without spending anything.
-   */
+  /** Runs `body` in an edit, committed on success and abandoned otherwise, or
+   *  always with `commit: false`, costing nothing. */
   async function withEdit(packageName, body, { commit = true, query } = {}) {
     const edit = await post(`${app(packageName)}/edits`);
     const abandon = async () => {
       try {
         await del(`${app(packageName)}/edits/${edit.id}`);
       } catch (error) {
-        // An edit expires on its own; losing the tidy-up must not mask the real failure.
+        // An edit expires anyway; a failed tidy-up mustn't mask the real error.
         onRetry(`Play edit ${edit.id} was left open — ${reason(error)}`);
       }
     };
@@ -272,12 +258,8 @@ export function createGooglePlay({ credentialsPath, onRetry = warn }) {
   };
 }
 
-/**
- * How long to wait before trying again, or `undefined` for "do not".
- *
- * Transport failures never reached Google's opinion, and 429/5xx is Google asking for
- * later. Every other status is a verdict.
- */
+/** How long before retrying a transport failure, a 429 or a 5xx; `undefined`
+ *  for any other status, a verdict. */
 function retryDelay(error, attemptNo) {
   if (attemptNo >= MAX_ATTEMPTS) return undefined;
   const backoff = BACKOFF_MS[attemptNo - 1];
@@ -293,7 +275,7 @@ function retryDelay(error, attemptNo) {
   return transport ? backoff : undefined;
 }
 
-/** `Retry-After` in milliseconds — seconds or an HTTP date, capped, ignored if nonsense. */
+/** `Retry-After` in ms, from seconds or a date, capped; nonsense ignored. */
 function retryAfterOf(response) {
   const header = response.headers?.get?.("retry-after");
   if (!header) return undefined;
@@ -315,10 +297,10 @@ function reason(error) {
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-/** The default retry notice, indented to match the progress lines in `targets/`. */
+/** The default retry notice, indented like the progress lines. */
 const warn = (message) => console.warn(`   ${message}`);
 
-/** Google has been known to answer with HTML from an edge layer; do not die on it. */
+/** Parses JSON, surviving the HTML Google's edge sometimes sends. */
 function safeJson(text) {
   try {
     return JSON.parse(text);

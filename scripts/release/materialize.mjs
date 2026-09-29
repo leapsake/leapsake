@@ -1,9 +1,9 @@
-// Secrets reach a runner as strings; the release reads them as files. Each known secret
-// arrives base64-encoded in LEAPSAKE_SECRET_<NAME>_B64 and lands at <dir>/<file>.
+// A runner's secrets arrive as LEAPSAKE_SECRET_<NAME>_B64 strings; the release
+// reads them as files.
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-/** Every secret the release reads as a file: its variable, its file name, the path it fills. */
+/** Every secret read as a file: its variable, file name and path variable. */
 export const SECRETS = [
   {
     name: "APPLE_APP_STORE_CONNECT_KEY",
@@ -45,10 +45,8 @@ export const SECRETS = [
 const variableOf = (secret) => `LEAPSAKE_SECRET_${secret.name}_B64`;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
-/**
- * Write every secret present in `env` into `dir` (mode 600) and return the
- * `<PATH_VAR>=<file>` lines that point the release at them. Absent secrets are skipped.
- */
+/** Writes each present secret into `dir`, mode 600, returning the
+ *  `<PATH_VAR>=<file>` lines pointing at them. */
 export function materializeSecrets(env, dir) {
   const present = SECRETS.filter((secret) => env[variableOf(secret)]?.trim());
   const malformed = present

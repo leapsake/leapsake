@@ -1,10 +1,10 @@
-// What stands between a local machine and a store upload or a tag: `--here`, a tag the
-// remote can already see, and the tag typed back. On a runner (`CI=true`) none apply.
+// What a local upload or tag needs: `--here`, a tag the remote has, and the
+// tag typed back. None apply on a runner.
 import { createInterface } from "node:readline";
 
 export const isCI = (env = process.env) => env.CI === "true";
 
-/** Where a receipt says the release ran: the remote pipeline, or a local machine. */
+/** Where a receipt says the release ran: `remote` or `local`. */
 export const via = (env = process.env) => (isCI(env) ? "remote" : "local");
 
 /** Ask for `tag` to be typed back; true only for an exact match. */

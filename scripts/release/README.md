@@ -64,6 +64,14 @@ a submission is asked about, since it means both "already there" and "not review
 version's attached build number is the only key Apple gives back to a commit, which is why
 [receipts](#receipts) exist.
 
+## The macOS target (`targets/mac.mjs`)
+
+Blocked: desktop distribution is not part of v0.1, though the app itself is alive and its
+integration tier still runs. **Xcode is not in this path at all.** The app is Electron, so
+packaging is electron-builder, and the Apple half is `codesign`, `xcrun notarytool submit
+--wait`, `xcrun stapler staple` and `spctl -a -vvv -t exec`, all in the Command Line Tools. The
+iOS target's App Store Connect key authenticates notarization.
+
 ## The App Store Connect client (`apple-app-store-connect.mjs`)
 
 `altool` uploads the `.ipa` and stops; everything after (processing, notes, the group, review)
@@ -116,3 +124,47 @@ code's own rules:
   apart; when `rc` can add its production half, it joins the same edit, so one version code
   covers both. Until the account has production access, `rc` is `beta` with a louder notice, so
   an iOS `rc` is never blocked by it.
+
+## The command
+
+A release is a tag: manifests carry only the core, set by `scripts/set-version.mjs`, and the
+tag carries the channel and counter (`v0.1.0-beta.10`). `alpha`, `beta` and `rc` count up
+independently per core, and a `final` closes it. Every command takes the tag it acts on. Beyond
+what `--help` lists:
+
+- `--first-release` when the repository has no release tags yet, and `--commit=<sha>` to name the
+  live commit by hand for a marker rung.
+- `--if-approved` exits 0 having done nothing while the store has not approved the version, or
+  when its final tag already exists: it is what the hourly schedule runs.
+- `--no-checks` skips the targets' checks (their host tools), never the tag's own.
+- Credentials come from `.env` or the environment, which wins. Off a runner (`CI=true`), uploading
+  needs `--here`, a tag the remote already has, and the tag typed back; `cut` and `abandon` need
+  the tag typed back too. There is no `--yes`.
+- Exit codes: `2` for a usage error, `1` for a refused or failed step, `0` otherwise.
+
+Every precondition is a check, `{ name, check(ctx) }`, returning `undefined` or **a string saying
+what is missing and how to supply it**: that string is read at the moment it matters, by whoever
+is shipping, so no release rule lives only in prose. Checks run in order, cheapest first, and may
+be async; all are offline but the iOS target's one live probe. The build number is a clock reading
+from `app.config.ts`, so the first target pins it (`LEAPSAKE_BUILD_NUMBER`) for the rest, or iOS
+and Android would ship numbers an archive apart under one tag.
+
+## Adding a target
+
+A target is a file in `targets/` plus a line in `targets/index.mjs`, with this shape:
+
+| Field           | What it is                                                                        |
+| --------------- | --------------------------------------------------------------------------------- |
+| `id`            | the `--only` selector                                                             |
+| `label`         | what the summary calls it                                                         |
+| `platform`      | what it ships for; `host` is the OS its build needs (`"macos"` or `"linux"`)      |
+| `status`        | `"ready"` or `"blocked"`, with a `note` when blocked: then every cell is blocked  |
+| `preflight`     | the checks every building cell needs                                              |
+| `tiers`         | per stage: `{ name, requires, manual, status?, note?, marker? }`                  |
+| `build(ctx)`    | returns `{ files: { name: path }, buildNumber, bundleId }`; spends nothing        |
+| `publish(ctx)`  | uploads `ctx.artifact`, that result with its files copied                         |
+| `release(ctx)`  | a marker rung's whole work, returning `{ commit, buildNumber }`                   |
+| `approved(ctx)` | the commit `release` would mark; throws an error named `NotApproved` until then   |
+
+A cell whose tier is `status: "blocked"` is policy: reported ⏳ with its note, and skipped. A
+ready cell whose `preflight` or `requires` fail is misconfigured, and fails the release.

@@ -1,18 +1,13 @@
-// Version and tag algebra: pure, so `version.test.mjs` tests it directly.
-//
-// alpha, beta and rc are channels that each count up independently on a core; a person
-// picks the channel and the counter comes from the existing tags.
+// Version and tag algebra, pure. A person picks the channel; each channel's
+// counter on a core comes from the tags.
 
 /** The channels, plus `final`, which closes a core. */
 export const STAGES = ["alpha", "beta", "rc", "final"];
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
-/**
- * Parse `X.Y.Z` or `X.Y.Z-suffix` into its parts, or `null` when it is not a version.
- * The accepted shape matches `scripts/set-version.mjs`, deliberately: a version this
- * cannot read is a version that cannot be written to the manifests either.
- */
+/** Parses `X.Y.Z` or `X.Y.Z-suffix`, or `null`; the same shape
+ *  `scripts/set-version.mjs` can write. */
 export function parseVersion(version) {
   const match = VERSION.exec(version);
   if (!match) return null;
@@ -25,7 +20,7 @@ export function parseVersion(version) {
   };
 }
 
-/** `0.1.0-alpha.2` → `0.1.0`. The numeric core, which is also what the stores see. */
+/** The numeric core, which the stores see: `0.1.0-alpha.2` is `0.1.0`. */
 export function coreOf(version) {
   const parsed = parseVersion(version);
   if (!parsed) throw new Error(`not a version: "${version}"`);
@@ -41,7 +36,7 @@ export function stageOf(version) {
   return STAGES.includes(stage) ? stage : null;
 }
 
-/** Semver precedence (semver.org §11). */
+/** Semver precedence. */
 export function compareVersions(a, b) {
   const left = parseVersion(a);
   const right = parseVersion(b);
@@ -78,7 +73,7 @@ export function compareVersions(a, b) {
 /** `v0.1.0-rc.1` ↔ `0.1.0-rc.1`. Tags carry the `v`; manifests never do. */
 export const formatTag = (version) => `v${version}`;
 
-/** The version a tag names, or `null` for a tag that is not a release tag at all. */
+/** The version a tag names, or `null` for a non-release tag. */
 export function parseTag(tag) {
   if (!tag.startsWith("v")) return null;
   const version = tag.slice(1);
@@ -93,7 +88,7 @@ export function releaseVersions(tags) {
     .sort(compareVersions);
 }
 
-/** The highest release version among the tags, or `null` when there are none. */
+/** The highest release version among the tags, or `null`. */
 export function highestVersion(tags) {
   const versions = releaseVersions(tags);
   return versions.length > 0 ? versions[versions.length - 1] : null;
@@ -113,10 +108,8 @@ export function successorCores(core) {
   };
 }
 
-/**
- * The next version on a channel: the highest counter already tagged for this core and
- * stage, plus one, or `.1` when there is none. `final` is the bare core.
- */
+/** The next version on a channel: the core's highest counter plus one, else
+ *  `.1`; `final` is the bare core. */
 export function nextVersion({ core, stage, tags = [] }) {
   if (!STAGES.includes(stage)) {
     throw new Error(`unknown stage "${stage}" (expected ${STAGES.join(", ")})`);

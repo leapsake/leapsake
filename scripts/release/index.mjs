@@ -1,28 +1,5 @@
-// The release command: a dispatcher over the phases in `phases.mjs`.
-//
-// A release is a tag. Manifests carry only the core, set by `scripts/set-version.mjs`; the
-// tag carries the channel and counter (`v0.1.0-beta.10`). alpha, beta and rc count up
-// independently per core, and a final closes it. Every command takes the tag it acts on.
-//
-//   pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks] [--outputs=<path>]
-//   pnpm release cut final --if-approved [--push] [--outputs=<path>]
-//   pnpm release plan --tag=<tag> [--json] [--outputs=<path>] [--no-checks]
-//   pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]
-//   pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>
-//   pnpm release publish --tag=<tag> --from=<dir> --here [--only=<targets>] [--receipts-out=<dir>]
-//   pnpm release record --tag=<tag> --from=<dir> [--push]
-//   pnpm release abandon --tag=<tag>
-//   pnpm release ship --tag=<tag> --here [--dry-run] [--no-provision]
-//   pnpm release materialize --into=<dir> [--env-out=<path>]
-//   pnpm release --help
-//
-// Also: `--first-release` when the repo has no release tags yet, and `--commit=<sha>` to name
-// the live commit by hand for a marker rung. `--if-approved` exits 0 having done nothing when
-// the store has not approved the version or its final tag already exists. `--no-checks` skips
-// the targets' checks (their host tools), never the tag's own. Credentials come from `.env` or the environment,
-// which wins. Off a runner (`CI=true`), uploading needs `--here`, a tag origin already has,
-// and the tag typed back; `cut` and `abandon` need the tag typed back too. There is no `--yes`.
-// Exit code: 2 for a usage error, 1 for a refused or failed step, 0 otherwise.
+// The release command, a dispatcher over `phases.mjs`; `--help` lists its
+// commands, and `scripts/release/README.md` its flags and exit codes.
 import { spawnSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -89,12 +66,22 @@ const fail = (message) => {
   process.exit(2);
 };
 
+const USAGE = [
+  "pnpm release cut <alpha|beta|rc|final> [--push] [--dry-run] [--no-checks] [--outputs=<path>]",
+  "pnpm release cut final --if-approved [--push] [--outputs=<path>]",
+  "pnpm release plan --tag=<tag> [--json] [--outputs=<path>] [--no-checks]",
+  "pnpm release gate --platforms=<ios,android> [--tag=<tag>] [--no-provision]",
+  "pnpm release build --tag=<tag> --only=<target> --build-number=<n> --out=<dir>",
+  "pnpm release publish --tag=<tag> --from=<dir> --here [--only=<targets>] [--receipts-out=<dir>]",
+  "pnpm release record --tag=<tag> --from=<dir> [--push]",
+  "pnpm release abandon --tag=<tag>",
+  "pnpm release ship --tag=<tag> --here [--dry-run] [--no-provision]",
+  "pnpm release materialize --into=<dir> [--env-out=<path>]",
+  "pnpm release --help",
+];
+
 function printHelp() {
-  const usage = readFileSync(fileURLToPath(import.meta.url), "utf8")
-    .split("\n")
-    .filter((line) => line.startsWith("//   pnpm release"))
-    .map((line) => line.slice(5));
-  console.log(usage.join("\n"));
+  console.log(USAGE.join("\n"));
   console.log(
     "\nThe channel is chosen; the counter is computed. Only a final closes a core.\n",
   );
@@ -197,7 +184,7 @@ function printCells(ctx, cells, buildNumber, write) {
   }
 }
 
-/** Evaluate the tag and every cell, and print them; `plan` and `ship` both start here. */
+/** Evaluates and prints the tag and every cell, as `plan` and `ship` start. */
 async function planRelease(opts, { write = console.log } = {}) {
   const ctx = releaseContext(opts);
   const cells = await evaluateCells(TARGETS, ctx, {
@@ -232,10 +219,8 @@ async function guardUpload(opts, ctx) {
   return reason === undefined;
 }
 
-/**
- * The commit every ready marker cell says the store approved; they must agree. With
- * `ifApproved`, a store that has not approved yet yields `{ waiting }` instead of throwing.
- */
+/** The commit every ready marker cell says was approved, which must agree;
+ *  with `ifApproved`, `{ waiting }` until then. */
 async function approvedCommit(ctx, cells, { ifApproved = false } = {}) {
   const markers = cells.filter(
     (cell) => cell.status === "ready" && cell.marker,
@@ -334,7 +319,7 @@ async function cut(opts) {
   return 0;
 }
 
-/** `plan --outputs=<path>` appends one `name=<json>` line per field a workflow's jobs read. */
+/** Appends a `name=<json>` line per field a workflow's jobs read. */
 async function plan(opts) {
   const json = opts.flags.has("json");
   const { ctx, cells, buildNumber, ok } = await planRelease(opts, {
@@ -352,7 +337,7 @@ async function plan(opts) {
   return ok ? 0 : 1;
 }
 
-/** The suite for these platforms' device tiers plus every other tier, always `--strict`. */
+/** These platforms' device tiers and every other tier, `--strict`. */
 function runGate(platforms, { provision }) {
   const suite = [
     "--strict",
@@ -605,7 +590,7 @@ async function ship(opts) {
   return published || recorded;
 }
 
-/** Write the runner's base64 secrets to files, and say (or append) where they went. */
+/** Writes the runner's secrets to files, and reports where. */
 function materialize({ values }) {
   if (!values.into) fail("where to? pass --into=<dir>");
   const lines = materializeSecrets(process.env, resolve(values.into));

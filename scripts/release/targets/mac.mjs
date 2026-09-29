@@ -1,14 +1,5 @@
-// The macOS target: a notarized artifact plus an update feed.
-//
-// Not built, and **not part of v0.1** — desktop distribution moved out of the first
-// release (plans/v0-2.md). The app itself is very much alive; it is the *shipping* of it
-// that is deferred, and the integration tier still runs against its real SQLite engine.
-//
-// Worth recording, because it is easy to assume otherwise from the iOS target next door:
-// **Xcode is not in this path at all.** The app is Electron, so packaging is
-// electron-builder and the Apple half is `codesign` → `xcrun notarytool submit --wait` →
-// `xcrun stapler staple` → `spctl -a -vvv -t exec`, all of which live in the Command Line
-// Tools. The same App Store Connect key the iOS target uses authenticates notarization.
+// The macOS target, blocked until desktop distribution; see
+// `scripts/release/README.md` → _The macOS target_.
 export default {
   id: "mac",
   label: "macOS (notarized, direct download)",

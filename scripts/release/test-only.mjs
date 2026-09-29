@@ -1,11 +1,11 @@
-// A store build must carry none of the test-only screens: `dev-clear-dbkey` deletes the
-// database key, and any app or website can open it by deep link.
+// A store build carries no test-only screen: `dev-clear-dbkey` deletes the
+// database key, and any app or site could open it by deep link.
 import { execFileSync } from "node:child_process";
 
-/** What every test-only screen carries; the same string as `apps/mobile/test/test-only.ts`. */
+/** The marker every test-only screen carries, as `test/test-only.ts` has it. */
 export const TEST_ONLY_MARKER = "leapsake-test-only-code";
 
-/** Where each store archive keeps its JS bundle, as an `unzip` member pattern. */
+/** Each store archive's JS bundle, as an `unzip` member pattern. */
 export const BUNDLE_IN = {
   ipa: "Payload/*.app/main.jsbundle",
   aab: "base/assets/index.android.bundle",
@@ -14,7 +14,7 @@ export const BUNDLE_IN = {
 export const containsTestOnlyCode = (bundle) =>
   bundle.includes(TEST_ONLY_MARKER);
 
-/** Throw unless `archive` holds a JS bundle at `member` with no test-only code in it. */
+/** Throws unless `archive` has a bundle at `member` with no test-only code. */
 export function assertNoTestOnlyCode(archive, member) {
   let bundle;
   try {

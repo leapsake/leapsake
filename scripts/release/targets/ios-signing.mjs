@@ -1,5 +1,5 @@
-// A runner has no login keychain holding the distribution identity, and no installed
-// profile. When the .p12 and its password are given as files, stage both for one build.
+// A runner has no keychain identity or installed profile, so given the .p12
+// and its password as files, this stages both for one build.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
@@ -24,7 +24,7 @@ const SIGNING_FILES = [
   "APPLE_IOS_PROVISIONING_PROFILE_PATH",
 ];
 
-/** Why the runner signing files are unusable, or undefined when all or none are set. */
+/** Why the signing files are unusable, or undefined if all or none are set. */
 export function signingFilesProblem(env = process.env) {
   const set = SIGNING_FILES.filter((name) => env[name]?.trim());
   if (set.length === 0) return undefined;
@@ -37,10 +37,8 @@ export function signingFilesProblem(env = process.env) {
 
 const security = (args) => execFileSync("security", args, { encoding: "utf8" });
 
-/**
- * Import the distribution identity into a throwaway keychain on the search list and
- * install the profile. Returns the teardown; a no-op when the .p12 is not configured.
- */
+/** Imports the identity into a throwaway keychain and installs the profile;
+ *  returns the teardown, a no-op without a .p12. */
 export function stageSigningIdentity({
   env = process.env,
   run = security,
@@ -119,7 +117,7 @@ export function parseSearchList(output) {
     .filter(Boolean);
 }
 
-/** The UUID a decoded profile plist declares; Xcode finds an installed profile by it. */
+/** A decoded profile's UUID, by which Xcode finds it installed. */
 export function profileUuid(plist) {
   const match = plist.match(
     /<key>UUID<\/key>\s*<string>([0-9A-Fa-f-]+)<\/string>/,

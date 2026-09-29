@@ -1,5 +1,4 @@
-// What the two mobile targets share: where the app lives, how to run a build step, and
-// how to ask Expo what it resolved.
+// What the mobile targets share: the app, build steps, and Expo's config.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,16 +15,8 @@ export function must(label, command, args, options = {}) {
   if (run.status !== 0) throw new Error(`${label} failed (exit ${run.status})`);
 }
 
-/**
- * The version and build number Expo *itself* would use, read back rather than recomputed.
- *
- * `apps/mobile/app.config.ts` owns both derivations — the store version is the repo
- * version with its pre-release suffix stripped, and the build number is minutes since
- * 2026-01-01 UTC. Asking Expo for the resolved config keeps that the only implementation,
- * and is what makes `ios.buildNumber` and `android.versionCode` the same clock reading.
- * The number is then pinned through the prebuild via `LEAPSAKE_BUILD_NUMBER`, because a
- * second unpinned derivation a minute later would produce a different one.
- */
+/** The version and build number Expo resolves, read back so `app.config.ts`
+ *  stays their only derivation. */
 export function resolvedConfig(mobile) {
   const out = execFileSync("pnpm", ["exec", "expo", "config", "--json"], {
     cwd: mobile,
@@ -38,16 +29,8 @@ export function resolvedConfig(mobile) {
   return JSON.parse(out.slice(start));
 }
 
-/**
- * Fix the build number for the rest of the release, and report it.
- *
- * ⚠️ `app.config.ts` derives it from the **clock** when it is not pinned, so each target
- * resolving its own config would give iOS and Android numbers an archive apart — twenty
- * minutes of drift, permanently recorded in two stores under one tag. The first target to
- * build sets it here; `resolvedConfig`'s child inherits `process.env`, so every later
- * resolution agrees. An already-pinned value always wins, which is what makes rebuilding a
- * known artifact reproducible.
- */
+/** Pins the build number for the rest of the release. ⚠️ Unpinned, it is a
+ *  clock reading, and two targets would differ. */
 export function pinBuildNumber(config) {
   const build = config.android?.versionCode ?? config.ios?.buildNumber;
   if (build === undefined) {
@@ -61,17 +44,14 @@ export function pinBuildNumber(config) {
   return Number(process.env.LEAPSAKE_BUILD_NUMBER);
 }
 
-/** `resolvedConfig`, with the build number pinned for every target that follows. */
+/** `resolvedConfig`, its build number pinned for every later target. */
 export function pinnedConfig(mobile) {
   const config = resolvedConfig(mobile);
   pinBuildNumber(config);
   return config;
 }
 
-/**
- * The placeholder icon is the first thing that stops being acceptable when the audience
- * grows past the owner — the rungs that reach strangers are where it is checked.
- */
+/** The real app icon, checked on the rungs that reach strangers. */
 export const appIcon = {
   name: "app icon",
   check: ({ root }) => {

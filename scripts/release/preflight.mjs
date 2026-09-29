@@ -1,8 +1,5 @@
-// The repo-wide preconditions, in the same `{ name, check }` shape the targets use.
-//
-// These are the ones that hold regardless of platform. Each says what it protects in its
-// failure message rather than deferring to a document, because the moment a release is
-// refused is the moment the reason gets read.
+// The platform-independent preconditions, each saying what it protects when
+// it refuses.
 import { spawnSync } from "node:child_process";
 
 import {
@@ -17,10 +14,7 @@ import { headSha, tagSha } from "./git.mjs";
 
 const RELEASE_BRANCH = /^release\/\d+\.\d+\.\d+$/;
 
-/**
- * A release describes a commit. An uncommitted change means the artifact would contain
- * something the tag does not name, and there would be no way to rebuild it later.
- */
+/** A clean tree, so the artifact is exactly what the tag names. */
 const cleanTree = {
   name: "clean tree",
   check: ({ clean }) =>
@@ -29,10 +23,7 @@ const cleanTree = {
       : "the working tree has uncommitted changes — a tag can only describe what is committed",
 };
 
-/**
- * `main` is the only long-lived branch; `release/X.Y.Z` exists for the one case a tag
- * cannot cover — giving fixes somewhere to land while unrelated work keeps reaching main.
- */
+/** Releases come from `main`, or a `release/X.Y.Z` stabilizing branch. */
 const releaseBranch = {
   name: "branch",
   check: ({ branch }) =>
@@ -41,10 +32,7 @@ const releaseBranch = {
       : `releases are cut from main or release/X.Y.Z, not "${branch}"`,
 };
 
-/**
- * Every manifest carries the same version. Delegated to the script that owns the rule so
- * there is one implementation of it, not two that can disagree.
- */
+/** Every manifest agrees, by the script that owns the rule. */
 const manifestsAgree = {
   name: "version agreement",
   check: ({ root }) => {
@@ -59,7 +47,7 @@ const manifestsAgree = {
   },
 };
 
-/** A tag names one commit forever; reusing one would silently redefine a shipped release. */
+/** A new tag, since reusing one would redefine a shipped release. */
 const tagAvailable = {
   name: "tag is free",
   check: ({ root, tag }) =>
@@ -68,10 +56,8 @@ const tagAvailable = {
       : `${tag} already exists — a release tag is never moved or reused`,
 };
 
-/**
- * A tag's core never goes below the highest core tagged, and a core with a final tag is
- * closed. Refuses when the tag list cannot be trusted, since an empty one would pass.
- */
+/** No core below the highest tagged, nor on a closed one; refuses when the
+ *  tag list can't be trusted. */
 export const monotonic = {
   name: "version increases",
   check: ({ version, tags, shallow, firstRelease }) => {
@@ -105,7 +91,7 @@ export const monotonic = {
   },
 };
 
-/** The tag exists and names the commit checked out, so the build is of that commit. */
+/** The tag exists and names the checked-out commit. */
 const tagOnHead = {
   name: "tag names HEAD",
   check: ({ root, tag }) => {
@@ -117,7 +103,7 @@ const tagOnHead = {
   },
 };
 
-/** The tag's core is the manifests' core, which is what the store builds read. */
+/** The tag's core is the manifests', which the store builds read. */
 export const tagMatchesManifests = {
   name: "tag matches manifests",
   check: ({ version, manifestVersion }) =>
@@ -135,10 +121,10 @@ export const LOCAL_CHECKS = [
   monotonic,
 ];
 
-/** Marking a release that already went public: the tag lands on an older commit, not HEAD. */
+/** Marking a public release: the tag lands on an older commit, not HEAD. */
 export const MARKER_CHECKS = [tagAvailable, monotonic];
 
-/** Planning or shipping an existing tag. `monotonic` is here because a hand-pushed tag skipped `cut`. */
+/** Planning or shipping an existing tag, which a hand push kept from `cut`. */
 export const FROM_TAG_CHECKS = [
   cleanTree,
   manifestsAgree,
@@ -147,7 +133,7 @@ export const FROM_TAG_CHECKS = [
   monotonic,
 ];
 
-/** Building one target of an existing tag. History is `plan`'s job, so a shallow clone may build. */
+/** Building one target of a tag; history is `plan`'s, so shallow is fine. */
 export const BUILD_CHECKS = [
   cleanTree,
   manifestsAgree,

@@ -1,4 +1,4 @@
-// The release command's argument parser: positionals, boolean flags and string values.
+// The release command's parser: positionals, boolean flags, string values.
 import { parseArgs } from "node:util";
 
 const STRING_OPTIONS = [
@@ -31,7 +31,7 @@ const OPTIONS = Object.fromEntries([
   ...BOOLEAN_OPTIONS.map((name) => [name, { type: "boolean" }]),
 ]);
 
-/** Split `argv` into `{ positional, flags, values }`; throws on an undeclared or malformed flag. */
+/** Splits `argv` into `{ positional, flags, values }`; throws on a bad flag. */
 export function parseReleaseArgs(argv) {
   const parsed = parseArgs({
     args: argv,
