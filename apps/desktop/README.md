@@ -126,6 +126,29 @@ why `scripts/name-dev-bundle.mjs` renames the `.app` directory and never the bin
 renaming the binary makes an unpackaged build report `isPackaged` true, which skips the dev
 rename above and lands this device's store on the packaged app's path. Probed, both ways.
 
+### How the dev bundle gets its name (`scripts/name-dev-bundle.mjs`)
+
+macOS shows an app's name in three places that **read three different things**: the items in
+the app menu come from `app.setName`; the menu-bar title reads `CFBundleName` from the bundle's
+`Info.plist`, live; and the Dock reads the bundle's **file name on disk**, disregarding
+`CFBundleDisplayName` when the two disagree (measured: with the plist stamped and the bundle
+still `Electron.app`, the running app's name read "Leapsake Dev" and the file's display name
+"Electron", and the Dock sided with the file). So before `dev` launches, the script stamps both
+plist keys and renames the `.app`, never the executable, then repoints `path.txt` (from the
+directory observed on disk, so a run that died half-way is repaired) and re-registers the bundle
+with LaunchServices **on every run**, since the ⌘-Tab switcher and Finder read its cached record
+and a gate on "something changed" can never repair a stale record. The name is `productName`
+plus the same suffix `src/main/index.ts` appends; that suffix is the one thing stated in two
+places.
+
+Editing `node_modules/electron` is the cheap side of the trade: the bundle is only ad-hoc
+linker-signed and its signature has never covered the plist or the directory name, the copy is
+this repository's own rather than a link into the pnpm store, and `dev` already repairs a native
+binary there on every run. The script is idempotent and **never fatal**, since a cosmetic name is
+not worth failing a launch over. It ends when packaging lands, with one trap for that day: do not
+point electron-builder's `electronDist` at `node_modules/electron/dist`, which would hand the
+packager a renamed, stamped bundle as its template.
+
 ### Renaming either one is a migration
 
 Two things move with a name, and only one of them can be carried:

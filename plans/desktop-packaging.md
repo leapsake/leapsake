@@ -55,7 +55,8 @@ nothing is being delayed to obey this; it is why the order is right.
   where `scripts/ensure-sqlite-abi.mjs` and asar unpacking must agree.**
 - Bundle ID `com.leapsake.desktop`; app icon; category; version from the release scripts
   ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → *Versioning and releases*).
-- Delete `apps/desktop/scripts/name-dev-bundle.mjs`; its header says why packaging ends it.
+- Delete `apps/desktop/scripts/name-dev-bundle.mjs`; `apps/desktop/README.md` → _How the dev
+  bundle gets its name_ says why packaging ends it, and the `electronDist` trap to avoid.
 
 > An N-API fork release would delete this whole constraint — see
 > [`v0-2.md`](./v0-2.md) → *The N-API exit*. Watch-item, blocked upstream; do not wait for it.

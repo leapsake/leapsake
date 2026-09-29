@@ -1,5 +1,5 @@
-// Fails unless the renderer bundle contains exactly one react and one react-dom, read
-// from the sourcemap's source list: two copies in one bundle crash every hook call.
+// Fails unless the renderer bundle has exactly one react and one react-dom, per
+// its sourcemap's sources: two copies in one bundle crash every hook call.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -21,9 +21,8 @@ if (!mapFile) {
 }
 const map = JSON.parse(readFileSync(resolve(outDir, mapFile), "utf8"));
 
-// Collapse each react / react-dom source file to its package root, resolved to
-// an absolute path so two different relative spellings of the same directory
-// (e.g. from differing nesting depths) dedupe to one entry.
+// Each react and react-dom source's package root, absolute, so two spellings
+// of one directory dedupe.
 const reactRoots = new Set();
 const reactDomRoots = new Set();
 for (const source of map.sources) {
