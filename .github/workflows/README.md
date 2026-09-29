@@ -10,6 +10,11 @@ Two repository variables switch the release half on: `REMOTE_RELEASES=true` lets
 `release.yml` do anything, and `AUTO_FINAL=true` lets `cut.yml`'s schedule run
 `cut final --if-approved`. The secrets they read are listed in `.env.example` → _On a runner_.
 
+`scripts/ci/results.mjs` reads results through GitHub's public API, which serves check-run
+annotations without a login, though job logs need one: `node scripts/ci/results.mjs
+[workflow]` lists a workflow's latest runs (ci.yml by default) and the rate limit, and `<run>
+[job]` each finished job's annotations. Anonymous calls are capped at 60 an hour, one per job.
+
 A failed gate's annotation names the red flow, and `node scripts/ci/results.mjs <run>` reads
 annotations through the public API, so a run can be diagnosed without a login.
 

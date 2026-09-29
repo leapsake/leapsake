@@ -1,10 +1,5 @@
-// Reads a workflow's results through GitHub's public API, which serves check-run
-// annotations without a login (job logs need one). gate.sh writes the gate's as one.
-//
-//   node scripts/ci/results.mjs [workflow]               its latest runs, and the rate limit
-//   node scripts/ci/results.mjs <run> [job]              each finished job's annotations
-//
-// The workflow defaults to ci.yml. Anonymous calls are capped at 60 an hour; one per job.
+// A workflow's latest runs, or `<run> [job]`'s annotations, over GitHub's
+// anonymous API. See `.github/workflows/README.md`.
 const API = "https://api.github.com/repos/leapsake/leapsake";
 
 async function get(path) {

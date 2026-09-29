@@ -1,8 +1,5 @@
-// Proves an edit touched only comments: each file must print identically to
-// its HEAD version once TypeScript strips comments. Exits 1 on any difference.
-//
-// Usage: node scripts/lint/comments-only.mjs [file...]
-// With no files, checks every .ts/.tsx/.mjs file changed against HEAD.
+// `[file...]`, else every changed .ts/.tsx/.mjs: exits 1 unless each prints
+// as its HEAD version does once TypeScript strips comments.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import ts from "typescript";

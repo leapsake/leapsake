@@ -1,19 +1,5 @@
-// Ensure the `better-sqlite3-multiple-ciphers` native binary matches the runtime
-// that is about to load it.
-//
-// It is a single prebuilt `.node` file that can only carry one ABI at a time:
-// the Electron desktop app and Node (Vitest) require *different* ABIs, so running
-// one flips the binary out from under the other ("compiled against a different
-// Node.js version" / NODE_MODULE_VERSION mismatch). This re-extracts the correct
-// prebuilt binary via `prebuild-install`, which after the first download is an
-// instant, offline copy from its local cache (no node-gyp compile).
-//
-// Wired into `pnpm test` (node) and the desktop `dev`/`start` scripts (electron)
-// so the two can be used interchangeably without a manual rebuild. The Electron
-// version is derived from the installed package, so bumping Electron needs no edit
-// here.
-//
-// Usage: node scripts/ensure-sqlite-abi.mjs <electron|node>
+// `<electron|node>`: re-extracts the SQLite prebuild for the runtime about to
+// load it. See `AGENTS.md` → _The native SQLite ABI_.
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname } from "node:path";

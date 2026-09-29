@@ -42,7 +42,7 @@ const blockLines = (comment) => {
   return lines.length;
 };
 
-/** Groups consecutive own-line `//` comments; every block comment is its own group. */
+/** Groups consecutive own-line `//` comments; a block comment is its own. */
 const commentGroups = (text, comments) => {
   const groups = [];
   let run = null;
