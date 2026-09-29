@@ -1,46 +1,5 @@
-// The shared mobile test harness: everything both mobile tiers need to get a Maestro
-// flow in front of a booted device, and nothing about what the flow asserts.
-//
-// Two tiers sit on this, and the split between them is the same one
-// `apps/mobile/maestro/README.md` draws for a single flow:
-//
-//   - **`scripts/test-native.mjs`** — the driver-contract self-test (one flow, one PASS
-//     token).
-//   - **`scripts/test-e2e.mjs`** — the crucial-flow catalog (an ordered arc of flows that
-//     share state).
-//
-// This file owns *environment prep* — the flaky, imperative part of driving a dev client —
-// and the *platform plumbing*. The Maestro YAML owns the *assertion*, the portable half.
-// It was extracted from `test-native.mjs` when the E2E tier arrived;
-// everything here was proven by that tier first, and the comments are its findings.
-//
-// The file is:
-//   - a platform-agnostic CORE — resolve `maestro`, the shared Metro `/status` check,
-//     `maestro --udid <device> test <flow>`, and provisioning;
-//   - two DRIVERS — `android` (adb) and `ios` (xcrun simctl) — each detecting its booted
-//     device, checking the dev-client is installed, wiping the app back to a first run, and
-//     loading the bundle with the same `localhost` deep link (over `adb` / `simctl
-//     openurl`), which iOS follows with a small Maestro flow to settle overlays;
-//   - a SUITE runner + CLI (`runSuite`) that both tiers hand a flow list to.
-//
-// By default it ASSUMES a prepared environment per platform — a booted device, the
-// installed dev-client build, and a running Metro dev server — and fails with the exact
-// command to run for whichever prerequisite is missing. That is the right answer for the
-// inner loop, where the developer already has all three and a "here is the command"
-// failure beats a ten-minute native rebuild they did not ask for.
-//
-// `--provision` inverts it: instead of printing the command, run it. Boot an emulator or
-// simulator, build + install the dev client, start Metro — so `pnpm release` is one
-// command on a machine (or a CI runner) that has nothing prepared.
-//
-// Platforms: with no flag, BOTH platforms are attempted and each self-classifies
-// (pass / fail / blocked) — an un-booted simulator prints as BLOCKED, never silently
-// skipped (principle #6). `--platform=ios|android` runs just one.
-//
-// Exit codes (aggregated across the platforms run): 0 = at least one passed and none
-// failed; 1 = a device was booted but a flow went RED or the env is broken (Metro down
-// / app not installed / prepare never reached home); 3 = nothing reachable here (no device
-// booted, or the platform toolchain is absent) — *blocked*, not a failure.
+// The mobile test harness: environment prep for Maestro on a booted device.
+// See `apps/mobile/maestro/README.md` → _What the harness does_.
 import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -59,13 +18,8 @@ export const APP_ID = "com.leapsake.app"; // app.json → android.package / ios.
 export const SCHEME = "leapsake"; // app.json → scheme
 const METRO_PORT = 8081;
 const METRO_URL = `http://localhost:${METRO_PORT}`;
-// Expo dev-server deep link that tells the dev client which packager to load. Uses
-// localhost — reachable from the Android emulator via `adb reverse`, and from an iOS
-// simulator directly — so it is machine- and LAN-independent, which is the whole point:
-// the dev-launcher's own memory of a dev server is an absolute LAN URL that goes stale
-// with the Mac's IP (see the iOS `prepare`). This is open-source Expo/Metro, not a vendor
-// API. **Both** platforms now use it; on iOS it was rejected in 2026-07 (a SpringBoard
-// confirm intercepted it) and re-verified working 2026-08-31.
+// Tells the dev client to load Metro at `localhost`, which never goes stale the
+// way the launcher's remembered LAN address does.
 const DEV_CLIENT_LINK = `${SCHEME}://expo-development-client/?url=${encodeURIComponent(METRO_URL)}`;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -78,30 +32,11 @@ const NO_CONSOLE_ERROR_FLOW = join(
 );
 const IOS_AUTOFILL_FLOW = join(MAESTRO_DIR, "ios-autofill.yaml"); // iOS AutoFill preflight
 
-// **What the emulator is given, rather than what its AVD happens to say.** Android Studio
-// creates AVDs with as little as one core and 2GB of RAM, and a React Native dev client on
-// one of those is not merely slow — it is a different machine. Both halves were measured
-// on this repo's own AVD, 2026-08-31, one commit, one emulator image:
-//
-//   - **Cores.** With `hw.cpu.ncore=1`, a factory reset's relaunch took over 90s to reach
-//     the tab bar (13-second GC pauses in the logcat) and Flow 1 went red on a 60s wait.
-//     Booted with `-cores 6`, the same commit reached the app home in 7s.
-//   - **Memory, which was the harder one to see.** At `-memory 4096` the guest ran ~3.7GB
-//     of 4GB used with ~800MB in swap, and Flow 4's account conversion — a 19MiB
-//     *memory-hard* Argon2id pass, so the worst possible thing to page out — became
-//     **bimodal: ~50s when it fit, four to seven minutes when it did not**, failing about
-//     half of all runs on a build that was working. `/proc/vmstat` told the story:
-//     `pswpout` had passed 1.4M pages (~5.6GB) on an emulator up for an hour. At
-//     `-memory 8192` the same suite passed three runs running with the conversion back at
-//     ~50-80s.
-//
-// The flags override the AVD's stored config without editing it, so this is the harness's
-// own choice rather than a machine someone has to set up right. Lower them only against a
-// measurement: **the right knob here is the device, not the timeouts** — a suite tuned to
-// pass on a starved emulator is one that can no longer tell slow from broken.
+// The emulator's size, overriding its AVD. Lower it only against a measurement;
+// see the README's _Budget the waits for the emulator_.
 const EMULATOR_SIZE = ["-cores", "6", "-memory", "8192"];
 
-/** Linux with no display (a hosted runner): boot without a window, on software GL. */
+/** Linux with no display: boot without a window, on software GL. */
 const EMULATOR_HEADLESS =
   process.platform === "linux" && !process.env.DISPLAY
     ? ["-no-window", "-no-audio", "-gpu", "swiftshader_indirect"]
@@ -113,7 +48,7 @@ const METRO_TIMEOUT_MS = 120_000; // budget for `expo start` → packager-status
 const SHUTDOWN_TIMEOUT_MS = 60_000; // budget for an emulator to leave `adb devices`
 const INSTALL_TIMEOUT_MS = 60 * 60_000; // budget for a cold `expo run:<platform>` build
 
-// Per-platform outcomes. These are aggregated into the process exit code at the end.
+// Per-platform outcomes, aggregated into the exit code at the end.
 export const PASS = "pass"; // device booted, flows green
 export const FAIL = "fail"; // device booted, but a flow went RED or env broken → exit 1
 export const BLOCKED = "blocked"; // not reachable here (no device / no toolchain) → exit 3
@@ -123,15 +58,8 @@ const run = (cmd, args, opts = {}) =>
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const seconds = (since) => `${((Date.now() - since) / 1000).toFixed(0)}s`;
 
-/**
- * Turn Android's window animations off, so a tap cannot land on a moving screen.
- *
- * Three hosted-runner failures were exactly that (`plans/fable-investigation/
- * remote-releases.md` → step 6): a pane still sliding in when Maestro tapped where the
- * element had been. Scale 0 is the standard CI setting and makes every transition instant;
- * the app's own animations are untouched, so nothing under test is skipped. Best-effort:
- * a device that refuses is slower and flakier, not wrong.
- */
+/** Turns Android's window animations off, so a tap never lands on a moving
+ *  screen; best-effort. */
 function stopAnimations(adb, device) {
   const scales = [
     "window_animation_scale",
@@ -150,29 +78,14 @@ function stopAnimations(adb, device) {
   }
 }
 
-// --- shared: which device ---------------------------------------------------------
-//
-// **A run must not depend on which device happened to be first in a list.** Both drivers
-// used to take `[0]` of whatever was booted, so a developer with two emulators up — or a
-// phone plugged in — got a different device (and a different verdict) than the one they
-// had prepared, and the failure named a missing app or a missing screen rather than the
-// wrong device. With more than one candidate there is no defensible pick, so the harness
-// refuses and says how to choose, rather than guessing.
-//
-// `--device=<id>` (or `LEAPSAKE_E2E_DEVICE`) pins one; under `--provision`, where nobody
-// is watching, the extras are shut down instead so an unattended release still runs.
+// Which device: exactly one, pinned by `--device` or the environment, else
+// refused rather than guessed; under --provision the extras shut down.
 
-/** The `--device=`/env pin, if any. Set by {@link runSuite} before anything detects. */
+/** The device pin, if any, set by {@link runSuite} before detection. */
 let devicePin = process.env.LEAPSAKE_E2E_DEVICE?.trim() || null;
 
-/**
- * Reduce the booted candidates to exactly one, or explain why it cannot.
- *
- * `candidates` is `[{ id, label }]`; the pin matches either, case-insensitively, so
- * `--device=Pixel_9` works as well as `--device=emulator-5554`.
- *
- * Returns `{ device }`, or `{ status, detail }` in the shape `detect()` returns.
- */
+/** Reduces the booted `[{ id, label }]` to one `{ device }`, the pin matching
+ *  either field, or a `{ status, detail }` saying why not. */
 function resolveOneDevice({ candidates, shutdownExtras, provision, hint }) {
   const pinned = devicePin
     ? candidates.filter(
@@ -191,8 +104,7 @@ function resolveOneDevice({ candidates, shutdownExtras, provision, hint }) {
   }
   if (pinned.length === 1) return { device: pinned[0].id };
 
-  // More than one, and nothing to pick by. Under --provision, keep the first and shut the
-  // rest down — that is the unattended path, and a release that stops to ask is no use.
+  // Unattended, keep the first and shut the rest down rather than stop to ask.
   if (provision) {
     const [keep, ...extras] = pinned;
     for (const extra of extras) {
@@ -213,10 +125,9 @@ function resolveOneDevice({ candidates, shutdownExtras, provision, hint }) {
   };
 }
 
-// --- shared: maestro + Metro -----------------------------------------------------
+// Shared: maestro and Metro
 
-// `maestro` from its default install dir (~/.maestro/bin — the installer adds this to
-// PATH only in login shells, which a `pnpm` subprocess may not be), else PATH.
+// `~/.maestro/bin` first, as only login shells get it on PATH.
 function resolveMaestro() {
   const p = join(homedir(), ".maestro", "bin", "maestro");
   if (existsSync(p)) return p;
@@ -226,9 +137,8 @@ const maestro = resolveMaestro();
 
 const maestroPresent = () => run(maestro, ["--version"]).status === 0;
 
-// Metro must be serving (the dev client loads its JS bundle from it). The test-only routes
-// some flows use are absent from a store build — a running Metro implies dev. Memoized: the same host Metro serves every platform, so we probe it once
-// per run.
+// Whether Metro serves the dev client, probed once a run: one host Metro serves
+// every platform.
 let metroCache;
 async function metroReachable() {
   if (metroCache !== undefined) return metroCache;
@@ -241,14 +151,7 @@ async function metroReachable() {
   return metroCache;
 }
 
-/**
- * Run one Maestro flow against a specific device, returning its exit code (0 = green).
- *
- * Both platforms select the device with the top-level `--udid <device>` flag — required
- * here because with an Android emulator *and* an iOS sim booted an un-targeted
- * `maestro test` is ambiguous.
- */
-/** The text and ids on screen in a Maestro hierarchy, for a failure that must say what it saw. */
+/** The text and ids in a Maestro hierarchy, for a failure to report. */
 export function screenLabels(tree, limit = 40) {
   const seen = new Set();
   const walk = (node) => {
@@ -272,15 +175,8 @@ function onScreen(device) {
   }
 }
 
-/**
- * Wait until Maestro can open a session against `device`, or say it never could.
- *
- * Maestro installs and launches its own UITest runner the first time it drives a simulator,
- * and on a hosted runner straight off a cold build that has failed outright —
- * `MaestroSessionManager.newSession`, twice, always on the job that built (2026-09-20). The
- * first *flow* then carries the blame for it. A cheap `hierarchy` call is the same handshake,
- * so doing it here makes the wait explicit and the failure honest.
- */
+/** Waits until Maestro can open a session on `device`, so the first flow does
+ *  not take the blame for Maestro's own setup. */
 async function maestroReady(device, timeoutMs = 120_000) {
   const started = Date.now();
   let last = "";
@@ -313,51 +209,21 @@ function runMaestroFlow(device, file) {
   return flow.status ?? 1;
 }
 
-// --- shared: provisioning (--provision) ------------------------------------------
-//
-// Everything below exists so that `pnpm release` can be ONE command. The rest of this
-// file deliberately assumes a prepared environment and fails with the command to run;
-// under `--provision` it runs those commands itself instead.
-//
-// It stays opt-in because the two callers want opposite things. A developer in the inner
-// loop already has a simulator up and a dev client installed, and would not thank a test
-// run for booting a second one or spending ten minutes on a native rebuild — for them the
-// "here is the command" failure is the faster answer. A release, and a CI runner, start
-// from nothing and must not need a human. So: `pnpm test:native` behaves as it always has,
-// and `pnpm release` passes `--provision`.
-//
-// **What it starts, it stops — and only what it started.** A Metro this script spawned is
-// killed on the way out; a Metro that was already serving is left alone, because it is
-// almost certainly the developer's own and killing it would be a surprising thing for a
-// test run to do.
-//
-// Devices used to be the other way round — booting one is slow, so they were left booted
-// and reported. They no longer are, and only under `--provision`, where the harness is the
-// one that booted them: each platform's device is shut down as soon as its flows are done,
-// so a provisioned run is boot → run → shut down and owes nothing to the run before it.
-// Two device VMs on one Mac compete for the cores and RAM that the suite's heaviest step
-// is least able to share (the measurement is on `EMULATOR_SIZE` and `runSuite`'s loop).
+// Provisioning: under --provision the harness runs what it would otherwise
+// name, and stops only what it started. See the maestro README.
 
-/** The Metro we spawned, if we spawned one. Never a Metro that was already serving. */
+/** The Metro we spawned, if any; never one that was already serving. */
 let metroStarted = null;
 
-/**
- * Ensure Metro is serving, starting it if it is not.
- *
- * The readiness signal is the same `/status` probe the non-provisioning path uses, polled
- * rather than assumed: `expo start` returns long before the packager answers, so spawning
- * it and proceeding would just move the failure to the next step.
- */
+/** Starts Metro unless it is serving, then polls `/status`, since `expo start`
+ *  returns long before the packager answers. */
 async function ensureMetro() {
-  // Drop a memoized *negative*: `expo run:<platform>` starts a dev server of its own, so
-  // a `false` probed before the install step may no longer be true. A memoized `true`
-  // cannot go stale in the other direction within one run.
+  // A memoized `false` may be stale: `expo run` starts a dev server of its own.
   if (metroCache !== true) metroCache = undefined;
   if (await metroReachable()) return { ok: true };
 
   console.log("  starting Metro (expo start --dev-client)…");
-  // detached so it survives this process and can be signalled as a group; Expo spawns
-  // workers that would outlive a bare kill of the parent.
+  // Detached, so its group can be signalled: Expo's workers outlive it.
   const child = spawn("pnpm", ["--filter", "@leapsake/mobile", "dev"], {
     cwd: ROOT,
     detached: true,
@@ -385,35 +251,22 @@ async function ensureMetro() {
   };
 }
 
-/** Kill a Metro this script started. A pre-existing one is never touched. */
+/** Kills a Metro this script started, never one that was already serving. */
 function stopMetroIfStarted() {
   if (!metroStarted) return;
   const { pid } = metroStarted;
   metroStarted = null;
-  // Negative pid signals the whole process group — see `detached` above.
+  // A negative pid signals the whole process group.
   try {
     process.kill(-pid, "SIGTERM");
     console.log("\n  stopped the Metro this run started");
   } catch {
-    // Already gone, which is the outcome we wanted anyway.
+    // Already gone, which is what we wanted.
   }
 }
 
-/**
- * Build + install the dev client with `expo run:<platform>`, targeting one device.
- *
- * `--device` is passed explicitly rather than letting Expo choose: with more than one
- * simulator booted it prompts interactively, which would hang a release. It takes the name
- * *Expo* knows the device by, which on Android is not the adb serial — see
- * `androidExpoName`. Output is streamed because this is the slowest step by an order of
- * magnitude (a full native build) and a silent ten minutes is indistinguishable from a
- * hang.
- *
- * On iOS this prebuilds a *debug* `apps/mobile/ios/`. That is harmless: the release's own
- * `build()` deletes the directory and prebuilds again for the Release archive, and the
- * gate runs to completion before shipping starts — so nothing from here can reach the
- * artifact.
- */
+/** Builds and installs the dev client on one named device, streaming output;
+ *  the release prebuilds `ios/` afresh afterwards. */
 function installDevClient(platform, device) {
   console.log(
     `  building + installing the dev client (expo run:${platform}) — several minutes…`,
@@ -429,7 +282,7 @@ function installDevClient(platform, device) {
       `run:${platform}`,
       "--device",
       device,
-      // Without it, `expo run` starts its own Metro when none is up and never exits.
+      // Or `expo run` starts its own Metro and never exits.
       "--no-bundler",
     ],
     { cwd: ROOT, stdio: "inherit", timeout: INSTALL_TIMEOUT_MS },
@@ -443,9 +296,9 @@ function installDevClient(platform, device) {
   return built.status === 0;
 }
 
-// --- android driver --------------------------------------------------------------
+// Android driver
 
-// `adb` from the Android SDK (ANDROID_HOME / ANDROID_SDK_ROOT), else PATH.
+// `adb` from ANDROID_HOME or ANDROID_SDK_ROOT, else PATH.
 function resolveAdb() {
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
   if (sdk) {
@@ -466,20 +319,8 @@ const bootedSerials = (adb) =>
 /** The first attached, fully-booted device serial, or undefined. */
 const bootedSerial = (adb) => bootedSerials(adb)[0];
 
-/**
- * What `expo run:android --device` calls this device — which is **not** its adb serial.
- *
- * Expo resolves the flag against its own device list, and that list names a booted
- * emulator by its **AVD** (`adb emu avd name`), a physical device by its `model:` prop.
- * Passing `emulator-5554` therefore fails with "Could not find device with name:
- * emulator-5554" *while that emulator is plainly attached* — which reads like a broken
- * emulator rather than a wrong flag. Maestro is the other way round and wants the serial,
- * so the two identifiers coexist on purpose: `ctx.device` is the serial everything else
- * uses, and this is the one place that needs Expo's name for it.
- *
- * Falls back to the serial rather than throwing: if the mapping ever fails, letting Expo
- * report what it could not find beats inventing a second error message here.
- */
+/** What `expo run:android --device` calls a serial: an emulator's AVD, or a
+ *  phone's model; the serial itself if unmapped. */
 function androidExpoName(adb, serial) {
   if (serial.startsWith("emulator-")) {
     const name = run(adb, ["-s", serial, "emu", "avd", "name"])
@@ -494,7 +335,7 @@ function androidExpoName(adb, serial) {
   return model || serial;
 }
 
-/** `emulator` from the SDK, else PATH — the same resolution order as `adb`. */
+/** `emulator` from the SDK, else PATH, as `adb` resolves. */
 function resolveEmulator() {
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
   if (sdk) {
@@ -504,27 +345,8 @@ function resolveEmulator() {
   return "emulator";
 }
 
-// The three expo-dev-menu settings a *fresh install* gets wrong, all of which break flows
-// in ways that do not look like a harness problem:
-//
-//   - `showFab` — the floating "Tools" bubble. It is an overlay, so a `tapOn` under it
-//     reports COMPLETED while the dev menu opens instead, and the flow fails several steps
-//     later on an unrelated assertion. Confirmed on the retired `global-nav.yaml` (case 3's
-//     `search-here-people`) and suspected on the retired `staged-gift-occasions.yaml`.
-//   - `isOnboardingFinished` — the one-time "This is the developer menu" panel, which
-//     covers the app on first launch after an install.
-//   - `showsAtLaunch` — the dev menu opening over the app on every launch.
-//
-// The dev client reads these from SharedPreferences at start, so they are settable over
-// `adb run-as` (debuggable builds only — which a dev client always is) *while the app is
-// stopped*: a running process holds them in memory and would write its copy back over ours.
-//
-// `mkdir -p` first, because under `--provision` this runs immediately after a **fresh
-// install**, and `shared_prefs/` is created by the app's first launch rather than by the
-// installer. Without it the redirect fails with "No such file or directory", the run
-// continues with the Tools bubble still on, and the flow that dies is several steps later
-// somewhere unrelated — the most expensive trap in this harness, arriving through its own
-// mitigation.
+// The three dev-menu prefs a fresh install gets wrong, written with the app
+// stopped; see the maestro README on the floating menu button.
 const DEV_MENU_PREFS = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
     <boolean name="isOnboardingFinished" value="true" />
@@ -535,8 +357,7 @@ const DEV_MENU_PREFS = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 const DEV_MENU_PREFS_PATH =
   "shared_prefs/expo.modules.devmenu.sharedpreferences.xml";
 
-// Best-effort: a failure here costs flakiness, not correctness, so it warns rather than
-// failing the run — the flows themselves are still the gate.
+// Best-effort: a failure costs flakiness, not correctness, so it only warns.
 function settleDevMenu(adb, device) {
   run(adb, ["-s", device, "shell", "am", "force-stop", APP_ID]);
   const wrote = run(
@@ -561,21 +382,8 @@ function settleDevMenu(adb, device) {
   }
 }
 
-/**
- * Every installed package that claims `leapsake://`.
- *
- * More than one is an environment fault with a distinctive failure: Android answers the
- * deep link with an **"Open with" chooser** listing two apps called Leapsake, the chooser
- * sits over everything, and the flow fails on whatever it asserted next — `tab-search is
- * not visible`, which reads as a broken app or a wrong selector. It cost a session on the
- * first Android E2E run, where the second claimant was this repo's own **previous package
- * name** (`net.leapsake.mobile`, renamed to `com.leapsake.app`) still installed on the
- * emulator from before the rename.
- *
- * Detected rather than worked around, because there is nothing to work around: Maestro's
- * `openLink` cannot name a package, so a device with two claimants cannot run these flows
- * at all. What the harness owes is a failure that says so.
- */
+/** Every installed package claiming `leapsake://`; more than one raises a
+ *  chooser no flow can get past. */
 function schemeClaimants(adb, device) {
   const out = run(adb, [
     "-s",
@@ -603,7 +411,7 @@ const androidDriver = {
   key: "android",
   label: "Android",
 
-  // { status, detail } — a terminal blocked/fail result, or { device } to proceed.
+  // A terminal { status, detail }, or { device } to proceed.
   detect(provision) {
     const adb = resolveAdb();
     if (run(adb, ["version"]).status !== 0) {
@@ -627,13 +435,9 @@ const androidDriver = {
           "    pnpm --filter @leapsake/mobile android",
       };
     }
-    // Exactly one, or say why not. `adb devices` lists a plugged-in phone alongside every
-    // emulator, so this is not a rare state — and it names them by AVD/model, which is
-    // what a developer recognises, not by serial alone.
+    // Exactly one, named by AVD or model as a developer knows them.
     const chosen = resolveOneDevice({
-      // Emulators first, so that when `--provision` has to keep one unattended it keeps
-      // one it is also allowed to have booted — and never a plugged-in phone, which it
-      // could not shut down and should not be flashing test data onto.
+      // Emulators first, so --provision never keeps a plugged-in phone.
       candidates: serials
         .slice()
         .sort(
@@ -673,10 +477,8 @@ const androidDriver = {
     `the dev-client build (${APP_ID}) is not installed. Build + install it with:\n` +
     "    pnpm --filter @leapsake/mobile android",
 
-  // --provision: boot the first defined AVD and wait for Android to finish coming up.
-  // `sys.boot_completed` is the signal rather than adb's mere presence — the daemon
-  // answers well before the framework is up, and installing into a half-booted system
-  // fails in ways that read like a build error.
+  // Boots the first AVD and waits for `sys.boot_completed`: adb answers long
+  // before the framework is up.
   async boot() {
     const emulator = resolveEmulator();
     const list = run(emulator, ["-list-avds"]);
@@ -688,8 +490,7 @@ const androidDriver = {
           "ANDROID_HOME (Android Studio → SDK Manager).",
       };
     }
-    // `-list-avds` prints one name per line, but the binary also emits the odd INFO
-    // banner; an AVD name has no whitespace, which is enough to tell them apart.
+    // An AVD name has no whitespace, unlike the odd INFO banner.
     const avd = list.stdout
       .split("\n")
       .map((l) => l.trim())
@@ -703,7 +504,7 @@ const androidDriver = {
       };
     }
 
-    // `-wipe-data` factory-resets the AVD, so every provisioned run starts as a CI runner's does.
+    // `-wipe-data`, so every provisioned run starts as a CI runner's does.
     console.log(`  wiping and booting the Android emulator (${avd})…`);
     const child = spawn(
       emulator,
@@ -746,13 +547,8 @@ const androidDriver = {
   install: (ctx) =>
     installDevClient("android", androidExpoName(ctx.adb, ctx.device)),
 
-  // `pm clear` erases the app's whole data dir — every store, the roster, the doors, and
-  // the SharedPreferences that hold expo-secure-store's ciphertext (the AndroidKeyStore
-  // key survives, but with nothing left to decrypt it is inert). It is exactly the wipe
-  // the flows' in-app factory reset performs, done from outside, so it works on an app too
-  // wedged to drive — and it takes the dev-menu prefs with it, which is why `prepare`
-  // re-settles them straight after (see `settleDevMenu`, and the ordering note in
-  // `runPlatform`).
+  // `pm clear` erases every store, door and secret, and the dev-menu prefs,
+  // which `prepare` writes back.
   wipe(ctx) {
     const cleared = run(ctx.adb, [
       "-s",
@@ -773,12 +569,10 @@ const androidDriver = {
         };
   },
 
-  // Nothing to check: the AutoFill preflight guards an iOS-only system behaviour.
+  // The AutoFill preflight is iOS-only.
   preflight: () => ({ ok: true }),
 
-  // What Android's crash buffer holds for our package, for a flow that found the app gone.
-  // The head of a tombstone, not its tail: the signal and the abort message say what died,
-  // where 40 frames of `libreactnative.so` do not.
+  // The head of our tombstone, which says what died; the tail doesn't.
   crashes(ctx) {
     const out =
       run(ctx.adb, [
@@ -792,8 +586,7 @@ const androidDriver = {
         "400",
       ]).stdout ?? "";
     const lines = out.split("\n").filter((line) =>
-      // `#00 pc …` frames carry a logcat prefix, so match the frame anywhere in the line —
-      // the first few name the library that died, which is the whole point of reading this.
+      // Frames carry a logcat prefix, so match anywhere in the line.
       /signal \d|Abort message|FATAL EXCEPTION|ANR in|Cmdline|#\d\d pc /.test(
         line,
       ),
@@ -806,7 +599,7 @@ const androidDriver = {
 
   isVirtual: (ctx) => ctx.device.startsWith("emulator-"),
 
-  /** `emu kill` returns before the emulator is gone; wait, so the next tier boots its own. */
+  /** Waits for `emu kill` to finish, so the next tier boots its own. */
   async shutdown(ctx) {
     run(ctx.adb, ["-s", ctx.device, "emu", "kill"]);
     const started = Date.now();
@@ -819,12 +612,10 @@ const androidDriver = {
     );
   },
 
-  // Load the JS bundle and wait for the app home. On Android a deep link does this
-  // deterministically (no SpringBoard-style confirm), so we drive it over adb here rather
-  // than through Maestro. Returns { ok, detail }.
+  // Loads the bundle over adb and waits for home; `{ ok, detail }`.
   async prepare(ctx) {
     const { adb, device } = ctx;
-    // Exactly one app may answer `leapsake://`, or the chooser eats every deep link.
+    // Exactly one app may answer `leapsake://`.
     const claimants = schemeClaimants(adb, device);
     const strangers = claimants.filter((name) => name !== APP_ID);
     if (strangers.length > 0) {
@@ -839,17 +630,11 @@ const androidDriver = {
             .join("\n"),
       };
     }
-    // Say so when the device is one this suite cannot be trusted on. `--provision` boots
-    // with EMULATOR_SIZE, but an emulator someone else started — Android Studio, or
-    // `expo run:android` — gets whatever its AVD config says, and Android Studio's default
-    // is one core. That is the shape the reds of 2026-08-31 had: every flow timing out a
-    // step or two further along, none of them pointing at the cause. A warning, not a
-    // failure — the run may well still pass, and refusing to try would be worse.
+    // Warn on an undersized emulator someone else booted; it may still pass.
     const cores = Number(
       run(adb, ["-s", device, "shell", "nproc"]).stdout?.trim(),
     );
-    // `> 0` as well as `< 4`: a device without `nproc` answers with nothing, and `Number("")`
-    // is 0 — which would warn about a machine we simply could not measure.
+    // `> 0` too: no `nproc` answers "", which is 0.
     if (Number.isFinite(cores) && cores > 0 && cores < 4) {
       console.warn(
         `  ! this emulator has ${cores} CPU core${cores === 1 ? "" : "s"} — a dev client ` +
@@ -859,7 +644,7 @@ const androidDriver = {
           "    or raise the AVD's cores in Android Studio → Device Manager → Edit.",
       );
     }
-    // Reverse-tunnel so the emulator reaches the host's Metro at localhost:8081.
+    // So the emulator reaches the host's Metro at localhost:8081.
     run(adb, [
       "-s",
       device,
@@ -867,13 +652,11 @@ const androidDriver = {
       `tcp:${METRO_PORT}`,
       `tcp:${METRO_PORT}`,
     ]);
-    // Both settles also cover a device someone else booted, where `boot` never ran.
+    // Also covers a device someone else booted.
     stopAnimations(adb, device);
-    // Put the dev menu in a state that does not fight the flows. This force-stops the app,
-    // so it has to come before the deep link that launches it.
+    // Force-stops the app, so it comes before the launching deep link.
     settleDevMenu(adb, device);
-    // Load the JS bundle by pointing the dev client at Metro. A cold launch alone opens
-    // the expo-dev-launcher; this deep link makes it load the app.
+    // A cold launch opens the launcher; the deep link loads the app.
     console.log("  loading JS bundle into the dev client…");
     run(adb, [
       "-s",
@@ -887,11 +670,8 @@ const androidDriver = {
       DEV_CLIENT_LINK,
       APP_ID,
     ]);
-    // Wait for the app's home screen, keyed on the Search tab's `testID` — absent from the
-    // dev-launcher, which only has Home/Updates/Settings. This absorbs the first Metro
-    // bundle build. It is the same signal `ios-prepare.yaml` waits for, deliberately: this
-    // used to key on a "People" tab, which increment 09 removed, and the runner then spun
-    // the full timeout on an app that was in fact up. An id survives a label change.
+    // Home is the Search tab's `testID`, which the launcher lacks, as in
+    // `ios-prepare.yaml`; an id survives a label change.
     const started = Date.now();
     let dump = "";
     while (Date.now() - started < HOME_TIMEOUT_MS) {
@@ -904,7 +684,7 @@ const androidDriver = {
         );
         return { ok: true };
       }
-      // An "isn't responding" dialog covers the app until answered; Wait lets the process recover.
+      // Tap Wait on an "isn't responding" dialog, so the app can recover.
       const wait = anrWaitTap(dump);
       if (wait) {
         console.log(`  ! dismissed "${wait.title}" with Wait`);
@@ -924,10 +704,7 @@ const androidDriver = {
   },
 };
 
-/**
- * What an iOS `.ips` crash report says died: the signal, the abort message, and the top
- * frames of the exception backtrace and the crashed thread, each as `image symbol`.
- */
+/** What an iOS `.ips` report says died: signal, abort, top frames. */
 export function ipsSummary(text, depth = 12) {
   const newline = text.indexOf("\n");
   let body;
@@ -966,7 +743,7 @@ export function ipsSummary(text, depth = 12) {
   return lines;
 }
 
-/** Where to tap Wait on an Android "isn't responding" dialog in a `uiautomator dump`, or null. */
+/** Where Wait is on an "isn't responding" dialog in a dump, or null. */
 export function anrWaitTap(dump) {
   const node = dump.match(
     /<node\b[^>]*resource-id="android:id\/aerr_wait"[^>]*>/,
@@ -985,7 +762,7 @@ export function anrWaitTap(dump) {
   };
 }
 
-/** The text, descriptions and ids in a `uiautomator dump`, for a failure that must say what it saw. */
+/** The text and ids in a `uiautomator dump`, for a failure to report. */
 export function uiautomatorLabels(dump, limit = 40) {
   const seen = new Set();
   for (const [, key, value] of dump.matchAll(
@@ -996,37 +773,14 @@ export function uiautomatorLabels(dump, limit = 40) {
   return [...seen].slice(0, limit);
 }
 
-// --- ios driver ------------------------------------------------------------------
+// iOS driver
 
-// iOS has the same floating dev-menu button as Android and it bites the same way — an
-// overlay that turns a `tapOn` underneath it into "the dev menu opened instead". It cost
-// the retired `staged-gift-occasions.yaml` its whole run: the button's stored position sat over the add
-// screen's holiday row, so `stage-christmas`'s `tapOn: below: "Add a holiday"` hit the
-// button and the flow died three cases in. Hiding it turned the same unmodified flow green
-// on all five cases.
-//
-// The key is read through UserDefaults (`expo-dev-menu`'s DevMenuPreferences.swift), so
-// `simctl spawn defaults write` sets it — while the app is stopped, since a running process
-// would write its own copy back over ours. Best-effort, like the Android side: a failure
-// costs flakiness, not correctness.
-//
-// The build ALSO carries this key in Info.plist (`ios.infoPlist` in app.json), which is the
-// stronger half: it survives a reinstall and covers running a flow directly, which bypasses
-// this script entirely. This step stays because Info.plist only supplies a *registered
-// default* — an explicit UserDefaults value, which any dev who has ever toggled the button
-// by hand now has, silently outranks it.
 /** The model CI measures on; `boot` warns when it runs on anything else. */
 const IOS_SIMULATOR =
   process.env.LEAPSAKE_IOS_SIMULATOR?.trim() || "iPhone 17 Pro";
 
-/**
- * Reduce Motion and a frozen status bar, the iOS half of what `stopAnimations` does.
- *
- * Reduce Motion replaces the slide transitions a tap can land in the middle of; the status
- * bar override stops a changing clock, carrier and battery from walking through every
- * `on screen:` line (and any assertion that reads the whole screen). Best-effort, like the
- * dev-menu settle: a simulator that refuses is flakier, not wrong.
- */
+/** Reduce Motion and a frozen status bar, iOS's `stopAnimations`, so no
+ *  transition or clock moves under a flow; best-effort. */
 function settleSimulator(device) {
   const reduced = run("xcrun", [
     "simctl",
@@ -1063,8 +817,8 @@ function settleSimulator(device) {
 }
 
 const IOS_FAB_KEY = "EXDevMenuShowFloatingActionButton";
-// The dev menu opens itself at launch on a simulator that has never run it, onboarding sheet
-// and all, and covers whatever the flow was about to drive (hosted runners, 2026-09-19).
+// Written with the app stopped: a fresh simulator's dev menu opens itself over
+// the app, and an explicit value outranks the build's Info.plist default.
 const IOS_DEV_MENU_KEYS = [
   [IOS_FAB_KEY, "false"],
   ["EXDevMenuShowsAtLaunch", "false"],
@@ -1095,16 +849,8 @@ function settleDevMenuIos(device) {
   }
 }
 
-/**
- * The app's **data** container on a simulator — where its stores, doors and roster live.
- *
- * Two callers want the same directory for opposite reasons: `wipe` deletes what is under
- * it, and `appDataRoot` reads it. Sharing one command is what keeps those two honest about
- * each other — the directory a run erases is the directory its custody checks then read.
- *
- * ⚠️ The `data` argument is load-bearing. Without it `get_app_container` returns the
- * *bundle*, which is the installed app, not its state.
- */
+/** The app's data container, shared by `wipe` and `appDataRoot` so both mean
+ *  one directory. ⚠️ Without `data`, it is the bundle. */
 function iosContainer(device) {
   const container = run("xcrun", [
     "simctl",
@@ -1129,8 +875,7 @@ const iosDriver = {
   label: "iOS",
 
   detect(provision) {
-    // `xcrun simctl` gates the whole iOS path (Xcode command-line tools). Absent on
-    // non-macOS hosts and Macs without Xcode → the iOS tier is blocked here, not failed.
+    // No `xcrun simctl` means no Xcode tools: blocked, not failed.
     if (run("xcrun", ["simctl", "help"]).status !== 0) {
       return {
         status: BLOCKED,
@@ -1139,8 +884,7 @@ const iosDriver = {
           "(macOS only). Install Xcode, then `xcode-select --install`.",
       };
     }
-    // A booted simulator must exist. `simctl list devices booted` prints one line per
-    // booted sim: "    <name> (<UDID>) (Booted)".
+    // One line per booted sim: "    <name> (<UDID>) (Booted)".
     const booted = run("xcrun", ["simctl", "list", "devices", "booted"]).stdout;
     const candidates = booted
       .split("\n")
@@ -1168,7 +912,7 @@ const iosDriver = {
     return { device: chosen.device };
   },
 
-  // Installed iff the app has a data container on the sim.
+  // Installed exactly when the app has a data container.
   installed(ctx) {
     return (
       run("xcrun", ["simctl", "get_app_container", ctx.device, APP_ID])
@@ -1180,8 +924,7 @@ const iosDriver = {
     `the dev-client build (${APP_ID}) is not installed on the simulator. Build + install ` +
     "it with:\n    pnpm --filter @leapsake/mobile ios",
 
-  // --provision: boot the first available iPhone simulator. An iPhone specifically —
-  // the flows are phone-shaped, and `simctl list` will happily offer an iPad or a Watch.
+  // Boots an iPhone, as the flows are phone-shaped.
   async boot() {
     const available = run("xcrun", [
       "simctl",
@@ -1195,8 +938,7 @@ const iosDriver = {
         line.match(/^\s+(iPhone[^(]*)\(([0-9A-Fa-f-]{36})\) \(Shutdown\)/),
       )
       .filter(Boolean);
-    // The pinned model, or whatever iPhone exists — a runner image swaps its default
-    // iPhone from under us, and a different screen is a different set of what is on it.
+    // The pinned model, else any iPhone: a runner image swaps its default.
     const match =
       candidates.find(([, name]) => name.trim() === IOS_SIMULATOR) ??
       candidates[0];
@@ -1216,7 +958,7 @@ const iosDriver = {
       );
     }
 
-    // Every provisioned run starts on a factory-fresh simulator, as a CI runner's is.
+    // Erased, so every provisioned run starts as a CI runner's does.
     console.log(`  erasing and booting the iOS simulator (${name.trim()})…`);
     if (run("xcrun", ["simctl", "erase", udid]).status !== 0) {
       return { ok: false, detail: `could not erase the simulator ${udid}` };
@@ -1224,10 +966,9 @@ const iosDriver = {
     if (run("xcrun", ["simctl", "boot", udid]).status !== 0) {
       return { ok: false, detail: `could not boot the simulator ${udid}` };
     }
-    // Bring the Simulator UI up: Maestro drives the window, and a headless-booted device
-    // has no window to drive.
+    // Maestro drives the Simulator window, which a headless boot lacks.
     run("open", ["-a", "Simulator"]);
-    // `bootstatus -b` blocks until the device is all the way up, so no poll is needed.
+    // `bootstatus -b` blocks until the device is up.
     if (run("xcrun", ["simctl", "bootstatus", udid, "-b"]).status !== 0) {
       return {
         ok: false,
@@ -1241,7 +982,7 @@ const iosDriver = {
 
   install: (ctx) => installDevClient("ios", ctx.device),
 
-  // The newest crash report naming our bundle id, if the app died in the last ten minutes.
+  // The newest crash report for our bundle id from the last ten minutes.
   crashes() {
     const dir = join(homedir(), "Library", "Logs", "DiagnosticReports");
     if (!existsSync(dir)) return "";
@@ -1255,34 +996,8 @@ const iosDriver = {
     return [recent, ...ipsSummary(readFileSync(recent, "utf8"))].join("\n");
   },
 
-  /**
-   * The same wipe as Android's `pm clear`, assembled by hand — because iOS has no
-   * per-app data reset, and every blunt instrument that *looks* like one takes too much.
-   *
-   * `simctl uninstall` and Maestro's `clearState` both delete the whole data container,
-   * and `Library/Preferences/com.leapsake.app.plist` is in it. That plist holds the
-   * dev-menu settings `settleDevMenuIos` writes and `expo.devlauncher.recentlyopenedapps`
-   * — the URL a *cold* launch reconnects to on its own, which is what
-   * `subflows/factory-reset.yaml` relies on when it relaunches mid-flow. (`prepare` no
-   * longer depends on it: it deep-links to localhost explicitly. But the deep link is
-   * also what keeps that memory pointing at localhost, and throwing it away would put a
-   * dev-launcher screen in the middle of a flow with nothing to drive it past.)
-   *
-   * So this deletes the two things that actually hold app state and nothing else:
-   *
-   *   - **`Documents/SQLite/`** — every store, its doors, and the account roster. Verified
-   *     against a real container: `leapsake-roster.db` and `stores/<accountId>/{leapsake,
-   *     doors}.db` are all of it.
-   *   - **the simulator keychain** — where expo-secure-store keeps this device's id, the
-   *     database key and the rest of `KEYSTORE_SECRET_IDS`. `simctl keychain reset` is
-   *     device-wide, which on a test simulator costs nothing and is the only handle
-   *     offered. Leaving it out would be worse than not wiping at all: a store-less device
-   *     that still holds a database key is a state a first run cannot otherwise reach, and
-   *     it is the one Flow 1's "Unlock your data" assertion is about.
-   *
-   * The app must not be running — a live process would write its state back out — hence
-   * the terminate, the same one `settleDevMenuIos` does for the same reason.
-   */
+  /** `pm clear` by hand: `Documents/SQLite/` and the keychain, with the app
+   *  stopped. See the maestro README on the wipe. */
   wipe(ctx) {
     run("xcrun", ["simctl", "terminate", ctx.device, APP_ID]);
     const container = iosContainer(ctx.device);
@@ -1304,15 +1019,8 @@ const iosDriver = {
     return { ok: true };
   },
 
-  /**
-   * Where the app keeps every store, its doors and the account roster — what the
-   * out-of-band custody assertions read (`runCustody`, and `lib/custody-assertions.mjs`).
-   *
-   * **Android has no counterpart on purpose.** Its `wipe` is `pm clear`, which gives back
-   * no path at all, so there is nothing to read from there today; the absence of this
-   * method *is* how that platform declines the check, stated once, here, rather than
-   * re-tested at the call site.
-   */
+  /** Where the stores, doors and roster live, for the custody checks; Android
+   *  has none, which is how it declines them. */
   appDataRoot(ctx) {
     const container = iosContainer(ctx.device);
     return container.ok
@@ -1320,24 +1028,8 @@ const iosDriver = {
       : container;
   },
 
-  /**
-   * Refuse to run the catalog while iOS AutoFill would eat the passwords it types.
-   *
-   * With **Settings → AutoFill & Passwords** on, iOS covers every
-   * `textContentType="newPassword"` field with its "Automatic Strong Password" view and
-   * swallows the keystrokes. Flow 4 then submits a short password and reddens on the
-   * password *length* — a red that names the form and not the cause, 22 minutes into a
-   * suite. This turns that into a ten-second failure carrying the real reason.
-   *
-   * **The toggle is machine-local and it comes back.** A `simctl erase` resets it
-   * (2026-09-17, which cost a `pnpm release beta`), and so did installing the iOS 26.5
-   * runtime (2026-09-08). It is in no preference plist, so the Settings UI is the only
-   * reader — hence a Maestro flow rather than a `defaults read`.
-   *
-   * Under `--provision` the flow turns it off rather than only reporting it, the same
-   * bargain the rest of provisioning makes: the harness owns the device, so a precondition
-   * it can satisfy itself is not a verdict.
-   */
+  /** Refuses the catalog while AutoFill would eat typed passwords, or under
+   *  --provision turns it off. See the maestro README. */
   preflight(ctx, provision) {
     const check = run(maestro, [
       "--udid",
@@ -1376,35 +1068,12 @@ const iosDriver = {
 
   isVirtual: () => true,
 
-  /**
-   * Load the JS bundle the same way Android does — by deep link — and then wait for home.
-   *
-   * **This used to reconnect through the dev-launcher's "Continue", and that was the most
-   * machine-dependent thing in the harness.** "Continue" reopens the *last dev server this
-   * simulator loaded*, which expo-dev-launcher records as an absolute URL —
-   * `http://192.168.1.16:8081`, the Mac's LAN address at the time. Come back on a new DHCP
-   * lease and that address answers nothing: the dev client falls back to showing the
-   * launcher, no "Continue" is on screen at all, and `prepare` spends its whole budget
-   * before failing with "the app's home screen never appeared". Nothing in that failure
-   * points at the machine's IP having changed, and it recurs every time the network does.
-   * Caught 2026-08-31 with `.16` and `.42` remembered and the host on `.9`.
-   *
-   * `DEV_CLIENT_LINK` names `localhost`, which a simulator resolves to the host, so this
-   * is the same address on every machine and every network — the property that made the
-   * Android path stable. **The old blocker is gone**: an `xcrun simctl openurl` deep link
-   * was rejected here on 2026-07-18 (a SpringBoard "Open in Leapsake?" confirm, and the
-   * launcher ignoring the `?url=` behind it); re-verified 2026-08-31 on the same
-   * simulator, it now launches the app straight onto home with no confirm.
-   *
-   * The Maestro helper still runs after it — it clears whatever overlay a dev client can
-   * still raise and waits for the Search tab, so its exit 0 is the "home reached" signal.
-   * What it no longer does is `launchApp`, which force-stops first and would throw away
-   * the load this link just performed.
-   */
+  /** Loads the bundle by the localhost deep link, then lets `ios-prepare.yaml`
+   *  clear overlays and wait for home; see the maestro README. */
   async prepare(ctx) {
     const ready = await maestroReady(ctx.device);
     if (!ready.ok) return ready;
-    // Also covers a simulator someone else booted, where `boot` never ran.
+    // Also covers a simulator someone else booted.
     settleSimulator(ctx.device);
     settleDevMenuIos(ctx.device);
     console.log("  loading JS bundle into the dev client…");
@@ -1424,24 +1093,11 @@ const iosDriver = {
 
 const DRIVERS = { android: androidDriver, ios: iosDriver };
 
-// --- run one platform ------------------------------------------------------------
+// Run one platform
 
 /**
- * A flow's **out-of-band half**: read the app's own bytes and say whether they match what
- * it just claimed on screen.
- *
- * Why any of this exists: every Maestro assertion reads the accessibility tree, so a build
- * that rendered "your data is encrypted" and encrypted nothing would pass the entire suite
- * green. A flow opts in by carrying a `custody` function
- * (`scripts/test-e2e.mjs`); the checks themselves live in `lib/custody-assertions.mjs`,
- * away from the plumbing and where they can be tested without a device.
- *
- * **A platform that cannot answer says so.** Without an `appDataRoot` this prints and
- * returns green — never a silent skip (principle #6: not reachable here is a thing to
- * report), and never a red, because Android's inability to hand over a container path is
- * not a defect in the build under test.
- *
- * @returns `undefined` when the bytes agree, else the report to fail the platform with.
+ * A flow's out-of-band custody check: `undefined` when the app's bytes agree
+ * with its screen, else the failure; a platform with no path says so.
  */
 function runCustody(driver, ctx, flow) {
   if (!flow.custody) return undefined;
@@ -1463,17 +1119,10 @@ function runCustody(driver, ctx, flow) {
   return failure;
 }
 
-/**
- * Drive a single platform end to end, returning { key, label, status, detail }.
- *
- * Steps 1–4 are the environment; step 5 is the suite's own flows. A suite is an ordered
- * arc — `test:e2e`'s catalog flows share app state, so the first red one ends the
- * platform rather than letting the rest fail as noise against a store that never got the
- * rows they assume.
- */
+/** Drives one platform end to end; the first red flow ends it, as the flows
+ *  share state. Returns `{ key, label, status, detail }`. */
 async function runPlatform(driver, provision, suite) {
-  // `ctx` rides along so the caller can shut the device down between platforms — see
-  // `runSuite`'s loop and the contention note there.
+  // `ctx` rides along, so the caller can shut the device down.
   const wrap = (status, detail) => ({
     key: driver.key,
     label: driver.label,
@@ -1482,9 +1131,9 @@ async function runPlatform(driver, provision, suite) {
     ctx: ctx?.device === undefined ? undefined : ctx,
   });
 
-  // 1. toolchain present + a device booted (else blocked — not reachable here).
+  // 1. A toolchain and a booted device, else blocked.
   let ctx = driver.detect(provision);
-  // Under --provision a virtual device left booted is shut down, so `boot()` starts it clean.
+  // Under --provision a booted virtual device restarts clean.
   if (provision && !ctx.status && !devicePin && driver.isVirtual(ctx)) {
     console.log(`  shutting down ${ctx.device} to start it clean`);
     await driver.shutdown(ctx);
@@ -1492,9 +1141,7 @@ async function runPlatform(driver, provision, suite) {
   }
   if (ctx.status === BLOCKED) {
     if (!provision) return wrap(BLOCKED, ctx.detail);
-    // Under --provision an un-booted device is a thing to fix, not a verdict. A missing
-    // *toolchain* still is one, and stays BLOCKED: `boot()` reports "no emulator binary"
-    // and "no AVD defined" the same way, because neither is something this can install.
+    // A missing device is booted; a missing toolchain stays BLOCKED.
     console.log(
       `\n→ ${suite.key} — ${driver.label}: preparing the environment`,
     );
@@ -1502,7 +1149,7 @@ async function runPlatform(driver, provision, suite) {
     if (!booted.ok) return wrap(BLOCKED, booted.detail);
     ctx = driver.detect(provision);
     if (ctx.status === BLOCKED) {
-      // Booted, and still not visible — that is a broken environment, not an absent one.
+      // Booted yet not visible: a broken environment, not an absent one.
       return wrap(
         FAIL,
         `booted, but no device was detected afterwards:\n${ctx.detail}`,
@@ -1510,27 +1157,18 @@ async function runPlatform(driver, provision, suite) {
     }
   }
 
-  // Ambiguity, or a `--device=` that matches nothing: a fault to report, not a verdict to
-  // guess at. (BLOCKED is handled above; anything else with a status is terminal.)
+  // Ambiguity, or a pin matching nothing: reported, never guessed at.
   if (ctx.status) return wrap(ctx.status, ctx.detail);
 
   console.log(`\n→ ${suite.key} — ${driver.label} ${suite.what} (Maestro)`);
   console.log(`  device: ${ctx.device}`);
 
-  // 2. device-level preconditions no flow can see for itself.
-  //
-  // Before the install, because that can spend a native build on a device the catalog was
-  // never going to pass on.
+  // 2. Device preconditions, before the install can spend a build on them.
   const pre = driver.preflight(ctx, provision);
   if (!pre.ok) return wrap(FAIL, pre.detail);
 
-  // 3. dev-client installed (booted but not installed = broken env → fail).
-  //
-  // **Under --provision the build always runs**, even when the app is already there. It used
-  // to be skipped, so a device holding a stale build was driven as-is: the flows then failed
-  // on whatever the old binary lacked — a missing native module reported as "the home screen
-  // never appeared", hours from its cause (2026-09-22). `expo run` is incremental, so the
-  // cost when the build is current is seconds.
+  // 3. The dev client, always built under --provision: a stale one fails far
+  //    from its cause, and the build is incremental.
   if (provision || !driver.installed(ctx)) {
     if (!provision) return wrap(FAIL, driver.installHint);
     if (!driver.install(ctx)) {
@@ -1547,7 +1185,7 @@ async function runPlatform(driver, provision, suite) {
     }
   }
 
-  // 4. Metro serving (host-side, shared across platforms).
+  // 4. Metro serving, shared across platforms.
   if (provision) {
     const metro = await ensureMetro();
     if (!metro.ok) return wrap(FAIL, metro.detail);
@@ -1559,34 +1197,16 @@ async function runPlatform(driver, provision, suite) {
     );
   }
 
-  // 5. wipe the app back to a genuine first run, from outside the app.
-  //
-  // **This is what makes a run's verdict independent of the run before it.** The catalog
-  // is an ordered arc whose flows share state, and it ends on Flow 4 — an account, an
-  // encrypted store, keys in the keychain. Without this the next run starts there, takes
-  // the other branch through `subflows/factory-reset.yaml`, and asserts a "first run"
-  // against whatever survived; if a run dies with the app wedged, the in-app reset cannot
-  // even be driven. Wiping from the outside costs a second and removes the whole class.
-  //
-  // It runs *before* `prepare` for two reasons: Android's `pm clear` takes the dev-menu
-  // prefs with it and `prepare` is what writes them back, and both platforms need the app
-  // stopped, which each wipe does for itself.
-  //
-  // The flows' own `factory-reset` subflow stays where it is. It is not redundant: it is
-  // the only thing that exercises the in-app erase, and Flow 1 is where a build that
-  // stopped erasing would have to show up.
+  // 5. Wipe to a first run from outside, before `prepare` rewrites the prefs;
+  //    see the maestro README on the wipe.
   const wiped = driver.wipe(ctx);
   if (!wiped.ok) return wrap(FAIL, wiped.detail);
 
-  // 6. load the bundle + wait for the app home (platform-specific prepare).
+  // 6. Load the bundle and wait for home.
   let prep = await driver.prepare(ctx);
   if (!prep.ok && provision) {
-    // The gap `installed()` cannot see: iOS reconnects through the dev-launcher's
-    // *remembered* dev server, which is set by launching the dev client — not by
-    // installing it. A build that is present but has never been launched against this
-    // Metro therefore passes step 2 and then times out here. `expo run:` both installs
-    // and launches, so running it once is the repair; incremental, so it is cheap when
-    // the native side is already built. Once only — a second failure is a real one.
+    // A build never launched against this Metro can time out here; one
+    // `expo run` relaunch repairs it, and a second failure is real.
     console.log("  prepare failed — relaunching the dev client against Metro…");
     if (!driver.install(ctx)) {
       return wrap(FAIL, `expo run:${driver.key} failed:\n${prep.detail}`);
@@ -1595,14 +1215,8 @@ async function runPlatform(driver, provision, suite) {
   }
   if (!prep.ok) return wrap(FAIL, prep.detail);
 
-  // 7. run the suite's flows in order; the first red one is the verdict.
-  //
-  // **Stop the app on the way out, however this ended.** A flow that goes red leaves the
-  // app running and mid-whatever-it-was-doing, and the next platform is driven on the same
-  // host: an Android device left burning a core on the account conversion it was cut off
-  // during is a tax on the iOS run that follows, and shows up there as unrelated
-  // flakiness — a Maestro `testmanagerd` snapshot timeout, in the run that prompted this.
-  // Nothing downstream wants the app left running, and the next run wipes it anyway.
+  // 7. The flows in order; the app is stopped however this ends, so it can't
+  //    burn a core under the next platform.
   try {
     for (const flow of suite.flows) {
       console.log(
@@ -1622,7 +1236,7 @@ async function runPlatform(driver, provision, suite) {
             (crashed ? `\nthe app crashed:\n${crashed}` : ""),
         );
       }
-      // Release builds show no LogBox, so a logged error is asserted on instead.
+      // Release builds show no LogBox, so logged errors are asserted.
       if (runMaestroFlow(ctx.device, NO_CONSOLE_ERROR_FLOW) !== 0) {
         return wrap(
           FAIL,
@@ -1640,22 +1254,15 @@ async function runPlatform(driver, provision, suite) {
   }
 }
 
-// --- CLI + aggregation -----------------------------------------------------------
+// CLI and aggregation
 
-/**
- * The whole CLI for a mobile tier: parse the flags, check Maestro, run the selected
- * platforms, print the summary, and exit with the aggregated code.
- *
- * A suite is `{ key, title, what, flows }` — `key` names the pnpm script in messages,
- * `what` completes "<platform> <what> (Maestro)", and `flows` is the ordered arc.
- */
+/** A mobile tier's whole CLI, for a suite `{ key, title, what, flows }`:
+ *  `what` completes "<platform> <what> (Maestro)". */
 export async function runSuite(suite) {
   const args = process.argv.slice(2);
   const platArg = args.find((a) => a.startsWith("--platform="));
   const requested = platArg ? platArg.slice("--platform=".length).trim() : null;
-  // `--device=<serial|udid|name>` pins which booted device to drive, overriding
-  // LEAPSAKE_E2E_DEVICE. Both drivers read it through `resolveOneDevice`, and it only
-  // matters when more than one device is booted — see the "which device" section.
+  // `--device=<serial|udid|name>` overrides LEAPSAKE_E2E_DEVICE.
   const deviceArg = args.find((a) => a.startsWith("--device="));
   if (deviceArg) devicePin = deviceArg.slice("--device=".length).trim() || null;
   if (requested && !DRIVERS[requested]) {
@@ -1665,7 +1272,7 @@ export async function runSuite(suite) {
     process.exit(2);
   }
 
-  // Maestro drives every platform; if it's missing nothing can run → blocked (exit 3).
+  // Without Maestro nothing can run: blocked.
   if (!maestroPresent()) {
     console.error(
       `\n⏳ ${suite.key} — Maestro not found (BLOCKED). Install it with:\n` +
@@ -1675,19 +1282,15 @@ export async function runSuite(suite) {
     process.exit(3);
   }
 
-  // No flag = attempt both platforms and let each self-classify, so an un-booted simulator
-  // shows as BLOCKED rather than being silently skipped (principle #6).
+  // No flag tries both, so an un-booted one shows as BLOCKED, not skipped.
   const selected = requested
     ? [DRIVERS[requested]]
     : [androidDriver, iosDriver];
 
-  // --provision: prepare whatever is missing rather than reporting it. Off by default —
-  // see the provisioning section. `pnpm release` passes it; the inner loop does not.
+  // `pnpm release` passes it; the inner loop does not.
   const provision = args.includes("--provision");
 
-  // Name the cost when we cannot remove it: two device VMs on one Mac make the suite's
-  // heaviest waits several times slower (see the loop below for the measurement), and
-  // without `--provision` these are the developer's own devices to shut down, not ours.
+  // The developer's own devices: name the cost of two booted, don't fix it.
   if (!provision && selected.length > 1) {
     console.log(
       `\n  note: ${suite.key} drives both platforms, and an emulator and a simulator booted\n` +
@@ -1698,7 +1301,7 @@ export async function runSuite(suite) {
     );
   }
 
-  // A Metro we started is ours to clean up however this run ends, including Ctrl-C.
+  // A Metro we started is ours to clean up, Ctrl-C included.
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => {
       stopMetroIfStarted();
@@ -1706,32 +1309,8 @@ export async function runSuite(suite) {
     });
   }
 
-  // **One device up at a time, when we are the ones who put it there.**
-  //
-  // The platforms already run in sequence; what did not, until this, was the *hardware*.
-  // An Android emulator and an iOS simulator booted together on one Mac are two VMs on the
-  // same cores and the same RAM, and the suite's heaviest step is exactly the one that
-  // cannot absorb it: Flow 4's account conversion, a 19MiB *memory-hard* Argon2id pass on
-  // unJITted Hermes (see `EMULATOR_SIZE` for what host pressure does to it).
-  //
-  // It is not the whole story — the emulator's own memory mattered more, and is fixed
-  // there — but it is a real cost, and it compounds: on 2026-08-31 an Android phase that
-  // had been cut off mid-conversion left the app burning a core, and the *iOS* phase after
-  // it then died on a Maestro `testmanagerd` snapshot timeout that had nothing to do with
-  // iOS. `driver.stop` in `runPlatform` closes that half; this closes the other.
-  //
-  // So under `--provision` — the unattended path, where the harness booted these devices
-  // itself — each platform's device is shut down as soon as its flows are done. **Every
-  // platform, including the last**, which is the part that matters across runs: leaving
-  // the final device booted is what puts a simulator alongside the *next* run's emulator,
-  // and a run that has to reason about what the run before it left booted is the thing
-  // this whole pass is trying to remove. Provisioning is now boot → run → shut down.
-  //
-  // It reverses this file's old "devices are left booted" rule on purpose: that rule
-  // traded the next run's boot time against nothing, and a boot is a minute.
-  //
-  // Without `--provision` the devices are the developer's own, so they are left alone and
-  // the cost is named instead (see the warning above).
+  // Under --provision each device shuts down when its flows end, the last too;
+  // see the maestro README's _Do not leave both devices booted at once_.
   const results = [];
   for (const driver of selected) {
     const result = await runPlatform(driver, provision, suite);
@@ -1743,7 +1322,7 @@ export async function runSuite(suite) {
   }
   stopMetroIfStarted();
 
-  // Summary — one line per platform, with the guidance for anything not green.
+  // One summary line per platform, with guidance for anything not green.
   const icon = { [PASS]: "✅", [FAIL]: "❌", [BLOCKED]: "⏳" };
   const word = { [PASS]: "PASS", [FAIL]: "FAIL", [BLOCKED]: "BLOCKED" };
   console.log(`\n${"─".repeat(48)}`);
@@ -1757,7 +1336,7 @@ export async function runSuite(suite) {
   }
   console.log("─".repeat(48));
 
-  // Aggregate: any fail → 1; else any pass → 0; else all blocked → 3.
+  // Any fail is 1; else any pass is 0; else all blocked is 3.
   if (results.some((r) => r.status === FAIL)) process.exit(1);
   if (results.some((r) => r.status === PASS)) process.exit(0);
   process.exit(3);

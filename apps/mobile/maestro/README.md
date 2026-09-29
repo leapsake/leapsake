@@ -88,6 +88,41 @@ dev client (a cold dev-client launch shows the expo-dev-launcher, not the app â€
 script deep-links past it deterministically over adb), waits for the app's home screen,
 runs the flow, and propagates Maestro's exit code.
 
+### What the harness does, and what `--provision` adds
+
+Both `pnpm test:native` and `pnpm test:e2e` sit on `scripts/lib/mobile-harness.mjs`: it owns
+the environment, and the YAML owns the assertion. Per platform it detects the one booted
+device, checks device-level preconditions (iOS AutoFill, below), checks the dev client is
+installed, checks Metro, **wipes the app** (before `prepare`, since Android's `pm clear` also
+takes the dev-menu prefs `prepare` writes back), loads the bundle and waits for home, then runs
+the flows in order: the first red one ends the platform. It stops the app on the way out
+however the platform ended, and on iOS, if `prepare` fails once, it relaunches the dev client
+against Metro before calling it red. A few things it guards that no flow could see:
+
+- **Two apps claiming `leapsake://`** make Android answer the deep link with an "Open with"
+  chooser that sits over everything, and the flow fails on its next unrelated assertion. It
+  happened when the old package name was still installed beside the new one. Maestro's
+  `openLink` cannot name a package, so the harness refuses the device and says why.
+- **Animations off**: window animations at scale 0 on Android, and Reduce Motion plus a frozen
+  status bar on iOS, so a tap never lands on a sliding pane. The app's own animations are
+  untouched.
+- **A session with Maestro before the first flow.** Maestro installs its runner the first time
+  it drives a simulator, and on a cold hosted runner that has failed outright; a `hierarchy`
+  call makes that wait explicit, so the first flow does not take the blame.
+- **The dev-menu prefs on Android need `mkdir -p` first**: right after a fresh install
+  `shared_prefs/` does not exist yet, the write fails, and the Tools bubble stays on to break a
+  flow several steps later.
+
+`--provision` inverts "fail with the command to run" into "run it", so `pnpm release` is one
+command on a machine with nothing prepared. It boots a wiped emulator or an erased simulator
+(an iPhone, preferring the pinned model CI measures on), **always** runs the `expo run` build,
+since a stale binary missing a native module fails as "the home screen never appeared" hours
+from its cause and the build is incremental, and starts Metro if none is serving. **What it
+starts, it stops, and only that**: a Metro that was already serving is almost certainly the
+developer's own and is left alone. `expo run:android --device` wants Expo's name for the device
+(the AVD, or a phone's model), not the adb serial Maestro wants, so the harness maps one to the
+other.
+
 ### Running the flow directly
 
 `maestro test driver-selftest.yaml` works too, but the flow deliberately does **not**
@@ -593,7 +628,7 @@ looks nothing like its cause in either case.
 
 `pnpm test:native` now settles this on both platforms before loading the bundle â€” see
 `settleDevMenu()` / `settleDevMenuIos()` in
-[`scripts/test-native.mjs`](../../../scripts/test-native.mjs). Android writes the three
+[`scripts/lib/mobile-harness.mjs`](../../../scripts/lib/mobile-harness.mjs). Android writes the three
 prefs a **fresh install** gets wrong (`showFab`, `isOnboardingFinished`, `showsAtLaunch`)
 over `adb run-as`; iOS writes `EXDevMenuShowFloatingActionButton` over `simctl spawn
 defaults`.
