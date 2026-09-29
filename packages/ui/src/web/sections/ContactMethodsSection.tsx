@@ -18,15 +18,7 @@ const KIND_ICON: Record<ContactMethodKind, string> = {
   social: "💬",
 };
 
-/**
- * Render a method's value: the address; the (extension-suffixed) number, flagged
- * when it can't receive SMS since texting is otherwise assumed; the handle
- * behind its platform's name; or the formatted postal address.
- *
- * The two phone shapes are catalog messages rather than concatenations here,
- * because “555-0100 ext. 12” and “555-0100 (no texts)” are sentences about a
- * number, and where the qualifier goes is a language's decision.
- */
+/** A method's value as shown; a phone that can't take texts says so. */
 function methodValue(entry: ContactMethod, m: Messages): string {
   if (entry.kind === "email") return entry.method.address;
   if (entry.kind === "phone") {
@@ -38,10 +30,7 @@ function methodValue(entry: ContactMethod, m: Messages): string {
     return smsCapable ? withExt : m.contactMethods.phoneWithoutSms(withExt);
   }
   if (entry.kind === "social") {
-    // The platform's proper noun beside the handle, so a bare "@josh" says which
-    // "@josh". An unknown platform id is shown as stored rather than hidden —
-    // the whole point of the open list is that a row survives a platform this
-    // build has never heard of.
+    // The platform names the handle; an unknown platform id shows as stored.
     const { platform, handle, url } = entry.method;
     const name = findPlatform(platform)?.name ?? platform;
     return handle === ""
@@ -52,15 +41,8 @@ function methodValue(entry: ContactMethod, m: Messages): string {
 }
 
 /**
- * The Contact section on a Person's view: the person's emails, phones, postal
- * addresses and social profiles, merged into one list by {@link ContactMethod}
- * and rendered with a per-kind Edit / Remove. Each “Add” link creates one kind.
- *
- * Unlike the mobile section, a row here is not a tap target — the actions in
- * `@leapsake/contact-links` are built for a handset that has the apps installed,
- * and “open WhatsApp” means something quite different on a laptop. Owner is a
- * Person today; when households ship the same list also surfaces the household's
- * shared methods (the union lives in `listContactMethods`, not here).
+ * A person's contact methods in one list; unlike mobile's, a row opens
+ * nothing, as the link actions are built for a handset.
  */
 export function ContactMethodsSection({
   personId,

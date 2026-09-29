@@ -8,25 +8,11 @@ import {
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
-/** The action options in registry order, for the per-row picker. Neither `plan`
- *  (the engine's own question, never a rule a user schedules) nor the channel
- *  actions are among them — see `SCHEDULABLE_ACTIONS`. */
+/** The actions a user can schedule, in registry order, for the row picker. */
 const ACTIONS = SCHEDULABLE_ACTIONS;
 
-/**
- * The staggered-reminder editor: a list of rules, each an action (get a gift,
- * send a card…) some number of days before an occurrence, on or off. Controlled
- * — every edit calls `onChange` with the next array — and the parent serialises
- * `value` to a hidden field the route action reads.
- *
- * Shared by both things a reminder rule can bear on: a **milestone** (seeded
- * from its kind's defaults) and a **holiday observance** (seeded from the
- * observance defaults, where nothing is on until the user says so). The bearer
- * is entirely the parent's concern; this component only knows about rules.
- *
- * `other` reveals a free-text label (the reminder's wording), mirroring how the
- * `other` milestone kind reveals its note.
- */
+/** The schedule editor: rules, each an action some days before an occurrence,
+ *  on or off. The bearer, milestone or observance, is the parent's concern. */
 export function ReminderScheduleFields({
   value,
   onChange,
@@ -44,8 +30,7 @@ export function ReminderScheduleFields({
     );
   const remove = (index: number) =>
     onChange(value.filter((_, i) => i !== index));
-  // What Add appends is `@leapsake/schema`'s decision, not this component's:
-  // there are two of these editors and a locally-chosen seed drifts.
+  // Both editors take Add's seed from `@leapsake/schema`, so they agree.
   const add = () => onChange([...value, nextSchedulableRule(value)]);
 
   return (
@@ -56,7 +41,7 @@ export function ReminderScheduleFields({
       ) : (
         <ul>
           {value.map((rule, i) => (
-            // Rows are positional (no stable id until saved), so the index is the key.
+            // Positional: no stable id until saved.
             <li key={i}>
               <label>
                 <input
@@ -71,7 +56,7 @@ export function ReminderScheduleFields({
                 value={rule.action}
                 onChange={(e) => {
                   const action = e.target.value as ReminderAction;
-                  // Entering `other` needs an editable label; leaving it clears one.
+                  // `other` needs an editable label; leaving it clears one.
                   update(i, {
                     action,
                     label:

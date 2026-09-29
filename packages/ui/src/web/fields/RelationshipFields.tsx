@@ -12,11 +12,8 @@ import { Field } from "../primitives/Field.js";
 /** A person or pet the subject can be related to; core's candidates fit it. */
 export type RelationshipCandidate = RelationshipCandidateRef;
 
-/**
- * One relationship's fields: the other end's role, which narrows the names on
- * offer, then who they are. `posted` names and requires the inputs the route
- * action reads; with the other end fixed, its name is shown, not asked for.
- */
+/** One relationship's fields: the other end's role, which narrows the names
+ *  on offer, then who they are. */
 export function RelationshipFields({
   fields,
   set,
@@ -109,10 +106,8 @@ export function RelationshipFields({
   );
 }
 
-/**
- * The relationship rows embedded in the People & Pets create forms. Each row
- * that shapes cleanly posts a hidden `relationships` JSON blob of its b-side.
- */
+/** The relationship rows in the create forms; each valid row posts a hidden
+ *  `relationships` JSON blob of its b-side. */
 export function StagedRelationshipsFields({
   subjectType,
   candidates,
@@ -120,7 +115,7 @@ export function StagedRelationshipsFields({
 }: {
   subjectType: EntityType;
   candidates: readonly RelationshipCandidate[];
-  /** How many empty rows to show up front (1 nudges owner entry on the Pet form). */
+  /** How many empty rows to show up front. */
   initialRows?: number;
 }) {
   const m = useMessages();

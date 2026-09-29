@@ -10,29 +10,8 @@ import {
 import { useMessages } from "../../messages/index.js";
 
 /**
- * The prompt's answer form: one checkbox per thing you might do, each wearing
- * its lead time, and — once something it could deliver is on — a single *in
- * person or by mail?* for the whole occasion.
- *
- * Deliberately **not** {@link ReminderScheduleFields}, though they write the same
- * rows. That editor is for someone who has decided to tune a schedule — it
- * offers lead times, an action picker, add and remove, and it lists every rule
- * flat, posting included. This is asked of someone who has not decided anything
- * yet, eight weeks before a birthday, and its whole value is that answering it
- * is nearly free. Every control it does not have is the point.
- *
- * The labels are the registry's own offers — "Send a card", "Get a gift" — via
- * `offerLabel`, which lets one name the occasion: "Wish them a happy birthday". The lead
- * time beside each is the rule's own `offsetDays`, said out loud because it is
- * what a tick actually buys; moving one is still the full editor's job.
- *
- * Controlled, like its sibling: every tick calls `onChange` with the next array,
- * and the parent decides how it is submitted. It hands back the **whole** set
- * with `enabled` flipped, never just the ticks — rows existing is what makes
- * "asked, and chose nothing" distinguishable from "never asked". Every edit goes
- * through {@link setPromptItem} / {@link setPromptDelivery}, so the rule that a
- * posting cannot outlive the thing it posts lives in the model, once, for both
- * clients.
+ * The prompt's answer form: a checkbox per offer with its lead time, and one
+ * delivery choice. Hands back the whole set, so “chose nothing” stays visible.
  */
 export function ReminderPromptFields({
   value,
@@ -48,9 +27,7 @@ export function ReminderPromptFields({
   const { items, delivery } = promptGroupsOf(value);
 
   return (
-    // Labelled, not captioned: the surface that renders this already asks the
-    // question as its heading — the prompt screen on desktop, the reminder's own
-    // title on mobile — so a visible legend would say the same sentence twice.
+    // Labelled, not captioned: the surrounding heading already asks it.
     <fieldset aria-label={m.reminderPrompt.legend}>
       <p>{m.reminderPrompt.caption}</p>
       <ul>
@@ -76,8 +53,7 @@ export function ReminderPromptFields({
         })}
       </ul>
       {delivery?.visible === true && (
-        // A radio group rather than a "post it" checkbox: handing it over is a
-        // real answer and deserves to be said, not left as the absence of a tick.
+        // A radio group, since handing it over is a real answer.
         <fieldset>
           <legend>{m.reminderPrompt.deliveryLegend}</legend>
           <label>
@@ -98,9 +74,7 @@ export function ReminderPromptFields({
             />{" "}
             {m.reminderPrompt.deliveryMail}
           </label>
-          {/* Only when posting, and only when the deliveries it governs agree on
-              a date — a note that had to name two would be describing a
-              distinction the single control does not offer. */}
+          {/* Only when posting, and the deliveries it governs share a date. */}
           {delivery.mailed && delivery.offsetDays !== null && (
             <p>
               <small>

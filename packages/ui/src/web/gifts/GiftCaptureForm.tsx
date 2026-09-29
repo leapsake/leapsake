@@ -13,20 +13,8 @@ import styles from "../patterns/not-ready.module.css";
 import { showFormProblem } from "../patterns/form-problem.js";
 
 /**
- * The one consolidated "capture a gift" form: name the gift (autocompleting
- * existing ideas) or paste a link, say who it is for, and tick anyone who already
- * has it. One submit, one transaction.
- *
- * `fixedRecipient` (Person/Pet screen) and `recipientCandidates` (Gifts screen)
- * are mutually exclusive: the former hides the picker and offers the one
- * checkbox, the latter shows a multi-add over people and pets with a checkbox
- * each.
- *
- * The form used to open by asking **which of two things** this was — "Idea" or
- * "Already gave it" — because the answer chose which table the submit wrote to.
- * With one table there is nothing to ask: the question was never really about the
- * gift, it was about the schema. Its dated giving rows, its target-date arm and
- * its occasion pickers went with it.
+ * Captures a gift in one submit: its name or link, who it is for, and who has
+ * it. `fixedRecipient` and `recipientCandidates` are mutually exclusive.
  */
 export function GiftCaptureForm({
   ideaPool,
@@ -38,14 +26,9 @@ export function GiftCaptureForm({
   ideaPool: readonly GiftIdea[];
   fixedRecipient?: PartyOption;
   recipientCandidates?: readonly PartyOption[];
-  /** Open with the box already ticked — the completed-gift-reminder hand-off,
-   *  where the answer to "record what you gave" is that you gave it. */
+  /** Opens already ticked, for the completed gift reminder's hand-off. */
   startGiven?: boolean;
-  /**
-   * Called after a successful save. A standalone create screen navigates away;
-   * an inline section re-reads its data in place — the form itself only knows
-   * that it finished.
-   */
+  /** Called after a successful save. */
   onSaved: () => void;
 }) {
   const ports = useGiftsPorts();
@@ -100,7 +83,7 @@ export function GiftCaptureForm({
   );
 }
 
-/** A gift, and who it is for with a tick each (or the one fixed recipient's). */
+/** A gift, and who it is for with a tick each. */
 export function GiftCaptureFields({
   fields,
   set,

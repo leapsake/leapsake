@@ -13,25 +13,15 @@ import {
   type ImportPreviewEntry,
 } from "./ImportReview.js";
 
-/**
- * A window-wide drag-and-drop target, so a contact file can be dropped **on any
- * screen, at any time**. The file is read and parsed here — HTML5 drop hands over
- * a real `File`, and `@leapsake/vcard` is pure — so nothing leaves the
- * client until the user confirms the review. A dropped file that isn't a
- * recognised contact card gets a friendly notice rather than a silent no-op (the
- * “recognise it / ask if unsure” requirement); the discriminated parse result is
- * the seam where more formats slot in later.
- *
- * Nothing here is Electron-specific: it is HTML5 drag-and-drop and a pure parser,
- * so the same provider works in a browser.
- */
+// A window-wide drop target for contact files, parsed here; nothing is written
+// until the review is confirmed, and an unrecognised file gets a notice.
 
 type ImportState =
   | { kind: "idle" }
   | { kind: "reviewing"; contacts: ParsedContact[] }
   | { kind: "unrecognized"; filename: string };
 
-/** Whether a drag carries files (vs. text/selection), so we only intercept files. */
+/** Whether a drag carries files rather than text, the only drags taken. */
 function dragHasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer?.types ?? []).includes("Files");
 }
@@ -59,9 +49,8 @@ export function DropImportProvider({
   const dragDepth = useRef(0);
 
   useEffect(() => {
-    // Without preventDefault on dragover+drop, Chromium/Electron navigates the
-    // window to the dropped file:// URL and tears down the SPA — this is the
-    // load-bearing line of the whole feature.
+    // Without preventDefault on dragover and drop, Chromium navigates to the
+    // dropped file:// URL and tears the app down.
     const onDragOver = (e: DragEvent) => {
       if (dragHasFiles(e)) e.preventDefault();
     };

@@ -60,8 +60,7 @@ export function ChipTextField({
     backdrop.scrollLeft = field.scrollLeft;
   }
 
-  // Typing can scroll the field without a `scroll` event of its own (the caret
-  // dragging the viewport along), so re-sync after every render too.
+  // Typing can scroll the field without a `scroll` event, so re-sync too.
   useLayoutEffect(syncScroll);
 
   function pick(hit: SearchHit) {
@@ -130,8 +129,7 @@ export function ChipTextField({
         const reasons = hit.reasons.filter((r) => r.facet !== "name");
         return (
           <>
-            {/* Tag hits show the "#" sigil; it sits outside the highlighted
-                span since it's never part of the match (mirrors SearchBar). */}
+            {/* The “#” sits outside the highlight: it is never matched. */}
             {hit.entityType === "tag" && "#"}
             {highlightMatch(hit.title, activeQuery ?? "")}
             {reasons.length > 0 && (
@@ -152,8 +150,7 @@ export function ChipTextField({
       renderField={(aria) => {
         const shared = {
           ref: fieldRef,
-          // A tags field's text is its stored value, so it carries `name`
-          // itself; a prose field's doesn't — the hidden input below does.
+          // A prose field's `name` is on the hidden input below instead.
           name: prose ? undefined : name,
           className: `${styles.field} ${wrapMode}`,
           value: live.text,
@@ -166,8 +163,7 @@ export function ChipTextField({
         };
         return (
           <span className={styles.wrap}>
-            {/* Under the field, in lockstep with it: the same text, drawn
-                invisibly, with a tint behind each chip. */}
+            {/* The same text under the field, invisible, tinting each chip. */}
             <span
               ref={backdropRef}
               aria-hidden="true"
@@ -186,7 +182,7 @@ export function ChipTextField({
             ) : (
               <input {...shared} type="text" />
             )}
-            {/* The stored text, tokens and all — what the write path reads. */}
+            {/* The stored text, tokens and all, for the write path. */}
             {prose && <input type="hidden" name={name} value={value} />}
           </span>
         );

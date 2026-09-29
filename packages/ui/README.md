@@ -70,6 +70,10 @@ const adapter: UiAdapter = {
   plain `<a>` — a silent fallback renders a full-page navigation that looks fine
   in development and drops the router in production.
 
+`SearchBar` is the one component that navigates imperatively, and takes an
+`onNavigate` prop rather than widening the adapter. If a second ever needs to,
+promote it into the adapter instead of growing a second prop.
+
 Everything else a component needs — loaded data, `submitting`, write callbacks —
 arrives as **props**, because it is per-screen state the container already holds
 rather than ambient chrome.
@@ -108,6 +112,12 @@ Three rules every form keeps:
 - **Nothing is disabled while a write is in flight either.** The control says so
   (`aria-disabled` on web, `accessibilityState.busy` on mobile) and ignores the repeat
   press.
+
+The reminder prompt asks **one delivery question for the whole occasion**, not one
+per item _(owner, 2026-09-06)_: nobody has two answers. The schedule rules stay
+independent, so `ReminderScheduleFields` can still post one item and hand over
+another. “In person” is a named choice rather than an unticked box, because not
+posting is a real answer.
 
 Rows staged on mobile's create form (a person's contacts, milestones, relationships)
 call the shaping functions directly rather than through hooks, since they live in one
@@ -152,6 +162,9 @@ user-visible text in a component — `` `${name} (hidden)` ``, `" · with " + la
 `common` holds only verbs that are the same action wherever they appear. One
 English word often needs several translations by context, so a surface that
 wants its own wording gets its own key rather than widening `common`.
+
+`useMessages()` throws when no provider is mounted rather than falling back to
+English, which would ship untranslated text to a translated app.
 
 A dedicated i18n library will land eventually. Nothing here assumes which one:
 components read a plain typed object, so adopting it replaces `messages/en.ts`
@@ -238,6 +251,11 @@ regression guard is `pnpm --filter @leapsake/desktop check:bundle`; run it after
 this package's deps.
 
 ## Styling, and why there isn't any yet
+
+The tokens are a seed lifted from `apps/mobile/lib/styles.ts`, not a design
+system, and nothing consumes them yet. Their surfaces are warm like mobile's;
+their type sizes are the original ones and name no family, since mobile moved
+colour and shape without touching typography.
 
 Markup moved out of the renderer **unstyled**, deliberately: changing structure
 and appearance in one pass makes a regression indistinguishable from a redesign.

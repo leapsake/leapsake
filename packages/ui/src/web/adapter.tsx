@@ -6,30 +6,16 @@ import {
   useContext,
 } from "react";
 
-/**
- * Client-side navigation. The prop is `href` — the HTML name — rather than
- * react-router's `to`, so the contract reads as semantic markup and can be
- * satisfied by whichever framework the web app lands on (`status.md` →
- * *Open questions*). The desktop adapter maps `href` → `to`; a framework whose
- * link already takes `href` needs no mapping at all.
- *
- * The index signature passes through `aria-*`, `title`, and friends without the
- * package having to enumerate them.
- */
+/** Client-side navigation, taking `href`; other props such as `aria-*` pass
+ *  through. */
 export interface UiLinkProps {
   href: string;
   children: ReactNode;
   [key: string]: unknown;
 }
 
-/**
- * A submitting form. The adapter **must** render a real `<form>` with `method`
- * and `action` intact: the no-JS floor the web app owes
- * (`plans/encryption/model.md` §10) is exactly the case where no adapter
- * JavaScript runs and the browser posts the form itself. An adapter that
- * intercepted submission and dropped the underlying element would satisfy the
- * types and silently remove that floor.
- */
+/** A submitting form, which must render a real `<form>` with `method` and
+ *  `action` intact, so it still posts without JavaScript. */
 export interface UiFormProps {
   method: "post";
   action?: string;
@@ -38,13 +24,7 @@ export interface UiFormProps {
   children: ReactNode;
 }
 
-/**
- * The two pieces of app chrome presentational components can't supply
- * themselves. Everything else a component needs — data, submit state, write
- * callbacks — arrives as props, because it is per-screen rather than ambient.
- * Keeping this interface at two members is deliberate: it is the whole surface
- * a new client has to implement.
- */
+/** The two pieces of app chrome components can't supply themselves. */
 export interface UiAdapter {
   Link: ComponentType<UiLinkProps>;
   Form: ComponentType<UiFormProps>;
@@ -52,7 +32,7 @@ export interface UiAdapter {
 
 const UiAdapterContext = createContext<UiAdapter | null>(null);
 
-/** Supplies the host app's navigation + form components to everything below. */
+/** Supplies the host app's navigation and form components. */
 export function UiProvider({
   adapter,
   children,
@@ -67,11 +47,7 @@ export function UiProvider({
   );
 }
 
-/**
- * Read the host's adapter. Throws rather than falling back to a plain `<a>`:
- * a silent fallback would render a full-page navigation that looks correct in
- * development and drops the app's router in production.
- */
+/** Reads the host's adapter; throws rather than falling back to `<a>`. */
 export function useUi(): UiAdapter {
   const adapter = useContext(UiAdapterContext);
   if (adapter === null) {

@@ -1,12 +1,7 @@
 import type { ReactNode } from "react";
 import styles from "./Combobox.module.css";
 
-/**
- * The ARIA wiring a combobox's field must carry. Handed to {@link Combobox}'s
- * `renderField` so the caller can own the element — the three call sites this
- * replaced render a search input, a filter input, and a `<textarea>` — while the
- * package keeps the ids and relationships correct.
- */
+/** The ARIA wiring a combobox's field must carry, for a caller-owned field. */
 export interface ComboboxFieldAria {
   role: "combobox";
   "aria-expanded": boolean;
@@ -16,13 +11,8 @@ export interface ComboboxFieldAria {
 }
 
 /**
- * The suggestion listbox of a WAI-ARIA combobox: the overlay, the option rows,
- * and the live region — everything except the field itself and the keyboard
- * handling, which is {@link useTypeahead}'s job.
- *
- * The listbox is positioned as an overlay so content below the field doesn't
- * jump while typing, and options commit on `mousedown` rather than `click`:
- * `click` fires after the field blurs, by which point the listbox is gone.
+ * The suggestion listbox of a WAI-ARIA combobox. Options commit on `mousedown`,
+ * since `click` fires after the blur that removes the listbox.
  */
 export function Combobox<T>({
   results,
@@ -44,11 +34,7 @@ export function Combobox<T>({
   getKey: (option: T) => string;
   onSelect: (option: T) => void;
   renderOption: (option: T) => ReactNode;
-  /**
-   * Text for the polite live region. Omit for a field where the visible result
-   * is announcement enough; supply it where the outcome happens elsewhere in
-   * the DOM — adding to a list the field sits above, for instance.
-   */
+  /** Text for the polite live region, where the result lands elsewhere. */
   announcement?: string;
   renderField: (aria: ComboboxFieldAria) => ReactNode;
   /** `span` for a combobox that sits inline inside a `<label>`. */
@@ -93,11 +79,7 @@ export function Combobox<T>({
   );
 }
 
-/**
- * A secondary line inside an option — why a result matched, say. Exists so the
- * class name stays inside the package rather than being exported as a string
- * for callers to apply.
- */
+/** A secondary line inside an option, such as why a result matched. */
 export function ComboboxOptionDetail({ children }: { children: ReactNode }) {
   return <span className={styles.detail}>{children}</span>;
 }

@@ -1,21 +1,10 @@
 import { genderLabel } from "@leapsake/schema";
 import type { Messages } from "./types.js";
 
-/** Join a list the way English does. `Intl.ListFormat` handles the rest later. */
+/** Joins a list the way English does. */
 const list = (items: readonly string[]) => items.join(", ");
 
-/**
- * The English catalog — the only one, for now.
- *
- * Plural branches live here rather than in components on purpose: English needs
- * two forms, other languages need up to six, and a catalog can reach for
- * `Intl.PluralRules` without a single component changing.
- *
- * Gender values are sourced from `@leapsake/schema`'s table so desktop, mobile
- * and this package can't disagree about them today. That table is itself English,
- * and mobile reads it directly — translating it is part of the wider i18n
- * workstream, not something this catalog can do alone.
- */
+/** The English catalog; gender values come from `@leapsake/schema`'s table. */
 export const en: Messages = {
   common: {
     edit: "Edit",
@@ -273,22 +262,14 @@ export const en: Messages = {
 
   reminderPrompt: {
     legend: "What do you want to do?",
-    // The answer most people give most of the time, offered as a button so it
-    // costs one tap rather than a form. The trade this prompt makes depends on
-    // it: a question is only worth asking if answering it is cheaper than
-    // ignoring the rows it replaced.
+    // The commonest answer, offered as one tap rather than a form.
     justTheDay: "Just the day",
     save: "Save",
     editFull: "Set exact timings",
     caption: "We’ll remind you in time for each one.",
-    // ⚠️ **One question for the occasion, not one per item** *(owner,
-    // 2026-09-06)*. Asking under the gift and again under the card is two
-    // questions where nobody has two answers. The rules stay independent —
-    // `ReminderScheduleFields` can still post one and hand over the other — it is
-    // only the prompt that declines to ask.
+    // One delivery question for the whole occasion, not one per item.
     deliveryLegend: "Giving it",
-    // Named rather than left as an unticked "post it": the choice not to post is
-    // a real answer, and a checkbox says it only by omission.
+    // A named choice, since not posting is a real answer.
     deliveryHand: "In person",
     deliveryMail: "By mail",
     deliveryNote: (leadTime) => `We’ll remind you to post it ${leadTime}.`,

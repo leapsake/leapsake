@@ -50,8 +50,7 @@ export function MultiAddCombobox<T>({
   function pick(option: T) {
     onPick(option);
     setAnnouncement(announceAdded(getLabel(option)));
-    // Clear the query but hold focus: the cleared value falls below `minChars`,
-    // so the listbox collapses and the next name can be typed straight away.
+    // Clearing collapses the listbox; focus stays for the next name.
     setQuery("");
   }
 

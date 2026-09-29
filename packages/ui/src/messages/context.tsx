@@ -3,14 +3,7 @@ import type { Messages } from "./types.js";
 
 const MessagesContext = createContext<Messages | null>(null);
 
-/**
- * Supplies the catalog every component reads its text from.
- *
- * Deliberately dumb: it holds one object and hands it out. Locale negotiation,
- * catalog loading and message formatting are an i18n library's job, and when one
- * arrives it replaces this file and `en.ts` — the components, which only read a
- * typed object, don't change.
- */
+/** Supplies the catalog every component reads its text from. */
 export function MessagesProvider({
   messages,
   children,
@@ -25,11 +18,7 @@ export function MessagesProvider({
   );
 }
 
-/**
- * Read the catalog. Throws when none is mounted rather than falling back to
- * English: a silent fallback would ship untranslated text to a translated app,
- * which is precisely the bug this indirection exists to prevent.
- */
+/** Reads the catalog; throws when none is mounted, never falling back. */
 export function useMessages(): Messages {
   const messages = useContext(MessagesContext);
   if (messages === null) {
