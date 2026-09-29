@@ -4,53 +4,17 @@ import type { SyncRow } from "@leapsake/schema";
 import type { SyncStateRepo, SyncableRepo } from "@leapsake/data";
 import type { Cursor, EncryptedRecord, SyncTransport } from "./transport.js";
 
-/**
- * The client sync engine — the half that finally consumes both built pieces:
- * the `resolveMerge` LWW resolver (via each repo's apply-path) and the encrypted
- * envelope (model.md §3). It seals locally-changed rows, pushes them over the
- * blind {@link SyncTransport}, pulls peers' records, decrypts, and applies them
- * through the owning repo (which merges). See plans/encryption/sync.md.
- *
- * The engine is **registry-driven**: it is handed a list of {@link SyncableRepo}
- * and routes each pulled record to the repo whose `table` it carries, so adding
- * an entity to sync is one more entry in the list — no engine change. Every row
- * is sealed **whole, under the master key directly** (`seal(json(row), MK)`); the
- * per-record content-key escalation stays an additive future (the unused
- * `EncryptedRecord.wrappedKey` slot).
- *
- * The two watermarks (the push high-water mark and the pull cursor) can either
- * be threaded by the caller through {@link SyncEngine.push}/{@link
- * SyncEngine.pull} — or, when a {@link SyncStateRepo} is supplied, persisted by
- * the engine itself via {@link SyncEngine.sync}, so a fresh engine on the same
- * database resumes where it left off.
- */
+/** Seals changed rows whole under the master key, pushes, pulls, decrypts
+ *  and applies each through the repo its `table` names. */
 export interface SyncEngine {
-  /**
-   * Seal and push every row changed after `lastPushedUpdatedAt` (including
-   * tombstones) across all registered repos, returning the new high-water mark
-   * to pass next time. A single global mark suffices: `updated_at` is one clock
-   * across every table and the transport is one append log.
-   */
+  /** Pushes every row, tombstones too, changed after the mark; returns the new
+   *  one. One mark serves every table. */
   push(lastPushedUpdatedAt: number): Promise<number>;
-  /**
-   * Pull records since `cursor`, decrypt, and apply each via its repo's merge,
-   * returning the advanced `cursor` to pass next time and `applied` — the number
-   * of records successfully applied this batch (records for unknown tables, or any
-   * that fail to decrypt/decode, are skipped and not counted). `applied > 0` is the
-   * "something may have changed locally" signal reactive invalidation gates on; it is
-   * an upper bound (the relay echoes the device's own pushed rows, which LWW-merge
-   * to a no-op), so a redundant revalidate after your own push is possible but
-   * harmless (loaders are idempotent).
-   */
+  /** Pulls and applies records since `cursor`; `applied` counts those applied,
+   *  an upper bound, as the relay echoes our own pushes. */
   pull(cursor: Cursor): Promise<{ cursor: Cursor; applied: number }>;
-  /**
-   * The self-driving loop: read both watermarks from the {@link SyncStateRepo},
-   * {@link push} local changes then {@link pull} peers', and persist the
-   * advanced marks. Push-first is conventional; correctness does not depend on
-   * order (the merge is order-independent). Requires the engine to have been
-   * built with a `syncState` repo — throws otherwise. Returns the pull's
-   * `applied` count so a caller can gate UI revalidation on a changed pull.
-   */
+  /** Pushes then pulls on the stored watermarks and persists them; throws
+   *  without a `syncState` repo. */
   sync(): Promise<{ applied: number }>;
 }
 
@@ -58,11 +22,7 @@ export function createSyncEngine(opts: {
   transport: SyncTransport;
   masterKey: Uint8Array;
   repos: SyncableRepo<SyncRow>[];
-  /**
-   * Durable watermark store. Optional: omit it to thread marks manually via
-   * `push`/`pull` (tests, back-compat); supply it to enable {@link
-   * SyncEngine.sync}.
-   */
+  /** Where the watermarks persist; needed for {@link SyncEngine.sync}. */
   syncState?: SyncStateRepo;
 }): SyncEngine {
   const { transport, masterKey, repos, syncState } = opts;
@@ -96,21 +56,13 @@ export function createSyncEngine(opts: {
     cursor: Cursor,
   ): Promise<{ cursor: Cursor; applied: number }> {
     const { records, cursor: next } = await transport.pull(cursor);
-    // Apply order within a batch does not affect the converged state:
-    // foreign-key enforcement is off and `upsertFromRemote` is LWW-idempotent,
-    // so an edge that arrives before its endpoint still reconciles correctly.
+    // Order doesn't matter: foreign keys are off and every apply is LWW.
     let applied = 0;
     for (const record of records) {
       const repo = byTable.get(record.table);
       if (repo === undefined) continue; // unknown table — forward-compatible
-      // Skip-and-log a record that fails to decrypt/decode/apply rather than
-      // aborting the whole batch: a single malformed row (a corrupt row, or one
-      // injected by a hostile relay) would otherwise throw here and — since the
-      // cursor never advances past it — re-throw on every subsequent pull,
-      // permanently stalling convergence. The cursor
-      // still advances to `next`, so the bad row is pulled once, skipped, and
-      // never seen again. AEAD still fails closed, so this is not a confidentiality
-      // relaxation — only a resilience one.
+      // A bad record is skipped, not thrown, or the cursor would never pass it
+      // and every later pull would stall; AEAD still fails closed.
       try {
         const row = repo.decode(
           JSON.parse(bytesToUtf8(open(record.ciphertext, masterKey))),
