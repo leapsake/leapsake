@@ -6,28 +6,14 @@ import type {
   PendingNotification,
 } from "@leapsake/notifications";
 
-/**
- * The `NotificationScheduler` port ({@link NotificationScheduler}) extended
- * with the one OS read `@leapsake/notifications`' `reconcile` needs before it
- * can diff: what's actually pending. Not part of the pure package's port
- * (`schedule`/`cancel` only) because "what's pending" is a real OS call, not
- * something `reconcile` drives — it's the caller's job to read it first.
- */
+/** The port, plus the read of what is pending that the caller does first. */
 export interface MobileNotificationScheduler extends NotificationScheduler {
   listPending(): Promise<PendingNotification[]>;
 }
 
 /**
- * The one Android channel this app schedules into. Channels are an OS
- * object, not a manifest entry — `expo-notifications`' config plugin only
- * exposes a `defaultChannel` *id* for FCM's own default-channel selection,
- * nothing that actually creates one (confirmed against the installed
- * package: `withNotificationsAndroid.js` writes that id straight into an FCM
- * meta-data tag and nothing else). So "declared before it's used" means
- * created once at the top of this module, awaited by `schedule` below —
- * not a manifest declaration ahead of first launch. iOS has no channel concept;
- * `setNotificationChannelAsync` no-ops there (confirmed against the base,
- * non-`.android.` implementation), so this runs unconditionally.
+ * The Android channel, created at module load since the config plugin cannot
+ * create one; `schedule` awaits it. A no-op on iOS.
  */
 const CHANNEL_ID = "reminders";
 
@@ -36,52 +22,22 @@ const channelReady: Promise<void> = Notifications.setNotificationChannelAsync(
   { name: "Reminders", importance: Notifications.AndroidImportance.DEFAULT },
 ).then(() => undefined);
 
-/**
- * **iOS**: Apple caps pending notification requests at 64 per app and drops
- * the excess *silently*, so overshooting is invisible from JS. 60 leaves four
- * slots spare against a notification scheduled outside the planner — which
- * today nothing does (the `expo-notifications` import is lint-fenced to this
- * file and the permission prompt), making this insurance rather than a live
- * need.
- */
+/** iOS silently drops pending requests past 64; four are spare. */
 export const IOS_NOTIFICATION_BUDGET = 60;
 
 /**
- * **Android**: no equivalent per-app notification ceiling.
- * `expo-notifications` schedules each one as its own `AlarmManager` alarm
- * (`setExactAndAllowWhileIdle`, falling back to `setAndAllowWhileIdle` where
- * the app can't schedule exact alarms — `ExpoSchedulingDelegate.kt` in the
- * installed package), and nothing in that path caps the count anywhere near
- * 64. Android is therefore budgeted on its own terms, not handed iOS's number.
- *
- * It is a number rather than `Infinity` because Android's constraint is real
- * but differently shaped: AOSP's `AlarmManagerService` enforces a per-uid
- * alarm limit and *throws* past it rather than degrading, so an uncapped plan
- * would trade iOS's silent drop for an Android exception — the worse of the
- * two failures. **Unverified on a real device**: that limit is believed to be
- * 500 in current AOSP, and 200 is chosen to sit clear of it under any
- * variation rather than to track it exactly. Nothing depends on the precise
- * figure; if a device ever throws, this is the number to lower.
+ * Each is an alarm, and AOSP throws past a per-uid alarm limit (believed 500,
+ * unverified on a device). Lower this if a device ever throws.
  */
 export const ANDROID_NOTIFICATION_BUDGET = 200;
 
-/**
- * What *this* device can hold pending, for `@leapsake/notifications`'
- * `planNotifications` — the platform half of a decision the pure planner
- * can't make for itself, resolved once here.
- */
+/** What this device can hold pending, for `planNotifications`. */
 export const PLATFORM_NOTIFICATION_BUDGET =
   Platform.OS === "android"
     ? ANDROID_NOTIFICATION_BUDGET
     : IOS_NOTIFICATION_BUDGET;
 
-/**
- * The `expo-notifications`-backed implementation. `schedule`/`cancel` drive the OS
- * directly, addressing each notification by `DesiredNotification.id` — the
- * same id `@leapsake/notifications`' `reconcile` computed, passed straight
- * through as `NotificationRequestInput.identifier` rather than letting the OS
- * mint its own, so a later `cancel(id)` can find it again.
- */
+/** Each request's identifier is the planner's id, so `cancel(id)` finds it. */
 export function expoNotificationScheduler(): MobileNotificationScheduler {
   return {
     async schedule(notification: DesiredNotification): Promise<void> {
@@ -119,14 +75,8 @@ export function expoNotificationScheduler(): MobileNotificationScheduler {
 }
 
 /**
- * Every trigger this adapter ever schedules is
- * `SchedulableTriggerInputTypes.DATE` — `getAllScheduledNotificationsAsync`
- * echoes that same shape back (unlike `CALENDAR`, which iOS would otherwise
- * decompose into date components), so reading `date` straight back is exact,
- * not reconstructed. `NaN` for anything else — shouldn't happen, since
- * nothing here schedules another trigger type — so `reconcile`'s
- * `fireAt === fireAt` drift check always fails for it and the entry is safely
- * replaced rather than kept under a guessed time.
+ * Only `DATE` triggers are scheduled, and they echo back exactly. Anything
+ * else is `NaN`, which never equals itself, so `reconcile` replaces it.
  */
 function fireAtFromTrigger(trigger: Notifications.NotificationTrigger): number {
   if (

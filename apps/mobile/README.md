@@ -48,6 +48,24 @@ the plugin on iOS — rather than to switch backup off wholesale. It is wholesal
 exclusion rule **fails open**: a renamed slot or a new plaintext artifact silently stops matching,
 and nothing goes red. Off fails closed.
 
+## Keeping People in step with the phone's contacts
+
+Importing from the phone once switches on a sync (`lib/device-contacts-sync.ts`), which then
+runs at boot, on foreground, and whenever the address book changes while the app is open. It is
+**one-way and additive** _(settled 2026-09-10)_:
+
+- A **new contact** becomes a person through the same `import.commit` a vCard uses, carrying
+  its address-book id as the decision's `sourceId`.
+- A **deleted person** stays deleted: their contact's id is still linked
+  (`device_contact_links`), so it is not new.
+- A **contact deleted from the phone** leaves its person alone. Leapsake holds their reminders
+  and gifts, and tidying the address book must not erase them.
+- A **contact edited on the phone** changes nothing here.
+- **Permission withdrawn**: nothing runs, and nothing is removed.
+
+Under iOS's limited access the sync sees only what the user chose to share, so a contact added
+to the phone arrives once it is shared.
+
 ## Running
 
 ```sh

@@ -8,32 +8,10 @@ import { Platform } from "react-native";
 import type { CoreApi, ImportResult } from "@leapsake/core";
 import { deviceContactToParsed } from "./device-contacts";
 
-/**
- * Keeping People in step with the phone's address book: bring in every contact
- * this device has not seen before, and nothing else. The import screen runs it
- * once to switch it on; after that `core-context` runs it at boot, on foreground
- * and when the address book changes while the app is open.
- *
- * The rules (settled 2026-09-10) are deliberately one-way and additive:
- *
- * - A **new contact** becomes a person, through the same `import.commit` a
- *   vCard uses, carrying its address-book id as the decision's `sourceId`.
- * - A **deleted person** stays deleted: their contact's id is still linked
- *   (`device_contact_links`, migration 36), so it is not new.
- * - A **contact deleted from the phone** leaves its person alone — Leapsake holds
- *   their reminders and gifts, and a tidy-up of the address book must not erase
- *   them.
- * - A **contact edited on the phone** changes nothing here yet.
- * - **Permission withdrawn**: nothing runs, and nothing is removed.
- *
- * Under iOS's limited access the address book this sees is only what the user
- * chose to share, so a contact added to the phone arrives once it is shared.
- */
+// Brings in every contact this device has not seen, and nothing else; the
+// rules are in the app's README → Keeping People in step.
 
-/**
- * The fields the mapper reads — kept in sync with `DeviceContact` in
- * `device-contacts.ts`, which types the slice it consumes.
- */
+/** The fields `DeviceContact` in `device-contacts.ts` reads. */
 const CONTACT_FIELDS: ContactField[] = [
   ContactField.GIVEN_NAME,
   ContactField.MIDDLE_NAME,
@@ -46,25 +24,21 @@ const CONTACT_FIELDS: ContactField[] = [
   ContactField.ADDRESSES,
   // `DATES` carries anniversaries everywhere and, on Android, the birthday too.
   ContactField.DATES,
-  // Android's native enum has no `BIRTHDAY`; asking for it rejects the whole read.
+  // Android has no `BIRTHDAY` field; asking for it rejects the whole read.
   ...(Platform.OS === "ios" ? [ContactField.BIRTHDAY] : []),
 ];
 
 const NOTHING_NEW: ImportResult = { created: 0, skipped: 0, errors: [] };
 
-/** The run in flight, so a second caller queues behind it rather than racing it. */
+/** The run in flight, so a second caller queues behind it. */
 let queue: Promise<unknown> = Promise.resolve();
 
 /** Told about every run that committed anything, whoever started it. */
 const observers = new Set<(result: ImportResult) => void>();
 
 /**
- * Hear about every run that commits, not only the caller's own — which is what
- * the import screen needs to say what it imported. Closing the system's
- * permission sheet brings the app back to the foreground, and granting access
- * changes the address book, so a background run can reach the new contacts
- * before the screen's own run does and leave that one nothing new. Returns the
- * unsubscribe.
+ * Hear about every run that commits, since a foreground run can beat the
+ * import screen's own to the new contacts. Returns the unsubscribe.
  */
 export function observeDeviceContactSync(
   observe: (result: ImportResult) => void,
@@ -74,13 +48,8 @@ export function observeDeviceContactSync(
 }
 
 /**
- * Bring in whatever is new, or `null` when this device has not switched the sync
- * on or has no permission to read contacts. Never prompts for permission.
- *
- * Runs are **queued, not merged**: the foreground event that fires as iOS's
- * access picker closes would otherwise start a run that read the address book
- * *before* the picker's additions, and a caller joining it would miss them. A
- * queued run that finds nothing new costs one pass over the ids.
+ * Bring in whatever is new, or `null` when the sync is off or unpermitted.
+ * Queued, not merged: a run begun as iOS's picker closes misses its additions.
  */
 export function syncDeviceContacts(
   core: CoreApi,
@@ -95,8 +64,7 @@ async function syncOnce(core: CoreApi): Promise<ImportResult | null> {
   if (!(await getPermissionsAsync()).granted) return null;
 
   const linked = new Set(await core.deviceContacts.linkedIds());
-  // Ids alone first: on nearly every foreground nothing is new, and reading
-  // every contact's details to find that out would be the expensive way.
+  // Ids alone first: on nearly every foreground nothing is new.
   const ids = await Contact.getAllDetails([ContactField.GIVEN_NAME]);
   if (ids.every(({ id }) => linked.has(id))) return NOTHING_NEW;
 

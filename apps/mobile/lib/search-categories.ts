@@ -1,14 +1,8 @@
 import type { SearchHit, SearchResultType } from "@leapsake/schema";
 
 /**
- * One kind of record, as the search screen talks about it: one removable chip on
- * a narrowed search, and one token in what `?type=` carries.
- *
- * A facet is the *filter's* unit, and it is deliberately finer than a
- * {@link SearchCategory}: the browse grid answers "what catalogs are in here?",
- * where People and Pets are one answer, while a narrowed search answers "what am
- * I willing to be shown", where they are two — a user who came from People & Pets
- * looking for a person shouldn't have to keep the pets to keep the people.
+ * One kind of record: a removable chip and a `?type=` token. Finer than a
+ * {@link SearchCategory}, so people and pets can be dropped separately.
  */
 export interface SearchFacet {
   /** The one hit type this admits — and the token `?type=` carries for it. */
@@ -17,13 +11,7 @@ export interface SearchFacet {
   glyph: string;
 }
 
-/**
- * Every kind of record search can return, in the order chips appear.
- *
- * No `browseHref` here, unlike a {@link SearchCategory}: a chip is a thing to
- * *drop*, never a way somewhere. Where pets are listed is a question the browse
- * grid answers, and it answers it about the catalog they live in.
- */
+/** Every kind of record search can return, in the order chips appear. */
 export const SEARCH_FACETS: readonly SearchFacet[] = [
   { type: "person", label: "People", glyph: "👤" },
   { type: "pet", label: "Pets", glyph: "🐾" },
@@ -32,14 +20,7 @@ export const SEARCH_FACETS: readonly SearchFacet[] = [
   { type: "tag", label: "Tags", glyph: "🏷️" },
 ];
 
-/**
- * One tile on Search's browse grid, and one catalog's worth of 🔍.
- *
- * A category is **not** a single {@link SearchFacet}: people and pets are two
- * record types and one catalog, and the app's own list screen has always shown
- * them together as "People & Pets". So a category owns a *set* of facets — the
- * ones its 🔍 hands to the search screen, which the user can then take apart.
- */
+/** One tile on Search's browse grid, owning the facets its 🔍 starts with. */
 export interface SearchCategory {
   /** Which catalog this is; also names its 🔍's testID, `search-here-<key>`. */
   key: string;
@@ -95,12 +76,8 @@ export function categoryFor(
 }
 
 /**
- * Read `?type=` — a comma-separated list of facet types.
- *
- * Always in table order rather than the URL's, so the chips a user sees don't
- * depend on which one they happened to drop first. Unrecognised tokens are
- * dropped rather than treated as a filter matching nothing, so a stale link
- * degrades to a broader search instead of an empty one.
+ * Read `?type=`, in table order. An unrecognised token is dropped, so a stale
+ * link broadens the search rather than emptying it.
  */
 export function facetsFor(param: string | undefined): SearchFacet[] {
   if (param === undefined) return [];
@@ -108,11 +85,7 @@ export function facetsFor(param: string | undefined): SearchFacet[] {
   return SEARCH_FACETS.filter((facet) => wanted.includes(facet.type));
 }
 
-/**
- * Write `?type=` — `undefined` for an empty selection, which is how the filter
- * is *cleared*: expo-router drops a param set to `undefined`, and no param is
- * what an unfiltered search looks like.
- */
+/** Write `?type=`; `undefined` for none, which expo-router drops. */
 export function facetParam(facets: readonly SearchFacet[]): string | undefined {
   if (facets.length === 0) return undefined;
   return facets.map((facet) => facet.type).join(",");
@@ -123,17 +96,7 @@ export function facetsOf(category: SearchCategory): SearchFacet[] {
   return SEARCH_FACETS.filter((facet) => category.types.includes(facet.type));
 }
 
-/**
- * Narrow results to a selection of facets, client-side.
- *
- * The search service takes no type argument and does not need one: it caps at 50
- * hits from an in-memory pass, so filtering the answer costs nothing and filtering
- * the *query* would mean a new core surface, a new repo path, and a second place
- * for the two clients to disagree about what "a person result" means.
- *
- * An empty selection means no narrowing — an unfiltered search is the whole point
- * of a global one, and it is also where dropping the last chip lands.
- */
+/** Narrow results to the selected facets; an empty selection keeps all. */
 export function filterHits(
   hits: readonly SearchHit[],
   facets: readonly SearchFacet[],

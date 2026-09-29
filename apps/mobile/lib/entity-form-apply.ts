@@ -16,31 +16,8 @@ import { createContact } from "./contact-writes";
 import type { EntityFormValue } from "./entity-form";
 
 /**
- * Write everything staged on the create form against the person or pet that has
- * just been created — the one pass that turns {@link EntityFormSections} into
- * database calls.
- *
- * **It writes all of it.** There was a second caller once — a form over a saved
- * record — and this compared the two and wrote the difference: a row with no
- * saved id created, a row whose editor had been touched updated, a row that had
- * gone deleted. Every part of a saved record is edited on a small screen of its
- * own now, each with a Save that writes one thing, so nothing arrives here but
- * rows that never existed. What is left is the plain reading: create each row,
- * skip the ones nobody filled in.
- *
- * **There is no rollback.** By the time this runs the entity exists, and
- * abandoning the rest because a phone number failed to write would throw away
- * more than it rescued. Failures are collected by name and returned; the caller
- * names them and carries on to the detail page, where whatever didn't take is
- * one tap from being redone — and now that every section on that page can be
- * written from the row it sits on, that is a real offer rather than a second
- * trip through this form.
- *
- * The order is arbitrary — the sections don't depend on each other. It used to
- * have one exception, **milestones first and gifts last**, because a gift's
- * occasion could name a milestone staged on the same form and needed the id its
- * write produced; a gift names nothing but its recipient now, so the constraint
- * and the staged-key map that served it are both gone.
+ * Create every row staged on the create form, skipping empty ones. No
+ * rollback: failures are returned by name, and the rest still lands.
  */
 export async function applyEntityForm(
   core: CoreApi,
@@ -60,7 +37,7 @@ export async function applyEntityForm(
     }
   }
 
-  // ---- Milestones ---------------------------------------------------------
+  // Milestones
   for (const row of value.milestones) {
     // An empty row is the "Add milestone" tap nobody followed through on.
     if (milestoneRowPending(row)) continue;
@@ -72,11 +49,8 @@ export async function applyEntityForm(
     );
   }
 
-  // ---- Contact methods ----------------------------------------------------
-  // Person-owned only; the form stages none for a pet.
+  // Contact methods: person-owned only; the form stages none for a pet.
   for (const row of value.contacts) {
-    // A row every one of whose editors is open has to be allowed to be empty;
-    // an empty one is nothing to write.
     if (contactRowPending(row)) continue;
     const shaped = contactMethodInputOf(row.draft);
     if (!shaped.ok) continue;
@@ -84,8 +58,7 @@ export async function applyEntityForm(
     await attempt(method.label, () => createContact(core, owner, method));
   }
 
-  // ---- Holidays -----------------------------------------------------------
-  // An observance is a fact about a pair; the form only ever adds one.
+  // Holidays: the form only ever adds an observance.
   for (const holiday of value.holidays) {
     await attempt(holiday.name, () =>
       core.holidays.setObservers(holiday.id, [
@@ -94,17 +67,11 @@ export async function applyEntityForm(
     );
   }
 
-  // ---- Relationships ------------------------------------------------------
-  // The entity is the subject; core implies its own role from the picked other
-  // role — including the branch for an other end that doesn't exist yet, which is
-  // created here as a fact about the subject. So "add a pet, its owner, and the
-  // owner's wife" is one pass; only relating two *published* new people still
-  // takes two.
+  // Relationships: the entity is the subject, and core implies its role from
+  // the other's, creating an other end that does not exist yet.
   const subject = { subjectType: bearerType, subjectId: bearerId };
   for (const row of value.relationships) {
-    // An unfilled row is the "Add relationship" tap nobody followed through on;
-    // a half-filled one the Save gate already refused, so `rel` is what the core
-    // calls below accept and nothing else reaches them.
+    // The Save gate already refused a half-filled row.
     if (relationshipRowPending(row)) continue;
     const shaped = relationshipInputOf(row.draft);
     if (!shaped.ok) continue;
@@ -116,15 +83,8 @@ export async function applyEntityForm(
     );
   }
 
-  // ---- Gifts --------------------------------------------------------------
-  // One `capture` per gift: the payload carries one idea and N recipients, and
-  // each staged gift is its own idea. The entity is the sole recipient.
-  //
-  // A row nobody filled in is skipped rather than written — the "Add gift" tap
-  // that went nowhere, exactly as an empty contact row is skipped. The pool is
-  // listed once, and only if there is anything to write: `giftIdeaOf` needs it to
-  // reuse an existing idea rather than mint a second one under the same title,
-  // and unlike the capture screen this write has no pool of its own to hand.
+  // Gifts: one `capture` each. The pool lets `giftIdeaOf` reuse an idea of
+  // the same title, and is listed only when there is something to write.
   const gifts = value.gifts.filter((gift) => !giftDraftEmpty(gift.draft));
   const ideaPool = gifts.length === 0 ? [] : await core.gifts.ideas.list();
   for (const { draft } of gifts) {

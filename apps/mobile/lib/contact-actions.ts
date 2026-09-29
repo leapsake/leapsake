@@ -1,20 +1,7 @@
 import type { LinkAction } from "@leapsake/contact-links";
 
-/**
- * The device half of tapping a contact method.
- *
- * `@leapsake/contact-links` answers what a contact method *could* do — it is
- * pure, and deliberately knows nothing about this phone. What is left is the
- * part that depends on the handset: whether a scheme resolves to an installed
- * app, and what to open when it doesn't.
- *
- * It stays pure anyway, in the same way `device-contacts.ts` does: the native
- * calls (`Linking.canOpenURL`, `Linking.openURL`, `Clipboard`) live in the
- * component, and everything decided *from* their answers lives here where a node
- * test can hold it still. The bridge is a set of schemes the device is known to
- * support, probed once rather than per row — there are only ever two of them
- * (`NATIVE_SCHEMES`), while a person can have a dozen contact methods.
- */
+// The device half of tapping a contact method, kept pure: the component
+// probes the schemes once and makes the native calls.
 
 /** The scheme of a URL — `facetime:+15550109999` → `facetime`. */
 export function schemeOf(url: string): string {
@@ -23,11 +10,8 @@ export function schemeOf(url: string): string {
 }
 
 /**
- * Whether this device can open an action's preferred URL. Anything that is not a
- * declared custom scheme (https, mailto, tel, sms) is taken as openable without
- * asking: those are handled by the OS itself, and `canOpenURL` on iOS answers for
- * *declared* schemes only, so probing them would be asking a question whose
- * answer we would then have to ignore.
+ * Only custom schemes are probed: iOS's `canOpenURL` answers for declared
+ * schemes only, and the OS itself handles https, mailto, tel and sms.
  */
 function canOpenDirectly(
   action: LinkAction,
@@ -37,14 +21,8 @@ function canOpenDirectly(
 }
 
 /**
- * The URL a tap should actually open, or `null` when the action has no route to
- * an app and should fall back to the clipboard.
- *
- * This is the fallback chain in one expression: the custom scheme when the app
- * that answers it is installed, the https URL when it isn't, and nothing when
- * neither exists. An https URL always wins by default rather than by probe — an
- * installed app intercepts its own universal links, and a browser handles the
- * rest, so there is no case where it fails to open *something*.
+ * The custom scheme if its app is installed, else the https URL, else `null`
+ * for the clipboard. An https URL always opens something, so it is not probed.
  */
 export function targetUrl(
   action: LinkAction,
@@ -56,15 +34,8 @@ export function targetUrl(
 }
 
 /**
- * The actions worth showing on this device, in the order they were resolved.
- *
- * Drops only what would visibly do nothing: a custom-scheme action with no https
- * fallback whose scheme this device cannot open — FaceTime on Android, and
- * `geo:` on iOS if the maps action ever loses its web URL. Everything else stays,
- * because a link that opens a browser instead of an app is still the user
- * reaching the person, which is the point.
- *
- * A `copy` action is always kept: it is the reason no row can dead-end.
+ * Drops only an action that would do nothing here, such as FaceTime on
+ * Android. `copy` is always kept, so no row can dead-end.
  */
 export function offeredActions(
   actions: readonly LinkAction[],
@@ -76,13 +47,7 @@ export function offeredActions(
   );
 }
 
-/**
- * What tapping the row itself does — the first surviving action.
- *
- * Undefined only when a method offers nothing at all (an email row whose address
- * is blank), in which case the row is not tappable rather than tappable and
- * inert.
- */
+/** The first surviving action; undefined makes the row untappable. */
 export function primaryAction(
   actions: readonly LinkAction[],
   supportedSchemes: ReadonlySet<string>,
@@ -90,11 +55,7 @@ export function primaryAction(
   return offeredActions(actions, supportedSchemes)[0];
 }
 
-/**
- * A glyph per verb. These are the row's buttons as well as the sheet's bullets:
- * one glyph means one thing to do wherever it appears, so 📞 on a row and 📞 in
- * the sheet both place a call.
- */
+/** A glyph per verb, shared by a row's buttons and the sheet's bullets. */
 export const VERB_ICON: Record<LinkAction["verb"], string> = {
   text: "💬",
   call: "📞",
@@ -106,11 +67,7 @@ export const VERB_ICON: Record<LinkAction["verb"], string> = {
   copy: "📋",
 };
 
-/**
- * What each verb is called. Platform actions get their proper noun folded in —
- * "Message on WhatsApp", "Open in Instagram" — because the verb alone would not
- * say which of a row's several links a sheet item is.
- */
+/** What each verb is called, naming the platform where it has one. */
 export function actionLabel(action: LinkAction): string {
   switch (action.verb) {
     case "text":
@@ -135,15 +92,8 @@ export function actionLabel(action: LinkAction): string {
 }
 
 /**
- * Which of a row's actions get a button of their own, in the resolver's order —
- * so the leading button is the likeliest thing to do with that method.
- *
- * Two things are held back to the `⋯` sheet. Copy, because it is about the
- * string rather than the person, and a row of ways to reach someone shouldn't
- * spend a button on not reaching them. And any action whose glyph a button
- * already carries: a number that is also on WhatsApp resolves to two 💬 actions,
- * and two identical buttons side by side is a coin toss, not a choice. The first
- * one wins because the resolver already ranked them.
+ * The actions that get a button, in the resolver's order. Copy and any
+ * repeat of a glyph already shown are left to the `⋯` sheet.
  */
 export function buttonActions(actions: readonly LinkAction[]): LinkAction[] {
   const taken = new Set<string>();
