@@ -24,27 +24,20 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { personTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 
-// Person detail, ported from desktop's PersonView (core fields, gender, tags,
-// timestamps, relationships, milestones, holidays, gifts, contacts).
+// A person's page; each part carries its own Edit, beside what it changes.
 export default function PersonDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  // Load the view and the reminders that @mention this person together, so the
-  // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
   const load = useCallback(
     () =>
       Promise.all([
         core.views.person(id),
         core.reminders.mentioning("person", id),
-        // The whole catalog with this person's answers; the section shows the
-        // ones they observe.
+        // The whole catalog with this person's answers.
         core.holidays.listForBearer("person", id),
-        // The Gifts section: what's suggested for them, and what they've been
-        // given.
         core.gifts.recipients.listForRecipient("person", id),
-        // Unresolved pairs this person is half of — both people in a pair carry
-        // the banner, so whichever one the user opens leads back to the review.
+        // Both people in an unresolved pair carry the banner.
         core.duplicates.findFor(id),
       ]),
     [core, id],
@@ -87,12 +80,8 @@ export default function PersonDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.people.softDelete(id).then(
-            // **`dismissTo`, not `replace`.** People & Pets is inside the tab
-            // navigator now (`app/(tabs)/_layout.tsx`), so from up here on the
-            // root stack it is not a screen to swap this one for — it is
-            // underneath us. `replace` would put a *second* `(tabs)` on the
-            // stack; this pops back down to the one already there and selects
-            // the catalog, which also takes the deleted record out of history.
+            // `dismissTo`: People & Pets is in the tabs underneath, and
+            // `replace` would stack a second `(tabs)`.
             () => router.dismissTo("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
@@ -103,16 +92,10 @@ export default function PersonDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* No Edit in the header: each part of the record carries its own, beside
-          the part it changes. `personTitle` and not `fullName` directly: every
-          link to this page sends the same call's answer ahead of the read, so the
-          header is already right when this mounts (`lib/record-title.ts`). */}
+      {/* `personTitle`, which every link to this page also sends ahead. */}
       <Stack.Screen options={{ title: personTitle(person) }} />
 
-      {/* Both halves of an unresolved pair carry this, so the way back to the
-          review is on whichever person the user opens. It stays until the pair
-          is merged or marked "not the same" — the only two things that take it
-          out of the candidate set. */}
+      {/* Until the pair is merged or marked "not the same". */}
       {duplicateCandidates.length > 0 && (
         <Pressable
           accessibilityRole="button"
@@ -127,8 +110,6 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      {/* The record's own fields are a section like any other, so that the Edit
-          which changes them can sit where every other section's action sits. */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Details</Text>
@@ -172,9 +153,6 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
-      {/* Below the sections rather than up with the name, the same reading order
-          the create form puts them in: tags describe a person you have already
-          read. */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tags</Text>
@@ -189,12 +167,7 @@ export default function PersonDetailScreen() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      {/* Offered only when detection has something to offer it for. It used to
-          stand on every person, advertising a chore on pages where there was
-          nothing to merge — the same thing the People list's duplicates link
-          stopped doing. The banner above is the same trip by a shorter road when
-          the pair is already known; this stays because merging is the act, and
-          reviewing is only the way in. */}
+      {/* Only when detection has something to merge. */}
       {duplicateCandidates.length > 0 && (
         <Pressable
           accessibilityRole="button"
@@ -204,16 +177,11 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      {/* Deleting the record is the largest change to it, and every change to it
-          is made from this page again — so this is where it belongs. It sits
-          *above* the timestamps rather than last, so the page still ends on the
-          record's bookkeeping rather than on a destructive button. */}
+      {/* Above the timestamps, so the page ends on bookkeeping. */}
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete person</Text>
       </Pressable>
 
-      {/* Bookkeeping, not what the page is about — a caption at the very foot of
-          the screen, below everything a reader came for. */}
       <RecordTimestamps
         createdAt={person.createdAt}
         updatedAt={person.updatedAt}

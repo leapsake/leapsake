@@ -22,20 +22,8 @@ const TIER_LABEL: Record<string, string> = {
 };
 
 /**
- * Review duplicates — the Expo mirror of the desktop detection surface
- * (reconciliation Increment B). Lists candidate pairs with the reasons they
- * matched; "Merge" routes into the existing people merge confirm flow and
- * "Not the same" records the rejection so no device re-nags. Detection only —
- * the merge itself still goes through the confirm.
- *
- * Two modes, one screen (mirroring desktop's `Duplicates`):
- * - **unscoped** (`/duplicates`) — every outstanding pair, reached from the
- *   People & Pets header link, the Home nudge, or after an import;
- * - **scoped** (`/duplicates?for=<personId>`) — only the pairs involving that
- *   person, where saving a new person lands when the detector finds a match.
- *   Scoped mode is a prompt, so it always offers a way onward ("Not now"); the
- *   pairs stay outstanding and stay linked from the list, the Home nudge, and
- *   both people's own pages until they're merged or dismissed.
+ * Candidate pairs and why they matched, all or `?for=` one person's. Scoped
+ * is a prompt, so "Not now" always leads on and the pairs stay outstanding.
  */
 export default function DuplicatesScreen() {
   const core = useCore();
@@ -54,17 +42,14 @@ export default function DuplicatesScreen() {
       core.duplicates.findFor(focusId),
       core.people.get(focusId),
     ]);
-    // An unresolvable id falls back to the unscoped list rather than erroring:
-    // the person may have just been merged away from this very screen.
+    // The person may have just been merged away: fall back to every pair.
     if (person === undefined) {
       return {
         candidates: await core.duplicates.findCandidates(),
         focus: null,
       };
     }
-    // The person, not a name lifted off them: the two ways out of this screen
-    // link to their page, and a link carries the name that page will show
-    // (`lib/record-title.ts`). The prose below names them from the same record.
+    // The record, not a name, so links to their page carry its title.
     return { candidates, focus: person };
   }, [core, scoped, focusId]);
 

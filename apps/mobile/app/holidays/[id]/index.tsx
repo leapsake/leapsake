@@ -16,13 +16,8 @@ import { holidayTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 
-// Holiday detail, ported from desktop's HolidayView: when it next falls, the
-// dates after that, and who observes it.
-//
-// There is no edit affordance, and that is the design rather than an omission —
-// a catalog holiday is read-only, and a user who wants a different Mother's Day
-// hides this one and creates their own (`@leapsake/holidays` README, read-only catalog rows). That keeps a
-// user's edit from ever losing to, or blocking, a catalog update.
+// A holiday's dates and observers. No edit: catalog rows are read-only
+// (`@leapsake/holidays` README).
 export default function HolidayDetailScreen() {
   const core = useCore();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,9 +58,7 @@ export default function HolidayDetailScreen() {
     );
   }
 
-  // One read serves both halves: who observes it, and who could be added.
-  // Excluding current observers from the suggestions is what stops the same
-  // person being added twice and shrinks the list as you go.
+  // One read for observers and candidates; an observer is never suggested.
   const observers = candidates.filter((c) => c.observes);
   const addable = candidates.filter((c) => !c.observes);
 
@@ -99,9 +92,7 @@ export default function HolidayDetailScreen() {
     );
   };
 
-  // A const arrow rather than a `function` declaration: the latter is hoisted,
-  // so TypeScript analyses it without the `holiday === undefined` guard above
-  // and can't narrow the captured value.
+  // An arrow, not a hoisted `function`, so TypeScript keeps the narrowing.
   const toggleHidden = () => {
     const next = !holiday.hidden;
     const run = () =>
@@ -124,8 +115,7 @@ export default function HolidayDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* `holidayTitle`, which is also what every link to this page sends ahead
-          of the read — see `lib/record-title.ts`. */}
+      {/* `holidayTitle`, which every link to this page also sends ahead. */}
       <Stack.Screen options={{ title: holidayTitle(holiday) }} />
 
       {holiday.hidden && (
@@ -138,9 +128,7 @@ export default function HolidayDetailScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Upcoming</Text>
         {holiday.upcoming.length === 0 ? (
-          // An honest empty state: a precomputed holiday past its date table, or
-          // a rule this build doesn't understand, reports nothing rather than
-          // guessing a date.
+          // Past its table, or an unknown rule: no date rather than a guess.
           <Text style={styles.muted}>
             No upcoming dates are known for this holiday.
           </Text>
@@ -182,9 +170,7 @@ export default function HolidayDetailScreen() {
         {observers.length === 0 ? (
           <Text style={styles.muted}>No one yet.</Text>
         ) : (
-          // Each observer links to their own schedule, because the reminder rule
-          // bears on the observance, not the holiday — which is what lets one
-          // person get a gift reminder and another only a day-of call.
+          // Reminder rules are per observance, so each observer has a schedule.
           observers.map((observer) => (
             <View
               key={`${observer.bearerType}:${observer.bearerId}`}

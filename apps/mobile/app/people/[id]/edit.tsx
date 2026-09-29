@@ -17,30 +17,18 @@ const TEXT = {
   nameRequired: "Enter a first, middle or last name before saving.",
 } as const;
 
-/**
- * A person's own fields — the three parts of their name and their gender — on a
- * screen of their own, behind the **Edit** beside those fields on their page.
- *
- * It is one of several small screens rather than one big one: each thing a user
- * can change about a record gets its own Save, so saving means *this* is
- * written and nothing else is still in the air. See {@link MilestoneForm}, which
- * is the shape every one of them takes.
- */
+/** A person's own fields, their name and gender, with a Save of their own. */
 export default function PersonEditScreen() {
   const core = useCore();
   const { id } = useLocalSearchParams<{ id: string }>();
-  // Wrapped, because `views.person` answers `null` for a record that isn't
-  // there and `useFocusedData` answers `null` while it is still loading — two
-  // different screens to render, and the wrapper is what keeps them apart.
+  // Wrapped: a missing record and a load in flight are both `null` otherwise.
   const load = useCallback(
     async () => ({ view: await core.views.person(id) }),
     [core, id],
   );
   const { data, error } = useFocusedData(load);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || data === null || data.view === null) {
     return (
       <>
@@ -64,8 +52,8 @@ export default function PersonEditScreen() {
 function PersonEditForm({ id, view }: { id: string; view: PersonView }) {
   const core = useCore();
   const router = useRouter();
-  // Seeded once, so a reload on focus can't discard what was typed. Gender is the
-  // stored one, never the derived `view.gender`; tags ride along since `update` replaces them.
+  // Seeded once, so a reload cannot discard typing. The stored gender, not the
+  // derived one; tags ride along, since `update` replaces them.
   const form = usePersonForm(view.person, tagsRawOf(view.tags));
   const [saving, setSaving] = useState(false);
 

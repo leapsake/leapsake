@@ -38,8 +38,7 @@ export default function ReminderEditScreen() {
       </View>
     );
   }
-  // Deep-link safety: the detail screen hides Edit for automatic reminders, but a
-  // direct navigation here shouldn't offer a form core would reject on save.
+  // A deep link can reach an automatic reminder, whose save core would reject.
   if (!isReminderEditable(reminder)) {
     return (
       <View style={styles.screen}>
@@ -51,9 +50,7 @@ export default function ReminderEditScreen() {
     );
   }
 
-  // The form declares the header (title + Save) itself; the branches above set the
-  // title only because it isn't mounted in them. Two `Stack.Screen`s for one route
-  // would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   return (
     <ReminderForm
       title="Edit reminder"

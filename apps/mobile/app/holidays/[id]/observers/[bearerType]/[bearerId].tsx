@@ -9,19 +9,8 @@ import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
 
-// One person's reminder schedule for one holiday, ported from desktop's
-// HolidayObservanceSchedule — "what should Leapsake remind me about for Violet at
-// Christmas?"
-//
-// This is the screen that makes the feature do anything. Observances ship with
-// every action **off** (holidays all land on the same day, so a default-on wish
-// would flood late November), so saying someone celebrates a holiday records the
-// fact but generates nothing until a rule is switched on here.
-//
-// It is per-*observance* rather than per-holiday because the rule's bearer is
-// the observance (`@leapsake/holidays` README, the three layers): that is exactly what lets "gift
-// Violet 30 days before Christmas" and "just call Grandma day-of" coexist under
-// one holiday.
+// One observer's reminder schedule for one holiday. Every action starts off,
+// so nothing is reminded until a rule is switched on here.
 export default function ObservanceScheduleScreen() {
   const core = useCore();
   const router = useRouter();
@@ -42,7 +31,7 @@ export default function ObservanceScheduleScreen() {
   );
   const { data, error } = useFocusedData(load);
 
-  // `null` until the stored schedule arrives, so a re-focus can't discard edits.
+  // `null` until the stored schedule arrives, so a re-focus keeps edits.
   const [rules, setRules] = useState<ReminderRuleInput[] | null>(null);
   const [saving, setSaving] = useState(false);
 

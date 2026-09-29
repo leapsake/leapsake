@@ -17,7 +17,7 @@ const TEXT = {
   nameRequired: "Enter the pet’s name before saving.",
 } as const;
 
-/** A pet's name and gender — see `app/people/[id]/edit.tsx`, which this mirrors. */
+/** A pet's name and gender, as `app/people/[id]/edit.tsx`. */
 export default function PetEditScreen() {
   const core = useCore();
   const { id } = useLocalSearchParams<{ id: string }>();

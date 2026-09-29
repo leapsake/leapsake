@@ -4,8 +4,8 @@ import { createContact } from "../../../../lib/contact-writes";
 import { useCore } from "../../../../lib/core-context";
 
 /**
- * Add one contact method to a person. The route has no `[kind]`: the form's Type
- * dropdown picks it, so the user isn't asked to classify before typing.
+ * Add one contact method to a person. The form's Type dropdown picks the
+ * kind, so the user is not asked to classify before typing.
  */
 export default function ContactNewScreen() {
   const core = useCore();

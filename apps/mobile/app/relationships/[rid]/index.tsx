@@ -19,15 +19,8 @@ function entityPath(type: "person" | "pet", id: string): string {
   return `/${type === "person" ? "people" : "pets"}/${id}`;
 }
 
-// Relationship detail, ported from desktop's RelationshipView: the two partners
-// (each a link to their page) and the relationship's own milestones (a Wedding,
-// Met, First Date — facts that belong to the edge, not either partner). Roles are
-// re-set on a partner's own edit form, which is where their relationships live;
-// this page owns the relationship's milestones and a delete.
-//
-// It keeps the in-place Milestones section (the person and pet screens render the
-// same one `readOnly`) because those milestones are the whole of this page: there
-// is no record form here to move them into.
+// A relationship: its two partners and its own milestones, edited in place,
+// and a delete. Roles are set from a partner's page.
 export default function RelationshipDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -53,8 +46,7 @@ export default function RelationshipDetailScreen() {
 
   const { title, partners, milestones } = view;
 
-  // The relationship's own milestones, adapted to the timeline-entry shape the
-  // shared section renders — all `own` here, since they live on this edge.
+  // All `own`, since these milestones live on this edge.
   const entries: MilestoneTimelineEntry[] = milestones.map((milestone) => ({
     milestone,
     origin: "own",

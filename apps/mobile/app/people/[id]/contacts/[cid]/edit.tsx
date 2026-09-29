@@ -10,19 +10,11 @@ import { styles } from "../../../../../lib/styles";
 
 const TITLE = "Edit contact";
 
-/**
- * Revise one of a person's contact methods — the **Edit** in that row's `⋯`
- * sheet.
- *
- * The id alone addresses it: the loaded method carries its own kind, so the
- * route needs no `[kind]` segment even though the write behind it is
- * per-table ({@link updateContact}).
- */
+/** Revise one contact method; it carries its own kind, so the id suffices. */
 export default function ContactEditScreen() {
   const core = useCore();
   const { id, cid } = useLocalSearchParams<{ id: string; cid: string }>();
-  // There is no `core.contactMethods.get`; load the owner's merged methods and
-  // find this one — the same union the section renders.
+  // There is no `core.contactMethods.get`, so find it among the owner's.
   const load = useCallback(
     () => core.contactMethods.listForOwner("person", id),
     [core, id],
@@ -30,9 +22,7 @@ export default function ContactEditScreen() {
   const { data: methods, error } = useFocusedData(load);
   const entry = methods?.find((m) => m.method.id === cid);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || methods === null || entry === undefined) {
     return (
       <>
@@ -63,8 +53,8 @@ function ContactEditForm({
   const core = useCore();
   const router = useRouter();
 
-  // Seeded once from `entry`, so a reload on focus can't discard what was typed.
-  // No Type dropdown: a saved method's kind is its table, so a new kind is a new row.
+  // Seeded once, so a reload cannot discard typing. No Type dropdown: a
+  // saved method's kind is its table.
   return (
     <ContactMethodForm
       title={TITLE}

@@ -9,11 +9,8 @@ import { styles } from "../../../../../lib/styles";
 
 const TITLE = "Edit relationship";
 
-/**
- * Re-role a stored relationship from a pet's side. Endpoints are immutable,
- * so the other end is fixed and only its role changes; core re-derives the
- * subject's own role, keeping whatever gendering it already had.
- */
+/** Re-role a relationship from a pet's side; core re-derives the pet's,
+ *  keeping its gendering. */
 export default function PetRelationshipEditScreen() {
   const core = useCore();
   const router = useRouter();
@@ -24,9 +21,7 @@ export default function PetRelationshipEditScreen() {
   );
   const { data: view, error } = useFocusedData(load);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || view === null) {
     return (
       <>

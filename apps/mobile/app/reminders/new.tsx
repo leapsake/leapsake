@@ -6,8 +6,7 @@ export default function ReminderCreateScreen() {
   const core = useCore();
   const router = useRouter();
 
-  // The form declares the header (title + Save) itself; nothing loads first here,
-  // so it is mounted from the start and this screen never needs its own.
+  // Nothing loads first, so the form declares the header from the start.
   return (
     <ReminderForm
       title="Add reminder"

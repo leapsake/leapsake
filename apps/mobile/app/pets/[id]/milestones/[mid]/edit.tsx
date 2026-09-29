@@ -10,8 +10,7 @@ export default function PetMilestoneEditScreen() {
   const core = useCore();
   const router = useRouter();
   const { id, mid } = useLocalSearchParams<{ id: string; mid: string }>();
-  // No `core.milestones.get`; load the subject's own milestones and find this one
-  // (keeps `packages/*` untouched — the same list the timeline is built from).
+  // There is no `core.milestones.get`, so find it among the subject's own.
   const load = useCallback(
     async () => (await core.milestones.listForBearer("pet", id)) ?? [],
     [core, id],
@@ -19,9 +18,7 @@ export default function PetMilestoneEditScreen() {
   const { data: milestones, error } = useFocusedData(load);
   const milestone = milestones?.find((m) => m.id === mid);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || milestones === null || milestone === undefined) {
     return (
       <>

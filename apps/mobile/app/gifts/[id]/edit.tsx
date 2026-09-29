@@ -19,14 +19,8 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 
 /**
- * A gift idea's own page, ported from desktop's `GiftIdeaEdit`: the editable idea
- * (title, link, notes, tags) plus the "For…" recipient manager — the idea end of
- * a gift link. It is also where a gift-idea search hit and a tag page's gift-idea
- * row land, since an idea has no read-only view on either client.
- *
- * Removing the idea cascades to its recipient links and tags (core owns that), so
- * it asks first — via the native `Alert` the other mobile deletes use, rather
- * than desktop's separate confirm screen.
+ * A gift idea's page: the idea, editable, and who it is for. Removing it
+ * cascades to its recipients and tags, so it asks first.
  */
 export default function GiftIdeaEditScreen() {
   const core = useCore();
@@ -86,8 +80,7 @@ export default function GiftIdeaEditScreen() {
         style: "destructive",
         onPress: () => {
           core.gifts.ideas.softDelete(id).then(
-            // Down to the catalog in the tab navigator, not a replacement for
-            // this screen — see `app/people/[id]/index.tsx`.
+            // Down to the catalog in the tabs underneath, not a `replace`.
             () => router.dismissTo("/gifts"),
             (e: unknown) => Alert.alert("Couldn't remove", String(e)),
           );
@@ -101,9 +94,7 @@ export default function GiftIdeaEditScreen() {
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
-      {/* The form declares this screen's header (title + Save) itself; the
-        "no longer exists" branch above sets the title because it isn't mounted
-        there. Two `Stack.Screen`s for one route would race over the same options. */}
+      {/* The form declares the header; two `Stack.Screen`s would race. */}
       <GiftIdeaForm
         title="Edit gift idea"
         idea={idea}

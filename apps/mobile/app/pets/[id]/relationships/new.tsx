@@ -15,14 +15,8 @@ import { styles } from "../../../../lib/styles";
 const TITLE = "Add relationship";
 
 /**
- * Add a relationship from a pet.
- *
- * With no query params this is the ordinary add: pick anyone in the list, or
- * type a name past the end of it and get an unpublished entity created
- * alongside the edge. With `otherType` / `otherId` / `otherRole` it is the
- * **materialise** path — the Edit on a derived row, opening on the inference
- * with the other end fixed, where saving writes the edge that was only being
- * computed.
+ * Add a relationship from a pet. With `otherType`, `otherId` and `otherRole`
+ * it materialises a derived row, the other end fixed.
  */
 export default function PetRelationshipNewScreen() {
   const core = useCore();
@@ -45,9 +39,7 @@ export default function PetRelationshipNewScreen() {
       ? view.candidates.find((c) => c.type === otherType && c.id === otherId)
       : undefined;
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || view === null) {
     return (
       <>

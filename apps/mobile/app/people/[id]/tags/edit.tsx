@@ -6,7 +6,7 @@ import { useCore } from "../../../../lib/core-context";
 import { useFocusedData } from "../../../../lib/useFocusedData";
 import { styles } from "../../../../lib/styles";
 
-/** A person's tags — the body is {@link TagsEditForm}, shared with the pet route. */
+/** A person's tags, through {@link TagsEditForm}. */
 export default function PersonTagsEditScreen() {
   const core = useCore();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,9 +18,7 @@ export default function PersonTagsEditScreen() {
   );
   const { data, error } = useFocusedData(load);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || data === null || data.view === null) {
     return (
       <>

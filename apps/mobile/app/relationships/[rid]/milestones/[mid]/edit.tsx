@@ -20,9 +20,7 @@ export default function RelationshipMilestoneEditScreen() {
   const { data: milestones, error } = useFocusedData(load);
   const milestone = milestones?.find((m) => m.id === mid);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || milestones === null || milestone === undefined) {
     return (
       <>

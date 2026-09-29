@@ -22,23 +22,17 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { petTitle } from "../../../lib/record-title";
 import { styles } from "../../../lib/styles";
 
-// Pet detail, ported from desktop's PetView (name, gender, tags, timestamps,
-// relationships, milestones, holidays, gifts).
+// A pet's page; each part carries its own Edit, as on a person's.
 export default function PetDetailScreen() {
   const core = useCore();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  // Load the view and the reminders that @mention this pet together, so the
-  // "Mentioned in" backlink refreshes on focus alongside the rest of the page.
   const load = useCallback(
     () =>
       Promise.all([
         core.views.pet(id),
         core.reminders.mentioning("pet", id),
         core.holidays.listForBearer("pet", id),
-        // The Gifts section: what's suggested for them, and what they've been
-        // given. Capturing a new one is `/gifts/new`'s job, so the idea pool it
-        // autocompletes against is loaded there rather than here.
         core.gifts.recipients.listForRecipient("pet", id),
       ]),
     [core, id],
@@ -80,9 +74,7 @@ export default function PetDetailScreen() {
         style: "destructive",
         onPress: () => {
           core.pets.softDelete(id).then(
-            // `dismissTo` for the same reason as the person page: the catalog is
-            // below us in the tab navigator, not a screen to replace this one
-            // with. See `app/people/[id]/index.tsx`.
+            // `dismissTo`: the catalog is in the tabs underneath.
             () => router.dismissTo("/people"),
             (e: unknown) => Alert.alert("Couldn't delete", String(e)),
           );
@@ -93,9 +85,7 @@ export default function PetDetailScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* An Edit beside each part of the record rather than one in the header —
-          see the person screen, which this mirrors, including why the title is
-          `petTitle` rather than the field it reads. */}
+      {/* `petTitle`, which every link to this page also sends ahead. */}
       <Stack.Screen options={{ title: petTitle(pet) }} />
 
       <View style={styles.section}>
@@ -148,14 +138,11 @@ export default function PetDetailScreen() {
 
       <MentionedInSection reminders={mentionedIn} />
 
-      {/* Above the timestamps, so the page ends on the record's bookkeeping
-          rather than on a destructive button — see the person screen. */}
+      {/* Above the timestamps, so the page ends on bookkeeping. */}
       <Pressable accessibilityRole="button" onPress={confirmDelete}>
         <Text style={[styles.link, styles.danger]}>Delete pet</Text>
       </Pressable>
 
-      {/* Bookkeeping, as a caption at the foot of the screen — see the person
-          screen, which this mirrors. */}
       <RecordTimestamps createdAt={pet.createdAt} updatedAt={pet.updatedAt} />
     </ScrollView>
   );

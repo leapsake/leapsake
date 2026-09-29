@@ -15,11 +15,8 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 
 /**
- * Merge a duplicate person into the one being viewed (the survivor). Pick the
- * duplicate from the list; its relationships, tags, milestones, contact methods,
- * and dismissals move onto the survivor, then it is removed. Mirrors the desktop
- * merge screen and the existing destructive-action confirm pattern — honest that
- * it can't be undone.
+ * Merge a duplicate into the person viewed: everything of its moves onto
+ * them, then it is removed, which cannot be undone.
  */
 export default function PersonMergeScreen() {
   const core = useCore();

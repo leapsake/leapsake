@@ -15,11 +15,8 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { personHref, petHref, tagTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 
-// Tag detail, ported from desktop's TagView: everything carrying a given tag,
-// grouped by type. People, pets, reminders, and gift ideas are all taggable; each
-// group renders only when non-empty, and an empty tag shows a placeholder. This
-// is the landing page for a standalone tag search result. A gift idea has no
-// read-only view, so its row opens the idea's edit screen (as desktop's does).
+// Everything wearing a tag, grouped by type. A gift idea has no read-only
+// view, so its row opens the idea's edit screen.
 export default function TagDetailScreen() {
   const core = useCore();
   const router = useRouter();
@@ -71,8 +68,7 @@ export default function TagDetailScreen() {
     );
   }
 
-  // The one name this screen has for the tag: its title, its delete prompt, and
-  // the string every link here sends ahead of the read (`lib/record-title.ts`).
+  // The tag's one name: title, delete prompt, and what links here send.
   const label = tagTitle(tag);
   const empty =
     people.length === 0 &&
