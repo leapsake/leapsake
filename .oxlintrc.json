@@ -48,7 +48,8 @@
         "packages/view-models/**",
         "packages/export/**",
         "packages/crypto/**",
-        "packages/notifications/**"
+        "packages/notifications/**",
+        "packages/contact-links/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
