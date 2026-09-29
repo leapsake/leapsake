@@ -191,8 +191,9 @@ pnpm release ship --tag=v0.1.0-alpha.4 --here   # or ship from this machine: gat
 the reason, so a platform is held back by its own status in `scripts/release/targets/`, never
 by a flag left off the command line.
 
-`scripts/release/` owns the rules and documents them in its own header; `pnpm release
---help` prints the current rung/platform matrix. Credentials live in an untracked `.env`
+`scripts/release/` owns the rules, with its reasoning in
+[`scripts/release/README.md`](../../scripts/release/README.md); `pnpm release --help` prints
+the current rung/platform matrix. Credentials live in an untracked `.env`
 (copy `.env.example`) — team, provisioning profile, and an App Store Connect API key.
 
 **From `beta` up, the release does not stop at the upload.** `alpha` hands the `.ipa` to

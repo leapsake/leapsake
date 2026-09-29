@@ -1,16 +1,5 @@
-// The Android target: Google Play, via a local bundle. `expo prebuild` generates the
-// project, `./gradlew bundleRelease` signs an AAB with the upload key, and `google-play.mjs`
-// puts it on a track through the Developer API.
-//
-// Two constraints shape this file, both the same ones `ios.mjs` states:
-//
-//  1. **`apps/mobile/android/` is generated** by `expo prebuild` and gitignored. Nothing
-//     originates there — the signing config is injected by
-//     `plugins/with-android-release-signing.js` and reads credentials from the environment
-//     at Gradle time.
-//  2. **A stale native tree is the trap, not a missing one.** `app.config.ts` bakes the
-//     version code and the commit at *prebuild* time, so a months-old `android/` ships
-//     months-old values from a current checkout. Hence `--clean`, always.
+// The Android target: Google Play from a local bundle. See
+// `scripts/release/README.md` → _The Android target_.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -20,11 +9,8 @@ import { MOBILE, appIcon, must, pinnedConfig } from "../mobile.mjs";
 import { googlePlayFromEnv } from "../google-play.mjs";
 import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
 
-// ⚠️ **The rung named `beta` ships to the API track named `alpha`.** Play's closed testing
-// track is called "Alpha" in the Console and `alpha` over the API; its `beta` is *open*
-// testing, which no rung here uses. Confirmed against this app's own `edits.tracks.list`
-// on 2026-09-16 — Google's "APKs and Tracks" page is not a reliable source for this and
-// calls the internal track `qa`, which the same call disproves.
+// ⚠️ The `beta` rung ships to the API's `alpha` track, Play's closed testing;
+// see `apps/mobile/README.md`.
 const TRACK = {
   internal: "internal",
   closed: "alpha",
@@ -35,9 +21,7 @@ const ANDROID = (root) => join(MOBILE(root), "android");
 const AAB = (root) =>
   join(ANDROID(root), "app/build/outputs/bundle/release/app-release.aab");
 
-// The upload key's certificate, as Play itself reports it. A fingerprint, not a secret —
-// checking it here is what catches a debug-signed release AAB, which builds and installs
-// cleanly and is only rejected at upload.
+// The upload key's certificate fingerprint, which catches a debug-signed AAB.
 const UPLOAD_KEY_SHA256 =
   "61:B6:0B:A8:D5:FE:D8:FD:F2:6D:89:30:87:68:7A:39:7A:70:29:B7:DF:00:FF:0E:8D:09:7A:B0:40:C1:73:D4";
 
@@ -53,26 +37,8 @@ const signing = [
   ),
 ];
 
-/**
- * Ask Play whether it would accept an edit shaped like this release's, before anything is
- * built.
- *
- * **Both Console gates that have bitten refused the edit *commit*** — `Only releases with
- * status draft may be created on draft app`, and `You must declare the use of advertising ID
- * in Play Console` — which is the far side of the suite, the Gradle build and a completed
- * upload. This asks the same question for the price of two API calls: open an edit, write the
- * track's own releases back to it unchanged, and `:validate` instead of committing. Nothing is
- * committed and no version code is spent, because `withEdit({ commit: false })` abandons it.
- *
- * ⚠️ **A green here is not proof that a commit would succeed.** Whether `:validate` reports
- * *these particular* refusals is unverified: both are one-time-per-app, the app now satisfies
- * both, and neither can be reproduced without breaking a declaration on a live listing. So
- * this is a cheap net for the class, not a guarantee — if a `:commit` is ever refused while
- * this passed, the fallback is a preflight that reads *App content* state directly, and that
- * finding belongs in `plans/android-pipeline.md`.
- *
- * Skipped silently without credentials: `serviceAccount` is the check that owns that failure.
- */
+/** Asks Play to `:validate` an unchanged edit before building; ⚠️ a cheap
+ *  net, not proof. See `apps/mobile/README.md`. */
 const consolePreconditions = (track) => ({
   name: "Play Console preconditions",
   check: async ({ root }) => {
@@ -85,8 +51,7 @@ const consolePreconditions = (track) => ({
         async (editId) => {
           const edit = `${googlePlay.app(packageName)}/edits/${editId}`;
           const current = await googlePlay.get(`${edit}/tracks/${track}`);
-          // A track Play has never released to answers with no releases; writing an empty
-          // array back is not the shape a real publish takes, so send nothing instead.
+          // A never-released track has none; send nothing, not an empty array.
           if (current.releases?.length) {
             await googlePlay.put(`${edit}/tracks/${track}`, {
               body: { track, releases: current.releases },
@@ -113,7 +78,7 @@ const serviceAccount = fileAt(
   { suffix: ".json" },
 );
 
-/** A JDK, which `./gradlew` needs. Checked before a prebuild that deletes the project. */
+/** A JDK for `./gradlew`, checked before the prebuild deletes the project. */
 const java = {
   name: "Java",
   check: () => {
@@ -126,10 +91,7 @@ const java = {
   },
 };
 
-/**
- * One live Play call, so a wrong grant is reported before a four-minute Gradle build
- * rather than after it. Mirrors the App Store Connect check in `ios.mjs`.
- */
+/** One live Play call, so a wrong grant shows before the Gradle build. */
 const googlePlayReachable = {
   name: "Play API",
   check: async ({ root }) => {
@@ -152,16 +114,10 @@ const googlePlayReachable = {
   },
 };
 
-/**
- * Play's release notes, which come from `whats-new.txt` at *every* rung.
- *
- * ⚠️ Not `what-to-test.txt`, which is the iOS pairing. Apple has two fields — TestFlight's
- * "What to Test" for testers and the App Store's "What's New" for the public — and the
- * rungs pick between them. Play has one field, shown in the store listing, so the store
- * copy is the right source even on a testing track.
- */
+/** Play's release notes: ⚠️ `whats-new.txt` at every rung, as Play has one
+ *  field, shown in the listing. */
 const NOTES = (root) => join(root, "release-notes", "whats-new.txt");
-// Play's documented limit: 500 Unicode characters per language, counted as code points.
+// Play's limit: 500 code points per language.
 const NOTES_MAX = 500;
 
 const releaseNotes = {
@@ -204,10 +160,7 @@ const TIERS = {
         "what earn it, so shipping betas is the path to production rather than a detour",
     ],
   },
-  // `rc` means "closed track, plus a production release held for manual publishing" —
-  // ⚠️ but the production half needs production access, which this account does not have.
-  // Until it does, `rc` is `beta` with a louder notice rather than a refusal, so an
-  // iOS `rc` is not blocked by an Android rung that cannot exist yet.
+  // ⚠️ Without production access, `rc` is `beta` with a louder notice.
   rc: {
     name: "closed testing track (no production hold yet)",
     track: TRACK.closed,
@@ -240,13 +193,8 @@ export default {
 
   tiers: TIERS,
 
-  /**
-   * Generate the native project, build a signed AAB, and verify what it claims.
-   *
-   * Both verifications happen before the upload because each catches a different
-   * disaster: a bundle signed by the wrong key is rejected at upload, and one that names
-   * the wrong commit is accepted and unprovable.
-   */
+  /** Prebuilds clean and builds a signed AAB, then verifies its commit and its
+   *  key before any upload. */
   async build({ root, storeVersion, tag }) {
     const mobile = MOBILE(root);
     const config = pinnedConfig(mobile);
@@ -275,8 +223,7 @@ export default {
       },
     );
 
-    // The commit is baked at prebuild time, so this is checkable before spending four
-    // minutes on Gradle.
+    // Baked at prebuild, so checked before Gradle.
     const manifest = readFileSync(
       join(ANDROID(root), "app/src/main/AndroidManifest.xml"),
       "utf8",
@@ -304,8 +251,7 @@ export default {
       cwd: ANDROID(root),
       env: {
         ...process.env,
-        // Gradle signs with whatever key these name; here, the Google Play upload key. The
-        // password exists only in this child environment — `.env` holds its *path*.
+        // The upload key; its password lives only in this child's environment.
         LEAPSAKE_ANDROID_SIGNING_KEYSTORE:
           process.env.GOOGLE_PLAY_UPLOAD_KEYSTORE.trim(),
         LEAPSAKE_ANDROID_SIGNING_KEY_ALIAS:
@@ -322,13 +268,7 @@ export default {
     return { files: { aab }, buildNumber: versionCode, bundleId: packageName };
   },
 
-  /**
-   * Upload the AAB and put it on this rung's track, in one edit.
-   *
-   * One edit updating one track is also what keeps `rc` honest later: when the production
-   * half becomes possible it adds a second `tracks.update` to the *same* edit rather than
-   * a second upload, so one version code covers both.
-   */
+  /** Uploads the AAB onto this rung's track in one edit. */
   async publish({ artifact, root, stage, version }) {
     const tier = TIERS[stage];
     const googlePlay = googlePlayFromEnv();
@@ -353,8 +293,7 @@ export default {
           track: tier.track,
           releases: [
             {
-              // Without this Play names the release from the versionName, which is the
-              // store version — so every rung of 0.1.0 would read "0.1.0" in the Console.
+              // Else every rung of a version reads alike in the Console.
               name: version,
               status: "completed",
               versionCodes: [String(bundle.versionCode)],
@@ -369,12 +308,8 @@ export default {
   },
 };
 
-/**
- * Assert the AAB carries the upload key's certificate.
- *
- * `keytool -printcert -jarfile` reads the signature block out of the bundle without
- * needing `bundletool`; `aapt2` cannot, because an AAB has no root binary manifest.
- */
+/** Asserts the AAB's certificate is the upload key's, via `keytool`, as
+ *  `aapt2` cannot read an AAB. */
 function assertSignedByUploadKey(aab) {
   const printed = execFileSync("keytool", ["-printcert", "-jarfile", aab], {
     encoding: "utf8",

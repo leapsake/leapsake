@@ -1,39 +1,5 @@
-// The iOS target: App Store Connect, via a local archive. No Xcode session anywhere in
-// the path — `expo prebuild` generates the project, `xcodebuild` archives and exports it,
-// and `altool` uploads it with an API key rather than an Apple ID session.
-//
-// Two constraints shape everything here, both learned the expensive way during the first
-// upload — which was done by hand through the Xcode GUI, and is the reason this file exists:
-//
-//  1. **`apps/mobile/ios/` is generated** by `expo prebuild` and gitignored. Nothing may
-//     originate there — not the team, not the signing identity, not the build number.
-//     Everything is passed at invocation, which is also what makes a runner viable.
-//  2. **Manual signing, always.** Under `CODE_SIGN_STYLE=Automatic` Xcode resolves
-//     development *and* distribution profiles before it will archive, so a machine with no
-//     registered device fails for a reason unrelated to the build — and Apple's device
-//     list resets only once per membership year. A build machine has no phone plugged in.
-//
-// ## Where this bends a stated rule, deliberately
-//
-// `scripts/release/index.mjs` makes a principle of leaving the irreversible outward step to
-// a person: it tags, and never pushes. From `beta` up, `publish()` below goes past the
-// upload and **distributes the build to external testers** — it attaches the notes, adds
-// the build to the tester group, and submits it for beta review. That is a step further
-// than alpha's upload: an internal build reaches named App Store Connect users, and this
-// one reaches strangers.
-//
-// It is automated anyway, and the reasoning belongs here rather than in a commit message.
-// **Cutting the tag is the consent gesture.** `pnpm release beta` is typed by a human who
-// has chosen the rung, and the rung *means* external TestFlight — there is no version of
-// "yes, beta" that does not mean "yes, testers". Leaving the last four API calls to a
-// browser session would not add a decision; it would add a chore, and reintroduce exactly
-// the App Store Connect session this file exists to remove. What stays irreversible and
-// unautomated is the part where a *new audience* is chosen: creating the tester group and
-// adding people to it are App Store Connect actions, done once, by hand.
-//
-// The submission is also not the distribution. Apple's beta review sits between them, and
-// it is the backstop this leans on: a build submitted in error is still a build a human
-// can pull before any tester sees it.
+// The iOS target: App Store Connect from a local archive, no Xcode session.
+// See `scripts/release/README.md` → _The iOS target_.
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -61,10 +27,7 @@ import { commitOfBuild } from "../receipts.mjs";
 import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
 import { signingFilesProblem, stageSigningIdentity } from "./ios-signing.mjs";
 
-/**
- * Full Xcode, not just the Command Line Tools: `xcodebuild` ships inside Xcode.app, so a
- * CLT-only machine can notarize and sign but cannot archive.
- */
+/** Full Xcode, as the Command Line Tools cannot archive. */
 const xcodeSelected = {
   name: "Xcode",
   check: () => {
@@ -79,8 +42,7 @@ const xcodeSelected = {
     } catch {
       return "xcode-select is not available — install Xcode and run `sudo xcodebuild -runFirstLaunch`";
     }
-    // The CLT path is /Library/Developer/CommandLineTools; Xcode.app's is inside the app
-    // bundle. Resolve first so a symlinked selection is judged on where it lands.
+    // Resolved first, so a symlinked selection is judged on where it lands.
     const app = dirname(dirname(resolve(selected)));
     return app.endsWith(".app")
       ? undefined
@@ -88,24 +50,8 @@ const xcodeSelected = {
   },
 };
 
-/**
- * Export compliance, asserted by the build rather than answered by hand.
- *
- * Without this key every upload lands at *Missing Compliance* and cannot be distributed to
- * anyone — not even an internal tester — until someone clicks through App Store Connect.
- * With it, the question is never asked.
- *
- * The value is a **declaration about export control, not a build setting**. Leapsake
- * implements standard algorithms in the app (XChaCha20-Poly1305, Argon2id, HKDF-SHA256,
- * AES-256 via SQLCipher) rather than merely calling the OS, so the honest answer to Apple's
- * first question is "standard algorithms, in addition to". `false` here then asserts the
- * narrower thing: that this use is *exempt*. That is the answer already on record for
- * builds 340027 and 341572, made through Apple's own UI *(owner, 2026-08-26)*.
- *
- * So this check exists to keep the declaration from silently disappearing — deleting the
- * key would not fail a build, it would just quietly reinstate the manual step. If the EAR
- * determination ever changes, `apps/mobile/app.json` is the one place to change it.
- */
+/** Export compliance declared in the build, so no upload waits on a click;
+ *  see the README. */
 const exportCompliance = {
   name: "export compliance",
   check: ({ root }) => {
@@ -126,10 +72,7 @@ const signing = [
   { name: "runner signing files", check: () => signingFilesProblem() },
 ];
 
-/**
- * CocoaPods, which `expo prebuild` shells out to. Checked here rather than discovered
- * halfway through a prebuild that has already deleted the native project.
- */
+/** CocoaPods, checked before a prebuild deletes the native project. */
 const cocoapods = {
   name: "CocoaPods",
   check: () => {
@@ -141,13 +84,10 @@ const cocoapods = {
   },
 };
 
-// One App Store Connect API key covers the upload here and macOS notarization later, and
-// unlike an Apple ID session it runs unattended.
+// One API key for the upload and, later, notarization; it runs unattended.
 const appleAppStoreConnectKey = [
-  // The key is handed to altool by path (`--p8-file-path`), so only its existence
-  // matters — not its name, and not which directory it sits in. Keeping the downloaded
-  // `AuthKey_<key id>.p8` filename is still wise: `.gitignore` excludes that shape at any
-  // depth, and a key named anything else is one `git add` away from being published.
+  // Only its existence matters; keep the `AuthKey_<id>.p8` name, which
+  // `.gitignore` excludes.
   fileAt(
     "APPLE_APP_STORE_CONNECT_KEY_PATH",
     "the upload authenticates with it",
@@ -163,26 +103,10 @@ const appleAppStoreConnectKey = [
   ),
 ];
 
-/**
- * "What to Test" — the note every external tester reads before they install.
- *
- * A **repo file**, not `git log`: release notes derived from commit subjects are written
- * for us, and this is the one piece of release copy whose entire audience is someone who
- * has never seen the code. It also has to say a specific thing at this rung — that the
- * build is not a sole copy of anything — which is the mitigation
- * `CONTRIBUTING.md` → *The E2E release gate* accepts in exchange for deferring the recovery-door
- * flows to `rc`.
- *
- * Plain text rather than Markdown because TestFlight renders none: what is in the file is
- * exactly what a tester sees, hashes and asterisks included.
- *
- * The check matters more than the file. A missing note must fail in the first ten seconds
- * of `pnpm release beta`, not after a twenty-minute archive and an upload — at which point
- * the build exists, the version is spent, and the only way forward is a second one.
- */
+/** _What to Test_, the plain-text note every external tester reads. */
 const WHAT_TO_TEST = (root) => join(root, "release-notes", "what-to-test.txt");
 const WHATS_NEW = (root) => join(root, "release-notes", "whats-new.txt");
-const WHATS_NEW_MAX = 4000; // Apple's limit on the field; a longer note is rejected at PATCH.
+const WHATS_NEW_MAX = 4000; // Apple's limit; longer is rejected at PATCH.
 
 const whatToTest = {
   name: "what to test",
@@ -200,14 +124,7 @@ const whatToTest = {
   },
 };
 
-/**
- * The App Store release notes, which are a different document from *What to Test*.
- *
- * They are read by strangers deciding whether to install, not by a tester who already
- * agreed to help — so they are checked separately rather than reusing one file for both.
- * Checked in preflight for the same reason as its sibling: finding out after a
- * twenty-minute archive that the notes are missing wastes the archive.
- */
+/** The App Store's release notes, for strangers, so a file of their own. */
 const whatsNew = {
   name: "what's new",
   check: ({ root }) => {
@@ -229,42 +146,12 @@ const betaGroup = envSet(
   "the external tester group's name is how the release finds it; create the group in App Store Connect → TestFlight",
 );
 
-/**
- * The one live probe in a preflight otherwise made entirely of offline checks.
- *
- * It buys the failures that would otherwise arrive *after* a twenty-minute archive and an
- * upload — at which point the build exists, the version number is spent, and the only way
- * forward is another one. All of them are conditions on the App Store Connect *account*,
- * which nothing offline can see:
- *
- *   - **The key's role.** A *Developer* key uploads a build perfectly well and cannot read
- *     beta groups, attach a build localization, or submit for review. It passes every
- *     offline check. The `.p8` downloads exactly once, so the repair is minting a new key —
- *     not something to discover at the end of a release.
- *   - **The group.** `APPLE_APP_STORE_CONNECT_BETA_GROUP` is matched by name, so a typo or a
- *     group renamed in App Store Connect is a plain string mismatch. An *internal* group is
- *     the worse case: it would be accepted, skip beta review, and quietly deliver `beta` to
- *     the alpha audience.
- *   - **The app record's own beta setup.** Test Information and Beta App Review Information
- *     are filled in by hand, once, and until they are the submission is refused. Read from
- *     the record rather than assumed, because "someone did it in the console last month" is
- *     exactly the kind of claim a release should not take on trust.
- *
- * It is several requests rather than the single one first planned, and that is a
- * deliberate widening: the cost is a few hundred milliseconds on an authenticated session
- * that has to exist anyway, and each one replaces a failure that costs a build. What it
- * does **not** do is decide anything — a network that is merely down is reported as a
- * network failure, not as a bad key.
- *
- * `demoAccountRequired: false` is checked as a value rather than as a presence, because it
- * is the one field whose default is a rejection: a reviewer who assumes Leapsake needs a
- * sign-in — it does not, and works fully local with no account — fails the build for a
- * login that does not exist.
- */
+/** The preflight's one live probe: the key's role, the external group and the
+ *  record's beta setup. See the README. */
 const appleAppStoreConnectSetup = {
   name: "App Store Connect setup",
   check: async ({ root }) => {
-    // The credentials have their own checks; if they are missing, say so once, there.
+    // Missing credentials are reported once, by their own checks.
     if (
       !process.env.APPLE_APP_STORE_CONNECT_KEY_ID?.trim() ||
       !process.env.APPLE_APP_STORE_CONNECT_ISSUER_ID?.trim() ||
@@ -303,7 +190,7 @@ const appleAppStoreConnectSetup = {
 
     const missing = [];
     try {
-      // The group named by .env: it must exist on this app, and it must be external.
+      // The configured group must exist on this app, and be external.
       if (groupName) {
         const groups = await appleAppStoreConnect.get("/v1/betaGroups", {
           query: {
@@ -341,7 +228,7 @@ const appleAppStoreConnectSetup = {
         );
       }
 
-      // Beta App Review Information: who Apple contacts, and what they are told.
+      // Beta App Review Information: who Apple contacts, and with what.
       const detail = await appleAppStoreConnect.get(
         `/v1/apps/${app.id}/betaAppReviewDetail`,
       );
@@ -371,14 +258,10 @@ const appleAppStoreConnectSetup = {
   },
 };
 
-/** The screenshot slots App Store Connect requires: 6.9" iPhone, and 13" iPad for a universal app. */
+/** The required screenshot slots: 6.9" iPhone, and 13" iPad if universal. */
 const IPHONE_SCREENSHOTS = "APP_IPHONE_67";
 const IPAD_SCREENSHOTS = "APP_IPAD_PRO_3GEN_129";
 
-/**
- * What App Review reads on the day `rc` submits: the app record's information and this
- * version's listing. The App Privacy answers are not in Apple's API, so `manual:` names them.
- */
 /** Whether the app has a price schedule; Apple answers 404 until one is set. */
 async function hasPrice(appleAppStoreConnect, appId) {
   try {
@@ -413,7 +296,7 @@ const appleAppStoreListing = {
         query: { "filter[bundleId]": ios.bundleIdentifier, limit: 1 },
       });
       const app = apps?.data?.[0];
-      // `appleAppStoreConnectSetup` already says what is wrong with a missing record.
+      // The setup check already reports a missing record.
       if (!app) return undefined;
 
       const infos = await appleAppStoreConnect.get(
@@ -533,7 +416,7 @@ const appleAppStoreListing = {
   },
 };
 
-/** `method: app-store-connect` plus an explicit profile — the manual-signing half. */
+/** `method: app-store-connect` with an explicit profile: manual signing. */
 function exportOptions({ bundleId, teamId, profile }) {
   const entries = [
     ["method", "app-store-connect"],
@@ -559,25 +442,14 @@ ${entries}
 `;
 }
 
-// --- TestFlight distribution -----------------------------------------------------------
-//
-// Everything below runs *after* the upload, and only at the rungs whose tier is marked
-// `external`. It is the half `altool` cannot do: `altool` hands Apple a file and stops.
-//
-// The order is fixed by Apple, not by preference. A build has to finish processing before
-// it can be localized, added to a group, or submitted — every one of those calls fails
-// against a build still in `PROCESSING`, which is why the wait comes first and is the only
-// slow step.
+// TestFlight distribution, after the upload, in Apple's fixed order.
 
-// Apple's own budget for processing is "usually a few minutes"; observed reality is 5–20,
-// and occasionally worse when a release train elsewhere is busy. The ceiling is generous on
-// purpose: the cost of waiting too long is a slow release, and the cost of giving up too
-// early is a spent version number and a build that has to be re-cut.
+// Processing takes 5–20 minutes; giving up early costs a version number.
 const PROCESSING_TIMEOUT_MS = 40 * 60 * 1000;
 const PROCESSING_POLL_MS = 30_000;
 const PROGRESS_EVERY_MS = 2 * 60 * 1000;
 
-const LOCALE = "en-US"; // The only localization Leapsake has copy for.
+const LOCALE = "en-US"; // The only localization with copy.
 
 const say = (message) => console.log(`   ${message}`);
 
@@ -598,15 +470,8 @@ async function findApp(appleAppStoreConnect, bundleId) {
   return app;
 }
 
-/**
- * The external tester group named by `APPLE_APP_STORE_CONNECT_BETA_GROUP`.
- *
- * The `isInternalGroup` guard is the one worth having: adding a build to an *internal*
- * group is accepted, skips beta review entirely, and reaches nobody outside the App Store
- * Connect user list — so a typo'd or wrongly-chosen group name would silently downgrade
- * `beta` to another alpha while reporting success. That is precisely the failure the rung
- * exists to prevent.
- */
+/** The configured tester group, refused if internal, which would quietly
+ *  turn `beta` into another alpha. */
 async function findExternalGroup(appleAppStoreConnect, appId, name) {
   const found = await appleAppStoreConnect.get("/v1/betaGroups", {
     query: { "filter[app]": appId, "filter[name]": name, limit: 10 },
@@ -632,17 +497,8 @@ async function findExternalGroup(appleAppStoreConnect, appId, name) {
   return group;
 }
 
-/**
- * Wait for the uploaded build to appear and finish processing.
- *
- * Two waits in one, deliberately: a freshly uploaded build is not immediately queryable at
- * all (Apple ingests it first), so "not found yet" is a normal early state rather than an
- * error. It stops being normal at the timeout, where the message says which of the two it
- * was.
- *
- * `INVALID` is fatal and thrown on, never waited out — it is Apple's verdict on the binary
- * (a missing icon size, a disallowed API), and no amount of polling changes it.
- */
+/** Waits for the build to appear, then to process; `INVALID` is Apple's
+ *  verdict on the binary, so it throws. */
 async function waitForProcessing(appleAppStoreConnect, appId, buildNumber) {
   const started = Date.now();
   let lastProgress = 0;
@@ -697,13 +553,7 @@ async function waitForProcessing(appleAppStoreConnect, appId, buildNumber) {
   }
 }
 
-/**
- * Attach "What to Test".
- *
- * PATCH-or-POST rather than POST-and-tolerate: App Store Connect sometimes creates an
- * empty `en-US` localization with the build, and sometimes does not, so both paths are
- * ordinary rather than one being an error to swallow.
- */
+/** Attaches _What to Test_, PATCH-or-POST, as Apple may have seeded one. */
 async function attachWhatToTest(appleAppStoreConnect, buildId, notes) {
   const existing = await appleAppStoreConnect.get(
     `/v1/builds/${buildId}/betaBuildLocalizations`,
@@ -739,13 +589,8 @@ async function attachWhatToTest(appleAppStoreConnect, buildId, notes) {
   say(`"What to Test" attached (${notes.length} characters)`);
 }
 
-/**
- * Add the build to the external group. This is what makes it a *beta* build.
- *
- * A build already in the group is success, not an error: the client retries a call whose
- * connection dropped, and a write that reached Apple before the socket died would come
- * back a conflict on the second try. Tolerating it is what makes that retry safe.
- */
+/** Adds the build to the external group; already there is success, so a
+ *  retry is safe. */
 async function addToGroup(appleAppStoreConnect, groupId, buildId, groupName) {
   try {
     await appleAppStoreConnect.post(
@@ -763,15 +608,8 @@ async function addToGroup(appleAppStoreConnect, groupId, buildId, groupName) {
   say(`added to "${groupName}"`);
 }
 
-/**
- * Submit for beta review, tolerating a submission that already exists.
- *
- * Recent App Store Connect often submits a build **implicitly** when it is added to an
- * external group, so the explicit call frequently loses a race with Apple's own side
- * effect. That is the desired end state arriving early, not a failure — but it cannot be
- * assumed either, because the implicit submission is undocumented behaviour that has come
- * and gone. So: ask, and treat "already submitted" as success.
- */
+/** Submits for beta review; already submitted, often implicitly by Apple, is
+ *  success. */
 async function submitForBetaReview(appleAppStoreConnect, buildId) {
   try {
     await appleAppStoreConnect.post("/v1/betaAppReviewSubmissions", {
@@ -794,7 +632,7 @@ async function submitForBetaReview(appleAppStoreConnect, buildId) {
   }
 }
 
-/** Upload → *in beta review*, with its notes and its group attached. */
+/** Upload to _in beta review_, with its notes and group attached. */
 async function distributeExternally({
   appleAppStoreConnect,
   app,
@@ -820,23 +658,10 @@ async function distributeExternally({
   );
 }
 
-// --- App Store submission ---------------------------------------------------------------
-//
-// The other half of `rc`, and a different audience from the one above: TestFlight reaches
-// people who agreed to help, and this reaches Apple's reviewers on the way to everyone.
-//
-// The order is Apple's again — a version exists, carries notes, names a build, and only
-// then can be submitted — and every step tolerates having already happened, because a
-// rejection is resubmitted against the *same* version record rather than a fresh one.
+// App Store submission, `rc`'s other half; every step tolerates being done.
 
-/**
- * The states in which App Store Connect will still let a version be edited.
- *
- * Everything else is either under review or already out, and attaching a build to one is
- * refused by Apple with an error that does not say why. Naming the state in our own refusal
- * is the difference between "this version is in review, cut a new rc or cancel it" and a
- * bare 409 three steps into a release.
- */
+/** The states in which a version can still be edited, so a refusal can name
+ *  the state rather than a bare 409. */
 const EDITABLE_STATES = new Set([
   "PREPARE_FOR_SUBMISSION",
   "DEVELOPER_REJECTED",
@@ -845,18 +670,8 @@ const EDITABLE_STATES = new Set([
   "INVALID_BINARY",
 ]);
 
-/**
- * The version record for this store version, created if this is its first submission.
- *
- * Find-or-create rather than create-and-tolerate: after a rejection the record still exists
- * and is *supposed* to be reused — that is what keeps a rejected `0.1.0` from spending the
- * version string. A second record for the same version is not something Apple would even
- * allow, so an existing one is the expected case from the second attempt onwards.
- *
- * `releaseType: MANUAL` is the deliberate part. It parks an approved version in *Pending
- * Developer Release* instead of publishing it the moment review passes, which keeps a human
- * at the one irreversible, outward step — the same principle `index.mjs` applies to pushing.
- */
+/** The version record, reused after a rejection, and `MANUAL` so approval
+ *  waits for `final`. */
 async function findOrCreateVersion(appleAppStoreConnect, appId, storeVersion) {
   const found = await appleAppStoreConnect.get(
     `/v1/apps/${appId}/appStoreVersions`,
@@ -878,7 +693,7 @@ async function findOrCreateVersion(appleAppStoreConnect, appId, storeVersion) {
       );
     }
     say(`App Store version ${storeVersion} already exists (${state})`);
-    // A record made by hand defaults to release-on-approval, which `final` cannot follow.
+    // A hand-made record releases on approval, which `final` cannot follow.
     if (existing.attributes?.releaseType !== "MANUAL") {
       await appleAppStoreConnect.patch(`/v1/appStoreVersions/${existing.id}`, {
         body: {
@@ -911,17 +726,8 @@ async function findOrCreateVersion(appleAppStoreConnect, appId, storeVersion) {
   return created.data;
 }
 
-/**
- * Attach the release notes to the version.
- *
- * PATCH-or-POST for the same reason `attachWhatToTest` is: App Store Connect sometimes
- * seeds a localization with the version and sometimes does not.
- *
- * ⚠️ **The very first version of an app has no "what's new".** There is nothing previous to
- * be new against, and Apple rejects the field rather than ignoring it. That is a fact about
- * the app's history rather than a mistake in the notes, so it is reported and stepped over —
- * the submission is still correct without it.
- */
+/** Attaches the release notes, PATCH-or-POST; ⚠️ an app's first version takes
+ *  none, so that refusal is stepped over. */
 async function attachWhatsNew(appleAppStoreConnect, versionId, notes) {
   const existing = await appleAppStoreConnect.get(
     `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations`,
@@ -976,7 +782,7 @@ async function attachWhatsNew(appleAppStoreConnect, versionId, notes) {
   }
 }
 
-/** Point the version at the build. A 204, and idempotent — the same build twice is fine. */
+/** Points the version at the build; idempotent. */
 async function attachBuild(
   appleAppStoreConnect,
   versionId,
@@ -992,13 +798,7 @@ async function attachBuild(
   say(`build ${buildNumber} attached to the version`);
 }
 
-/**
- * The open review submission for this app, or a new one.
- *
- * A submission is a *container* — it can carry more than one item, and one is already open
- * if a previous attempt got this far and stopped. Creating a second while one is open is
- * refused, so this looks first.
- */
+/** The app's open review submission, or a new one; a second is refused. */
 async function findOrCreateSubmission(appleAppStoreConnect, appId) {
   const found = await appleAppStoreConnect.get(
     `/v1/apps/${appId}/reviewSubmissions`,
@@ -1026,7 +826,7 @@ async function findOrCreateSubmission(appleAppStoreConnect, appId) {
   return created.data;
 }
 
-/** Apple's reasons behind a refusal, including the per-resource ones it nests in `meta`. */
+/** Apple's reasons for a refusal, including those nested in `meta`. */
 function appleReasons(error) {
   const reasons = error.errors.flatMap((each) =>
     Object.values(each.meta?.associatedErrors ?? {})
@@ -1037,7 +837,7 @@ function appleReasons(error) {
   return (reasons.length > 0 ? reasons : top).filter(Boolean);
 }
 
-/** Put the version in the submission, tolerating its already being there. */
+/** Puts the version in the submission, tolerating it already there. */
 async function addVersionToSubmission(
   appleAppStoreConnect,
   submissionId,
@@ -1063,7 +863,7 @@ async function addVersionToSubmission(
     if (!(error instanceof AppleAppStoreConnectError) || error.status !== 409) {
       throw error;
     }
-    // Apple answers 409 both for "already there" and for "not reviewable"; ask which.
+    // A 409 means "already there" or "not reviewable"; ask which.
     const items = await appleAppStoreConnect.get(
       `/v1/reviewSubmissions/${submissionId}/items`,
       { query: { include: "appStoreVersion" } },
@@ -1082,7 +882,7 @@ async function addVersionToSubmission(
   }
 }
 
-/** Hand the submission to Apple. Tolerates a submission already sent, as beta review does. */
+/** Hands the submission to Apple, tolerating one already sent. */
 async function submitForReview(appleAppStoreConnect, submissionId) {
   try {
     await appleAppStoreConnect.patch(`/v1/reviewSubmissions/${submissionId}`, {
@@ -1113,19 +913,8 @@ async function submitForReview(appleAppStoreConnect, submissionId) {
   }
 }
 
-/**
- * Upload → *waiting for review*, with the version created, noted and pointed at the build.
- *
- * Exported for its tests: every step is an ordered conversation with Apple whose failures
- * are 409s that mean "already done", and the only way to prove those are tolerated without
- * submitting a real app is to drive the whole sequence against a stubbed `fetch`.
- */
-/**
- * The build App Store Connect has attached to a version, or `null`.
- *
- * This is the whole reason receipts exist: Apple answers with a build *number* and nothing
- * that names a commit, so the number is the only key back into the repository.
- */
+/** The build number a version has attached, or `null`: the only key back to
+ *  a commit. */
 async function attachedBuild(appleAppStoreConnect, versionId) {
   const found = await appleAppStoreConnect.get(
     `/v1/appStoreVersions/${versionId}/build`,
@@ -1136,7 +925,7 @@ async function attachedBuild(appleAppStoreConnect, versionId) {
   return found?.data ?? null;
 }
 
-/** Make an approved version public. Tolerates a release already requested. */
+/** Makes an approved version public, tolerating one already requested. */
 async function requestRelease(appleAppStoreConnect, versionId) {
   try {
     await appleAppStoreConnect.post("/v1/appStoreVersionReleaseRequests", {
@@ -1161,14 +950,12 @@ async function requestRelease(appleAppStoreConnect, versionId) {
   }
 }
 
-/** The refusal `cut final --if-approved` reads as "Apple is not done yet" rather than a failure. */
+/** A refusal `cut final --if-approved` reads as “not yet”, not failure. */
 const notApproved = (message) =>
   Object.assign(new Error(message), { name: "NotApproved" });
 
-/**
- * The approved version's record and the commit its build came from, without releasing it.
- * Refuses rather than guesses; `--commit=` names the commit by hand.
- */
+/** The approved version and its build's commit, unreleased; refuses rather
+ *  than guesses, and `--commit=` names it by hand. */
 export async function approvedRelease({ root, storeVersion, commit }) {
   const appleAppStoreConnect = appleAppStoreConnectFromEnv();
   const bundleId = readAppJson(root).expo?.ios?.bundleIdentifier;
@@ -1227,7 +1014,7 @@ export async function approvedRelease({ root, storeVersion, commit }) {
   };
 }
 
-/** Make the approved version public, and report which commit went with it. */
+/** Makes the approved version public, and reports its commit. */
 export async function releaseToPublic(ctx) {
   const { appleAppStoreConnect, version, state, buildNumber, commit } =
     await approvedRelease(ctx);
@@ -1272,25 +1059,16 @@ export async function submitToAppStore({
   );
 }
 
-/**
- * What each rung means on iOS, and what it demands beyond the target's baseline.
- *
- * Hoisted out of the export so `publish()` can read the rung it is shipping: `external`
- * is the switch between "upload and stop" and "upload, then distribute to testers".
- */
+/** Each rung on iOS; `external` switches `publish()` from upload-and-stop to
+ *  distributing to testers. */
 const TIERS = {
   alpha: {
-    // Export compliance is required at *every* rung, not just the ones strangers see:
-    // without it the build is undistributable even to an internal tester.
+    // Export compliance at every rung, or not even an internal tester gets it.
     name: "internal TestFlight",
     requires: [exportCompliance],
     manual: ["testers must be App Store Connect users (≤100)"],
   },
-  // `external` is what `publish()` branches on, and it is the same list twice on
-  // purpose: both rungs distribute to the same strangers through the same group, so
-  // they owe the same checks. Naming it a property of the *rung* rather than hard-coding
-  // a stage list inside `publish()` keeps the rule where the rest of the rung's rules
-  // are — and makes a future rung that uploads without distributing a one-line change.
+  // `beta` and `rc` reach the same strangers, so they owe the same checks.
   beta: {
     name: "external TestFlight",
     external: true,
@@ -1301,16 +1079,10 @@ const TIERS = {
       betaGroup,
       appleAppStoreConnectSetup,
     ],
-    // What is left is the wait itself. The beta description and "What to Test" used to
-    // be here: the notes are now a repo file this attaches, and the description is set
-    // once on the app record rather than per build.
+    // Only the wait itself is left to a person.
     manual: ["Beta App Review — roughly a day on the first build of a version"],
   },
-  // `rc` is where a build stops being only a tester's problem: it goes to the same
-  // strangers `beta` does *and* to Apple's reviewers. That is what distinguishes the rung —
-  // if a build is not ready for review, it is a `beta`. `storeSubmission` is its own
-  // property rather than more meaning loaded onto `external`, because the two halves reach
-  // different audiences and a future rung may well want one without the other.
+  // `rc` also goes to App Review, a separate audience, so a separate switch.
   rc: {
     name: "external TestFlight + App Store review",
     external: true,
@@ -1330,9 +1102,7 @@ const TIERS = {
       "App Store review — a day or so, and it reviews the metadata too",
     ],
   },
-  // `final` builds nothing. The artifact it makes public was built and submitted by `rc`,
-  // days earlier — going live is a state Apple confers, not something compiled — so this
-  // rung releases the approved version and records which commit that was.
+  // `final` builds nothing: it releases what `rc` submitted, and records it.
   final: {
     name: "release to the public",
     marker: true,
@@ -1352,16 +1122,10 @@ export default {
 
   preflight: [xcodeSelected, cocoapods, ...signing, ...appleAppStoreConnectKey],
 
-  /**
-   * The `marker` rung's whole implementation: no archive, no upload, no artifact.
-   *
-   * It is a sibling of `build`/`publish` rather than a stage inside them, because it shares
-   * nothing with them — it reads App Store Connect and the repository's own receipts, and
-   * produces a commit rather than a file.
-   */
+  /** The marker rung: no archive or upload, only a release and its commit. */
   release: releaseToPublic,
 
-  /** The commit a marker rung will release, for `cut final` to tag before anything goes live. */
+  /** The commit a marker rung will release, for `cut final` to tag first. */
   async approved(ctx) {
     const { commit, buildNumber } = await approvedRelease(ctx);
     return { commit, buildNumber };
@@ -1369,15 +1133,8 @@ export default {
 
   tiers: TIERS,
 
-  /**
-   * Generate the native project, archive it, export a signed `.ipa`.
-   *
-   * The prebuild is preceded by deleting `ios/` outright rather than merging into it.
-   * A release has to be reproducible from a commit, and a directory that has accumulated
-   * whatever a previous build or an Xcode session left behind is not that. It costs the
-   * developer a re-prebuild afterwards, which is the correct trade for an artifact that
-   * goes to strangers.
-   */
+  /** Deletes and regenerates `ios/`, archives it, and exports a signed `.ipa`,
+   *  reproducible from the commit. */
   async build({ root, storeVersion, tag }) {
     const mobile = MOBILE(root);
     const buildDir = join(mobile, "build");
@@ -1392,8 +1149,7 @@ export default {
         "expo config resolved no ios.buildNumber/bundleIdentifier — check apps/mobile/app.config.ts",
       );
     }
-    // The version Expo resolved and the version the tag names must be the same number, or
-    // the artifact would carry a store version the release does not know it shipped.
+    // Expo's resolved version must be the tag's, or the release misreports it.
     if (config.version !== storeVersion) {
       throw new Error(
         `expo resolved version ${config.version} but ${tag} means ${storeVersion} — apps/mobile/package.json and the tag disagree`,
@@ -1437,8 +1193,7 @@ export default {
         "generic/platform=iOS",
         "-archivePath",
         archivePath,
-        // Signing is supplied here and nowhere else: the native project is regenerated
-        // every build, so anything it claims about signing is discarded before this runs.
+        // Signing is supplied here only; the project is regenerated each build.
         `DEVELOPMENT_TEAM=${teamId}`,
         "CODE_SIGN_STYLE=Manual",
         "CODE_SIGN_IDENTITY=Apple Distribution",
@@ -1464,27 +1219,14 @@ export default {
     const ipa = readdirSync(exportPath).find((entry) => entry.endsWith(".ipa"));
     if (!ipa) throw new Error(`no .ipa in ${exportPath}`);
     assertNoTestOnlyCode(join(exportPath, ipa), BUNDLE_IN.ipa);
-    // `bundleId` travels with the artifact rather than being re-read in `publish()`: it is
-    // what identifies the app to App Store Connect, and it must be the value Expo actually
-    // resolved for *this* build, not what `app.json` says a second later.
+    // The bundle id Expo resolved for this build travels with it.
     return { files: { ipa: join(exportPath, ipa) }, buildNumber, bundleId };
   },
 
-  /**
-   * Validate, upload — and, from `beta` up, distribute.
-   *
-   * Validation first because it is the cheap half: it catches a rejected bundle before the
-   * upload rather than leaving a build sitting in App Store Connect in a state that has to
-   * be cleaned up by hand.
-   *
-   * The distribution half is everything `altool` cannot reach, and it runs only for a rung
-   * whose tier is `external`. At `alpha` this returns exactly where it always did, with
-   * the build uploaded and nothing else claimed about it.
-   */
+  /** Validates first, as the cheap half, then uploads, and from `beta` up
+   *  distributes. */
   async publish({ artifact, root, stage, storeVersion }) {
-    // `--p8-file-path` names the key directly. Without it, altool searches four fixed
-    // directories for a file called `AuthKey_<key id>.p8` — which would make the key's
-    // *filename* load-bearing, and would fail at the upload, after the archive.
+    // By path, or altool hunts four directories for a fixed filename.
     const credentials = [
       "--api-key",
       process.env.APPLE_APP_STORE_CONNECT_KEY_ID.trim(),
@@ -1525,8 +1267,7 @@ export default {
       return;
     }
 
-    // Resolved once and shared by both halves. Waiting out processing is the slow step —
-    // 5–20 minutes — and an `rc` that did it twice would pay for it twice for no reason.
+    // Shared by both halves, so `rc` waits out processing once.
     const appleAppStoreConnect = appleAppStoreConnectFromEnv();
     const app = await findApp(appleAppStoreConnect, artifact.bundleId);
     const build = await waitForProcessing(
