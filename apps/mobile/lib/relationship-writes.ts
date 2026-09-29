@@ -12,8 +12,8 @@ type RelationshipInput = Extract<
 >["input"];
 
 /**
- * Add relationship's two writes from a subject: Edit's on somebody new, and Save's,
- * which revises the relationship Edit wrote rather than adding a second.
+ * Add relationship's two writes: Edit's on somebody new, and Save's, which
+ * revises the relationship Edit wrote rather than adding a second.
  */
 export function relationshipWrites(
   core: CoreApi,

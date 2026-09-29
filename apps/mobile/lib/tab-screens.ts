@@ -13,7 +13,7 @@ const TEXT = {
   newGiftIdea: "New gift idea",
 } as const;
 
-/** A tab screen's button in the bar. A screen without one is hidden (`href: null`). */
+/** A tab screen's button; a screen without one is hidden (`href: null`). */
 export interface TabButton {
   label: string;
   testID: string;

@@ -9,15 +9,7 @@ import { Text } from "react-native";
 
 export type { HighlightMode };
 
-/**
- * Render platform-agnostic {@link HighlightSegment}s as React Native: each
- * matched run becomes a bold `<Text>` (the desktop renders the same segments as
- * `<mark>`, which it styles bold rather than with a colored background), and the
- * rest renders as plain inline `<Text>`. All the matching/folding lives in
- * `@leapsake/highlight`; this is RN's thin rendering wrapper, the counterpart to
- * the desktop's `highlightMatch.tsx`. The runs are inline `<Text>`, so they flow
- * inside a parent `<Text>`.
- */
+/** Segments as inline `<Text>` runs, matched ones bold. */
 function render(segments: HighlightSegment[]): ReactNode {
   return segments.map((s, i) =>
     s.marked ? (
@@ -30,12 +22,7 @@ function render(segments: HighlightSegment[]): ReactNode {
   );
 }
 
-/**
- * Bold the portion of `text` that the user's `term` matched. The fold mirrors the
- * search service (accent/case for `"text"`, digits for `"phone"`, comma/
- * whitespace-insensitive for `"address"`) so the highlight aligns with how the
- * result matched. See {@link highlightSegments}.
- */
+/** Bold what `term` matched in `text`, folded as the search service folds. */
 export function highlightMatch(
   text: string,
   term: string,
@@ -44,11 +31,7 @@ export function highlightMatch(
   return render(highlightSegments(text, term, mode));
 }
 
-/**
- * Highlight a birthday reason (a formatted date like "October 31, 1990") against
- * the user's query — month-name queries fold like text, numeric queries bold the
- * structural date pieces they name. See {@link highlightBirthdaySegments}.
- */
+/** Bold the parts of a formatted birthday the query names. */
 export function highlightBirthday(text: string, term: string): ReactNode {
   return render(highlightBirthdaySegments(text, term));
 }

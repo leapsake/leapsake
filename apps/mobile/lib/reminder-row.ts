@@ -8,7 +8,7 @@ import {
   reminderOfferLabelOf,
 } from "@leapsake/view-models";
 
-/** Each onboarding nudge's {@link OnboardingRoute} as this client's own path. */
+/** Each onboarding nudge's {@link OnboardingRoute} as this app's path. */
 const ONBOARDING_PATH: Record<OnboardingRoute, string> = {
   import: "/import",
   "create-account": "/settings",
@@ -24,7 +24,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   enableNotifications: "Turn them on ›",
   aboutYou: "Get started ›",
   duplicates: "Review ›",
-  // Never drawn: the detail screen carries the prompt's form (see isAnsweredInline).
+  // Never drawn: the detail screen carries the prompt's form.
   choosePlan: "Choose below",
   seeGifts: "See their gifts ›",
   recordGiving: "Record what you gave ›",
@@ -65,7 +65,7 @@ export type RowOffer =
   | { kind: "snooze"; days: number; label: string }
   | { kind: "dismiss"; label: string };
 
-/** Where a call to action leads, or null for a prompt, which is answered on the detail screen. */
+/** Where a call to action leads; null for a prompt, answered in place. */
 function ctaPathFor(cta: ReminderCta): string | null {
   switch (cta.kind) {
     case "onboarding":
@@ -74,7 +74,7 @@ function ctaPathFor(cta: ReminderCta): string | null {
       return "/duplicates";
     case "plan":
       return null;
-    // `given=1` opens the capture form ticked, which the recipient alone can't say.
+    // `given=1` opens the capture form ticked.
     case "gift":
       return cta.action === "record-giving"
         ? `/gifts/new?recipient=${encodeURIComponent(`${cta.recipientType}:${cta.recipientId}`)}&given=1`
@@ -90,8 +90,8 @@ function ctaPathFor(cta: ReminderCta): string | null {
 }
 
 /**
- * What one {@link ReminderRowAction} looks like on mobile, so the screen renders
- * and decides nothing. A snooze passes its day count through verbatim.
+ * One {@link ReminderRowAction} as mobile draws it, so the screen decides
+ * nothing. A snooze passes its day count through verbatim.
  */
 export function offerFor(action: ReminderRowAction): RowOffer {
   const label = labelOf(action);
@@ -135,7 +135,7 @@ export interface RemovalCopy {
   confirm: string;
 }
 
-/** The confirmation for each {@link ReminderRemoval}: a nudge's tombstone is permanent, so it says so. */
+/** Each {@link ReminderRemoval}'s confirmation; a nudge's is permanent. */
 export const REMOVAL_COPY: Record<ReminderRemoval, RemovalCopy> = {
   remove: {
     title: "Delete reminder",

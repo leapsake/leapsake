@@ -42,8 +42,8 @@ export interface OpenActiveStorePorts<Doors extends BootDoors> {
 }
 
 /**
- * Open the store the roster points at: keyless when Unauthenticated, else under
- * the enclave's db-key, a door's, or a newly minted one for a store not yet made.
+ * Open the store the roster points at: keyless when Unauthenticated, else with
+ * the enclave's db-key, a door's, or a new one for a store not yet made.
  */
 export async function openActiveStore<Doors extends BootDoors>(
   ports: OpenActiveStorePorts<Doors>,
@@ -67,7 +67,7 @@ export async function openActiveStore<Doors extends BootDoors>(
   const recoverySidecar = await doors?.readRecovery();
   const passwordSidecar = await doors?.readPassword();
 
-  // An Authenticated launch sweeps the plaintext store a conversion failed to delete.
+  // An Authenticated launch sweeps a plaintext store left by a conversion.
   if (activeStore.custody === "encrypted") {
     try {
       await ports.destroyStore(storePath(UNAUTHENTICATED_STORE_SLOT));

@@ -4,8 +4,8 @@ import type { UnlockAnswer, UnlockRequest } from "@leapsake/core";
 type Door = UnlockAnswer["door"];
 
 /**
- * The unlock gate's state: which door shows (the password, when the store has
- * one, until the user picks), the typed secret, and the error for this door only.
+ * The unlock gate's state: which door shows (the password first, if any), the
+ * typed secret, and the error for this door only.
  */
 export function useRecoveryGate({
   error,
@@ -22,7 +22,7 @@ export function useRecoveryGate({
     if (!chosen) setDoor(doors.password ? "password" : "phrase");
   }, [chosen, doors.password]);
 
-  // Each attempt brings a new `onSubmit`; the same error twice does not re-fire.
+  // Each attempt brings a new `onSubmit`, so a repeated error still shows.
   useEffect(() => {
     setSubmitting(false);
     setStaleError(false);
@@ -31,7 +31,7 @@ export function useRecoveryGate({
   function submit() {
     if (secret.trim() === "") return;
     setSubmitting(true);
-    // Two frames, so "Checking…" paints before the key derivation blocks the thread.
+    // Two frames, so "Checking…" paints before key derivation blocks.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => onSubmit({ door, secret })),
     );

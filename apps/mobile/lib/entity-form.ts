@@ -35,19 +35,8 @@ const TEXT = {
 } as const;
 
 /**
- * A person or pet as the create form holds it — the record's own fields plus
- * everything their detail screen will show beside them, none of it written yet.
- *
- * Staging is what the create screen needs and the *only* thing that needs it:
- * every staged row is keyed to a bearer id that doesn't exist until the record
- * is written, so there is nowhere for a row to go one at a time. A saved record
- * has no such problem, and each part of one is edited on a small screen with a
- * Save of its own — the asymmetry is the point. This shape briefly served both,
- * seeded from a saved record and applied as a diff.
- *
- * Both drafts are kept even though only one is in use: the create screen's toggle
- * flips between them, and holding both means the shared sections don't have to
- * branch on the type to read a name.
+ * A new person or pet with every row staged, none written yet. Both drafts are
+ * kept, so the type toggle can flip between them without losing either.
  */
 export interface EntityFormValue {
   person: PersonDraft;
@@ -72,8 +61,8 @@ export function emptyEntityForm(): EntityFormValue {
 }
 
 /**
- * Why the form can't be saved yet, or undefined once it can: the record's own
- * name first, then any staged row left half-filled. An untouched row is skipped.
+ * Why the form can't be saved yet, or undefined once it can: the name first,
+ * then any half-filled staged row. An untouched row is skipped.
  */
 export function entityFormProblem(
   type: EntityType,

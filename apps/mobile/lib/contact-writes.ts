@@ -2,17 +2,7 @@ import type { CoreApi } from "@leapsake/core";
 import type { ContactMethodKind } from "@leapsake/schema";
 import type { ContactMethodValue } from "@leapsake/contact-links";
 
-/**
- * The four contact-method tables as three calls — the dispatch every writer of a
- * contact method needs, and the only thing any of them needs to know about the
- * split.
- *
- * `contactMethodInputOf` produces one {@link ContactMethodValue} whatever kind the
- * user picked, but `core.contactMethods` is four sibling repositories, so
- * somebody has to turn the tag back into a table. It lives here rather than in
- * any one caller because there are now three: the create screen writes a whole
- * form of staged rows, and the contact routes write one at a time.
- */
+// The four contact-method tables as three calls, dispatched on the kind.
 
 /** The owner of a contact method. Person-only: pets have no Contact section. */
 export interface ContactOwner {
@@ -108,7 +98,7 @@ export function updateContact(
   });
 }
 
-/** Which table a removed method belongs to is the only thing its kind decides. */
+/** The kind decides only which table the removal is in. */
 export function deleteContact(
   core: CoreApi,
   id: string,

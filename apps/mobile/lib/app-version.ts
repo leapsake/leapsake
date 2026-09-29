@@ -5,8 +5,8 @@ const devBuild = (core: string) => `v${core}-dev`;
 /** Channels whose build is never promoted, so it can name itself in full. */
 const PRERELEASE = /^\d+\.\d+\.\d+-(alpha|beta)\.\d+$/;
 
-/** Alpha and beta show `extra.release` in full; rc and final show the core, since `final`
- *  promotes the rc binary unchanged. */
+/** Alpha and beta show `extra.release` in full; rc and final show the core,
+ *  since `final` promotes the rc binary unchanged. */
 export function versionLabel(
   release: string | undefined,
   core: string,

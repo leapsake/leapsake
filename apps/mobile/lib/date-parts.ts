@@ -20,15 +20,15 @@ export function upcomingYear(
 }
 
 /**
- * A due date as the fields hold it. `yearTouched` is whether the user has typed a
- * year; until they do, the year follows the month and day.
+ * A due date as the fields hold it. Until the user types a year
+ * (`yearTouched`), the year follows the month and day.
  */
 export interface DueDateDraft {
   parts: DateParts;
   yearTouched: boolean;
 }
 
-/** Apply an edit, moving an untouched year to the next time the date comes round. */
+/** Apply an edit; an untouched year follows the date to its next time. */
 export function editDueDate(
   draft: DueDateDraft,
   next: DateParts,

@@ -3,24 +3,8 @@ import { useFocusEffect } from "expo-router";
 import { useDataVersion } from "./core-context";
 
 /**
- * Load async data whenever the screen gains focus. This is the lean equivalent
- * of the desktop router's loaders re-running on navigation: after a create /
- * edit / delete elsewhere navigates back here, the screen refocuses and the data
- * reloads, with no global store.
- *
- * It also re-runs the load **while focused** when a background-sync pull applies
- * remote changes — by depending on {@link useDataVersion}, the in-process
- * analogue of desktop's `router.revalidate()` (reactive invalidation). So a
- * peer's edit appears on the current screen without leaving it.
- *
- * `load` must be stable across renders (wrap it in `useCallback`), since the
- * fetch re-subscribes whenever its identity changes. A stale in-flight result is
- * dropped if the screen blurs before it resolves.
- *
- * `reload` re-runs `load` on demand for an in-place mutation (e.g. deleting a
- * milestone while staying on the detail screen, where no navigation re-focuses
- * the screen). Unlike the focus fetch it has no blur guard — the caller awaits it
- * directly — but it shares the same data/error update path.
+ * Load on focus and on every {@link useDataVersion} bump; `load` must be
+ * stable. `reload` re-runs it for an in-place change, with no blur guard.
  */
 export function useFocusedData<T>(load: () => Promise<T>): {
   data: T | null;
@@ -29,8 +13,6 @@ export function useFocusedData<T>(load: () => Promise<T>): {
 } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // A bump here means a background-sync pull changed the local DB; re-run `load`
-  // while the screen stays focused (the focus deps below include it).
   const version = useDataVersion();
 
   const reload = useCallback(async () => {
@@ -58,8 +40,7 @@ export function useFocusedData<T>(load: () => Promise<T>): {
       return () => {
         active = false;
       };
-      // `version` is a dependency on purpose: a changed pull re-runs the load
-      // even though the callback body doesn't read it directly.
+      // `version` is unread but re-runs the load when the provider writes.
     }, [load, version]),
   );
 

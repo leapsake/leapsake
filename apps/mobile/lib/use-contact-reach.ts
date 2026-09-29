@@ -10,23 +10,12 @@ import {
 } from "@leapsake/contact-links";
 import { targetUrl } from "./contact-actions";
 
-/**
- * **Tapping** a contact method, on this handset — the half of
- * `contact-actions.ts` that cannot stay pure.
- *
- * `@leapsake/contact-links` decides what a method *could* do and
- * `contact-actions.ts` decides which of those this device can actually offer;
- * what is left is the bridge itself — probing schemes, opening URLs, the
- * clipboard, and the one confirmation. That lives here rather than in a
- * component because **two** surfaces now perform contact actions: the person's
- * Contact section, and the reach buttons on a `wish` reminder. A second
- * implementation would be a second answer to "does calling someone ask first",
- * and the wrong answer to that one interrupts a stranger.
- */
+// Tapping a contact method on this handset: the native half of
+// `contact-actions.ts`, shared by every surface that reaches a person.
 
 const COPIED = "Copied";
 
-/** Put a value on the clipboard and say so — the last rung of the fallback chain. */
+/** Put a value on the clipboard and say so: the last fallback. */
 async function copyToClipboard(text: string) {
   await Clipboard.setStringAsync(text);
   Alert.alert(COPIED);
@@ -41,9 +30,8 @@ export function methodValue(entry: ContactMethod): string {
     return entry.method.number + ext + noSms;
   }
   if (entry.kind === "social") {
-    // The platform's proper noun beside the handle, so a bare "@josh" says which
-    // "@josh". An unknown platform id is shown as stored rather than hidden —
-    // the point of an open list is that a row outlives this build's knowledge.
+    // Names the platform beside the handle; an unknown platform id is shown
+    // as stored, not hidden.
     const { platform, handle, url } = entry.method;
     const name = findPlatform(platform)?.name ?? platform;
     return handle === "" ? (url ?? name) : `${name} · ${handle}`;
@@ -52,13 +40,8 @@ export function methodValue(entry: ContactMethod): string {
 }
 
 /**
- * Which custom schemes this handset actually answers.
- *
- * Probed once per mount rather than per row: a person may have a dozen contact
- * methods but there are only ever two schemes, and `canOpenURL` is a bridge
- * call. Starts empty, so an action with no web fallback (FaceTime) appears a
- * frame late rather than appearing and then vanishing — of the two, a control
- * that arrives is less alarming than one that leaves.
+ * Which custom schemes this handset answers, probed once per mount. Starts
+ * empty, so an action arrives a frame late rather than vanishing.
  */
 function useSupportedSchemes(): ReadonlySet<string> {
   const [schemes, setSchemes] = useState<ReadonlySet<string>>(new Set());
@@ -68,9 +51,8 @@ function useSupportedSchemes(): ReadonlySet<string> {
     void Promise.all(
       NATIVE_SCHEMES.map(async (scheme) => {
         const ok = await Linking.canOpenURL(SCHEME_PROBES[scheme]).catch(
-          // A rejected probe means "no", not a broken screen: iOS throws for a
-          // scheme missing from LSApplicationQueriesSchemes, which is precisely
-          // the case where we must not offer the action.
+          // iOS throws for a scheme missing from LSApplicationQueriesSchemes,
+          // which means "no".
           () => false,
         );
         return { scheme, ok };
@@ -87,13 +69,8 @@ function useSupportedSchemes(): ReadonlySet<string> {
   return schemes;
 }
 
-/**
- * The two halves of acting on a contact method, for a component that renders
- * them: which schemes this device answers, and what a press should do.
- *
- * `subjectName` is only ever read for the call confirmation, which names the
- * person it is about to interrupt.
- */
+/** Which schemes this device answers, and what a press does. `subjectName`
+ *  names the person in the call confirmation. */
 export function useContactReach(subjectName: string): {
   schemes: ReadonlySet<string>;
   perform: (action: LinkAction, entry: ContactMethod) => void;

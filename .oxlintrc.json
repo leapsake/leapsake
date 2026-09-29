@@ -32,7 +32,8 @@
         "packages/key-custody/src/**",
         "packages/data/src/**",
         "packages/core/src/**",
-        "apps/desktop/src/**"
+        "apps/desktop/src/**",
+        "apps/mobile/lib/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
