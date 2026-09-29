@@ -1,20 +1,5 @@
-// Fetch the pinned `gitleaks` binary into the repo, so the secret scan is a repo tool
-// rather than something every machine has to install.
-//
-// Same shape as `scripts/ensure-sqlite-abi.mjs`: make sure a native binary this repo
-// needs is present for the runtime that is about to use it, then get out of the way.
-// The binary lands in `node_modules/.cache/` — already gitignored, wiped by a clean
-// install, and never on `PATH`, so nothing outside this checkout is touched.
-//
-// Why not an npm wrapper (`@b12k/gitleaks` and friends): this repo goes public and its
-// whole subject is custody of other people's data, so a third-party postinstall that
-// downloads a binary is a worse trust posture than pinning the *official* release and
-// checking the hash ourselves. It is about thirty lines of difference.
-//
-// Bumping the version: change VERSION, then replace CHECKSUMS wholesale from
-// https://github.com/gitleaks/gitleaks/releases/download/v<VERSION>/gitleaks_<VERSION>_checksums.txt
-// Never edit one line of it by hand — the point of the table is that it came from the
-// release as a unit.
+// Fetches the pinned, checksummed `gitleaks` into `node_modules/.cache/`. See
+// `CONTRIBUTING.md` → _Testing_ for why, and how to bump it.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -23,9 +8,7 @@ import { join } from "node:path";
 
 const VERSION = "8.30.1";
 
-// From gitleaks_8.30.1_checksums.txt. Only the platforms this repo's tiers run on are
-// kept: macOS (dev + the future hosted runner) and Linux (CI). Windows is out of scope
-// repo-wide (CONTRIBUTING.md → The E2E release gate).
+// From the release's checksums file, macOS and Linux only; replace wholesale.
 const CHECKSUMS = {
   darwin_arm64:
     "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
@@ -38,7 +21,7 @@ const CHECKSUMS = {
 
 export const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
-/** Thrown when the binary is absent *and* unobtainable — offline, typically. */
+/** Thrown when the binary is absent and unobtainable, as when offline. */
 export class GitleaksUnavailable extends Error {}
 
 const platformKey = () => {
@@ -54,11 +37,8 @@ const platformKey = () => {
   return `${os}_${arch}`;
 };
 
-/**
- * Absolute path to a verified gitleaks binary, downloading it on first use.
- * Throws GitleaksUnavailable if it cannot be fetched; every other failure — a hash
- * mismatch above all — is a hard error and must stay one.
- */
+/** A verified gitleaks binary's path, downloaded on first use; only an
+ *  unfetchable one is `GitleaksUnavailable`. */
 export async function ensureGitleaks() {
   const key = platformKey();
   if (!key) {
@@ -86,9 +66,7 @@ export async function ensureGitleaks() {
     throw new GitleaksUnavailable(`could not download ${url}: ${err.message}`);
   }
 
-  // Verify *before* anything is extracted or executed. A mismatch is not a network
-  // problem and must never degrade to "blocked, carry on" — it is either a corrupted
-  // download or a substituted artifact, and both stop the run.
+  // Verified before extracting: a mismatch is never "blocked", always fatal.
   const got = createHash("sha256").update(bytes).digest("hex");
   if (got !== CHECKSUMS[key]) {
     throw new Error(

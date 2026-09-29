@@ -110,6 +110,25 @@ may be a Homebrew prerequisite.** The first keeps a tier the same on every machi
 [`scripts/icons.mjs`](scripts/icons.mjs) refuses to render without `rsvg-convert` and `magick`,
 while the icon-agreement tier’s `--check` is a hash comparison that needs neither.
 
+Pinning the official `gitleaks` release and checking its hash ourselves is a better posture for
+a public repo about custody than an npm wrapper's postinstall download. **To bump it**, change
+`VERSION` and replace `CHECKSUMS` wholesale from that release's `checksums.txt`, never a line by
+hand; only macOS and Linux are kept. A hash mismatch is a hard error, never "blocked".
+
+**The secret scan reads history, not the working tree**, since a secret deleted in the next
+commit is still there for anyone who clones. `scripts/secret-scan.mjs` has two modes. The
+default, `gitleaks git` over every ref, is the `secrets` tier (exit 0 clean, 1 findings, 3 when
+the scanner cannot be fetched, a failure under `--strict`). `--all-objects` dumps every blob in
+the object database, reachable or not, and is the check to run **before making the repo public
+and after any history rewrite**: a host keeps a force-pushed object fetchable by SHA long after
+no branch points at it. Its dump files carry no extension, because gitleaks' default config
+skips a `.bin` and would report a clean scan of nothing.
+
+Findings are judged, never bulk-silenced: a deliberately public key goes in `.gitleaks.toml` by
+path, and an accepted finding in `.gitleaksignore` by fingerprint, with a note. Output is
+redacted, so no secret reaches a log. ⚠️ **A secret that was ever pushed must be rotated**;
+rewriting history does not reach clones, forks or caches. Rotate first.
+
 ### The E2E release gate
 
 The driver contract proves the _driver_; the integration layer proves the _shared logic_.

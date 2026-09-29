@@ -1,10 +1,5 @@
-// Writes the one version every manifest carries, and checks that they agree.
-//
-//   node scripts/set-version.mjs patch|minor|major|X.Y.Z   move every manifest to the next core
-//   node scripts/set-version.mjs --check                   fail if they disagree (`test:versions`)
-//
-// Manifests hold only the core (`0.1.0`); the release tag carries the channel and counter.
-// Mobile takes its version from its package.json through `apps/mobile/app.config.ts`.
+// Writes the core version every manifest carries (`patch|minor|major|X.Y.Z`),
+// or with `--check` fails if they disagree.
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -14,21 +9,11 @@ import { BUMP_KINDS, successorCores } from "./release/version.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/**
- * Workspaces deliberately outside the version set, as `<group>/<name>`.
- *
- * The website deploys on **push**, not on tag, and ships no artifact whose number a
- * store records permanently. Conscripting it into the release version would put a
- * marketing typo fix behind a version bump — reintroducing exactly the coupling
- * `apps/website/README.md` explains the site exists without.
- *
- * An entry here is a claim that has to stay true, so `unversionedProblems()` checks
- * it: the manifest must exist and must *not* carry a version. Deleting the workspace
- * or quietly giving it a version both fail the check rather than rotting silently.
- */
+/** Workspaces outside the version set: the website deploys on push, not tag;
+ *  see its README. `unversionedProblems` keeps this true. */
 const UNVERSIONED = new Set(["apps/website"]);
 
-/** Every `package.json` whose version participates: the root plus one per workspace. */
+/** Every participating `package.json`: the root and each workspace. */
 function manifestPaths() {
   const paths = [join(ROOT, "package.json")];
   for (const group of ["apps", "packages"]) {
@@ -41,24 +26,21 @@ function manifestPaths() {
         readFileSync(manifest);
         paths.push(manifest);
       } catch {
-        // A directory without a package.json is not a workspace; skip it.
+        // No package.json, no workspace.
       }
     }
   }
   return paths;
 }
 
-/** Read a manifest, keeping the raw text so a write can preserve its formatting. */
+/** Reads a manifest, keeping its raw text so a write keeps its formatting. */
 function readManifest(path) {
   const text = readFileSync(path, "utf8");
   return { path, text, json: JSON.parse(text) };
 }
 
-/**
- * Rewrite just the `version` value, in place, by string surgery rather than
- * re-serializing. Re-serializing would reformat whatever the file's own style is and
- * make the diff of a version bump unreadable.
- */
+/** Rewrites only the `version` value in place, so a bump's diff stays one
+ *  line. */
 function withVersion(text, version) {
   const pattern = /^(\s*"version"\s*:\s*)"[^"]*"/m;
   if (!pattern.test(text)) {
@@ -70,12 +52,8 @@ function withVersion(text, version) {
 const MOBILE_APP_JSON = join(ROOT, "apps", "mobile", "app.json");
 const MOBILE_APP_CONFIG = join(ROOT, "apps", "mobile", "app.config.ts");
 
-/**
- * Mobile's arrangement, checked structurally: `app.json` must *not* carry a version or
- * a build number, and `app.config.ts` must exist to derive them. Together these say
- * "there is exactly one place each of these comes from". Reinstating any of them in
- * app.json would silently win back a second source, so it fails the check.
- */
+/** Mobile's version and build number come only from `app.config.ts`, so
+ *  `app.json` may carry neither. */
 function mobileProblems() {
   const problems = [];
   const appJson = JSON.parse(readFileSync(MOBILE_APP_JSON, "utf8"));
@@ -85,9 +63,7 @@ function mobileProblems() {
         "app.config.ts (which reads the app's package.json) so there is one source",
     );
   }
-  // Static build numbers are the failure this is guarding against: app.json wins over
-  // nothing (app.config.ts overrides it), so a stale number here would look
-  // authoritative while doing nothing — or worse, get edited instead of the derivation.
+  // A static number here would look authoritative and do nothing.
   for (const [platform, field] of [
     ["ios", "buildNumber"],
     ["android", "versionCode"],
@@ -109,12 +85,7 @@ function mobileProblems() {
   return problems;
 }
 
-/**
- * The other half of UNVERSIONED: an opt-out is a claim, and this is what keeps it
- * true. A workspace named there must still exist and must still carry no version —
- * so the exclusion cannot outlive the workspace, and a version cannot creep back in
- * and sit there looking authoritative while nothing maintains it.
- */
+/** Each unversioned workspace must still exist and still carry no version. */
 function unversionedProblems() {
   const problems = [];
   for (const workspace of UNVERSIONED) {
@@ -142,7 +113,7 @@ function unversionedProblems() {
 
 const CORE = /^\d+\.\d+\.\d+$/;
 
-/** The core a request names: a bump kind, or an explicit `X.Y.Z` that is one of the three successors. */
+/** The core a request names: a bump kind, or one of the three successors. */
 export function coreToWrite(current, request) {
   const successors = successorCores(current);
   if (BUMP_KINDS.includes(request)) return successors[request];
@@ -159,7 +130,7 @@ export function coreToWrite(current, request) {
   return request;
 }
 
-/** Problems with the manifests' versions, given `{ path, version }` for each. */
+/** Problems with the manifests' `{ path, version }` list. */
 export function versionProblems(manifests) {
   const byVersion = new Map();
   for (const { path, version } of manifests) {

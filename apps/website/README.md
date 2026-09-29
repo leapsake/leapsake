@@ -26,7 +26,8 @@ What being in the monorepo buys, and a separate repo would have cost:
 
 The one deliberate exception is the version: **`apps/website` is outside the version
 set** and its `package.json` carries no `version` field. `scripts/set-version.mjs`
-excludes it by name, with the reasoning at the exclusion.
+excludes it by name, and fails if the site's manifest ever gains a version or disappears, so
+the exclusion cannot rot.
 
 ## Deployment
 
