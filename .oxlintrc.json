@@ -43,7 +43,8 @@
         "apps/mobile/app.config.ts",
         "packages/ui/**",
         "packages/vcard/**",
-        "packages/holidays/**"
+        "packages/holidays/**",
+        "packages/sync/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

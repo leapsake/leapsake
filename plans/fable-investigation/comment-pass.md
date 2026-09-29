@@ -22,7 +22,7 @@ lint findings in brackets:
 | ------------------------- | ------------: |
 
 
-| `packages/sync`           |     715 (227) |
+
 | `packages/view-models`    |      390 (92) |
 | `packages/export`         |      352 (63) |
 | `packages/crypto`         |     322 (123) |
@@ -151,16 +151,8 @@ Test files (`**/*.test.*`) are exempt. A rare long comment can carry
   lines overwrites the wrong line; `comments-only.mjs` will not notice a comment replaced by
   another comment. Match on the text instead.
 
-## Known stale docs to fix on the way
+## Open question for the owner
 
-Found during the desktop step and left alone because rewriting them was out of that step's
-scope. Fix them when step 7 reaches `packages/key-custody` and `packages/sync`:
-
-- `packages/key-custody/README.md` → _The two exits from local-only_ and _Where custody lives
-  across the repo_ still describe `apps/desktop/src/main/db/adopt-account-flow.ts` and
-  `merge-account-flow.ts`, which the relay removal deleted.
-- A doc comment in `packages/sync/src/account.ts` points at the same deleted
-  `adopt-account-flow.ts`.
 - `rekeyStore` in `apps/desktop/src/main/db/convert-store.ts` has no caller outside its tests
   since the merge flow went. Removing it is a code change, so ask the owner rather than doing it
   in this pass.
