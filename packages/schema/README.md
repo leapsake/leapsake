@@ -33,7 +33,8 @@ Person. Use `Person` / `people` / `peopleRepo` consistently.
 - **Merge primitives** — `resolveMerge` (whole-row last-writer-wins on `updatedAt` +
   tombstones: the _same-id_ merge that sync converges with) and `scoreDuplicate` (the
   _distinct-id_ duplicate detector). The two-kinds-of-merge framing is in
-  [`packages/core`](../core/README.md).
+  [`packages/core`](../core/README.md). Its canonical JSON is nine lines with one caller;
+  a second caller is when `fast-json-stable-stringify` earns its place.
 
 ## Constraints
 

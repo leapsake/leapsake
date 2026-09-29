@@ -29,6 +29,10 @@ Anything Leapsake has no column for (NOTE, ORG, PHOTO, a free-text address count
 `dropped` rather than discarded, so the import review can show the user exactly what will not
 land.
 
+**Why not `vcard4` or `ical.js`:** `vcard4` reads only v4, and Apple exports 2.1/3.0. A parser
+defect here costs a bad import of a user-chosen file, not a network exploit. Switch when a
+library reads 2.1/3.0/4.0 and Apple's `item1.X-AB*` groups and passes `test/fixtures/` unchanged.
+
 ## Two rules that point in opposite directions, and only evidence separates them
 
 Both were settled by importing 16 probe cards into iOS Contacts on a real iPhone (2026-09-07); the

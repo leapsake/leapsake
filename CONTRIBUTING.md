@@ -24,7 +24,9 @@ pnpm mobile      # Expo dev server
 ## Testing
 
 The trophy is orchestrated by [`scripts/test-all.mjs`](scripts/test-all.mjs), which owns the
-tier registry and documents its flags and exit codes in its own header. In the inner loop:
+tier registry and documents its flags and exit codes in its own header. It is first-party
+rather than turbo or nx because it encodes narrower rules on purpose (a blocked tier exits 3);
+reach for one when a third tool needs the tier registry. In the inner loop:
 
 ```sh
 pnpm test        # fast: static + unit + integration + coverage gate. No emulator.
@@ -221,6 +223,13 @@ rather than described here. Run `pnpm release --help` for the current rules.
   delete a tag, and nothing more; it never writes to `main`. Repository variables switch it
   on: `REMOTE_RELEASES=true` for `release.yml`, `AUTO_FINAL=true` for the hourly `final`.
   Its portability rules are in [`.github/workflows/README.md`](.github/workflows/README.md).
+- **The store clients are first-party, and fastlane is where they stop.** The App Store Connect
+  and Play clients and the iOS and Android targets are tested, sign their own JWTs and honour
+  `Retry-After`; fastlane would add a Ruby toolchain to every machine and runner, and EAS an
+  account and a cloud. **Adopt fastlane when the next store need is screenshots, localized
+  metadata or shared signing certificates**, rather than growing `targets/ios.mjs`. Likewise
+  `set-version.mjs` and `release/version.mjs` accept only `X.Y.Z-stage.N`, which `semver` and
+  changesets would widen; reopen them if the version grammar does.
 
 ## Commit and PR conventions
 

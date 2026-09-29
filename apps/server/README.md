@@ -143,7 +143,8 @@ a second time, Hono supplies routing and `bodyLimit` with no transitive packages
 
 ## Running
 
-**Dev** — TypeScript straight from source via `tsx`:
+**Dev** — TypeScript straight from source via `tsx`. Node's own type stripping would need
+`.ts` import specifiers, and the server's are `.js`:
 
 ```sh
 PORT=4000 pnpm --filter @leapsake/server dev   # add RELAY_DB=:memory: for a throwaway store

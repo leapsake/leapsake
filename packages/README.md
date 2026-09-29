@@ -36,7 +36,7 @@ share belongs here.
 ## These packages run on the Hermes floor
 
 `packages/*` execute on mobile's Hermes engine as well as on Node and Electron, and Hermes
-lags on newer JS. Two consequences, both learned the hard way.
+lags on newer JS and has bugs of its own. Three consequences, all learned the hard way.
 
 **The standard library is capped.** Every package extends
 [`tsconfig.packages.json`](../tsconfig.packages.json), which sets `lib` to ES2022 — so an
@@ -53,5 +53,13 @@ assumes the `crypto.randomUUID` Web Standard exists. Hermes ships _no_ global `c
 is format-identical to Node/desktop and browser/web and primary keys stay
 platform-indistinguishable for sync. A shared package should be able to call the standard
 thing; making the platform provide it is the app's job.
+
+**Hermes miscompiles more than one `await` in one ternary branch.** The branch comes back as a
+leftover number; Node and the desktop bundler compile the same source correctly, so only a
+device sees it. [`scripts/hermes-await-in-ternary.test.mjs`](../scripts/hermes-await-in-ternary.test.mjs)
+bans the shape, and its header names the Expo SDK last checked. **Re-check on each SDK bump:** a
+throwaway module imported from `apps/mobile/index.ts` that logs the shape at two and four
+awaits, read on the dev client with `xcrun simctl spawn booted log stream`. When both come back
+right, delete the scan and its `vitest.config.ts` include.
 
 > Adding or removing a native module needs a Metro `--clear` restart.

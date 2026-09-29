@@ -43,6 +43,9 @@ The engine is **registry-driven**: it is handed a list of `SyncableRepo` and rou
 pulled record to the repo whose `table` it carries, so adding an entity to sync is one
 more entry in that list — no engine change.
 
+`http-transport.ts` has one retry rule — log in again on a 401 — so it uses `fetch` directly
+rather than `ky` or `ofetch`. A second retry policy is when one of those pays for itself.
+
 ## What deliberately lives elsewhere
 
 - **`defineSyncable` / `SyncableRepo`** stay in `@leapsake/data`. That is the primitive

@@ -161,6 +161,10 @@ new-moon series in UTC+8, gated on reproducing all 30 Lunar New Year dates — i
 borderline years where ICU alone disagrees, which is precisely why ICU is trusted for leap-month
 _structure_ and never for a boundary. Neither set rests on a single source, and neither should.
 
+**Why not `date-holidays`:** this is pure tables and arithmetic with no I/O, and that library is
+large and carries locale data the app never reads. Reconsider when Islamic or Hindu/Buddhist
+calendars need computing rather than tabling.
+
 > **Why catalog breadth is load-bearing, and the escape hatch is not a substitute.** A
 > user-defined holiday can realistically only express simple recurrence. Nobody will hand-author
 > Diwali, Eid, or Lunar New Year — those need tables they cannot compute or maintain. So the
