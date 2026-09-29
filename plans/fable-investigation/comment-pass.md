@@ -15,12 +15,11 @@ The `files` list of the comment-rules override in `.oxlintrc.json` is the only r
 directories are finished and enforced. Anything not listed there is still to do. Two steps
 remain:
 
-**Step 6: `apps/mobile`, about 2,150 comment lines left.** One override entry per directory, in this
+**Step 6: `apps/mobile`, about 290 comment lines left.** One override entry per directory, in this
 order:
 
 | Directory                                          | Comment lines | Start with                                                                                             |
 | -------------------------------------------------- | ------------: | ------------------------------------------------------------------------------------------------------ |
-| `apps/mobile/components`                           |         1,876 | `AppHeader.tsx`, then by size                                                                          |
 | `apps/mobile/plugins`, `index.ts`, `app.config.ts` |           287 | anything                                                                                               |
 
 **Step 7: everything else, by directory, `scripts/` last.** Comment lines by directory, with
