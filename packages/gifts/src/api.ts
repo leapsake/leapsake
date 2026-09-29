@@ -18,29 +18,18 @@ import type {
   TagsRepo,
 } from "@leapsake/data";
 
-/**
- * A gift link joined for the recipient's "Gifts" section: the row plus its idea's
- * title and url. The idea is always live (deleting an idea cascades to its
- * links), so the title is non-null.
- */
+/** A gift link with its idea's title and url, for a recipient's Gifts. */
 export type GiftForRecipient = GiftRecipient & {
   ideaTitle: string;
   ideaUrl: string | null;
 };
 
-/**
- * A gift link joined for an idea's "For…" section: the row plus its recipient's
- * display label. A link whose recipient is gone is dropped by the reader, so the
- * label is non-null.
- */
+/** A gift link with its recipient's label, for an idea's “For…” section. */
 export type GiftForIdea = GiftRecipient & {
   recipientLabel: string;
 };
 
-/**
- * One row of the Gifts overview (the `/gifts` screen, keyed by idea): an idea
- * with its tags and everyone it is for, given or not.
- */
+/** One idea on the Gifts screen, with its tags and everyone it is for. */
 export interface GiftIdeaOverview {
   idea: GiftIdea;
   tags: Tag[];
@@ -51,27 +40,17 @@ export interface GiftsApiDeps {
   giftIdeas: GiftIdeasRepo;
   giftRecipients: GiftRecipientsRepo;
   tags: TagsRepo;
-  /** Attaching a gift to someone is a fact about them, so a link publishes an
-   *  unpublished party the way a milestone or a contact method does. */
+  /** Publishes an unpublished party a gift is attached to. */
   entities: EntityService;
   /** Every write below is one transaction. */
   driver: SqliteDriver;
 }
 
-/**
- * Gift ideas and who each one is for — two tables, and a link that carries
- * whether the thing has actually been given.
- *
- * Small on purpose. The scope was cut to these two tables in 2026-08; what was
- * removed (a dated "giving" row of its own, price and occasion tracking) is in
- * `plans/v0-2.md`, not here.
- */
+/** Gift ideas and who each one is for, a link carrying whether it was given. */
 export function createGiftsApi(deps: GiftsApiDeps) {
   const { giftIdeas, giftRecipients, tags, entities, driver } = deps;
 
-  // An idea's links joined with each recipient's current label (a link whose
-  // recipient is gone is dropped). Shared by the idea's "For…" section and the
-  // Gifts overview.
+  // An idea's links with each live recipient's current label.
   async function giftRecipientsForIdea(ideaId: string): Promise<GiftForIdea[]> {
     const rows = await giftRecipients.listForIdea(ideaId);
     const joined = await Promise.all(
@@ -91,10 +70,7 @@ export function createGiftsApi(deps: GiftsApiDeps) {
     ideas: {
       list: (): Promise<GiftIdea[]> => giftIdeas.list(),
       get: (id: string): Promise<GiftIdea | undefined> => giftIdeas.get(id),
-      // Single-payload create (share-target ready): capture an idea and,
-      // optionally, attach it to zero-to-many people or pets in one
-      // transaction. `tagNames` rides along the same way a Person's does — the
-      // whole desired set, committed with the row.
+      // An idea, its whole tag set and any recipients, in one transaction.
       create: (
         {
           recipients,
@@ -112,9 +88,7 @@ export function createGiftsApi(deps: GiftsApiDeps) {
           }
           return idea;
         }),
-      // An **omitted** `tagNames` leaves the idea's tags alone; passing the
-      // array makes them exactly that set (`[]` clears them), so a caller that
-      // only renames an idea can't silently drop its tags.
+      // An omitted `tagNames` leaves tags alone; `[]` clears them.
       update: (
         id: string,
         input: UpdateGiftIdeaInput,
@@ -128,9 +102,7 @@ export function createGiftsApi(deps: GiftsApiDeps) {
           return idea;
         }),
 
-      // Removing an idea cascades to its recipient links and taggings —
-      // nothing references a deleted idea, and a live link must always point at
-      // a live idea.
+      // Cascades to its links and taggings: a live link needs a live idea.
       softDelete: (id: string): Promise<void> =>
         driver.transaction(async () => {
           await giftIdeas.softDelete(id);
@@ -139,14 +111,9 @@ export function createGiftsApi(deps: GiftsApiDeps) {
         }),
     },
 
-    // The links themselves — an idea paired with a person or pet, ticked or
-    // not. This was two namespaces, `suggestions` and `given`, back when a
-    // giving was a separate dated row; "has it been given" is now a column, so
-    // it is one namespace with a `setGiven`.
+    // The links: an idea paired with a person or pet, ticked or not.
     recipients: {
-      // A party's "Gifts" section: each link joined with its idea's title/url.
-      // A link whose idea is somehow gone is dropped (defensive — the idea
-      // cascade prevents it).
+      // Each link with its idea's title and url; a dangling link is dropped.
       listForRecipient: async (
         type: GiftPartyType,
         id: string,
@@ -161,12 +128,10 @@ export function createGiftsApi(deps: GiftsApiDeps) {
         );
         return joined.filter((row): row is GiftForRecipient => row !== null);
       },
-      // An idea's "For…" section: each link joined with its recipient's current
-      // label (dropped when the recipient is gone).
+      // Each link with its recipient's current label.
       listForIdea: (ideaId: string): Promise<GiftForIdea[]> =>
         giftRecipientsForIdea(ideaId),
-      // Attaching a gift to someone is a fact about them, so it publishes an
-      // unpublished party the same way a milestone or a contact method does.
+      // Publishes an unpublished party, as a milestone does.
       create: (input: CreateGiftRecipientInput): Promise<GiftRecipient> =>
         driver.transaction(async () => {
           await entities.publishBearerIfUnpublished(
@@ -175,12 +140,8 @@ export function createGiftsApi(deps: GiftsApiDeps) {
           );
           return giftRecipients.create(input);
         }),
-      // Tick or untick the box — the only edit a link has, which is why it is
-      // the ordinary `update` rather than a `setGiven`: anything else would
-      // fall outside `withSyncKick`'s mutating-method predicate and a ticked
-      // box would never kick a sync. The repo makes it a no-op when the row
-      // already says so, so this is safe to call from a checkbox that doesn't
-      // track its own previous state.
+      // Ticks or unticks, a no-op when unchanged; named `update` so a tick
+      // kicks a sync.
       update: (
         id: string,
         input: UpdateGiftRecipientInput,
@@ -190,14 +151,10 @@ export function createGiftsApi(deps: GiftsApiDeps) {
         driver.transaction(() => giftRecipients.softDelete(id)),
     },
 
-    // The one consolidated create: an idea (existing or minted) captured with
-    // zero-to-many recipients, all in one transaction. No recipients ⇒ just the
-    // idea; each recipient ⇒ one link, ticked or not. Returns the resolved
-    // idea.
+    // An idea, existing or minted, with any recipients, in one transaction.
     capture: (input: CaptureGiftInput): Promise<GiftIdea> =>
       driver.transaction(async () => {
-        // Resolve (or mint) the idea once, so N links to a new idea don't mint
-        // N ideas.
+        // Resolved once, so N links to a new idea mint one idea.
         let idea: GiftIdea;
         if ("id" in input.giftIdea) {
           const found = await giftIdeas.get(input.giftIdea.id);
@@ -216,10 +173,8 @@ export function createGiftsApi(deps: GiftsApiDeps) {
             entry.party.type,
             entry.party.id,
           );
-          // Capture is an *add* surface — it can name an existing idea — so a
-          // party already on this idea is updated rather than doubled. Ticking
-          // is one-way here: capture says "and I gave them this", never "and I
-          // did not", which is the checkbox's job on a row that already exists.
+          // A party already on the idea is updated, not doubled; ticking is
+          // one-way here.
           const existing = (await giftRecipients.listForIdea(idea.id)).find(
             (row) =>
               row.recipientType === entry.party.type &&
@@ -237,8 +192,7 @@ export function createGiftsApi(deps: GiftsApiDeps) {
         return idea;
       }),
 
-    // The Gifts screen, keyed by idea: every idea with everyone it is for.
-    // Ideas keep their newest-first list order.
+    // Every idea, newest first, with everyone it is for.
     overview: async (): Promise<GiftIdeaOverview[]> => {
       const ideas = await giftIdeas.list();
       return Promise.all(

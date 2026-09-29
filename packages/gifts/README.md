@@ -28,6 +28,10 @@ screen can offer a gift history over time without a migration.
   one joins the idea's title for a person's page, the other the recipient's current label for
   an idea's page. Each drops rows whose other end is gone.
 
+An idea is soft-deleted with its links and taggings, since a live link must point at a live idea.
+Updating an idea with `tagNames` omitted leaves its tags alone; `[]` clears them, so a caller that
+only renames an idea cannot drop its tags.
+
 Attaching a gift to someone is a fact about them, so both write paths publish an unpublished
 party through `EntityService.publishBearerIfUnpublished` — the same rule a milestone or a
 contact method follows.
