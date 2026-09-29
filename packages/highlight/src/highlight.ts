@@ -6,31 +6,19 @@ import {
 
 export type { HighlightMode };
 
-/**
- * One piece of a highlighted string: a run of `text` that is either part of the
- * match (`marked`) or not. The pieces in a list concatenate back to exactly the
- * original string; a no-match yields a single unmarked piece (or `[]` for the
- * empty string).
- *
- * This is the platform-agnostic output: a renderer maps each piece to its own
- * markup (web wraps `marked` runs in `<mark>`; a React Native view would wrap
- * them in a styled `<Text>`). No DOM, so it's directly unit-testable.
- */
+/** One run of a highlighted string, marked or not; the runs concatenate back
+ *  to the original, and each platform renders them. */
 export interface HighlightSegment {
   text: string;
   marked: boolean;
 }
 
-/** The no-match / fallback result: the whole string, unmarked (empty → `[]`). */
+/** The whole string unmarked, or `[]` when empty. */
 const plain = (text: string): HighlightSegment[] =>
   text === "" ? [] : [{ text, marked: false }];
 
-/**
- * Fold `text` character-by-character, recording the source code-point index
- * behind each folded code unit so a match found in the folded string maps back
- * to a span in the original (which may differ in length — accents, formatting,
- * the "+"). In address mode, runs of whitespace collapse to one space.
- */
+/** Folds `text`, mapping each folded unit to its source index so a match maps
+ *  back; address mode collapses whitespace runs. */
 function foldWithMap(
   text: string,
   mode: HighlightMode,
@@ -55,14 +43,8 @@ function foldWithMap(
   return { folded, sourceIndex };
 }
 
-/**
- * The `[from, to]` folded-index span (inclusive) to highlight, or null if the
- * term doesn't align at all. Tries, in order: the exact substring; the whole
- * value when the term contains it (e.g. a phone typed with an extra country
- * code); else the stretch from the first to the last matched whitespace token,
- * so a reordered or partly-matching multi-word query still surrounds the
- * relevant text.
- */
+/** The inclusive folded span to mark: the exact substring, else the whole
+ *  value the term contains, else first to last token matched. */
 function matchSpan(
   folded: string,
   foldedTerm: string,
@@ -83,18 +65,8 @@ function matchSpan(
   return to === -1 ? null : { from, to };
 }
 
-/**
- * The pieces of `text` to highlight for the user's `term`, as platform-agnostic
- * {@link HighlightSegment}s. The fold mirrors the search service so the highlight
- * aligns with how the result was matched: accent/case-folded for `"text"`,
- * digits-only for `"phone"`, comma/whitespace-insensitive for `"address"`.
- *
- * Falls back from an exact folded substring to two looser strategies so a shown
- * result never renders *un*-highlighted: if the query instead fully contains the
- * value, the whole value is marked; otherwise the span between the first and
- * last matched token is marked. Returns the plain (unmarked) string only when
- * nothing aligns at all.
- */
+/** Marks what `term` matched, folding as the search service does, so a shown
+ *  result is unmarked only when nothing aligns. */
 export function highlightSegments(
   text: string,
   term: string,
@@ -122,41 +94,24 @@ export function highlightSegments(
   return segments;
 }
 
-/**
- * The pieces to highlight for a birthday reason (a formatted date like "October
- * 31, 1990") against the user's query. A month-name query ("oct", "october 31")
- * folds and aligns like any text, so it defers to {@link highlightSegments}. A
- * *numeric* query ("10/31", "10/31/1990", "1990") can't fold into a month
- * *name*, so instead we mark the structural pieces the query addresses: a month
- * part marks the month word, a day part marks the day number, a year part marks
- * the 4-digit year.
- *
- * Which parts the query named is read from {@link parseBirthdayQuery} — the same
- * parser the service matched with — so the highlight can never drift from what
- * was searched. The reason is only shown because the service already matched it,
- * so the date's parts are known-consistent with the query; we needn't re-check
- * the values, only mark the pieces the query named.
- */
+/** Marks a formatted birthday: a month-name query as text, a numeric one by
+ *  the date parts the service's own parser says it named. */
 export function highlightBirthdaySegments(
   text: string,
   term: string,
 ): HighlightSegment[] {
-  // A query carrying letters is a month-name query; text folding highlights it
-  // (typing "oct" marks "Oct", "october 31" marks "October 31").
+  // A query with letters is a month name, highlighted as text.
   if (/\p{L}/u.test(term)) return highlightSegments(text, term, "text");
 
-  // Numeric query: which date parts did the user name? Derive them from the
-  // service's own parser so highlight and match stay in lockstep. "M/D" →
-  // month + day; "M/D/Y" → + year; a lone 4-digit number → year only.
+  // Which parts a numeric query named, by the service's own parser.
   const candidates = parseBirthdayQuery(term);
   if (candidates.length === 0) return plain(text);
   const wantMonth = candidates.some((c) => c.month !== undefined);
   const wantDay = candidates.some((c) => c.day !== undefined);
   const wantYear = candidates.some((c) => c.year !== undefined);
 
-  // Locate the structural pieces of the formatted date. The month name is the
-  // leading letter run (Unicode-aware for localized names like "août"); the year
-  // is the 4-digit number; the day is the remaining 1–2 digit number.
+  // The month is the leading letter run, the year four digits, the day the
+  // remaining one or two.
   const ranges: [number, number][] = [];
   const push = (m: RegExpExecArray | null) => {
     if (m) ranges.push([m.index, m.index + m[0].length]);
