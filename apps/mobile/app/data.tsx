@@ -10,28 +10,8 @@ import { exportAndShare } from "../lib/export-share";
 import { colors, styles } from "../lib/styles";
 
 /**
- * **Data** — where data comes in and where it goes out. A root-stack screen
- * reached from the Settings tab.
- *
- * Export leads, and is the section this screen most needs: v0.1 is
- * single-device, so until the user has a file of their own the two destructive
- * actions at the bottom of this same screen are the only copy meeting its end.
- * Putting the way out directly above them is the point.
- *
- * It is also *inside* both of them ({@link ExportFirstOffer}), because above is
- * not enough at the moment that matters: a user who has already opened a
- * confirmation should not have to back out of it to find the export, and that
- * confirmation is the last instant at which an export is still possible.
- *
- * Import from Contacts lives here because it lost its only other entry point:
- * it used to be the third button on the "+ Add" chooser that app/add.tsx
- * replaced. (The create form links to it too, for the user who is already
- * halfway through adding someone by hand.)
- *
- * The destructive actions moved here **from Settings**, which was carrying them
- * below account and sync setup. Nothing about them changed in the move — same
- * two sections, same copy, same either/or — because their wording is load-bearing
- * (`model.md` §7.2/§7.3) and this was a relocation, not a redesign.
+ * Data in and out. Export leads, above the destructive actions and inside
+ * their confirmations too, since this device may hold the only copy.
  */
 export default function DataScreen() {
   const account = useAccount();
@@ -54,13 +34,8 @@ export default function DataScreen() {
           </Text>
         </Link>
 
-        {/*
-          The two ways to be rid of what is on this device, one per custody state
-          (`model.md` §7.2), mirroring desktop. With an account, "Forget account"
-          removes it and its store; without one there is nothing to forget, so the
-          accountless wipe is the only shape the action can take. Showing both at
-          once was showing one act twice — they land in the identical place.
-        */}
+        {/* One way to be rid of this device's data per custody state: both
+            land in the same place. */}
         {status !== null &&
           (status.hasAccount ? (
             <ForgetAccountSection />
@@ -76,14 +51,8 @@ export default function DataScreen() {
 const FORGET_ACCOUNT_PHRASE = "DELETE";
 
 /**
- * **Forget account** (`model.md` §7.3) — remove this account and its data from
- * this device. Named as removal so it can never be mistaken for signing out.
- *
- * The wording is **driven by a check, not hardcoded** (§7.3.1): the provider asks
- * whether anything keeps a durable copy and reports `durableBackup`. Absent an
- * answer — today's universal case — it is `false` and this shows the alarming
- * version, hard-confirm and all. When server-side backup ships, that copy stops
- * appearing on its own.
+ * Remove this account and its data. Unless something claims a durable copy,
+ * it is worded as the deletion it is, with a typed confirmation.
  */
 function ForgetAccountSection() {
   const account = useAccount();
@@ -178,9 +147,7 @@ function ForgetAccountSection() {
               <Text style={styles.fieldLabel}>
                 Type {FORGET_ACCOUNT_PHRASE} to confirm
               </Text>
-              {/* The Authenticated half of the reset the E2E arc drives — see the
-                  note on `factory-reset-confirm` above. Empty, it offers a driver
-                  nothing to select it by. */}
+              {/* An empty field gives an E2E driver nothing else to select. */}
               <TextInput
                 testID="forget-account-confirm"
                 style={styles.input}
@@ -201,10 +168,8 @@ function ForgetAccountSection() {
             get it again.
           </Text>
         )}
-        {/* Offered in **both** branches, not only when this is the last copy: a
-            user is entitled to their own file whether or not somebody else is
-            holding one, and `durableBackup` is a claim this device cannot
-            verify. Only the wording above branches. */}
+        {/* Offered either way: `durableBackup` is a claim this device cannot
+            verify. */}
         {!lastCopy && <ExportFirstOffer busy={working} />}
         <Pressable
           style={[
@@ -247,19 +212,8 @@ function ForgetAccountSection() {
 const FACTORY_RESET_PHRASE = "ERASE";
 
 /**
- * Factory reset: erase everything on this device and rebuild the app as a fresh
- * install.
- *
- * **Shown only while this device is Unauthenticated** (`model.md` §7.2) — with an account,
- * {@link ForgetAccountSection} is the same act under the name that fits, and
- * offering both was offering one act twice. That is also why the copy no longer
- * branches on whether sync is set up: an Unauthenticated device has no account, so this data
- * is by definition the only copy.
- *
- * Gated behind a type-to-confirm step (the danger-styled button stays disabled
- * until the user types {@link FACTORY_RESET_PHRASE}) because nothing about it is
- * recoverable. On success the provider rebuilds in place, so this screen unmounts
- * into a clean app — there is no completion state to render.
+ * Erase everything and boot as a fresh install, for an Unauthenticated device.
+ * On success the provider rebuilds in place, so there is no done state.
  */
 function FactoryResetSection() {
   const account = useAccount();
@@ -309,19 +263,13 @@ function FactoryResetSection() {
             This permanently erases all data on this device. There is no account
             holding a copy, so this data cannot be recovered afterward.
           </Text>
-          {/* The accountless wipe is by definition destroying the only copy, so
-              it needs the offer at least as much as Forget account does. */}
+          {/* The accountless wipe always destroys the only copy. */}
           <ExportFirstOffer busy={working} />
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>
               Type {FACTORY_RESET_PHRASE} to confirm
             </Text>
-            {/*
-              The E2E catalog resets the app through this screen rather than through
-              `clearState` or a container wipe: those also erase the dev-launcher's
-              remembered dev server, and the next flow would find the launcher instead
-              of the app. Empty, the field offers a driver nothing to select it by.
-            */}
+            {/* An empty field gives an E2E driver nothing else to select. */}
             <TextInput
               testID="factory-reset-confirm"
               style={styles.input}
@@ -365,25 +313,15 @@ function FactoryResetSection() {
   );
 }
 
-/** The release version stamped into the archive, or the core when none was set. */
+/** The release version stamped into the archive, else the core version. */
 const APP_VERSION =
   Constants.expoConfig?.extra?.release ??
   Constants.expoConfig?.version ??
   "unknown";
 
 /**
- * **One export, wired to this platform** — build the archive, write it to Caches,
- * hand it to the share sheet, delete it, and hold the button state while that
- * happens. The *sequence* lives in `lib/export-share.ts`, which is the tier that
- * can test it; this is only the expo wiring, and it exists once because there are
- * three buttons behind it ({@link ExportSection} and two {@link ExportFirstOffer}s).
- *
- * ⚠️ **It must not use iCloud, ever** — an iCloud entitlement in any shipped
- * build permanently disqualifies the Apple app-record transfer. `expo-sharing`
- * adds none: its config plugin is for the *inbound* share extension (and would
- * add an App Group entitlement), is opt-in, and is deliberately **not** in
- * `app.json`. The user picking iCloud Drive out of the share sheet is their own
- * act through `UIDocumentPickerViewController` and needs nothing from us.
+ * The expo wiring for `exportAndShare`. ⚠️ Never iCloud, and no
+ * `expo-sharing` plugin: `@leapsake/export` → It must never use iCloud.
  */
 function useExportShare() {
   const core = useCore();
@@ -400,8 +338,7 @@ function useExportShare() {
       setResult(
         await exportAndShare({
           archive: () => core.export.archive({ appVersion: APP_VERSION }),
-          // **Caches, not documents** — see `export-share.ts`, which is where the
-          // reason lives now that three callers depend on it.
+          // Caches, not documents: see `export-share.ts`.
           write: (filename, bytes) => {
             const file = new File(Paths.cache, filename);
             if (file.exists) file.delete(); // a second export the same day
@@ -434,16 +371,7 @@ function useExportShare() {
   return { working, result, error, run: () => void run() };
 }
 
-/**
- * **Export** — the whole store as one `.zip` the user keeps, handed to the system
- * share sheet.
- *
- * The reason this exists at all is that v0.1 is single-device by construction:
- * the app container is the only place a user's data lives, so until there is a
- * file they can save, "delete and reinstall" is data loss. That is also why it
- * needs no account — the accountless store is precisely the one with no other
- * copy.
- */
+/** The whole store as one `.zip`, via the share sheet; needs no account. */
 function ExportSection() {
   const { working, result, error, run } = useExportShare();
 
@@ -467,8 +395,7 @@ function ExportSection() {
         </Text>
       </Pressable>
       {result !== null && (
-        // Reports what actually left the device — and what the E2E flow selects
-        // on, rather than asserting against the share sheet itself.
+        // What left the device, which the E2E flow asserts on.
         <Text testID="export-result" style={styles.muted}>
           {result}
         </Text>
@@ -483,25 +410,8 @@ function ExportSection() {
 }
 
 /**
- * **The same export, offered inside a confirmation that is about to destroy the
- * only copy** — the promise `key-custody/README.md` carried since before there
- * was an exporter.
- *
- * Above the type-to-confirm field, never below it: the order of the section is
- * the warning, the way out, the ceremony, then the destruction — and keeping the
- * danger button's neighbours unchanged is also what keeps
- * `maestro/subflows/factory-reset.yaml`'s keyboard handling honest.
- *
- * Styled as the ordinary accent button — the same affordance as the Export
- * section above, because it is the same act. It is deliberately *not* dressed as
- * a secondary/`colors.border` control like Cancel: white on `#ded3c2` is the
- * weakest thing on the screen, and the one button here whose whole purpose is to
- * be noticed cannot be the one nobody reads. Red destroys, blue exports, tan
- * backs out. Its own testIDs, not the Export section's, because both can be
- * showing a result at the same time.
- *
- * `busy` is the destructive action already running — there is nothing left to
- * export by then, and the screen is about to unmount.
+ * The export, offered inside a destructive confirmation, above its typed
+ * field. `busy` means the destruction is already running.
  */
 function ExportFirstOffer({ busy = false }: { busy?: boolean }) {
   const { working, result, error, run } = useExportShare();

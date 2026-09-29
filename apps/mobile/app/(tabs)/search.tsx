@@ -28,91 +28,20 @@ const TEXT = {
   reasonSeparator: ", ",
 };
 
-/**
- * Shortest query the screen acts on — mirrors the service's own floor so the
- * results clear the instant the term drops below it, rather than waiting for an
- * empty response. (Kept in sync with `MIN_QUERY_LENGTH` in `search-service`.)
- */
+/** The search service's own floor, so results clear without a round trip. */
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 200;
 
 /**
- * Global search, ported from the desktop's chrome SearchBar to its own tab. A
- * debounced `core.search.query` feeds a results list; each hit shows its title
- * (matched run bolded) and, for non-name matches, a muted "matched on …" line.
- * Tapping a result navigates to the entity's (or tag's) page, pushed over the
- * tab bar on the root stack.
- *
- * **Arriving here does not raise the keyboard.** The field used to `autoFocus`,
- * which put the keyboard over the bottom two thirds of the screen before the
- * user had seen any of it — fine when there was nothing under the field, but this
- * screen doubles as the browse surface for the catalogs that have no tab of
- * their own, and a browse list under a keyboard is a browse list nobody finds.
- * Focus is
- * therefore on demand: tap the field (free — that's what a `TextInput` does), or
- * tap the Search tab *again* while already here (below).
- *
- * ### The field is the title
- *
- * This is the only screen that runs with `headerShown: false`, so it owns its top
- * inset instead of inheriting one from `AppHeader`. A "Search…" field where the
- * word "Search" would otherwise be printed says it once instead of twice.
- *
- * That trade costs a `role="header"` landmark, so the field carries the screen's
- * name for assistive tech itself: an explicit `accessibilityLabel` (a placeholder
- * is not a label — it is dropped from the accessible name the moment the field
- * has a value) plus the search role, which is what makes VoiceOver say "Search,
- * search field". Arrival is still announced by the tab — "Search, tab, 2 of 4" —
- * which is the sentence a screen reader user actually hears on the way in.
- *
- * The box itself is {@link SearchInput}, which is also the filter inside a
- * `SuggestField`'s sheet: it owns the 🔍 and the handling that goes with it, and
- * this screen keeps the searching.
- *
- * Nothing here opts into `useHeaderScroll`: there is no title left to collapse.
- *
- * ### Arriving already narrowed
- *
- * `?type=` opens the screen filtered, which is how "find me a person" is
- * reachable from the People & Pets list without that list growing a search field
- * of its own — see `components/SearchHereLink.tsx`. The filter therefore has
- * exactly one representation, a URL.
- *
- * It carries a **list** of record kinds, one chip each, each dropped on its own.
- * A catalog's 🔍 hands over everything that catalog holds, and People & Pets
- * holds two things: a user who came here to find a person can drop the pets and
- * keep searching, where a single "People & Pets" chip left them nothing to say
- * short of clearing the filter and getting the gifts and holidays back too. The
- * grid above still shows the catalog whole — see `lib/search-categories.ts` for
- * why a tile and a chip are different units.
- *
- * A filtered arrival offers **no create action**, which it briefly did: the New
- * tab read `?type=` to work out that "add" was unambiguous here. There is no
- * header on this screen to put a ➕ in, and the catalog the filter names is the
- * screen the user just left — Back, or the chips' own ✕ to bring the grid back —
- * where the ➕ lives now (`app/(tabs)/_layout.tsx`).
- *
- * It also offers no prose. A narrowed arrival with an empty field once carried a
- * "Type to search people and pets." prompt and a "See all people and pets" link;
- * both restated what the chips and the tab bar were already saying, in the one
- * spot on the screen where a user is about to start typing.
- *
- * Tapping a browse tile does **not** set it: a tile is a way to the catalog it
- * names, not a way to narrow a search nobody has started. See `BrowseTiles`.
- *
- * Filtering happens **on the results**, not in the query: the service caps at 50
- * hits from an in-memory pass, so narrowing the answer is free, while narrowing
- * the question would mean a new core surface and a second place for the two
- * clients to disagree about what a "person result" is.
+ * Search, with no header: the field is the title. `?type=` arrives narrowed,
+ * and arriving never raises the keyboard, since an empty field browses.
  */
 export default function SearchScreen() {
   const core = useCore();
   const router = useRouter();
   const navigation = useNavigation();
   const inputRef = useRef<TextInput>(null);
-  // From the context, never a constant: `DegradedFrame` (lib/core-context.tsx)
-  // zeroes `top` when the custody banner has already consumed the notch. Same
-  // reasoning as `AppHeader`, which is what used to apply this inset here.
+  // From the context: `DegradedFrame` zeroes `top` under its banner.
   const insets = useSafeAreaInsets();
 
   const { type } = useLocalSearchParams<{ type?: string }>();
@@ -122,24 +51,17 @@ export default function SearchScreen() {
   const [results, setResults] = useState<SearchHit[]>([]);
   const shown = filterHits(results, facets);
 
-  /** Drop one chip, leaving the rest — a `setParams` rather than a `setState`,
-   *  since the filter lives in the URL rather than beside it. Dropping the last
-   *  one writes no param at all, which is an unfiltered search. */
+  /** Drop one chip; the filter lives in the URL, so this sets params. */
   const dropFacet = (dropped: SearchFacet) =>
     router.setParams({
       type: facetParam(facets.filter((facet) => facet !== dropped)),
     });
 
-  // A second press of the Search tab focuses the field — the standard "tab
-  // pressed while already on it" gesture (the same event other apps use to
-  // scroll a list back to the top). `isFocused()` is what separates *arriving*
-  // here from *already being* here: the event fires for both, and only the
-  // latter should raise the keyboard.
+  // A second press of the Search tab focuses the field. `isFocused()` tells
+  // it from arriving, which fires the same event.
   useEffect(() => {
-    // The bottom-tab navigator emits `tabPress`, but it isn't in the generic
-    // navigation event map expo-router exposes, and @react-navigation/bottom-tabs
-    // is only a transitive dependency — so the event is narrowed here rather than
-    // by importing that package's types.
+    // `tabPress` is not in expo-router's event map, and bottom-tabs is only
+    // a transitive dependency, so it is narrowed here.
     const tabs = navigation as unknown as {
       addListener(event: "tabPress", callback: () => void): () => void;
     };
@@ -148,8 +70,7 @@ export default function SearchScreen() {
     });
   }, [navigation]);
 
-  // Latest-query-wins: query promises can resolve out of order, so a stale
-  // response (token !== latest) is ignored rather than allowed to flicker in.
+  // Latest query wins: a response that resolves out of order is ignored.
   const queryToken = useRef(0);
 
   useEffect(() => {
@@ -181,36 +102,28 @@ export default function SearchScreen() {
       ]}
     >
       <SearchInput
-        // Held here rather than left to the field because this screen focuses it
-        // from outside the box — see the `tabPress` listener above.
+        // Held here because the `tabPress` listener focuses it.
         inputRef={inputRef}
-        // For the E2E harness: an empty field carries no accessibility text, and
+        // For the E2E flows: an empty field has no accessibility text, and
         // its label "Search" is a word the tab bar under it also uses.
         testID="search-field"
         value={term}
         onChangeText={setTerm}
         placeholder="Search…"
-        // The placeholder is what a sighted user reads and the label is what a
-        // screen reader hears; both are needed, because the placeholder is gone
-        // from the accessible name as soon as there is a value to read instead.
+        // A placeholder leaves the accessible name once there is a value.
         accessibilityLabel="Search"
         returnKeyType="search"
         autoCapitalize="none"
       />
 
-      {/* The active narrowing, and the way out of it. Above the results rather
-          than beside the field, so it reads as a statement about what is listed
-          below it — which is exactly what it is. One chip per kind of record, so
-          the way out is per kind too: the row is the sentence "people and pets",
-          and a tap deletes a word from it rather than the whole sentence. */}
+      {/* The active narrowing, one chip per kind, each dropped on its own. */}
       {facets.length > 0 && (
         <View style={local.chips}>
           {facets.map((facet) => (
             <Pressable
               key={facet.type}
               accessibilityRole="button"
-              // Says what tapping does, not what the chip is: the glyph and label
-              // are already read, and "✕" on its own is not an instruction.
+              // Says what tapping does: "✕" on its own is no instruction.
               accessibilityLabel={`${facet.label}. Remove this filter`}
               testID={`search-filter-chip-${facet.type}`}
               style={local.chip}
@@ -224,24 +137,10 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {/*
-        An empty field browses instead of searching, so this screen answers
-        "where is Holidays?" as well as "where is Ana?". Strictly the *empty*
-        field — the moment anything is typed the results list takes over, so the
-        one-character state stays blank and "No matches." still says exactly what
-        it used to. Offering the browse grid under a failed search would read as
-        "did you mean one of these", which it never is.
-      */}
+      {/* Only an empty field browses; under a failed search the grid would
+          read as "did you mean one of these". */}
       {term.trim() === "" ? (
-        // No prose over the tiles: they name the same four things a sentence
-        // listing them would, and the field's own placeholder has already said
-        // the word "Search".
-        //
-        // A *narrowed* arrival gets nothing at all under its chips — no prompt,
-        // no way back to the catalog. Both used to be here, and both restated
-        // what was already on screen: the chips say what is filtered, and the
-        // catalog is straight back the way the user came. What is left is the
-        // field, the filter, and room to type.
+        // A narrowed arrival shows nothing under its chips.
         facets.length === 0 ? (
           <BrowseTiles onPick={(picked) => router.push(picked.browseHref)} />
         ) : null
@@ -290,8 +189,7 @@ const local = StyleSheet.create({
 });
 
 function ResultRow({ hit, term }: { hit: SearchHit; term: string }) {
-  // The "name" facet is already shown by the title, so only the other facets
-  // drive the "matched on …" subtitle.
+  // The title already shows a name match.
   const reasons = hit.reasons.filter((r) => r.facet !== "name");
   return (
     <View>

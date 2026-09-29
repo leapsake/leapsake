@@ -57,7 +57,7 @@ function screenOptions(screen: TabScreen) {
 export default function TabsLayout() {
   return (
     <Tabs
-      // Android's hardware back retraces the tabs and catalogs visited, not straight to Home.
+      // Android's back retraces the tabs visited, not straight to Home.
       backBehavior="history"
       screenOptions={{
         tabBarActiveTintColor: colors.accent,
