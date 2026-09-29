@@ -455,6 +455,25 @@ manual.
 `accessibilityLabel` reads `PASS` — `FAIL` on any failed case _or_ a zero-case run, `ERROR` if
 the suite could not start. Key on that stable token, never the human-readable `N/N` count.
 
+### The custody self-test
+
+`test/custody-selftest.ts` runs beside the contract and proves the expo-sqlite behaviours
+custody rests on, which could otherwise only be taken on SQLCipher's word: a keyless open makes
+an ordinary plaintext store, the `ATTACH` conversion produces ciphertext, nested
+`stores/<id>/` names open and delete, one account's doors die without another's, and
+recovery-key adoption and master-key repair run on this engine. Three rules shape it:
+
+- **Every positive is paired with the negative that makes it non-vacuous.** Without them a
+  SQLCipher build that silently ignored keys would read as a clean PASS, and the first case
+  asserts `cipher_version` so a stock SQLite build fails outright.
+- **No case derives a password.** The password gate is a 19 MiB Argon2id pass that runs for
+  minutes on unJITted Hermes in a dev bundle, and it is proved on desktop; what only a device can
+  prove is the SQLCipher behaviour underneath, so the cases use the recovery door.
+- **Scratch names and an in-memory keystore throughout**, so the device's own custody state is
+  untouched. `deleteDatabaseAsync` removes a file but not its directory, so a self-tested
+  simulator accumulates empty `stores/<uuid>/` directories; harmless, since the app never lists
+  them.
+
 ### Why Maestro _(owner-confirmed)_
 
 The harness also founds the mobile E2E tier, so the choice was weighed long-term rather than for

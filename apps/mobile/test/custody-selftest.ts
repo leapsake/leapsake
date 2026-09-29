@@ -32,41 +32,22 @@ import {
 import { accountDoors, doorsPath } from "../db/doors";
 import { expoSqliteDriver } from "../db/expo-sqlite-driver";
 
-/**
- * The **custody** self-test: proves on-device the two expo-sqlite behaviors that
- * "encryption follows custody" (`plans/encryption/model.md` §7.2) is built on, and
- * that could previously only be taken on faith from SQLCipher's documentation.
- *
- * 1. **A keyless open works.** An Unauthenticated store (no account) supplies no `PRAGMA key`
- *    at all, so the SQLCipher build must create and reopen an ordinary plaintext
- *    database. Every boot path in the custody work depends on this.
- * 2. **The portable conversion runs** (§8.1). Account creation turns that plaintext
- *    store into an encrypted one via `ATTACH` + copy-from-`sqlite_master` — the one
- *    pattern that works on *both* engines, since desktop has `PRAGMA rekey` but no
- *    `sqlcipher_export` and SQLCipher has the reverse.
- *
- * Each positive case is paired with the negative that makes it non-vacuous: a keyless
- * reopen proves plaintext only if a *keyed* database genuinely refuses one, and the
- * conversion's output is only "encrypted" if it too refuses. Without those pairs a
- * SQLCipher build that silently ignored keys would read as a clean PASS.
- *
- * Runs alongside the driver contract on `leapsake://dev-selftest`, under the same
- * `pnpm test:native` gate — see `apps/mobile/maestro/README.md`.
- */
+// On-device proof of the expo-sqlite behaviours custody rests on; see
+// `apps/mobile/README.md` → _The custody self-test_.
 
-/** A throwaway database name, unique per case so nothing leaks between them. */
+/** A throwaway database name, unique per case. */
 function scratchName(label: string): string {
   return `custody-${label}-${crypto.randomUUID()}.db`;
 }
 
-/** Absolute path of a database in expo-sqlite's directory — what `ATTACH` needs
- *  (it resolves relative paths against the process CWD, not the SQLite folder). */
+/** Absolute path in expo-sqlite's directory, since `ATTACH` resolves a
+ *  relative path against the process CWD. */
 function scratchPath(name: string): string {
   return `${SQLite.defaultDatabaseDirectory}/${name}`;
 }
 
-/** Delete a scratch database, ignoring "not found" — cleanup must never mask the
- *  failure that caused it. */
+/** Deletes a scratch database, tolerating "not found", so cleanup never
+ *  masks the failure that caused it. */
 async function discard(name: string): Promise<void> {
   try {
     await SQLite.deleteDatabaseAsync(name);
@@ -75,7 +56,7 @@ async function discard(name: string): Promise<void> {
   }
 }
 
-/** Whether `fn` rejects — the shape both "refuses to open" negatives assert. */
+/** Whether `fn` rejects. */
 async function rejects(fn: () => Promise<unknown>): Promise<boolean> {
   try {
     await fn();
@@ -89,9 +70,8 @@ export function runCustodySelfTest(t: TestApi): void {
   const { describe, it, expect } = t;
 
   describe("custody: expo-sqlite SQLCipher behavior", () => {
-    // Guards every case below: if `useSQLCipher` ever stops applying to the build,
-    // the plaintext cases would still pass (a stock SQLite opens keyless happily)
-    // and we would be proving nothing about the engine we actually ship.
+    // A stock SQLite also opens keyless, so without this the plaintext cases
+    // would prove nothing about the shipped engine.
     it("is a SQLCipher build", async () => {
       const name = scratchName("version");
       const db = await SQLite.openDatabaseAsync(name);
@@ -123,9 +103,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // The file is only genuinely plaintext if a *second*, independent connection
-    // reads it with no key — a single session could be decrypting under an implicit
-    // one. This is the case the Unauthenticated store's every subsequent launch depends on.
+    // Only a second connection proves the file plaintext: one session could be
+    // decrypting under an implicit key.
     it("reopens a keyless database keyless, across connections", async () => {
       const name = scratchName("reopen");
       const first = await SQLite.openDatabaseAsync(name);
@@ -145,19 +124,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // The negative that makes the two cases above mean something.
-    /**
-     * **The case that catches a shared native connection.** expo-sqlite caches
-     * connections by database name, so a "keyless" probe of a store the caller
-     * already holds open returns that caller's *keyed* connection — the read
-     * succeeds and an encrypted store reports `plaintext`. Every caller holding a
-     * live driver is in exactly that state, which is why this is not an exotic
-     * case: it made the merge flow's at-rest guard refuse every real merge.
-     *
-     * `storeState` passes `useNewConnection` to avoid it. Drop that option and
-     * this case goes red — and so does the merge case further down, which is the
-     * one a user would have felt.
-     */
+    // expo-sqlite shares a connection per name, so without `useNewConnection`
+    // `storeState` would read an open store through its keyed handle.
     it("reports encrypted while a keyed handle is open", async () => {
       const name = scratchName("sharedconn");
       const keyed = await SQLite.openDatabaseAsync(name);
@@ -171,6 +139,7 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
+    // The negative that makes the keyless cases above mean something.
     it("refuses a keyless read of a keyed database", async () => {
       const name = scratchName("keyed");
       const keyed = await SQLite.openDatabaseAsync(name);
@@ -190,12 +159,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // The behavior the boot path's verification read depends on: applying a key
-    // **never fails on its own**, even a wrong one — SQLCipher only objects when
-    // something actually reads page 1. That is why the bootstrap follows
-    // `PRAGMA key` with a `PRAGMA user_version` instead of trusting the apply:
-    // without it a wrong key would surface later, from inside migrations, as
-    // "file is not a database".
+    // Why `openExpoStore` follows `PRAGMA key` with a read: SQLCipher objects
+    // to a wrong key only when page 1 is read.
     it("accepts a wrong key silently, and fails only on the first read", async () => {
       const name = scratchName("wrongkey");
       const keyed = await SQLite.openDatabaseAsync(name);
@@ -223,15 +188,8 @@ export function runCustodySelfTest(t: TestApi): void {
   });
 
   describe("custody: per-account store paths (§7.4)", () => {
-    // §7.4 puts each account's store in its own directory (`stores/<id>/`). Desktop
-    // gets that from `mkdir -p`; mobile has no filesystem dependency and passes a
-    // *name* to expo-sqlite, so whether a nested name works at all — and whether
-    // the intermediate directory is created for us — decides the mobile layout.
-    //
-    // Note `deleteDatabaseAsync` removes the file but not the directory, so these
-    // cases leave an empty `stores/<uuid>/` behind in the app sandbox. Harmless
-    // (dev builds only, and the app never enumerates that directory), but it is why
-    // a self-tested simulator accumulates them.
+    // Mobile passes expo-sqlite a nested name, so whether one opens, with its
+    // directory created, decides the per-account layout.
     it("opens a store under a nested, per-account name", async () => {
       const account = `acct-${crypto.randomUUID()}`;
       const name = `stores/${account}/leapsake.db`;
@@ -271,11 +229,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // **Forget account** (§7.3) removes one account's store by that same nested
-    // name. Opening a nested name is proved above; *deleting* one is a separate
-    // expo-sqlite behavior, and it is the step that actually destroys user data —
-    // a silent no-op here would leave the store on disk while the roster entry
-    // said it was gone, i.e. "deleted" data still sitting in the sandbox.
+    // Forget account deletes by this nested name; a silent no-op would leave
+    // "deleted" data in the sandbox.
     it("deletes a store by its nested, per-account name", async () => {
       const name = `stores/acct-${crypto.randomUUID()}/leapsake.db`;
       const db = await SQLite.openDatabaseAsync(name);
@@ -285,9 +240,8 @@ export function runCustodySelfTest(t: TestApi): void {
 
       await SQLite.deleteDatabaseAsync(name);
 
-      // The negative that makes it non-vacuous: re-opening the same name must
-      // give a *fresh, empty* database rather than the rows we just wrote. Without
-      // this, a delete that quietly did nothing would still read as a pass.
+      // The same name must reopen empty, or a delete that did nothing would
+      // still pass.
       const reopened = await SQLite.openDatabaseAsync(name);
       try {
         const table = await reopened.getFirstAsync<{ name: string }>(
@@ -300,13 +254,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // **Forget account** must take that account's doors and no others. These drive
-    // the shipped `accountDoors` rather than a re-implementation — it takes a slot,
-    // so a scratch account id keeps the device's own custody state untouched.
-    //
-    // A door outliving the store it opened is how "deleted" quietly becomes "still
-    // openable"; a door *dying with a store that was not deleted* is the bug slice
-    // 7b fixed, and is the case below it.
+    // Forget account must take the account's doors: a door outliving its store
+    // leaves "deleted" data openable.
     it("destroys one account's doors", async () => {
       const account = `acct-${crypto.randomUUID()}`;
       const doors = accountDoors(account);
@@ -317,8 +266,8 @@ export function runCustodySelfTest(t: TestApi): void {
 
         await doors.destroy();
 
-        // Re-reading recreates an *empty* doors database rather than returning the
-        // blobs — without this a delete that quietly did nothing would still pass.
+        // Re-reading recreates an empty doors database, so a delete that did
+        // nothing would fail here.
         expect(await doors.readPassword()).toBe(undefined);
         expect(await doors.readRecovery()).toBe(undefined);
       } finally {
@@ -326,10 +275,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // The regression this slice exists for. Both doors used to live in one
-    // device-scoped database, so forgetting either account destroyed the other's
-    // password *and* recovery door — silent at the time, and unrecoverable later,
-    // when that account's keychain was wiped and neither door was there.
+    // A lost door is unrecoverable once that account's keychain is wiped, so
+    // forgetting one account must leave another's intact.
     it("keeps one account's doors when another's are destroyed", async () => {
       const kept = accountDoors(`acct-${crypto.randomUUID()}`);
       const forgotten = accountDoors(`acct-${crypto.randomUUID()}`);
@@ -349,17 +296,16 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // Doors sit *inside* the store's own directory, which is what makes the case
-    // above structural rather than a matter of passing the right predicate.
+    // Doors inside the store's directory make the case above structural, not
+    // a matter of passing the right predicate.
     it("puts a doors database in its account's store directory", () => {
       const account = `acct-${crypto.randomUUID()}`;
       expect(doorsPath(account)).toBe(`stores/${account}/doors.db`);
     });
   });
 
-  // The production converter, not a re-implementation of it — the sequence above
-  // proves the *engine* supports the pattern; this proves the code we ship uses it
-  // correctly, including the two things a hand-rolled copy silently drops.
+  // The portable sequence at the end proves the engine supports the pattern;
+  // this proves the shipped converter uses it correctly.
   describe("custody: the shipped store converter", () => {
     it("carries data, indexes and the migration watermark into a keyed store", async () => {
       const from = scratchName("prod-src");
@@ -391,15 +337,14 @@ export function runCustodySelfTest(t: TestApi): void {
           "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_by_name'",
         );
         expect(index?.name).toBe("person_by_name");
-        // Without this the next boot re-runs every migration against live tables.
+        // Without this the next boot re-runs every migration on live tables.
         const version = await target.getFirstAsync<{ user_version: number }>(
           "PRAGMA user_version",
         );
         expect(version?.user_version).toBe(27);
         await target.closeAsync();
 
-        // The source is deliberately still there — it dies only once the roster
-        // names the replacement (see the converter's doc comment).
+        // The source stays until the roster names the replacement.
         const stillThere = await SQLite.openDatabaseAsync(from);
         const original = await stillThere.getFirstAsync<{ name: string }>(
           "SELECT name FROM person WHERE id = 1",
@@ -407,24 +352,15 @@ export function runCustodySelfTest(t: TestApi): void {
         expect(original?.name).toBe("Mary");
         await stillThere.closeAsync();
       } finally {
-        // Tolerant on purpose: a `finally` that throws replaces the real failure
-        // with a cleanup error, which is exactly how this case first hid an
-        // ATTACH failure behind "database not found".
+        // Tolerant, so a cleanup error never replaces the real failure.
         await discard(from);
         await discard(to);
       }
     });
   });
 
-  /**
-   * Account creation's irreversible sequence — **convert (original kept) →
-   * roster → destroy the original** (`model.md` §7.1) — in the two steps that
-   * touch this device's files: that the converted store genuinely refuses a
-   * keyless read, and that destroying the original leaves nothing plaintext
-   * behind. Scratch names only — the real roster and sidecar helpers use fixed
-   * database names, and a self-test must not rewrite the custody state of the
-   * device it runs on.
-   */
+  // Account creation's file steps: the converted store refuses a keyless
+  // read, and destroying the original leaves nothing plaintext.
   describe("custody: an account store's conversion", () => {
     it("ends up ciphertext, with the plaintext original destroyed", async () => {
       const from = scratchName("join-src");
@@ -443,8 +379,8 @@ export function runCustodySelfTest(t: TestApi): void {
 
       try {
         await convertStoreToEncrypted({ fromName: from, toName: to, key });
-        // The step join used to skip entirely: without it the device keeps a
-        // plaintext copy of everything it just encrypted.
+        // Without this the device keeps a plaintext copy of everything it
+        // just encrypted.
         await destroyStoreFiles(from);
 
         // The paired negative — the target is only "encrypted" if a keyless
@@ -468,8 +404,8 @@ export function runCustodySelfTest(t: TestApi): void {
         expect(row?.name).toBe("Henry");
         await target.closeAsync();
 
-        // Re-opening the destroyed name gives a *new, empty* database rather than
-        // the old rows — expo-sqlite creates on open, so "gone" reads as "no table".
+        // expo-sqlite creates on open, so the destroyed name reopens as a new,
+        // empty database: "gone" reads as "no table".
         const reopened = await SQLite.openDatabaseAsync(from);
         const survivor = await reopened.getFirstAsync<{ n: number }>(
           "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'person'",
@@ -482,11 +418,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    // A crash between the conversion and the roster entry leaves an encrypted store
-    // nobody claims. The retry clears the stranded file first, because the
-    // converter's overwrite guard (the case after this one) now refuses to write
-    // into it — and before that guard existed, the retry copied every row into a
-    // populated database and the user's data arrived twice.
+    // A crash before the roster entry strands an encrypted store; the retry
+    // clears it first, since the overwrite guard refuses it.
     it("clears a stranded destination before converting again", async () => {
       const from = scratchName("retry-src");
       const to = `stores/retry-${crypto.randomUUID()}/leapsake.db`;
@@ -503,7 +436,7 @@ export function runCustodySelfTest(t: TestApi): void {
       await source.closeAsync();
 
       try {
-        // The stranded leftover of an attempt that crashed before its roster entry.
+        // The leftover of an attempt that crashed before its roster entry.
         await convertStoreToEncrypted({ fromName: from, toName: to, key });
 
         await discard(to); // what the retry does when no roster entry claims it
@@ -522,13 +455,8 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    /**
-     * The converter's two guards — mobile's answer to desktop's `storeFileState`,
-     * which reads the SQLite file header directly. expo-sqlite exposes no raw file
-     * access, so `storeState` asks the engine instead (open keyless, count
-     * `sqlite_master`); these prove that substitute actually distinguishes the three
-     * states, on the engine we ship, rather than in principle.
-     */
+    // `storeState` stands in for desktop's header read, as expo-sqlite has no
+    // raw file access; this proves it tells the three states apart.
     it("tells an empty, a plaintext and an encrypted store apart", async () => {
       const empty = scratchName("state-empty");
       const plain = scratchName("state-plain");
@@ -579,8 +507,8 @@ export function runCustodySelfTest(t: TestApi): void {
           ),
         ).toBe(true);
 
-        // …and it refused *before* writing: the first conversion's rows are intact
-        // and un-duplicated, which is the property the guard is protecting.
+        // …and it refused before writing: the first conversion's rows are
+        // intact and not duplicated.
         const target = await SQLite.openDatabaseAsync(to);
         await target.execAsync(`PRAGMA key = "${rawKeyLiteral(key)}"`);
         const count = await target.getFirstAsync<{ n: number }>(
@@ -645,20 +573,15 @@ export function runCustodySelfTest(t: TestApi): void {
       );
 
       try {
-        // Step 2 of §8.1. Verified 2026-07-27 to be a **no-op on mobile** — SQLCipher
-        // has exactly one cipher, so the conversion passes without it — but kept so
-        // both platforms run the identical sequence: desktop's
-        // better-sqlite3-multiple-ciphers supports several and silently writes the
-        // *default* one without this, failing much later with a misleading
-        // "file is not a database".
+        // A no-op on mobile, which has one cipher; kept so both platforms run
+        // the same sequence. See key-custody's conversion rules.
         await source.execAsync("PRAGMA cipher='sqlcipher'");
         await source.execAsync(
           `ATTACH DATABASE '${scratchPath(targetName)}' AS enc KEY "${key}"`,
         );
 
-        // Schema first, then rows — read the definitions back out of the source's
-        // own catalog rather than restating them, which is what makes this work for
-        // a real store whose schema the conversion code doesn't know.
+        // Schema from the source's own catalog, so this works for a schema the
+        // conversion code doesn't know; then rows.
         const objects = await source.getAllAsync<{
           type: string;
           name: string;
@@ -686,7 +609,7 @@ export function runCustodySelfTest(t: TestApi): void {
         await source.execAsync("DETACH DATABASE enc");
         await source.closeAsync();
 
-        // Reopen the target on its own connection under the key: everything survived.
+        // Reopen the target under the key: everything survived.
         const target = await SQLite.openDatabaseAsync(targetName);
         await target.execAsync(`PRAGMA key = "${key}"`);
         const people = await target.getAllAsync<{ name: string }>(
@@ -703,8 +626,8 @@ export function runCustodySelfTest(t: TestApi): void {
         expect(index?.name).toBe("note_by_person");
         await target.closeAsync();
 
-        // …and the output is genuinely ciphertext, not a plaintext copy that merely
-        // tolerated a key. Without this the whole conversion could be a no-op.
+        // …and the output is ciphertext, not a plaintext copy that tolerated a
+        // key; without this the conversion could be a no-op.
         const keyless = await SQLite.openDatabaseAsync(targetName);
         expect(
           await rejects(() => keyless.getFirstAsync("SELECT name FROM person")),
@@ -717,26 +640,10 @@ export function runCustodySelfTest(t: TestApi): void {
     });
   });
 
-  /**
-   * Custody slice 8 — **taking on a new recovery phrase**, against the shipped
-   * `adoptRecoveryKey` and the shipped `accountDoors`, on the engine this app runs.
-   * It is the step both paths that change the key end in: a rotation performed
-   * here, and one performed on another device that this one catches up to.
-   *
-   * **Deliberately no password anywhere in this suite.** The password gate costs an
-   * Argon2id pass (19 MiB, 2 rounds) which on Hermes, unJITted, in a dev bundle,
-   * runs for *minutes* — enough to make this whole tier look hung. It is also not
-   * a mobile question: the gate and the full rotation are proved in
-   * `apps/desktop/test/integration/rotate-recovery.test.ts` and against a live
-   * relay in `apps/server/test/relay.test.ts`. What is only provable here is that
-   * the new key lands in `stores/<account>/doors.db` and reopens *this* device's
-   * db-key.
-   *
-   * Scratch throughout — an in-memory keystore and a scratch account id — so the
-   * device's own custody state is untouched, the same trick the door cases use.
-   */
+  // Taking on a new recovery phrase, the step every key rotation ends in,
+  // against the shipped `adoptRecoveryKey` and `accountDoors`.
   describe("custody: adopting a new recovery key", () => {
-    /** A scratch store + doors + keystore holding a db-key, and nothing else. */
+    /** A scratch store, doors and a keystore holding only a db-key. */
     async function scratchDevice() {
       const account = `acct-${crypto.randomUUID()}`;
       const storeName = `stores/${account}/leapsake.db`;
@@ -793,8 +700,8 @@ export function runCustodySelfTest(t: TestApi): void {
           Array.from((await d.keyStore.getSecret(RECOVERY_KEY)) ?? []).join(),
         ).toBe(Array.from(newKey).join());
 
-        // The pairing negative — without it a door that was merely rewritten, or
-        // not rewritten at all, would still read as a pass.
+        // The pairing negative: without it a door that was merely rewritten,
+        // or not rewritten at all, would still pass.
         let oldStillOpens = true;
         try {
           openDbKeyFromRecovery(door ?? new Uint8Array(), oldKey);
@@ -808,8 +715,7 @@ export function runCustodySelfTest(t: TestApi): void {
     });
 
     it("leaves another account's doors alone", async () => {
-      // The per-account scoping slice 7b established, on the path slice 8 added:
-      // adopting on one account must not touch a second account's door.
+      // Adopting on one account must not touch a second account's door.
       const a = await scratchDevice();
       const b = await scratchDevice();
       try {
@@ -838,24 +744,12 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    /**
-     * Custody slice 9, on the engine this app runs. A device that lost its OS
-     * keychain and came back through a door has a *fresh* device identity, so
-     * `ensureDeviceMasterKey` would mint a brand-new master key and quietly stop
-     * speaking the account's language. The repair reads the account's key back out
-     * of the door and binds it to the new enclave.
-     *
-     * The recovery door, not the password one — same suite rule as above: the
-     * password gate is an Argon2id pass and is proved on desktop, while what is
-     * only provable here is that the `key_wrap` read/revoke/add cycle behaves on
-     * SQLCipher under expo-sqlite.
-     */
+    // After keychain loss the device has a fresh identity; the repair binds
+    // the account's master key, read through a door, to the new enclave.
     it("re-adopts the account's master key after the keychain is lost", async () => {
       const d = await scratchDevice();
       try {
-        // An account whose master key is reachable from its recovery door. The
-        // salt and verifier are unused on this path (no password is derived), so
-        // they are filler rather than a shortcut.
+        // The salt and verifier are filler: this path derives no password.
         const accountMasterKey = generateKey();
         const recoveryKey = generateKey();
         await createAccountRepo(d.driver).create({
@@ -878,8 +772,8 @@ export function runCustodySelfTest(t: TestApi): void {
         });
         expect(status).toBe("adopted");
 
-        // The enclave now vouches for the account's key, so the call that used to
-        // mint a stray one hands back the real one instead.
+        // The enclave now vouches for the account's key, so this hands it back
+        // rather than minting a stray one.
         const session = await ensureDeviceMasterKey({
           keyStore: d.keyStore,
           driver: d.driver,
@@ -903,8 +797,8 @@ export function runCustodySelfTest(t: TestApi): void {
     });
 
     it("refuses to mint a master key once an account exists", async () => {
-      // The source guard, which is what makes the repair mandatory rather than
-      // best-effort: without an enclave door, an account store must not proceed.
+      // The guard that makes the repair mandatory: without an enclave door,
+      // an account store must not proceed.
       const d = await scratchDevice();
       try {
         await createAccountRepo(d.driver).create({
@@ -923,22 +817,13 @@ export function runCustodySelfTest(t: TestApi): void {
       }
     });
 
-    /**
-     * Custody slice 10 — the boot sequence that decides what those two calls mean
-     * for the app: a repair it cannot complete leaves the device **Degraded** (the
-     * store opens, nothing syncs, nothing is minted) instead of refusing to open.
-     *
-     * `custody: "encrypted"` is a label about the account, not about the file, so a
-     * scratch store answers the question honestly: what is under test is the
-     * sequence and its durable flag, both of which are engine-level behavior worth
-     * proving on SQLCipher under expo-sqlite.
-     */
+    // A repair that cannot complete leaves the device Degraded: the store
+    // opens, nothing syncs, nothing is minted.
     it("degrades instead of throwing when a door cannot be repaired from", async () => {
       const d = await scratchDevice();
       try {
-        // An account with **no** recovery wrap row, so the door it is handed cannot
-        // produce the account's master key. This is the shape a device is in after a
-        // crashed password change, or a join that predated slice 9's fix.
+        // No recovery wrap row, so the door cannot produce the master key: the
+        // shape a crashed password change leaves.
         await createAccountRepo(d.driver).create({
           id: crypto.randomUUID(),
           kdfSalt: Uint8Array.from(generateKey()),
@@ -954,15 +839,14 @@ export function runCustodySelfTest(t: TestApi): void {
         });
 
         expect(established.state).toBe("degraded");
-        // Nothing minted: a stray master key is the damage the strict posture existed
-        // to prevent, and softening it must not reintroduce that.
+        // Nothing minted: a stray master key is the damage Degraded prevents.
         expect(
           await createKeyWrapRepo(d.driver).getActive({
             wrappedKind: "master",
             principalKind: "enclave",
           }),
         ).toBe(undefined);
-        // And the repair is still owed, so whichever door eventually works rewinds.
+        // The repair is still owed, so whichever door works later rewinds.
         expect(
           await createSyncStateRepo(d.driver).getMasterKeyRepairPending(),
         ).toBe(true);
@@ -972,9 +856,8 @@ export function runCustodySelfTest(t: TestApi): void {
     });
 
     it("comes back to ok, and clears the flag, once the door works", async () => {
-      // The pairing positive: the same call on the same store, with the one thing
-      // that was missing. Without it the case above would pass on a function that
-      // degraded unconditionally.
+      // The pairing positive: without it the case above would pass on a
+      // function that degraded unconditionally.
       const d = await scratchDevice();
       try {
         const accountMasterKey = generateKey();
@@ -1009,8 +892,8 @@ export function runCustodySelfTest(t: TestApi): void {
             : "",
         ).toBe(Array.from(accountMasterKey).join());
         expect(await syncState.getMasterKeyRepairPending()).toBe(false);
-        // A real repair rewinds both watermarks, so the records this device lost in
-        // each direction are re-offered once.
+        // A real repair rewinds both watermarks, so the records this device
+        // lost in each direction are re-offered once.
         expect(await syncState.getPushHwm()).toBe(0);
         expect(await syncState.getPullCursor()).toBe(0);
       } finally {

@@ -441,7 +441,7 @@ the sections above are the decisions it implements.
 `apps/desktop/src/main/db/convert-store.ts` (8 tests against the real app schema); mobile's in
 `apps/mobile/db/convert-store.ts`, exercised **on device** by
 `apps/mobile/test/custody-selftest.ts`, which runs beside the driver contract under
-`pnpm test:native` (**36 cases**, each positive paired with its negative, confirmed RED by
+`pnpm test:native` (each positive paired with its negative, confirmed RED by
 sabotage before being trusted GREEN). Both run the same ordinary-SQL pattern, `ATTACH` a keyed
 file and copy schema then rows out of `sqlite_master`, because neither engine's native shortcut
 works on the other: desktop's library has `PRAGMA rekey` but no `sqlcipher_export`, and
