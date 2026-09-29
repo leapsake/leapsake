@@ -46,7 +46,8 @@
         "packages/holidays/**",
         "packages/sync/**",
         "packages/view-models/**",
-        "packages/export/**"
+        "packages/export/**",
+        "packages/crypto/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

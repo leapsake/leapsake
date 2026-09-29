@@ -25,7 +25,7 @@ lint findings in brackets:
 
 
 
-| `packages/crypto`         |     322 (123) |
+
 | `packages/notifications`  |      247 (28) |
 | `packages/contact-links`  |      208 (38) |
 | `packages/store-layout`   |      142 (49) |
