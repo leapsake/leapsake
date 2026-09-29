@@ -33,6 +33,24 @@ rather than importing `holidays`, which already depends on it.
 Client-specific logic belongs in that client's `apps/` project. Anything two clients could
 share belongs here.
 
+## Consumed as raw TypeScript
+
+No package here has a build step. Each ships its `.ts` source and imports its siblings with
+ESM `.js`-suffixed specifiers (`from "./person.js"`) under `moduleResolution: "bundler"`, and
+each app's bundler resolves those to the `.ts` file on disk. Two consequences:
+
+- **Desktop bundles them rather than externalizing them.** An externalized package would be
+  loaded by Electron's Node straight from its `.ts` source and fail on those specifiers, so
+  `apps/desktop/electron.vite.config.ts` excludes every `@leapsake/*` in its `dependencies`
+  from `externalizeDepsPlugin`, and a new package is covered with no edit there.
+- **Mobile's Metro retries a relative `.js` import as `.ts`, then `.tsx`,** because Metro
+  honours an explicit extension. Real `.js` files in `node_modules` resolve on the first try,
+  so the retry only fires for this source. `apps/mobile/metro.config.js` also watches the repo
+  root and resolves from both the app's and the root's hoisted `node_modules`.
+
+A package that is ever consumed outside a bundler (plain Node, another repository) needs its
+own build: `tsc` emitting `dist/*.js` and types, with `exports` pointing at the output.
+
 ## These packages run on the Hermes floor
 
 `packages/*` execute on mobile's Hermes engine as well as on Node and Electron, and Hermes

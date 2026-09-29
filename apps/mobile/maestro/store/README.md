@@ -15,6 +15,16 @@ assertions, thin for a store listing: a relationship manager whose roster screen
 people argues against the product. ⚠️ And the arc's tail is wrong for it: Flow 4 encrypts the store and
 ends with the db-key lost and recovered twice, minutes that buy nothing a screenshot shows.
 
+So `base.mjs` runs only the front of the arc, through the same harness, and stops:
+
+- **Flow 4 is skipped.** Its account conversion is a 19MiB memory-hard Argon2id pass on
+  unJITted Hermes, minutes of wall-clock for nothing a screenshot shows.
+- **No `--provision`.** Under it the harness shuts the device down and stops Metro the moment
+  the flows finish, taking the staged state with it. Without it the device counts as the
+  developer's own and is left alone, which is the point here.
+- **The order is load-bearing.** Flow 1 resets to a fresh accountless app and Flow 2 fills it,
+  including the reminder that gives Home, the lead screenshot, something to show.
+
 ## Prerequisites
 
 A booted device, the dev client installed, and Metro running — the same three

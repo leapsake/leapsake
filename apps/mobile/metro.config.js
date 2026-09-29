@@ -1,18 +1,5 @@
-// Metro config for the Leapsake mobile app inside the pnpm monorepo.
-//
-// Two things make this non-default:
-//
-// 1. Monorepo — Metro must watch the repo root so it picks up our workspace
-//    packages (`packages/*`), and resolve modules from both the app's and the
-//    root's node_modules (pnpm `nodeLinker: hoisted`).
-//
-// 2. Raw-TS workspace packages — `@leapsake/*` ship TypeScript source and use
-//    ESM `.js`-suffixed relative imports (e.g. `from "./person.js"`) under
-//    `moduleResolution: "bundler"`. The file on disk is `person.ts`, so Metro's
-//    resolver — which honors explicit extensions — can't find it. We shim it:
-//    if a relative `.js` import fails to resolve, retry against `.ts`/`.tsx`.
-//    Real `.js` files (node_modules) still resolve on the first attempt, so the
-//    shim only ever fires for our source.
+// Watches the monorepo and resolves the raw-TypeScript workspace packages; see
+// `packages/README.md` → _Consumed as raw TypeScript_.
 const { getDefaultConfig } = require("expo/metro-config");
 const path = require("node:path");
 
