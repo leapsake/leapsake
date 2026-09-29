@@ -1,35 +1,5 @@
-// The app-icon generator — two vector sources, every file an app store or a browser asks for.
-//
-// `assets/icon/` holds the only hand-edited icon files in the repo:
-//
-//   logo_color.svg   the frog as it is seen — launcher and dock icons
-//   logo_bw.svg      the same frog as line art only, for surfaces that get one colour
-//
-// Everything else is derived from them and **committed**, because the things that consume
-// these files (`expo prebuild`, EAS, electron-builder, Cloudflare Pages) run on machines
-// that have no SVG rasterizer and no business acquiring one. Generated-and-committed is
-// the same bargain `pnpm build` makes; the part that needs guarding is that the two halves
-// stay in agreement, which is what `--check` is for.
-//
-// Usage:
-//   node scripts/icons.mjs           re-render every output and rewrite the manifest
-//   node scripts/icons.mjs --check   verify the committed PNGs match the sources (no render)
-//
-// `--check` is deliberately a *hash* comparison against `assets/icon/generated.json`
-// rather than a re-render. Re-rendering would make the check need librsvg — turning a
-// cheap static tier into one that is BLOCKED on most machines — and would also fail on
-// harmless byte differences between librsvg versions. Comparing hashes answers the only
-// question that matters: did someone change the SVG, or hand-edit a PNG, without
-// regenerating? Exit code 1 if so.
-//
-// ## Why two system tools, and not a dependency
-//
-// Rendering needs `rsvg-convert` (librsvg) and `magick` (ImageMagick). Neither is a
-// package dependency on purpose: this script runs *only* when the artwork changes, and the
-// alternative — `sharp`, which bundles both — would put a second native binary into every
-// install of a repo that already has a hard-won fight with one (AGENTS.md → “The native
-// SQLite ABI, and how it bites”). A tool you install once with Homebrew and never think
-// about again is the cheaper side of that trade. `--check` needs neither.
+// Renders every icon from `assets/icon/`; `--check` compares hashes instead.
+// See `assets/icon/README.md`.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -39,58 +9,18 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = "assets/icon/generated.json";
 
-/**
- * The hand-edited artwork. `color` is the frog; `mono` is the same drawing with its fill
- * dropped, which is what a surface that renders one colour has to be given.
- */
+/** The artwork: `color`, and `mono` without its fill, for one-colour use. */
 const SOURCES = {
   color: "assets/icon/logo_color.svg",
   mono: "assets/icon/logo_bw.svg",
 };
 
-/**
- * The colour behind the artwork, which is `tokens.surface` from `@leapsake/ui` — the same
- * warm cream the app itself is painted on.
- *
- * It is duplicated here rather than imported because this script must run before anything
- * is built and outside the TypeScript project graph. `--check` does not catch a drift
- * between the two; if the surface token ever changes, the icon is a deliberate follow-up
- * rather than an automatic one, since an app icon changing colour is a user-visible event
- * and store listings carry screenshots of it.
- */
+/** `tokens.surface` from `@leapsake/ui`, duplicated and not checked; see the
+ *  README. */
 const BACKGROUND = "#fbf7f0";
 
-/**
- * How much of each canvas the artwork spans, as a fraction of the canvas edge.
- *
- * These are the whole design of this file, so they are stated as measurements rather than
- * taste:
- *
- * - **0.72 (`icon.png`)** — iOS and Android-legacy both mask to a rounded square and add
- *   their own optical padding, so the glyph wants to sit inside the corner radius without
- *   looking lost in the middle. 0.72 puts the frog's bounding box at 737px of 1024, whose
- *   corners fall well inside iOS's ~229px corner radius.
- *
- * - **0.49 (`adaptive-icon.png`)** — Android adaptive icons are 108dp with only the
- *   central **66dp** guaranteed unmasked; a launcher may mask anything outside it, and
- *   Pixel's circle does. The naive reading of “66 of 108” is 0.611, but that describes a
- *   *circle*, not a square: this frog is nearly as wide as it is tall, so at 0.611 its ear
- *   tips sit 0.372 of the canvas from centre and a circular mask slices them off. Fitting
- *   the artwork's true corner radius inside the 66dp circle's 0.3055 gives 0.49. The
- *   `contentRadius` recorded in the manifest is that measurement, so this number can be
- *   re-derived rather than re-guessed if the artwork ever changes.
- *
- * - **0.85 (`notification-icon.png`)** — Android's status bar draws the small icon into a
- *   24dp box and expects roughly 2dp of breathing room inside it, which is where this
- *   comes from. There is no mask to dodge here, so it is the loosest of the three.
- *
- * - **0.96 (`logo.png`, and the website's favicons)** — nothing masks or pads a mark drawn
- *   inside the app, and nothing masks or pads a favicon either: a browser hands it a 16px
- *   box and draws it edge to edge. So this is as tight as the artwork goes. Not 1.0 only
- *   because the measured box is the *rendered* ink including its antialiased edge, and
- *   filling the canvas exactly would put that soft edge on the boundary where a later
- *   resize can clip it.
- */
+/** How much of each canvas the artwork spans, as measured; see the README's
+ *  _How the framing is measured_. */
 const FRACTIONS = {
   masked: 0.72,
   adaptive: 0.49,
@@ -98,57 +28,16 @@ const FRACTIONS = {
   bare: 0.96,
 };
 
-/**
- * The rounded square a macOS icon is drawn *on*, rather than masked *to*.
- *
- * This is the one platform that does not supply the shape itself. iOS and Android are
- * handed a full-bleed square and round it off; macOS composites the PNG as-is, so a
- * full-bleed square is exactly what the Dock shows — a hard-edged tile beside a row of
- * squircles. The shape has to be in the pixels.
- *
- * Both numbers are Apple's macOS icon grid (Big Sur onward), stated as fractions of the
- * 1024px canvas so they survive a size change:
- *
- * - **0.8047 (`fraction`)** — the icon body is 824 of 1024, and the ~100px margin on each
- *   side is not decoration: macOS reserves it for the badge, the bounce, and the drop
- *   shadow it draws behind the tile. An icon that fills its canvas renders *larger* than
- *   every neighbour in the Dock, which reads as a mistake rather than as emphasis.
- *
- * - **0.225 (`radius`)** — 185.4 of the 824px body. Close enough to iOS's ~0.2237 that
- *   `FRACTIONS.masked` can describe the artwork inside both, which is why the frog is the
- *   same relative size on a Mac dock as on an iPhone home screen.
- *
- * An output with a `plate` measures its `fraction` against the plate's edge rather than
- * the canvas, and keeps its alpha channel — the canvas outside the tile must be
- * transparent or the shape is not a shape.
- */
+/** The rounded tile a macOS icon is drawn on, from Apple's grid, as fractions
+ *  of the canvas and of the body. */
 const PLATE = { fraction: 824 / 1024, radius: 185.4 / 824 };
 
-/**
- * The credit carried inside `favicon.svg`, which is the only output that can hold text.
- *
- * The artwork is OpenMoji's under CC BY-SA 4.0, and the website is a *third* place the
- * work is distributed — `NOTICE` covers the repository and the in-app Acknowledgements
- * screen covers the two clients, but neither travels with a file served from
- * `leapsake.com`. A comment in the one output that survives being read as text is the
- * cheap half of that; see `assets/icon/README.md` → Attribution for the rest.
- */
+/** The OpenMoji credit inside `favicon.svg`; see the README's _Attribution_. */
 const CREDIT =
   "<!-- Frog (U+1F438) from OpenMoji (https://openmoji.org), CC BY-SA 4.0 -->";
 
-/**
- * What gets written, and who reads it.
- *
- * `background: undefined` means a transparent canvas. That is not a style choice in either
- * direction — iOS **rejects** an app icon with an alpha channel, and both the Android
- * adaptive foreground and the notification icon **must** have one, the first so the
- * background layer shows through and the second because Android reads nothing else. The
- * same artwork therefore has to be rendered more than once.
- *
- * `format` defaults to `png`. The two exceptions belong to the website and are explained
- * where they are declared; `size` still means the square the artwork is composed into, so
- * for an `ico` it is the render the frames are reduced *from* rather than a frame size.
- */
+/** Every output; no `background` is transparent, and an `ico`'s `size` is the
+ *  render its frames are reduced from. */
 const OUTPUTS = [
   {
     path: "apps/mobile/assets/icon.png",
@@ -167,27 +56,8 @@ const OUTPUTS = [
     note: "expo.android.adaptiveIcon.foregroundImage — backgroundColor supplies the layer behind it",
   },
   {
-    /**
-     * The Google Play **store listing** icon — the one shown on the app's Play page and in
-     * search results, uploaded by hand to the Console.
-     *
-     * The only output here that **no build consumes**, which is why it lives under
-     * `assets/store/` rather than beside the app's own assets: a file in
-     * `apps/mobile/assets` reads as something Metro bundles, and this is something a person
-     * uploads. It is generated rather than hand-cropped for the ordinary reason — a
-     * store icon that drifts from the launcher icon is the same product wearing two faces.
-     *
-     * **512px because that is Play's fixed requirement**, not a density to downscale from:
-     * the Console takes exactly 512×512. `icon.png` would serve at a pinch (it is already
-     * opaque RGB) but it is 1024, and letting Play resize is letting Play choose the
-     * resampling.
-     *
-     * `FRACTIONS.masked` and the cream background, matching `icon.png` rather than the
-     * tighter `bare` crop: Play composites this into a rounded square exactly as iOS and
-     * Android-legacy do, so it needs the same optical padding inside the same corner
-     * radius. ⚠️ The background is also **mandatory** here — Play rejects a store icon with
-     * an alpha channel, the same constraint iOS puts on `icon.png`.
-     */
+    // Play's listing icon, uploaded by hand: exactly 512px, framed like
+    // `icon.png`, and ⚠️ opaque, as Play rejects alpha.
     path: "assets/store/google-play-icon.png",
     source: SOURCES.color,
     size: 512,
@@ -196,19 +66,8 @@ const OUTPUTS = [
     note: "Google Play store listing icon — uploaded to the Console by hand, consumed by no build",
   },
   {
-    /**
-     * The Android status-bar icon, and the one output whose rules are unlike the rest.
-     *
-     * **Android throws the colours away.** A notification small icon is drawn from its
-     * *alpha channel* alone and tinted by the system, so the full-colour frog would arrive
-     * as a solid white square — every opaque pixel, which for an icon with a background is
-     * all of them. That is why this one is drawn from `logo_bw.svg`, whose body has no
-     * fill: what survives is the outline, which is legible at 24dp precisely because it is
-     * mostly holes.
-     *
-     * 96px because that is the largest size the expo-notifications plugin asks for
-     * (24dp × 4 for xxxhdpi); it downscales for the other four densities itself.
-     */
+    // Android draws this from alpha alone, so the line art, at the plugin's
+    // largest size.
     path: "apps/mobile/assets/notification-icon.png",
     source: SOURCES.mono,
     size: 96,
@@ -218,21 +77,7 @@ const OUTPUTS = [
     note: "expo-notifications plugin `icon` — Android reads its alpha only and tints the result",
   },
   {
-    /**
-     * The mark as the app draws it *inside itself* — today beside the app's name in the
-     * mobile Home title.
-     *
-     * Transparent, and that is the whole reason it is not `icon.png`: a launcher icon
-     * carries its own cream background, which against the header's `surfaceRaised` would
-     * read as a slightly-wrong square rather than as a frog. Tightly cropped for the same
-     * reason — the padding in the launcher icons is there to survive a mask, and inside
-     * the app it would just look like a gap.
-     *
-     * 256px is a single density rather than the `@2x`/`@3x` set React Native also
-     * understands: it is drawn at ~26pt, so even a 3× screen asks for 78px and everything
-     * here is downscaling. Three files to avoid one cheap downscale is not a trade worth
-     * making.
-     */
+    // The mark inside the app: transparent, tight, one density.
     path: "apps/mobile/assets/logo.png",
     source: SOURCES.color,
     size: 256,
@@ -241,11 +86,7 @@ const OUTPUTS = [
     note: "drawn in-app beside the Leapsake wordmark (components/AppHeader.tsx)",
   },
   {
-    // The desktop half of the same lockup. A second copy rather than a shared one because
-    // each client bundles its own assets — Metro from `apps/mobile/assets`, Vite from the
-    // renderer tree — and a path that reached across apps would be a build-graph edge
-    // between two things that are otherwise independent. The bytes are identical; the
-    // manifest is what keeps them that way.
+    // The desktop's own copy, as each client bundles its own assets.
     path: "apps/desktop/src/renderer/src/assets/logo.png",
     source: SOURCES.color,
     size: 256,
@@ -254,8 +95,7 @@ const OUTPUTS = [
     note: "drawn in-app beside the Leapsake wordmark (renderer App.tsx)",
   },
   {
-    // Full-bleed, because Windows and Linux want the square and draw their own framing
-    // around it. macOS ignores a window icon entirely — see `icon-macos.png` below.
+    // Full-bleed: Windows and Linux frame it; macOS ignores a window icon.
     path: "apps/desktop/resources/icon.png",
     source: SOURCES.color,
     size: 1024,
@@ -264,16 +104,8 @@ const OUTPUTS = [
     note: "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
   },
   {
-    /**
-     * The macOS Dock icon, which is a separate file from `icon.png` rather than a crop of
-     * it because the two platforms disagree about who draws the shape (see `PLATE`).
-     *
-     * Set at runtime by `app.dock.setIcon` in the main process, which is what makes it
-     * work in `pnpm desktop`: unpackaged Electron has no bundle of its own to read an
-     * icon from, so without this the Dock shows the stock Electron atom no matter what
-     * the window is given. The same file is the master electron-builder will turn into
-     * `icon.icns` when packaging lands.
-     */
+    // The macOS Dock icon, drawn on its tile; see the README's _Why macOS gets
+    // its own file_.
     path: "apps/desktop/resources/icon-macos.png",
     source: SOURCES.color,
     size: 1024,
@@ -283,21 +115,8 @@ const OUTPUTS = [
     note: "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
   },
   {
-    /**
-     * The website's scalable favicon, and the one a current browser actually uses.
-     *
-     * Vector rather than raster because a tab strip is the one place the same icon is
-     * asked for at 16, 20 and 24 physical pixels depending on the display, and an SVG is
-     * the only answer that is sharp at all three. It is written by this script rather
-     * than being `logo_color.svg` copied into `public/`, because the source's viewBox is
-     * 72×72 with the frog occupying an off-centre 48.5×49.2 of it — served as-is the frog
-     * would sit low and left in the tab. The wrapper is the framing, exactly as it is for
-     * every PNG here.
-     *
-     * Transparent, so the mark sits on the browser's own tab colour rather than putting a
-     * cream tile into a dark tab strip. 256 is only the wrapper's coordinate space; an
-     * SVG has no size of its own.
-     */
+    // The vector favicon, sharp at every tab size; see the README's _The
+    // website's three_.
     path: "apps/website/public/favicon.svg",
     source: SOURCES.color,
     format: "svg",
@@ -307,20 +126,8 @@ const OUTPUTS = [
     note: "leapsake.com — <link rel=icon type=image/svg+xml> in apps/website/src/layouts/Base.astro",
   },
   {
-    /**
-     * The fallback favicon, and the only file here whose *filename* is load-bearing: a
-     * browser given no `<link rel=icon>` it understands requests `/favicon.ico` from the
-     * origin root, and so do the crawlers, feed readers and chat clients that unfurl a
-     * link. That request is answered whether or not any page markup survives.
-     *
-     * Three frames because those are the three sizes Windows and the older browsers pick
-     * between, and one `.ico` carrying all of them is what the format is *for*.
-     *
-     * They are reduced from a 256px render rather than rendered at 16, 32 and 48 apiece.
-     * That is deliberate and is the opposite of the rule everywhere else in this file:
-     * rasterizing line art directly at 16px drops strokes thinner than a pixel to nothing,
-     * where a Lanczos reduction from 256 turns them into grey and keeps the shape legible.
-     */
+    // The fallback favicon, its filename load-bearing; frames reduced from 256
+    // so thin strokes survive as grey.
     path: "apps/website/public/favicon.ico",
     source: SOURCES.color,
     format: "ico",
@@ -331,21 +138,7 @@ const OUTPUTS = [
     note: "leapsake.com — served at the origin root, which is where a browser looks when markup does not say",
   },
   {
-    /**
-     * The icon iOS uses when someone adds `leapsake.com` to their home screen — the same
-     * gesture that puts the app there, so this is the surface where the site and the app
-     * are most likely to be seen side by side.
-     *
-     * Which is why it is framed like `icon.png` rather than like the favicons: iOS masks
-     * it to the same rounded square and pads it the same way, so `FRACTIONS.masked` is
-     * what makes the two tiles look like one product. It carries the cream background for
-     * the same reason it must be opaque — iOS composites a transparent touch icon onto
-     * black.
-     *
-     * 180px is the largest size iOS asks for (60pt at 3×); it downscales for the rest,
-     * and a second file per density would be four more bytes-identical downscales to keep
-     * in agreement.
-     */
+    // The home-screen icon, opaque and framed like `icon.png`.
     path: "apps/website/public/apple-touch-icon.png",
     source: SOURCES.color,
     size: 180,
@@ -359,7 +152,7 @@ const sha256 = (buffer) => createHash("sha256").update(buffer).digest("hex");
 
 const read = (relative) => readFileSync(join(ROOT, relative));
 
-/** Every tool this script shells out to, checked together so one run reports both. */
+/** Checks every tool the script runs, so one run reports both missing. */
 function requireTools() {
   const missing = [];
   for (const [tool, args] of [
@@ -380,21 +173,8 @@ function requireTools() {
   }
 }
 
-/**
- * The artwork's drawn extent, in the source's own user units.
- *
- * Needed because an SVG's `viewBox` says where the canvas is, not where the ink is — this
- * one is 72×72 with the frog occupying an off-centre 48.5×49.2 of it. Centring on the
- * viewBox would inherit that offset into every output, so the ink is measured instead:
- * render once with a transparent background, and ask ImageMagick for the bounding box of
- * the non-transparent pixels (`%@`). Measuring beats parsing path geometry, and beats
- * hard-coding numbers that would silently stop being true the day the artwork changes.
- *
- * Each source is measured separately even though both are the same drawing: `logo_bw.svg`
- * has no fill, so its ink is the stroke *outline* and its box is very slightly larger than
- * the filled one's. Sharing a measurement between them would be a guess that happens to be
- * nearly right, which is the worst kind.
- */
+/** The artwork's inked box in source units, measured from a transparent render
+ *  rather than the off-centre `viewBox`. */
 function measureContent(source) {
   const probe = 1024;
   const png = execFileSync(
@@ -417,7 +197,7 @@ function measureContent(source) {
       `${source} renders to nothing — is every element transparent?`,
     );
   }
-  // Back into source user units, so the numbers stay meaningful next to the viewBox.
+  // Back into source units, to read beside the viewBox.
   const viewBox = /viewBox="([\d.\s-]+)"/.exec(
     readFileSync(join(ROOT, source), "utf8"),
   );
@@ -428,39 +208,13 @@ function measureContent(source) {
     y: y * scale,
     width: w * scale,
     height: h * scale,
-    /** Half-diagonal of the content box, as a fraction of its own longest edge. */
+    /** The box's half-diagonal, as a fraction of its longest edge. */
     contentRadius: Math.hypot(w, h) / 2 / Math.max(w, h),
   };
 }
 
-/**
- * A wrapper SVG that places the source's ink into a square canvas.
- *
- * The placement is done with a **nested `<svg>`** rather than a `transform`: giving the
- * inner element the measured content box as its `viewBox` and the destination rect as its
- * geometry makes `preserveAspectRatio="xMidYMid meet"` do the fit and the centring, which
- * is exactly the arithmetic that is easy to get subtly wrong by hand. Stroke widths scale
- * with it, which is what a line-art glyph wants.
- *
- * `tint` recolours every drawn pixel without touching its alpha, via `feColorMatrix`: the
- * last row passes alpha through while the first three ignore the source colour and emit a
- * constant. It has to be a filter rather than a `fill`/`stroke` override, because those are
- * presentation attributes set on the artwork's own elements — a parent cannot win against
- * them, and a blanket `fill` would turn `logo_bw.svg`'s deliberately unfilled body into a
- * solid blob.
- *
- * The filter hangs on a `<g>` *inside* the nested `<svg>`, not on the nested `<svg>` itself.
- * That placement is load-bearing: librsvg stops honouring the inner viewport when the
- * element carrying it is also filtered, and renders the artwork oversized and anchored to
- * the corner instead of fitted and centred. The `<g>` keeps the two jobs on separate
- * elements, which is the arrangement both actually specify.
- *
- * `plate` (see `PLATE`) turns the background from a full-bleed fill into a centred rounded
- * square, and makes `fraction` a measurement against *that* square rather than the canvas.
- * Both halves of that matter: an output with a plate is asking for the artwork to sit the
- * same way inside the visible tile as a full-bleed one does inside its canvas, so the
- * margin the plate adds has to come off the artwork too rather than only off the fill.
- */
+/** Places the ink in a square canvas with a nested `<svg>`, tinting by filter
+ *  on an inner `<g>`; see the README. */
 function wrap({ inner, box, size, fraction, background, tint, plate }) {
   const plateEdge = plate ? plate.fraction * size : size;
   const inset = (size - plateEdge * fraction) / 2;
@@ -496,19 +250,8 @@ function wrap({ inner, box, size, fraction, background, tint, plate }) {
   );
 }
 
-/**
- * A wrapped SVG, turned into the bytes its consumer reads.
- *
- * Everything is composed as vector and rasterized once at the end, so the three formats
- * differ only in what happens after that:
- *
- * - **`svg`** — no rasterizing at all. The wrapper *is* the file.
- * - **`png`** — one `rsvg-convert` at `size`, which is every app-icon output here.
- * - **`ico`** — that same PNG handed to ImageMagick's `icon:auto-resize`, which writes one
- *   container holding a reduction at each of `frames`. The frames are listed largest-first
- *   because that is the order the format stores them in, so the file reads the way
- *   `magick identify` prints it.
- */
+/** A wrapped SVG as its bytes: itself, a PNG, or that PNG reduced to `.ico`
+ *  frames, largest first as the format stores them. */
 function render(svg, { format = "png", size, frames }) {
   if (format === "svg") return Buffer.from(`${CREDIT}\n${svg}\n`);
   const png = execFileSync(
@@ -524,27 +267,13 @@ function render(svg, { format = "png", size, frames }) {
   );
 }
 
-/**
- * Guards the one property of these files that a store rejects an upload over.
- *
- * **An iOS app icon may not have an alpha channel** — App Store Connect refuses the
- * binary, at upload, after everything else has already succeeded. An Android adaptive
- * foreground has the opposite requirement: without alpha it hides its own background
- * layer. librsvg happens to drop the channel when a canvas is fully covered and keep it
- * when it is not, which is exactly right, but it is *librsvg's* behaviour rather than
- * anything this script asked for. Asserting it here turns a future rasterizer change into
- * a failed `pnpm icons` instead of a failed release.
- */
+/** Asserts each output's alpha channel, which a store rejects an upload over;
+ *  see the README. */
 function assertAlpha(bytes, { path, background, plate, format = "png" }) {
-  // A plated icon has a background *and* an alpha channel, and needs both: the fill is the
-  // tile, the transparency is everything around it. It is the one output where the two are
-  // not opposites, so it takes the `background`-implies-opaque rule out of play.
+  // A plated icon needs both a background and alpha around its tile.
   const opaque = background !== undefined && plate === undefined;
-  // `%[channels]` reads "srgba 4.0" / "srgb 3.0" — the colourspace token carries the
-  // alpha, and the channel count trailing it is why this is parsed rather than suffixed.
-  // A multi-frame `.ico` prints one such reading per frame with nothing between them,
-  // which the split below survives: the frames of one file cannot differ here, because
-  // they are reductions of a single PNG.
+  // Reads like "srgba 4.0", run together once per `.ico` frame; the frames
+  // of one file cannot differ, being reductions of one PNG.
   const channels = execFileSync(
     "magick",
     ["identify", "-format", "%[channels]", `${format}:-`],
@@ -567,7 +296,7 @@ function assertAlpha(bytes, { path, background, plate, format = "png" }) {
   }
 }
 
-/** The source's drawable children, with its own root `<svg>` element peeled off. */
+/** The source's drawable children, its root `<svg>` peeled off. */
 function contentsOf(source) {
   const svg = readFileSync(join(ROOT, source), "utf8");
   const opened = svg.indexOf(">", svg.indexOf("<svg"));
@@ -581,8 +310,7 @@ function contentsOf(source) {
 function generate() {
   requireTools();
 
-  // Measured and peeled once per source rather than once per output — four outputs share
-  // two drawings, and measuring is the expensive half.
+  // Once per source, not per output: measuring is the expensive half.
   const sources = {};
   for (const source of new Set(OUTPUTS.map((output) => output.source))) {
     sources[source] = {
@@ -596,7 +324,7 @@ function generate() {
     const { inner, contentBox } = sources[output.source];
     const svg = wrap({ inner, box: contentBox, ...output });
     const bytes = render(svg, output);
-    // An SVG has no channels to read; its transparency is the absence of a `<rect>`.
+    // An SVG's transparency is simply no `<rect>`.
     if (output.format !== "svg") assertAlpha(bytes, output);
     const absolute = join(ROOT, output.path);
     mkdirSync(dirname(absolute), { recursive: true });
@@ -626,7 +354,7 @@ function generate() {
   });
 
   const manifest = {
-    // Regenerate with `pnpm icons`; `pnpm test:icons` fails if this drifts from the files.
+    // `pnpm icons` regenerates; `pnpm test:icons` fails on drift.
     sources: Object.fromEntries(
       Object.entries(sources).map(([path, { sha256: hash, contentBox }]) => [
         path,
