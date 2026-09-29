@@ -33,7 +33,7 @@ lint findings in brackets:
 
 
 
-| `apps/server`             |     429 (178) |
+
 | `apps/website`            |      102 (52) |
 | `scripts`                 | 2,440 (1,579) |
 

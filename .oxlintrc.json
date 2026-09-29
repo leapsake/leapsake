@@ -54,7 +54,8 @@
         "packages/contact-import/**",
         "packages/gifts/**",
         "packages/bytes/**",
-        "packages/highlight/**"
+        "packages/highlight/**",
+        "apps/server/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
