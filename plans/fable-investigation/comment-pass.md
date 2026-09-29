@@ -28,7 +28,7 @@ lint findings in brackets:
 
 
 
-| `packages/store-layout`   |      142 (49) |
+
 | `packages/contact-import` |      134 (26) |
 | `packages/gifts`          |       80 (17) |
 | `packages/bytes`          |       64 (18) |
