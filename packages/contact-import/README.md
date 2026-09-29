@@ -7,8 +7,8 @@ ports — the repo-backed half of an import.
 
 [`@leapsake/vcard`](../vcard/README.md) owns the **format**: detecting what a file is, parsing
 it into `ParsedContact`, writing cards back out, and the format-agnostic `ingestContacts`
-engine that drives a set of injected `ImportPorts`. It depends on no storage, and says so in
-its own entry point. That is deliberate — the exporter lives there too, so the test that
+engine that drives a set of injected `ImportPorts`. It depends on no storage, and its README says
+so. That is deliberate — the exporter lives there too, so the test that
 matters most, `parseVCards(write(x)) ≡ x`, can exist at all.
 
 This package is the other side of that seam. It builds those `ImportPorts` over real
@@ -36,11 +36,16 @@ certainty, and would have nowhere to put a **pet** — `DuplicateMatch.personId`
 hold a pet's id, and the duplicate detector's pool is published people alone.
 
 Import still creates a **new** entity for an already-stored card; the review's job is to let
-the user skip it. Writing the file's ids back is a restore, not this.
+the user skip it. Writing the file's ids back is a restore, not this. The card's `kind` picks
+the one table to ask, so a pet card whose id happens to name a person finds nobody rather than
+"already stored: Jane Wainwright". A deleted entity is not found, so re-importing someone the user
+deleted brings them back as new rather than clashing with a tombstone.
 
 ## Ports, not imports
 
 `regenerateSystem` arrives injected rather than imported: reconciling the automated reminders
 after a batch that created anything is `@leapsake/reminders`' business, and a batch reconciles
 **once at the end** rather than per contact. Each contact otherwise commits in its own
-transaction, so one bad row rolls back alone.
+transaction, so one bad row rolls back alone. Because the engine holds that transaction, every
+port writes over the **raw repos** rather than the core methods that would open their own, since
+the driver's transactions do not nest; `setSelf` also skips `core.self.set`'s own reconcile.

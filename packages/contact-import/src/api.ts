@@ -22,19 +22,8 @@ import {
   nameInputFrom,
 } from "@leapsake/vcard";
 
-/**
- * The entity an incoming card **is**, when its `UID` names one already stored.
- *
- * Distinct from a `DuplicateMatch`, which says an incoming card *resembles*
- * somebody. This one is an identity, established by id rather than scored: our
- * own exporter writes each entity's `people.id`/`pets.id` as the card's `UID`,
- * so a card carrying one we hold is that entity coming home. It covers pets,
- * which the duplicate detector does not, and carries `type` for that reason.
- *
- * Import still creates a **new** entity for such a card — the review's job is to
- * let the user skip it. Writing the file's ids back is a restore
- * (`plans/v0-2.md` → *Export*), not this.
- */
+/** The stored person or pet an incoming card's `UID` names: an identity, not
+ *  a resemblance. See the README. */
 export interface AlreadyStored {
   type: "person" | "pet";
   id: string;
@@ -53,24 +42,13 @@ export interface ImportApiDeps {
   entities: EntityService;
   duplicates: DuplicateService;
   driver: SqliteDriver;
-  /**
-   * Reconcile the automated reminders after a batch that created anything, so
-   * imported birthdays reach the Home list at once. A port because reconciling
-   * is `@leapsake/reminders`' business, not this package's.
-   */
+  /** Reconciles the automated reminders once after a batch that created
+   *  anything. */
   regenerateSystem: () => Promise<unknown>;
 }
 
-/**
- * Contact import as the app performs it: the repo-backed half of bringing a
- * parsed address book in.
- *
- * The parsing and the ingest *engine* are `@leapsake/vcard`, which owns the
- * format and stays free of any storage dependency. This package is the other
- * side of that seam — it builds `ImportPorts` over real repositories and drives
- * `ingestContacts` through them — which is why the two are separate packages
- * rather than one.
- */
+/** Contact import over real repositories: vcard's `ImportPorts`, and the
+ *  preview and commit the app calls. */
 export function createImportApi(deps: ImportApiDeps) {
   const {
     people,
@@ -87,17 +65,8 @@ export function createImportApi(deps: ImportApiDeps) {
     regenerateSystem,
   } = deps;
 
-  /**
-   * The entity an incoming card's `UID` names, or `null` when it names none —
-   * how `import.preview` tells "this is a new person" from "this is a person you
-   * already have". See {@link AlreadyStored}.
-   *
-   * The card's `kind` decides which table to ask, rather than both being tried:
-   * ids are UUIDs, so a collision across the two is not the risk — asking the
-   * wrong one is. A pet card whose id happens to name a person is a malformed
-   * file, and answering "already stored: Jane Wainwright" for it would be worse than
-   * answering nothing.
-   */
+  /** The entity a card's `UID` names, or `null`; its `kind` picks the one
+   *  table to ask, so a malformed card finds nobody. */
   async function storedAs(
     contact: ParsedContact,
   ): Promise<AlreadyStored | null> {
@@ -110,27 +79,14 @@ export function createImportApi(deps: ImportApiDeps) {
   }
 
   return {
-    // Commit the reviewed decisions. The ingest engine drives the injected ports
-    // below; each contact commits in its own `driver.transaction` (one bad row
-    // rolls back alone), and the automated birthday reminders reconcile once
-    // after the batch — the same `regenerateSystem` a manual birthday triggers,
-    // so imported birthdays surface on the Home list at once.
+    // Ports over raw repos, as the engine holds each contact's transaction.
     commit: async (decisions: ImportDecision[]): Promise<ImportResult> => {
       const ports: ImportPorts = {
         createPerson: (name, gender) =>
-          // Through `nameInputFrom`, not field-by-field: a card's blank part
-          // is `""`, and the Person schema spells absent as `null`. Handing it
-          // the raw strings would fail `min(1)` on exactly the mononym and
-          // organisation-only cards this import is meant to accept.
+          // Blanks become `null`, or a mononym would fail `min(1)`.
           people.create({ ...nameInputFrom(name), gender }),
-        // `petSchema` is a single `name`, so one slot of the card's name has
-        // to be it — the first, which is the mononym shape `toPetContact`
-        // writes on the way out. The surname fallback is for the one card our
-        // own writer never produces but a hand-made one might (`N:Jimmy;;;;`,
-        // which `deriveName` reads as a surname-only person): without it that
-        // pet is refused mid-batch by `petSchema`'s `min(1)`, which is a
-        // confusing way to lose a row. The engine has already refused a card
-        // with no name at all, so the final `?? ""` is unreachable.
+        // The first name, as we write a pet; the surname for a hand-made
+        // `N:Jimmy;;;;`. The final `?? ""` is unreachable.
         createPet: (name, gender) => {
           const parts = nameInputFrom(name);
           return pets.create({
@@ -138,10 +94,7 @@ export function createImportApi(deps: ImportApiDeps) {
             gender,
           });
         },
-        // The same call `people.create`/`pets.create` make for a manually
-        // created entity — but over the raw repo, with no `driver.transaction`
-        // of its own, because the engine has already opened one and the
-        // driver's BEGIN/COMMIT does not nest.
+        // As a manual create tags, minus its own transaction.
         addTags: async (entityType, entityId, names) => {
           await tags.setEntityTags(entityType, entityId, names);
         },
@@ -185,18 +138,12 @@ export function createImportApi(deps: ImportApiDeps) {
             platform: social.platform,
             handle: social.handle,
             url: social.url,
-            // Only ever set for a card we wrote, which is the whole reason the
-            // writer emits it: the platform keys DMs on an id it does not
-            // publish beside the handle, so it is unrecoverable from the rest
-            // of the row and would otherwise be the one thing a backup lost.
+            // Only a card we wrote carries it; nothing else can recover it.
             platformUserId: social.platformUserId,
           });
         },
-        // The bearer's type comes from the engine rather than being assumed —
-        // a pet's card carries a birthday too. Hardcoding `"person"` here did
-        // not fail loudly the way `addRelated`'s did: a pet birthday committed
-        // against `bearer_type = 'person'` and then went missing from the pet,
-        // because `listForBearer("pet", …)` could never find it.
+        // ⚠️ The engine's bearer type: a pet's birthday stored as a person's
+        // commits silently and is never listed.
         addBirthday: async (bearerType, bearerId, birthday) => {
           await milestones.create({
             kind: "birthday",
@@ -207,10 +154,7 @@ export function createImportApi(deps: ImportApiDeps) {
             day: birthday.day,
           });
         },
-        // The kind and the bearer are both settled before this runs — the
-        // parser read the kind off the card (or resolved it from the label for
-        // a foreign one), and the engine chose the bearer and checked that the
-        // kind may be held by it. This only writes the row.
+        // Kind and bearer are settled and checked; this only writes.
         addDate: async (bearerType, bearerId, date) => {
           await milestones.create({
             kind: date.kind,
@@ -219,27 +163,18 @@ export function createImportApi(deps: ImportApiDeps) {
             year: date.date.year,
             month: date.date.month,
             day: date.date.day,
-            // The card's own `-NOTE` wins; the label is the fallback, because
-            // the writer deliberately omits the parameter when the note *is*
-            // the label — which is what it means on an `other`-kind milestone.
-            // The parser already applies that fallback, so this is what keeps
-            // a hand-built IPC payload honest.
+            // An `other` falls back to its label, for a hand-built payload.
             note: date.note ?? (date.kind === "other" ? date.label : null),
           });
         },
-        // Somebody the card merely named becomes an unpublished person with
-        // one edge — the same thing `relationships.createWithNewOther` makes,
-        // spelled over the raw repos because the engine is already inside a
-        // transaction and the driver's BEGIN/COMMIT doesn't nest.
+        // A named relation: an unpublished person with one edge.
         addRelated: async (ownerType, ownerId, relation) => {
           const other = await people.create({
             ...splitName(relation.name),
             standing: "unpublished",
           });
           await relationships.create({
-            // The owner's own type, not a hardcoded `"person"` — a pet's card
-            // carries relations too, and `holderAllows` refuses a mismatch
-            // outright rather than writing a wrong row quietly.
+            // The owner's own type; a pet's card carries relations too.
             aType: ownerType,
             aId: ownerId,
             aRole: inverseRole(relation.role),
@@ -249,11 +184,7 @@ export function createImportApi(deps: ImportApiDeps) {
             bRoleNote: relation.roleNote,
           });
         },
-        // Both ends already exist, so unlike `addRelated` there is nobody to
-        // create — just the edge. Spelled over the raw repo rather than through
-        // `createFromSubject`, which opens a transaction of its own and would
-        // also run the promotion rule; both ends came from cards of their own
-        // and are already published.
+        // Just the edge: both ends exist and are published, so no promotion.
         linkExisting: async (
           ownerType,
           ownerId,
@@ -261,9 +192,7 @@ export function createImportApi(deps: ImportApiDeps) {
           otherId,
           relation,
         ) => {
-          // The new row's id goes back to the engine: a milestone this edge
-          // bears names the id the edge had *in the file*, and the map between
-          // the two is built out of these.
+          // The engine maps the file's edge id to this new one.
           const row = await relationships.create({
             aType: ownerType,
             aId: ownerId,
@@ -275,15 +204,11 @@ export function createImportApi(deps: ImportApiDeps) {
           });
           return { id: row.id };
         },
-        // The raw repo, not `core.self.set` — that one runs its own
-        // `regenerateSystem`, which the batch already does once at the end,
-        // and it would fire inside the engine's transaction.
+        // Not `core.self.set`, whose own reconcile the batch runs once at end.
         setSelf: async (personId) => {
           await self.setSelf(personId);
         },
-        // Only a phone import carries a source; the engine calls this inside
-        // the contact's transaction, and the table's primary key refusing a
-        // second link is what rolls a racing duplicate back.
+        // Only a phone import has a source; a second link rolls back.
         linkSource: (sourceId, entity) =>
           deviceContactLinks.link(sourceId, entity),
         transaction: (body) => driver.transaction(body),
@@ -292,26 +217,8 @@ export function createImportApi(deps: ImportApiDeps) {
       if (result.created > 0) await regenerateSystem();
       return result;
     },
-    /**
-     * Read-only: for each parsed contact, what the review needs to warn about
-     * before anything is written — the active people it *resembles*, and
-     * whether it **is** somebody already stored. Never writes.
-     *
-     * The two are deliberately separate answers. `matches` is
-     * `matchContact`'s resemblance score over names and contact methods;
-     * `alreadyStored` is an id lookup, and an id is not a resemblance. Folding
-     * the second into the first would mean saying "very likely already in
-     * Leapsake" about a certainty, and would have nowhere to put a **pet** —
-     * `DuplicateMatch.personId` cannot honestly hold a pet's id, and the
-     * duplicate detector's pool is published people alone.
-     *
-     * This is what stops a user re-importing their own export from getting a
-     * second copy of everyone: our own cards carry the `people.id`/`pets.id`
-     * they came from as their `UID`, so the match is exact rather than
-     * guessed. A `get` excludes soft-deleted rows on purpose — somebody the
-     * user deleted and then re-imported should come back as new, not as a
-     * clash with a tombstone.
-     */
+    /** Read-only: whom each contact resembles, and whom it is; see the
+     *  README's _Two answers about an incoming card_. */
     preview: (
       contacts: ParsedContact[],
     ): Promise<
