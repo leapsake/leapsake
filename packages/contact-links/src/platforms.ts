@@ -1,24 +1,8 @@
 import type { Platform } from "./types.js";
 import { bareHandle, encode } from "./normalize.js";
 
-/**
- * The first-class platforms, in the order their "add a profile" picker offers
- * them. Everything here is an https link on purpose — see {@link Platform} for
- * why custom schemes would make this list a property of the binary instead of a
- * property of this file.
- *
- * Three shapes show up, and the difference is not cosmetic:
- *
- * - **Chat from a handle** (Telegram, Facebook/Messenger, Instagram) — the
- *   platform publishes a username-keyed chat URL, so a tap opens the
- *   conversation.
- * - **Profile from a handle** (TikTok, Snapchat, Bluesky, LinkedIn, X) — the
- *   handle reaches the person, DMs key on an id we do not have.
- * - **Nothing from a handle** (Discord) — the username is not addressable at
- *   all; only the numeric user id is. Its `fromHandle` returns no links
- *   deliberately, and the row falls back to copying the handle until someone
- *   fills in the id.
- */
+/** The first-class platforms, in picker order, all https; the three shapes
+ *  are in the README's _How close a link gets you_. */
 export const PLATFORMS: readonly Platform[] = [
   {
     id: "whatsapp",
@@ -48,8 +32,7 @@ export const PLATFORMS: readonly Platform[] = [
     id: "facebook",
     name: "Facebook",
     key: "handle",
-    // The Facebook username is also the Messenger `m.me` slug, so one stored
-    // handle yields both a conversation and a profile — chat first.
+    // The username is also the `m.me` slug: chat first, then profile.
     fromHandle: (handle) => [
       { web: `https://m.me/${encode(handle)}`, reach: "chat" },
       {
@@ -62,8 +45,7 @@ export const PLATFORMS: readonly Platform[] = [
     id: "instagram",
     name: "Instagram",
     key: "handle",
-    // `ig.me/m/<username>` is Instagram's `m.me` equivalent and opens a DM
-    // thread; the profile is the fallback when that account cannot be messaged.
+    // `ig.me/m/` opens a DM; the profile covers an unmessageable account.
     fromHandle: (handle) => [
       { web: `https://ig.me/m/${encode(handle)}`, reach: "chat" },
       {
@@ -92,9 +74,7 @@ export const PLATFORMS: readonly Platform[] = [
     name: "Discord",
     key: "handle",
     acceptsUserId: true,
-    // A Discord username addresses nothing — the client resolves people by
-    // snowflake id and exposes no username-keyed URL. Returning no links is the
-    // honest answer; `resolveActions` degrades the row to "copy the handle".
+    // A Discord username addresses nothing; the row falls back to copying it.
     fromHandle: () => [],
     fromUserId: (userId) => [
       {
@@ -145,19 +125,12 @@ export const PLATFORMS: readonly Platform[] = [
 
 const BY_ID = new Map(PLATFORMS.map((platform) => [platform.id, platform]));
 
-/** The registry entry for an id, or `undefined` for a platform we don't know. */
+/** The registry entry for an id, or `undefined` for an unknown platform. */
 export function findPlatform(id: string): Platform | undefined {
   return BY_ID.get(id);
 }
 
-/**
- * The platforms a *phone number* can reach. This is what drives the opt-in
- * checkboxes on the phone form: Leapsake cannot know whether a number is on
- * WhatsApp, so the user says so once and the action appears from then on.
- * Deriving the list here rather than hardcoding it in the form is the whole
- * point of the registry — adding Telegram-by-phone later is an entry above, not
- * a schema migration and a new checkbox.
- */
+/** The platforms a phone number can reach: the phone form's opt-ins. */
 export const PHONE_PLATFORMS: readonly Platform[] = PLATFORMS.filter(
   (platform) => platform.key === "phone",
 );
@@ -172,27 +145,11 @@ export function normalizeFor(platform: Platform | undefined, raw: string) {
   return (platform?.normalizeHandle ?? bareHandle)(raw);
 }
 
-/**
- * Every custom URL scheme Leapsake can emit — the exhaustive input to iOS's
- * `LSApplicationQueriesSchemes`, which is why it lives in production code rather
- * than being written out by hand in `app.json`. A scheme missing from that
- * declaration makes `canOpenURL` return false with no error, so the mobile app
- * pins this list with a test instead of relying on anyone remembering.
- *
- * It is deliberately short: no *platform* contributes to it (they are all https,
- * per {@link Platform}), only the system verbs a contact method implies.
- * `tel:`, `sms:` and `mailto:` are handled by iOS without declaration and are
- * excluded for that reason.
- */
+/** Every custom scheme Leapsake emits that iOS needs declared; mobile pins it
+ *  with a test. */
 export const NATIVE_SCHEMES: readonly string[] = ["facetime", "geo"];
 
-/**
- * A syntactically valid throwaway URL per entry in {@link NATIVE_SCHEMES}, for a
- * client to hand `canOpenURL` when asking whether the scheme resolves to
- * anything. Kept beside the scheme list so the two cannot drift, and because
- * "what does a well-formed `geo:` URL look like?" is a fact about the scheme
- * rather than about the screen doing the asking. Never opened — only probed.
- */
+/** A throwaway URL per {@link NATIVE_SCHEMES} entry, only ever probed. */
 export const SCHEME_PROBES: Readonly<Record<string, string>> = {
   facetime: "facetime:0000000000",
   geo: "geo:0,0",

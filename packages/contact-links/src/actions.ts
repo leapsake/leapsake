@@ -3,18 +3,8 @@ import type { LinkAction, Platform, PlatformLink } from "./types.js";
 import { findPlatform, PHONE_PLATFORMS } from "./platforms.js";
 import { encode, phoneDigits, phoneE164 } from "./normalize.js";
 
-/**
- * The shape {@link resolveActions} reads, kept structural rather than importing
- * `@leapsake/schema`'s `ContactMethod` union.
- *
- * The real rows satisfy this by construction — every field below is a field they
- * already have — but depending on the *shape* instead of the *type* keeps this
- * package narrow: it can be handed a staged, not-yet-saved contact method from
- * the create-person flow, or a projection that never touched the database, and
- * it neither knows nor cares. (Only `formatPostalAddress` is borrowed from
- * schema, because a second address formatter would be a second answer to a
- * question that already has one.)
- */
+/** The shape {@link resolveActions} reads, structural so an unsaved method
+ *  passes too. */
 export type ContactMethodLike =
   | { kind: "email"; method: { address: string } }
   | {
@@ -79,19 +69,8 @@ function copyAction(id: string, text: string): LinkAction {
   };
 }
 
-/**
- * Everything the user could do with one contact method, best first.
- *
- * `[0]` is what tapping the row does; the rest fill the overflow sheet. The
- * ordering rules live here rather than in a component so they are testable and
- * so desktop and mobile cannot drift: a number the user has marked as not
- * textable leads with Call rather than offering a text that goes nowhere, a
- * chat link always outranks the profile link for the same platform, and `copy`
- * closes every list.
- *
- * Nothing here knows whether an app is installed — that is a device question the
- * caller answers by probing `url` and falling back to `webUrl`.
- */
+/** Everything the user could do with one contact method, best first; see
+ *  the README's _What a row offers, in order_. */
 export function resolveActions(entry: ContactMethodLike): LinkAction[] {
   if (entry.kind === "email") {
     const address = entry.method.address.trim();
@@ -100,8 +79,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       {
         id: "email.compose",
         verb: "email",
-        // Left unencoded: `mailto:` takes the address verbatim, and percent-
-        // encoding the `@` trips up more clients than it protects against.
+        // Unencoded: an encoded `@` trips up more mail clients than it helps.
         url: `mailto:${address}`,
         native: false,
         reach: null,
@@ -118,8 +96,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
     if (digits === "") return [copyAction("phone.copy", number.trim())];
 
     const actions: LinkAction[] = [];
-    // A landline or fax offers no text at all — a dead action is worse than a
-    // missing one — which also promotes Call to the row-tap primary.
+    // A number that can't text offers none, which puts Call first.
     if (smsCapable) {
       actions.push({
         id: "phone.text",
@@ -137,8 +114,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
         url: `tel:${e164}`,
         native: false,
         reach: null,
-        // Placing a call is disruptive and cannot be taken back, so it is the
-        // one action that asks first.
+        // A call is disruptive and irreversible, so it asks first.
         confirm: true,
       },
       {
@@ -151,8 +127,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       },
     );
 
-    // Opt-in only: Leapsake cannot tell whether a number is on WhatsApp, so the
-    // user says so on the phone form and the action appears from then on.
+    // Opt-in only: Leapsake cannot tell whether a number is on WhatsApp.
     const confirmed = new Set(reachableOn ?? []);
     for (const platform of PHONE_PLATFORMS) {
       if (!confirmed.has(platform.id)) continue;
@@ -171,8 +146,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       {
         id: "postal.map",
         verb: "map",
-        // `geo:` is the Android intent; iOS has no handler for it and falls
-        // through to the universal maps URL, which opens the maps app there.
+        // Android's `geo:`; iOS falls through to the universal maps URL.
         url: `geo:0,0?q=${encode(formatted)}`,
         webUrl: `https://www.google.com/maps/search/?api=1&query=${encode(formatted)}`,
         native: true,
@@ -188,8 +162,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
   const actions: LinkAction[] = [];
 
   if (platform) {
-    // The opaque id, where the user supplied one, reaches further than the
-    // handle does — that is the only reason the field exists — so it leads.
+    // A supplied opaque id reaches further than the handle, so it leads.
     const userId = platformUserId?.trim();
     if (userId) {
       for (const link of platform.fromUserId?.(userId) ?? []) {
@@ -206,8 +179,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
     }
   }
 
-  // The escape hatch: a URL the user pasted for a platform we have no template
-  // for, or an extra profile link on one we do.
+  // A pasted URL, for a platform with no template or as an extra link.
   const raw = url?.trim();
   if (raw) {
     actions.push({

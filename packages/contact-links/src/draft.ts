@@ -8,10 +8,8 @@ import {
 } from "@leapsake/schema";
 import { HANDLE_PLATFORMS, findPlatform, normalizeFor } from "./platforms.js";
 
-/**
- * A contact method as a form holds it: every kind's fields as typed, so switching
- * kind keeps what was typed under another. Only the fields `kind` selects are read.
- */
+/** A contact method as a form holds it: every kind's fields, so switching
+ *  kind keeps them; only `kind`'s are read. */
 export interface ContactMethodDraft {
   kind: ContactMethodKind;
   label: string;
@@ -68,7 +66,7 @@ export type ContactMethodValue =
       url: string | null;
     };
 
-/** The fields a draft can be refused on; a social `handle` means handle or URL. */
+/** The fields a draft can be refused on; `handle` means handle or URL. */
 export type ContactMethodDraftErrors = Partial<
   Record<
     "label" | "address" | "number" | "line1" | "platform" | "handle",
@@ -94,7 +92,7 @@ export function labelSuggestionsFor(
   return LABEL_SUGGESTIONS[kind];
 }
 
-/** The draft a form starts from: a saved method being edited, or a blank of one kind. */
+/** The draft a form starts from: a saved method, or a blank of one kind. */
 export function contactMethodDraftOf(
   start: ContactMethodKind | ContactMethod = "email",
 ): ContactMethodDraft {
@@ -158,10 +156,8 @@ export function contactMethodDraftOf(
   };
 }
 
-/**
- * The draft pointed at another kind (and, for social, a platform). A label still
- * on the old kind's suggestions re-seeds from the new kind's; a typed one stays.
- */
+/** The draft pointed at another kind or platform; a suggested label re-seeds
+ *  from the new kind, a typed one stays. */
 export function contactMethodDraftWithKind(
   draft: ContactMethodDraft,
   kind: ContactMethodKind,
@@ -177,7 +173,7 @@ export function contactMethodDraftWithKind(
   };
 }
 
-/** Whether the draft holds what its kind exists for: an address, number, street, or handle or URL. */
+/** Whether the draft holds what its kind exists for. */
 export function contactMethodDraftFilled(draft: ContactMethodDraft): boolean {
   if (draft.kind === "email") return draft.address.trim() !== "";
   if (draft.kind === "phone") return draft.number.trim() !== "";
@@ -191,7 +187,7 @@ const blankToNull = (text: string) => (text.trim() === "" ? null : text.trim());
 const countryOf = (text: string | null) =>
   blankToNull(text ?? "")?.toUpperCase() ?? null;
 
-/** The value for the write, or why not. A social handle is reduced by its platform's rules. */
+/** The value for the write, or why not; a handle by its platform's rules. */
 export function contactMethodInputOf(
   draft: ContactMethodDraft,
 ): ContactMethodDraftResult {
