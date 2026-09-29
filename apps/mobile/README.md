@@ -234,6 +234,34 @@ Three things about this app specifically, all of which cost an evening to learn 
   `ITSAppUsesNonExemptEncryption` a build lands at _Missing Compliance_ and cannot be
   distributed to anyone, internal testers included.
 
+### What the build stamps into itself
+
+`app.config.ts` derives what must not be duplicated, over the static `app.json`:
+
+- **The store version is the repo version minus its pre-release suffix.** Both stores take at
+  most three integers (`CFBundleShortVersionString`, `versionName`), so `0.1.0-alpha.1` ships as
+  `0.1.0`. Shipping that to TestFlight is not releasing 0.1.0.
+- **The build number is minutes since 2026-01-01 UTC.** Every upload needs a higher one, even
+  within a version; a clock needs no counter and cannot be forgotten. Minutes, because Android's
+  `versionCode` caps at 2,100,000,000 and `YYMMDDHHmm` overflows it. `LEAPSAKE_BUILD_NUMBER`
+  pins one to rebuild a known upload; it is baked in at prebuild.
+- **The commit rides inside the artifact**, so a build names its source without being launched:
+  `LeapsakeCommit` in the iOS `Info.plist`, and a manifest `<meta-data>` of the same name
+  (`plugins/with-android-commit.js`, reading the one value `app.config.ts` resolved).
+  `LEAPSAKE_COMMIT`, then `GITHUB_SHA`, override git; no git says `unknown`; `-dirty` can appear
+  only in a development build, since a release refuses an unclean tree. Read it with `plutil -p`
+  on an `.ipa`, and on an AAB with
+  `unzip -p app-release.aab base/manifest/AndroidManifest.xml | strings | grep -A2 LeapsakeCommit`
+  or `bundletool dump manifest`. ⚠️ Not `aapt2 dump badging`: an AAB has no root binary
+  manifest, so it answers "could not identify format of APK".
+
+The three config plugins exist because `ios/` and `android/` are prebuild output. Each is
+idempotent, since prebuild is re-run over an existing project, and each **throws rather than
+skipping** when its anchor is missing: a privacy or provenance control that silently no-ops is
+worse than an absent one. Release signing reads the upload keystore from the environment, and
+with none leaves the release **unsigned, never debug-signed**, because a debug-signed AAB builds,
+installs and fails only at upload.
+
 ### Android and the Play Console
 
 Android ships from the **personal** Play account to the internal and closed tracks; a later

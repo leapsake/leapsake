@@ -1,31 +1,12 @@
 const { withAppDelegate } = require("@expo/config-plugins");
 
-/**
- * Keep the on-device store out of iCloud and Finder backups on iOS.
- *
- * The counterpart to `android.allowBackup: false` in `app.json`, and it exists for the
- * same reason: `expo-sqlite` puts every database under `<Documents>/SQLite`, iOS backs
- * Documents up by default, and a device with no account holds its store **plaintext by
- * design** — so the default would ship every person, contact method and birthday off the
- * phone in readable form. The full reasoning, and the narrower alternative if
- * device-to-device migration is ever wanted back, is in `apps/mobile/README.md` → Layout.
- *
- * It is a config plugin rather than a hand edit because `ios/` is generated and
- * gitignored: anything written there directly is erased by the next `expo prebuild`.
- *
- * ⚠️ **It throws rather than skipping when it cannot find its anchor.** A privacy control
- * that silently no-ops is worse than one that is absent, because the absence is visible
- * and the no-op is not. If a future SDK reshapes `AppDelegate.swift`, this fails the
- * prebuild and asks to be re-pointed — it does not quietly ship an app whose store is
- * backed up. Same reason it refuses a non-Swift AppDelegate instead of guessing.
- */
+// Excludes `<Documents>/SQLite` from iOS backup (the app's README → Layout);
+// throws rather than skip when its anchor or a Swift AppDelegate is missing.
 
-// Unique in the SDK 56 template — `didFinishLaunchingWithOptions` is not (it appears
-// twice), which is why the anchor is this line rather than the method signature.
+// Unique in the SDK 56 template, unlike `didFinishLaunchingWithOptions`.
 const CALL_ANCHOR = "let delegate = ReactNativeDelegate()";
 
-// Presence of the helper's name is what makes a second run a no-op. `expo prebuild` is
-// routinely re-run over an existing project, so this must be idempotent.
+// The helper's name, whose presence makes a second prebuild a no-op.
 const MARKER = "leapsakeExcludeStoreFromBackup";
 
 const HELPER = `
