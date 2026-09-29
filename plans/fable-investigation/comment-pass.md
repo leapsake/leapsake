@@ -30,7 +30,7 @@ lint findings in brackets:
 
 
 
-| `packages/gifts`          |       80 (17) |
+
 | `packages/bytes`          |       64 (18) |
 | `packages/highlight`      |       60 (13) |
 | `apps/server`             |     429 (178) |
