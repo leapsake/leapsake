@@ -144,7 +144,6 @@ Test files (`**/*.test.*`) are exempt. A rare long comment can carry
   move the reasoning into the README and point the row there.
 - **README history markers stay.** `(owner, 2026-09-05)` in a README is the right home for a
   decision; the lint rules apply to source only.
-- **Never run `oxfmt` on Markdown.** It rewrites unrelated emphasis and tables.
 - **Two traps `comments-only.mjs` catches:** a SQL `--` comment inside a template string is code,
   so editing it reports `CODE CHANGED`. And a file-level doc comment followed by a blank line
   belongs to no declaration: when you cut one, delete it or reattach it, never leave a floating
