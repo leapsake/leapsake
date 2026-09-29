@@ -185,17 +185,13 @@ sees one import surface.
 
 ## React is a peer dependency
 
-Never a direct one. Desktop and mobile run deliberately different React versions
-([`apps/desktop/README.md`](../../apps/desktop/README.md) → _React lives at this app's
-version_), and a `dependency` here would put a second
-physical React in desktop's bundle, whose module-level hook dispatcher then throws
-“Invalid hook call”. The regression guard is
-`pnpm --filter @leapsake/desktop check:bundle`; run it after touching this package's
-deps.
-
-The pinned `react`/`react-dom` pair in `devDependencies` exists only so this
-package's own tests render against a matching pair — the workspace root hoists
-mobile's `react` alongside desktop's `react-dom`, which do not match.
+Never a direct one: a `dependency` here could install a second physical React, whose
+module-level hook dispatcher then throws “Invalid hook call” in the app that bundles it. The
+version is the repo's single catalog pin
+([`apps/desktop/README.md`](../../apps/desktop/README.md) → _One React, pinned in the
+catalog_), so this package's tests render against the same React both apps ship. The
+regression guard is `pnpm --filter @leapsake/desktop check:bundle`; run it after touching
+this package's deps.
 
 ## Styling, and why there isn't any yet
 

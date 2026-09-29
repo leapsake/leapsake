@@ -353,49 +353,28 @@ handler can trigger while the recovery phrase is showing.
 - **Deleting a store unlinks it; it does not scrub it.** Deleted bytes can linger in SSD free
   space (see `@leapsake/key-custody` → _Creating an account_).
 
-## React lives at this app's version, not the workspace's
+## One React, pinned in the catalog
 
-**Each app owns its React version.** Mobile's is hard-pinned by its Expo SDK; desktop tracks
-a newer `react`/`react-dom` pair on its own schedule. That is safe because the two apps are
-separate bundles that share **no** React-consuming runtime code — mobile uses `expo-router`,
-desktop `react-router-dom` — so there is no cross-app React instance to keep aligned.
+**The whole repo runs one `react`/`react-dom` pair**, declared once in `pnpm-workspace.yaml`
+→ `catalog:`; every `package.json` that lists them (desktop, mobile, `packages/ui`, the root)
+says `catalog:`. Within one bundle, everything that calls hooks must import the _same
+physical_ React, because the hook dispatcher is a module-level singleton; two copies produce
+"Invalid hook call" and null `useContext` crashes — a white screen, from a clean build.
 
-React's "single copy" rule is **per-bundle, not per-monorepo**. Within one app, everything
-that calls hooks must import the _same physical_ React, because the hook dispatcher is a
-module-level singleton; two instances in one bundle produce "Invalid hook call" and null
-`useContext` crashes — a white screen, from a clean build.
+**The pin is whatever React Native's renderer embeds**, not a free choice. React Native ships
+its renderer prebuilt against one exact `react` (`reconcilerVersion` in
+`react-native/Libraries/Renderer/implementations/ReactFabric-prod.js`), so mobile cannot move
+until a React Native release does, and desktop moves with it. Desktop shares
+`@leapsake/ui/headless` with mobile, so one version also means those hooks are tested on the
+React that ships.
 
-We enforce that **at the bundler**. `electron.vite.config.ts` sets
-`renderer.resolve.dedupe: ["react", "react-dom"]`, collapsing every React import in this
-bundle (transitive ones included) to desktop's own copy. Desktop also pins `react` and
-`react-dom` to the **same exact** version, which React requires of the pair.
-
-**What decides whether an app needs that dedupe** is the workspace's `nodeLinker: hoisted`
-(`pnpm-workspace.yaml`): pnpm hoists exactly one React to the root `node_modules`. An app on
-that same version needs nothing. An app on a **different** version forces a second, nested
-copy that a React library like `react-router-dom` can latch onto — so that app must dedupe.
-
-- **Desktop** runs a newer React than the hoisted root, so it dedupes.
-- **Mobile** _is_ the hoisted root version, so no second copy exists and Metro needs no
-  equivalent. If mobile ever diverges, add one (force `react`/`react-dom` to a single path
-  via `resolver.resolveRequest` or `extraNodeModules` in `metro.config.js`).
-- **Never** add a global `pnpm.overrides` forcing one React across the repo — that recouples
-  desktop to Expo's pin, which is the opposite of the point.
-- **A shared UI package declares React as a `peerDependency`, never a dependency**
-  (`packages/ui`). A direct dep puts a second physical React in this bundle — the exact
-  failure the dedupe prevents.
-- **The workspace root pins a matching `react`/`react-dom` pair** (mobile's version) purely
-  so `packages/ui`'s component tests render against one. Before that, hoisting produced a
-  _mismatched_ pair — mobile's `react` beside desktop's `react-dom`, its only consumer —
-  which renders nothing and reports a bogus `act(…)` warning, because React 19's `act` queue
-  lives in `react` while the work lives in `react-dom`. Root stays on mobile's version
-  deliberately: moving it would push mobile off the hoisted copy into the nested case Metro
-  does not currently have to handle.
-
-**The guard is a test, not this document.** `pnpm test:bundle` (the `bundle` tier, in
-`pnpm test`) builds the renderer and asserts the bundle contains exactly one `react` and one
-`react-dom`, reading the sourcemap's source list — the only faithful signal, since on-disk
-resolution legitimately sees two copies the bundler collapses.
+- **Why a split breaks the bundle:** under `nodeLinker: hoisted`, a second version is
+  installed nested, and anything resolving from the root (`packages/ui/src`) or from a React
+  library (`react-router-dom`) reaches a different copy than the app's own.
+- **`packages/ui` declares React as a `peerDependency`, never a dependency.**
+- **The guard is a test, not this document.** `pnpm test:bundle` (the `bundle` tier, in
+  `pnpm test`) builds the renderer and asserts, from the sourcemap's source list, that it
+  contains exactly one `react` and one `react-dom`. It fails if any dependency nests its own.
 
 ## Notes
 

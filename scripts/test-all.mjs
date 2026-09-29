@@ -119,10 +119,9 @@ export const TIERS = [
     status: "ready",
   },
   {
-    // The React-dedupe guard. It belongs here and not in `static` because it needs a real
+    // The one-React guard. It belongs here and not in `static` because it needs a real
     // renderer build: the only faithful signal for "one React in the bundle" is the
-    // sourcemap's source list, since on-disk resolution legitimately sees two copies that
-    // the bundler collapses (apps/desktop/scripts/check-single-react.mjs).
+    // sourcemap's source list (apps/desktop/scripts/check-single-react.mjs).
     //
     // It is ordered after the vitest tiers because it is the one static-ish tier that
     // does a real build (~2s) rather than reading files. Note that it does *not* flip the

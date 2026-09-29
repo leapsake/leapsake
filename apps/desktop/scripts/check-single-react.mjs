@@ -1,15 +1,5 @@
-// Regression guard: the renderer bundle must contain exactly ONE React and ONE
-// react-dom. React's hook dispatcher is a module-level singleton, so a second
-// physical copy (classically pulled in by a transitive dep like
-// react-router-dom that resolves its own nested React) yields "Invalid hook
-// call" / null-dispatcher crashes — a white screen at runtime, with a clean
-// build. See ../README.md → "React lives at this app's version, not the workspace's".
-//
-// We assert against the built sourcemap because that lists every source module
-// actually included, which is the only faithful signal: Node/default resolution
-// can legitimately see two React paths on disk (see the comment in
-// electron.vite.config.ts); what matters is that the BUNDLE collapses to one,
-// which is the job of `renderer.resolve.dedupe`.
+// Fails unless the renderer bundle contains exactly one react and one react-dom, read
+// from the sourcemap's source list: two copies in one bundle crash every hook call.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -64,9 +54,9 @@ if (problems.length > 0) {
   console.error("check-single-react: FAILED\n" + problems.join("\n"));
   console.error(
     "\nThe renderer bundled more than one React instance. This usually means a\n" +
-      "transitive dep resolved its own React copy. Ensure `renderer.resolve.dedupe`\n" +
-      "in electron.vite.config.ts lists react/react-dom, and that react and\n" +
-      "react-dom are pinned to the same exact version in package.json.",
+      "dependency resolved its own nested React copy. Every workspace package.json\n" +
+      "should declare react and react-dom as `catalog:`, and nothing should pin\n" +
+      'another version; see ../README.md → "One React, pinned in the catalog".',
   );
   process.exit(1);
 }
