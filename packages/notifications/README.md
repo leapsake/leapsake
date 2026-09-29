@@ -51,7 +51,9 @@ What this package does own is the **budget**: both modes are capped to the soone
 `options.budget`, defaulting to `NOTIFICATION_BUDGET` (60 — the tightest platform ceiling, iOS's
 64 minus headroom; each platform's real number lives with the code that knows its platform). The
 cap applies to `digest` as well as `each`, because the 30-day bound that made digest hard to
-overshoot no longer exists — and never covered far-future `user` reminders anyway.
+overshoot no longer exists — and never covered far-future `user` reminders anyway. Past entries
+are dropped **before** the cap, so a stale one never takes a live one's slot, and the cap keeps the
+soonest, since the far end is the least urgent and the likeliest to be re-planned first.
 
 ## One slot is spent telling the user the schedule is running out
 
