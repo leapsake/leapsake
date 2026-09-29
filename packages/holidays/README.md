@@ -19,6 +19,20 @@ design behind them. Shipped on both clients 2026-07-20; what remains is sequence
 storage only through repo ports injected from `@leapsake/data`; neither opens a driver of its
 own, and nothing here depends on `@leapsake/core`.
 
+The holiday and observance **row schemas** are not here: they live in `@leapsake/schema`, because
+`defineSyncable` derives its columns from a Zod `.shape` and `@leapsake/data` cannot depend on this
+package. The seam is the `recurrence` column, an opaque string parsed here by `parseRecurrence`,
+which is what lets a device relay a holiday it does not itself understand.
+
+## Seeding
+
+`seedHolidayCatalog` runs at store open, gated on `CATALOG_VERSION` against a **device-local** mark.
+It is not a migration, because the catalog changes independently of the schema and re-applies on
+every bundle bump. It writes through `upsertFromRemote`, treating the bundle as **just another
+peer**, so the authored timestamps below do all the merging. The mark is written only **after** every
+row lands: a seed that throws part-way retries on the next open, and re-applying merged rows is a
+no-op.
+
 ## Holidays are three things, and conflating them is where the design goes wrong
 
 | Layer          | What it is                                  | Where it lives                                                   |
@@ -84,7 +98,14 @@ Two behaviors that must not regress:
 - **Hide suppresses reminders, not just browse surfaces.** Otherwise "I hid Mother's Day" still
   produces "Call @Violet for Mother's Day." Mother's Day is precisely the holiday people hide for
   painful reasons, so getting this wrong is worse than an ordinary bug.
-- **Hide is non-destructive.** Suppress, never delete observances; unhiding restores everything.
+- **Hide is non-destructive.** Suppress, never delete observances; unhiding restores everything
+  except the current occurrence's reminders: hiding prunes them, a pruned system reminder is
+  tombstoned, and it stays dead until the next occurrence. The engine cannot tell "pruned because
+  suppressed" from "pruned because stale".
+
+An observance's reminder schedule is the opposite of an observance on one point: saving it
+**stores rows even when they match the defaults**, as milestones do, because pressing Save in the
+editor is the signal that the schedule is now authored. Clearing the list stores nothing.
 
 "Read-only" applies to the _holiday_. Observances and reminder rules hanging off it stay fully
 editable — they live on the observance.
@@ -212,6 +233,13 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
 
 ## Invariants a change here must preserve
 
+- **`canonicalRecurrenceJson` is the only way a rule becomes bytes.** Whole-row LWW tie-breaks on
+  canonical serialization, so a rule that serializes two ways flaps between devices forever. Never
+  re-serialize a rule read back from the database; the stored string is authoritative. A snapshot
+  test pins the whole catalog's output.
+- **A new `computed` algorithm never reuses an existing name.** A build that predates a name parses
+  the rule to `null` and generates nothing, which is correct; a reused name with new behaviour would
+  be silently wrong on older builds.
 - **An unresolvable holiday keeps its row and generates nothing.** Never throw, never prune. It
   is reachable in normal operation: `pull` applies records one at a time across paginated batches
   with no cross-table transaction, so observances and holidays arrive interleaved — and by

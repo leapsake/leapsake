@@ -1,27 +1,5 @@
-/**
- * The one interface every caller asks a holiday's dates through:
- * `occurrencesFor(slug, year)` (`@leapsake/holidays` README, recurrence). Callers never
- * learn whether an arithmetic rule or a precomputed table answered — which is
- * the point, and what lets the lunisolar tables be replaced by a real calendar
- * implementation later with no caller change.
- *
- * The resolver is constructed over a *set* of entries because `offset` rules
- * make the catalog a directed graph (Good Friday ← Easter). It owns three things
- * a single-entry function could not: memoization across the graph, a depth cap,
- * and cycle detection.
- *
- * ## Why it degrades instead of throwing
- *
- * The same resolver runs over the **bundled** catalog, where a cycle is an
- * authoring bug that should fail loudly in CI, and over **synced rows**, where
- * anything can arrive: a holiday whose base hasn't been pulled yet (`pull`
- * applies records one at a time across paginated batches with no cross-table
- * transaction), a rule shape written by a newer build, a cycle assembled from
- * two independently-valid edits on two devices. In production it must always
- * answer, so an unresolvable entry yields `[]` — research §3's "keep the row,
- * generate nothing". `strict: true` flips the authoring bugs back into throws,
- * and is used by the catalog's unit test, never at runtime on a user's device.
- */
+// Resolves a set of entries, since `offset` rules make a graph: memoized, depth
+// capped, cycle-checked. An unresolvable entry yields `[]` unless `strict`.
 
 import { type CivilDate, daysUntil } from "@leapsake/schema";
 import {
@@ -31,38 +9,23 @@ import {
   shiftDays,
 } from "./recurrence.js";
 
-/**
- * An entry the resolver can answer for: a slug and its rule, already parsed. A
- * `null` rule (a row this build can't understand) is legal and yields no
- * occurrences.
- */
+/** A slug and its parsed rule; a `null` rule yields no occurrences. */
 export interface ResolvableHoliday {
   slug: string;
   recurrence: HolidayRecurrence | null;
 }
 
 export interface HolidayResolverOptions {
-  /**
-   * Throw on a cycle or an unknown `offset` base instead of yielding `[]`. For
-   * the bundled-catalog test only — never for synced rows, where a missing base
-   * is an ordinary interleaving of sync batches rather than a bug.
-   */
+  /** Throws on a cycle or unknown base rather than yielding `[]`; for the
+   *  bundled-catalog test, never for synced rows. */
   strict?: boolean;
 }
 
 export interface HolidayResolver {
-  /** Every civil day this holiday lands on in `year`; `[]` if it doesn't occur. */
+  /** Every civil day this holiday lands on in `year`, or `[]`. */
   occurrencesFor(slug: string, year: number): readonly CivilDate[];
-  /**
-   * Occurrences from `today` (inclusive) through `horizonDays` later, ascending.
-   * Spans the year boundary, so a December call still sees January.
-   *
-   * `lookbackDays` extends the near end into the **past**, so a caller can see
-   * an occurrence that has just gone by. The reminder engine needs it: a missed
-   * Christmas card should linger for a day or two like any other missed errand,
-   * and a walk that starts at today can never offer one. It defaults to 0, which
-   * is exactly today's behaviour, so no existing caller changes.
-   */
+  /** Occurrences from `lookbackDays` before `today` to `horizonDays` after,
+   *  ascending, across year boundaries. */
   upcomingOccurrences(
     slug: string,
     today: CivilDate,
@@ -71,11 +34,7 @@ export interface HolidayResolver {
   ): readonly CivilDate[];
 }
 
-/**
- * The longest `offset` chain that will be followed. Real derivation chains are
- * one hop (Good Friday from Easter); four is generous. It bounds the work a
- * hostile or corrupted row can cause even before cycle detection catches it.
- */
+/** The longest `offset` chain followed, bounding a corrupted row's cost. */
 const MAX_DERIVATION_DEPTH = 4;
 
 export function createHolidayResolver(
@@ -87,9 +46,8 @@ export function createHolidayResolver(
   for (const entry of entries) bySlug.set(entry.slug, entry);
 
   const cache = new Map<string, readonly CivilDate[]>();
-  // Slugs currently being resolved, deepest last — the cycle detector. Keyed by
-  // slug rather than (slug, year) because an offset rule widens its search a
-  // year either side, so a cycle shows up across years, not within one.
+  // The cycle detector, keyed by slug: an offset rule searches a year either
+  // side, so a cycle crosses years.
   const inProgress = new Set<string>();
 
   function resolve(slug: string, year: number, depth: number): CivilDate[] {
@@ -131,12 +89,8 @@ export function createHolidayResolver(
     occurrencesFor: (slug, year) => resolve(slug, year, 0),
 
     upcomingOccurrences(slug, today, horizonDays, lookbackDays = 0) {
-      // Search every year the window actually touches, not a fixed two. A
-      // hardcoded range silently truncates the moment the horizon exceeds a
-      // year — the caller gets a short list that looks perfectly plausible.
-      // The near end has to be walked back explicitly once `lookbackDays` is in
-      // play: on Jan-1, a Christmas three days gone lives in the *previous*
-      // year, so starting at `today.year` would quietly lose it.
+      // Every year the window touches, back through the lookback, or a long
+      // horizon or a Jan-1 lookback silently loses dates.
       const lookback = Math.max(lookbackDays, 0);
       const firstYear = shiftDays(today, -lookback).year;
       const lastYear = shiftDays(today, Math.max(horizonDays, 0)).year;
@@ -154,9 +108,7 @@ export function createHolidayResolver(
         seen.add(iso);
         out.push(date);
       }
-      // Ascending: `daysUntil(b, a)` is negative when `a` is the earlier date,
-      // which is the order `sort` wants. (`daysUntil(a, b)` reads the right way
-      // round in English and sorts exactly backwards.)
+      // Ascending; `daysUntil(a, b)` would sort backwards.
       return out.sort((a, b) => daysUntil(b, a));
     },
   };
