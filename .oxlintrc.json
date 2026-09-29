@@ -33,7 +33,9 @@
         "packages/data/src/**",
         "packages/core/src/**",
         "apps/desktop/src/**",
-        "apps/mobile/lib/**"
+        "apps/mobile/lib/**",
+        "apps/mobile/db/**",
+        "apps/mobile/keystore/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

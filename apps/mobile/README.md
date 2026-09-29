@@ -26,6 +26,19 @@ store; once an account exists it is encrypted at `stores/<accountId>/`, with the
 doors in `doors.db` beside it. The full cross-repo map is in
 [`@leapsake/key-custody`](../../packages/key-custody/README.md).
 
+**Beside the store, two small unencrypted databases**, because mobile has no general filesystem
+dependency: `doors.db` in the account's directory, standing in for desktop's sidecar files, and
+`leapsake-roster.db`, standing in for `accounts.json`. Neither may ever be the store, and neither
+syncs. Each door is opaque ciphertext under a 256-bit key, so plaintext is safe. The roster
+necessarily shows the usernames on the device, since it is read before any store can be opened;
+that is accepted. Doors are scoped by path, not by a `WHERE`, so a forget cannot reach another
+account's: a call site can drop a predicate, but not a path.
+
+**The keychain class is `AFTER_FIRST_UNLOCK`**, so secrets survive a reboot for background work.
+The accepted limit: after the first unlock they are readable to anything running on the device,
+so at-rest protection leans on the lock screen from then on. `WHEN_UNLOCKED` would trade
+background sync for it, and that trade has not been made.
+
 **Cloud backup is off on both platforms, deliberately.** Android: `android.allowBackup: false` in
 `app.json`, where Expo otherwise defaults it to `true`. iOS: `plugins/with-store-backup-exclusion.js`
 marks `<Documents>/SQLite` — where expo-sqlite puts every database — as excluded, because iOS backs

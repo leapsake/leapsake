@@ -18,7 +18,7 @@ export async function openExpoStore(
   const db = await SQLite.openDatabaseAsync(path, { useNewConnection: true });
   const driver = expoSqliteDriver(db);
   if (dbKey !== undefined) {
-    // SQLCipher needs the key before any other statement; the read proves it fits.
+    // The key must precede any other statement; the read proves it fits.
     await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);
     try {
       await driver.get("PRAGMA user_version");

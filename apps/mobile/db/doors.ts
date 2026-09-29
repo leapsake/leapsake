@@ -4,34 +4,8 @@ import { storeDir } from "@leapsake/store-layout";
 import { withDatabase } from "./with-database";
 
 /**
- * The mobile **db-key doors** (encryption `model.md` §6, §7.5 Phase 0.5): the two
- * blobs that let a user back into their encrypted store when this device's enclave
- * key is lost. Both hold the same whole-DB key, sealed under a different door:
- *
- * - **password** — `seal(db-key, KEK)`, the primary way in. Someone who remembers
- *   their password should never be sent hunting for 24 words.
- * - **recovery** — `wrap(db-key, recoveryKey)`, the forgot-password backstop.
- *
- * Desktop keeps these as files named after the store (`<dbPath>.password`,
- * `<dbPath>.recovery` — `main/db/sidecars.ts`). Mobile has no general filesystem
- * dependency, so they live in a **separate, unencrypted** expo-sqlite database —
- * opened with no `PRAGMA key`, so it is readable without the (now-missing) enclave
- * key. Storing them unencrypted is safe: each blob is opaque ciphertext under a
- * full 256-bit key.
- *
- * ### Why they are per-account
- *
- * They live **inside the account's own store directory** — `stores/<accountId>/doors.db`
- * — so a door can only be reached through the account that owns it. Until custody
- * slice 7b they were one device-scoped database at a fixed name, which made "forget
- * this account" drop *every* account's doors: silent at the time, and surfacing only
- * much later, when a wiped keychain left the surviving account with no way back in.
- * Scoping by path rather than by a `WHERE` is deliberate — a call site can forget a
- * predicate, but it cannot forget a path.
- *
- * The doors database must never be the store database (that is the thing we cannot
- * open without the key), and it is device-local — never synced, because each device
- * seals its *own* db-key.
+ * One account's two db-key doors, the password and the recovery phrase, in an
+ * unencrypted database beside its store (the app's README).
  */
 export interface AccountDoors {
   /** Read the password door, or `undefined` if this device has none. */
@@ -42,11 +16,7 @@ export interface AccountDoors {
   readRecovery(): Promise<Uint8Array | undefined>;
   /** Write (or replace) the recovery-phrase door. */
   writeRecovery(bytes: Uint8Array): Promise<void>;
-  /**
-   * Delete this account's doors outright — the file half of **forget account**, and
-   * of a factory reset, where losing both doors is the point. Tolerant of doors that
-   * were never written: "there were none" is a success for every caller.
-   */
+  /** Delete this account's doors; none having been written is a success. */
   destroy(): Promise<void>;
 }
 
@@ -54,21 +24,14 @@ export interface AccountDoors {
 const SCHEMA =
   "CREATE TABLE IF NOT EXISTS door (kind TEXT PRIMARY KEY, blob TEXT NOT NULL)";
 
-/**
- * Where one account's doors live, relative to expo-sqlite's database directory —
- * beside its store rather than beside the app, which is the whole of slice 7b.
- */
+/** Where one account's doors live, beside its store. */
 export function doorsPath(slot: string): string {
   return `${storeDir(slot)}/doors.db`;
 }
 
 /**
- * The two doors for one account (the Unauthenticated slot may be named too; it never has any).
- *
- * `slot` is the account id — the same slot `storePath` names the store with, so the
- * doors and the store they open are created and destroyed together. Each call opens
- * a short-lived connection and closes it, so nothing holds the database open and a
- * later delete can always take the file.
+ * The doors for the slot `storePath` names the store with. Each call opens and
+ * closes its own connection, so a later delete can always take the file.
  */
 export function accountDoors(slot: string): AccountDoors {
   const name = doorsPath(slot);
@@ -104,8 +67,7 @@ export function accountDoors(slot: string): AccountDoors {
       try {
         await SQLite.deleteDatabaseAsync(name);
       } catch {
-        // Never written. `deleteDatabaseAsync` throws rather than shrugging at a
-        // missing file, and there is nothing here worth failing a forget over.
+        // Never written: `deleteDatabaseAsync` throws for a missing file.
       }
     },
   };

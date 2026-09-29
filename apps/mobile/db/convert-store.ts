@@ -4,42 +4,8 @@ import { type AccountRoster, storePath } from "@leapsake/store-layout";
 import { accountDoors } from "./doors";
 
 /**
- * Convert the plaintext (**Unauthenticated**) store named `fromName` into an encrypted
- * (**Authenticated**) store at `toName` — the mobile half of account creation
- * (`model.md` §7.2.1, §8.1). The desktop counterpart is
- * `apps/desktop/src/main/db/convert-store.ts`, and the *pattern is deliberately
- * identical*: neither engine's native shortcut works on the other (desktop has
- * `PRAGMA rekey` but no `sqlcipher_export`; SQLCipher has the reverse), so both
- * run the same ordinary-SQL `ATTACH` + copy-from-`sqlite_master`.
- *
- * It is a **plaintext-source** door, and it refuses anything else — an
- * already-encrypted store must never be fed to the conversion by accident.
- *
- * Verified on device before being written — the custody self-test
- * (`leapsake://dev-selftest`) exercises this exact sequence, including that
- * expo-sqlite creates the nested per-account directory for us.
- *
- * As on desktop, this **does not delete the original**: the caller destroys it
- * only after the roster names the replacement, so a crash mid-flow always leaves a
- * launchable device.
- */
-/**
- * Three details in the copy are load-bearing and easy to miss:
- *
- * 1. **`PRAGMA cipher='sqlcipher'` before the ATTACH.** A no-op on this engine
- *    (SQLCipher has exactly one cipher) but kept so both platforms run the
- *    identical sequence — desktop genuinely needs it, because its library would
- *    otherwise write the attached file under a different default cipher.
- * 2. **`user_version` must be carried across.** It is the migration runner's
- *    watermark and is *not* copied by ATTACH. Losing it would send the next boot
- *    through every migration again, against tables that already exist.
- * 3. **Tables before indexes.** An index cannot be created before its table, and
- *    `sqlite_master` order is not guaranteed to respect that.
- *
- * Both of desktop's guards are enforced here too, via {@link storeState} rather
- * than desktop's file-header read. The destination one is the one that matters:
- * without it a retry after a crash mid-flow copies every row into a store that
- * already holds them, and the user's data arrives twice.
+ * Copy the plaintext store at `fromName` into an encrypted one at `toName`.
+ * Its rules: `@leapsake/key-custody` → Before you change the conversion.
  */
 export async function convertStoreToEncrypted(opts: {
   fromName: string;
@@ -48,29 +14,23 @@ export async function convertStoreToEncrypted(opts: {
 }): Promise<void> {
   const { fromName, toName, key: toKey } = opts;
 
-  // An encrypted source is a caller bug, and reporting it as a key failure would
-  // send the reader hunting for the wrong thing.
   if ((await storeState(fromName)) === "encrypted") {
     throw new Error(
       "Refusing to convert: the source store is not a plaintext database.",
     );
   }
-  // Note this also performs the mobile `mkdir -p`: `ATTACH` will not create the
-  // `stores/<accountId>/` directory (SQLite never makes directories — this is
-  // where desktop calls `mkdirSync`), but expo-sqlite *does* create intermediate
-  // directories when it opens a database by name, which `storeState` just did.
-  // Without that the ATTACH fails with "unable to open database file".
+  // Also the `mkdir -p` the ATTACH needs: expo-sqlite creates the account's
+  // directory when `storeState` opens the name.
   if ((await storeState(toName)) !== "empty") {
     throw new Error(
       "Refusing to convert: a store already exists at the destination.",
     );
   }
 
-  // Past this line the destination may hold bytes, and the guard above proved it
-  // held none a moment ago — so anything found there on the way out is ours.
+  // The guard proved the destination empty, so a failure leaves only ours.
   try {
-    // Own connections, always: without this expo-sqlite hands back the *shared* handle for
-    // a path, and the `finally` below would close one the running store still holds.
+    // Own connections: expo-sqlite shares a handle per name, and the `finally`
+    // would close the one the running store still holds.
     const source = await SQLite.openDatabaseAsync(fromName, {
       useNewConnection: true,
     });
@@ -80,7 +40,6 @@ export async function convertStoreToEncrypted(opts: {
       );
       const userVersion = versionRow?.user_version ?? 0;
 
-      // (1) Name the destination's cipher *before* attaching.
       await source.execAsync("PRAGMA cipher='sqlcipher'");
       await source.execAsync(
         `ATTACH DATABASE '${databasePath(toName)}' AS enc KEY "${rawKeyLiteral(toKey)}"`,
@@ -95,7 +54,6 @@ export async function convertStoreToEncrypted(opts: {
           WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'`,
       );
 
-      // (3) Tables before the indexes/views/triggers that depend on them.
       const ordered = [
         ...objects.filter((o) => o.type === "table"),
         ...objects.filter((o) => o.type !== "table"),
@@ -115,16 +73,13 @@ export async function convertStoreToEncrypted(opts: {
         );
       }
 
-      // (2) Carry the migration watermark across.
       await source.execAsync(`PRAGMA enc.user_version = ${userVersion}`);
       await source.execAsync("DETACH DATABASE enc");
     } finally {
       await source.closeAsync();
     }
 
-    // Prove the result opens under the key before the caller commits to it. The
-    // caller keeps the original until the roster points at this one, so a failure
-    // here costs nothing.
+    // Prove the result opens under the key before the caller commits to it.
     const check = await SQLite.openDatabaseAsync(toName, {
       useNewConnection: true,
     });
@@ -135,52 +90,25 @@ export async function convertStoreToEncrypted(opts: {
       await check.closeAsync();
     }
   } catch (error) {
-    // A half-written destination is worse here than it looks: in the merge flow
-    // `toName` is a name a roster entry will one day carry, and the overwrite
-    // guard above would refuse the retry that fixes it. Best-effort on purpose —
-    // the failure being reported outranks the tidying.
-    //
-    // This does **not** make the callers' pre-copy sweep redundant. A `catch`
-    // runs on a throw; a kill or a power cut runs nothing, and that leftover is
-    // what {@link clearUnclaimedDestination} is for.
+    // Best-effort, so the original error survives. A killed process runs no
+    // `catch`; {@link clearUnclaimedDestination} sweeps that leftover.
     try {
       await destroyStoreFiles(toName);
     } catch {
-      // Nothing actionable, and the original error is the one worth raising.
+      // The original error is the one worth raising.
     }
     throw error;
   }
 }
 
 /**
- * What is sitting at a store name, as far as this device can tell — mobile's
- * counterpart to desktop's `storeFileState` (`main/db/sqlite-header.ts`).
- *
- * Desktop reads the 16-byte SQLite header and can therefore distinguish *absent*
- * from *empty*. **expo-sqlite exposes no raw file access at all**, so we ask the
- * engine instead: open with no key and count `sqlite_master`. That answers the
- * question the guards actually need — *is it safe to write a fresh store here* —
- * with two consequences worth knowing before relying on it:
- *
- * - **`absent` and `empty` are one answer.** Opening a name creates the file (and
- *   its directories), so asking is not free of side effects. Harmless: an empty
- *   database and no database are equally safe to convert into.
- * - **`encrypted` means "not readable without a key"**, which is also what a
- *   corrupt file looks like. Both are equally unsafe to write over, so the guards
- *   treat them the same.
- *
- * **`useNewConnection` is load-bearing, not tidiness.** expo-sqlite caches native
- * connections *by database name*, so without it this "keyless" open silently
- * returns the caller's own already-keyed connection whenever the store is open —
- * the read then succeeds and an encrypted store reports `plaintext`. That is not
- * hypothetical: it is exactly the state every caller holding a live driver is in,
- * and it made {@link mergeAccountOnThisDevice}'s at-rest guard refuse every real
- * merge with "This device's store is not an encrypted database." The custody
- * self-test pins the behaviour ("reports encrypted while a keyed handle is open").
+ * What sits at a store name, by a keyless open, which creates the file. So
+ * "empty" includes absent, and "encrypted" includes corrupt.
  */
 export async function storeState(
   name: string,
 ): Promise<"empty" | "plaintext" | "encrypted"> {
+  // A shared handle would be the caller's keyed one, reading as plaintext.
   const db = await SQLite.openDatabaseAsync(name, { useNewConnection: true });
   try {
     const row = await db.getFirstAsync<{ n: number }>(
@@ -188,47 +116,21 @@ export async function storeState(
     );
     return (row?.n ?? 0) === 0 ? "empty" : "plaintext";
   } catch {
-    // SQLCipher refuses the read rather than the open (see the custody self-test),
-    // so a throw here is the signal that a key would be needed.
+    // SQLCipher refuses the read rather than the open.
     return "encrypted";
   } finally {
     await db.closeAsync();
   }
 }
 
-/**
- * Delete a store — run only once the roster names its replacement. Custody-blind
- * like desktop's namesake: creation destroys a plaintext original, the merge flow
- * an encrypted one.
- */
+/** Delete a store, of either custody, once the roster names its replacement. */
 export async function destroyStoreFiles(name: string): Promise<void> {
   await SQLite.deleteDatabaseAsync(name);
 }
 
 /**
- * Clear a destination left behind by an earlier attempt that died before its
- * roster entry — the pre-copy sweep every store-converting flow runs, and the
- * mobile counterpart of desktop's namesake.
- *
- * **The roster is what makes this safe.** A store an entry does not name is
- * claimed by nobody: no boot path will ever open it, and no user can reach it.
- * One that *is* named is somebody's live account, and removing it would be data
- * loss, so this refuses to touch it and lets the caller's own guard report the
- * collision.
- *
- * Without this a retry cannot succeed — {@link copyStoreUnderNewKey}'s overwrite
- * guard refuses a non-empty destination, and the leftover of a process killed
- * mid-flow (which runs no `catch`) is exactly such a destination.
- *
- * **The doors go with the store.** They live inside its directory (`doors.ts`)
- * and seal a db-key for a store that is about to be replaced, so leaving them
- * would hand the replacement a door onto the wrong key. Desktop gets this for
- * free by removing the whole directory; mobile has no directory primitive, so it
- * names both halves.
- *
- * The roster check comes first on purpose: {@link storeState} would *create* the
- * file it was asked about, so mobile cannot cheaply ask "is anything there?"
- * before deciding whether it is allowed to look.
+ * Remove a store and its doors that no roster entry names, left by a killed
+ * attempt. Mobile has no directory delete, so the doors go by name.
  */
 export async function clearUnclaimedDestination(opts: {
   /** The account the destination store is named after. */
@@ -240,14 +142,12 @@ export async function clearUnclaimedDestination(opts: {
   try {
     await destroyStoreFiles(storePath(accountId));
   } catch {
-    // Nothing stranded — the ordinary case. `deleteDatabaseAsync` throws rather
-    // than shrugging at a missing file.
+    // `deleteDatabaseAsync` throws for a missing file, the ordinary case.
   }
   await accountDoors(accountId).destroy();
 }
 
-/** Absolute path for `ATTACH`, which resolves relative names against the process
- *  CWD rather than expo-sqlite's database directory. */
+/** Absolute, since `ATTACH` resolves a relative name against the CWD. */
 function databasePath(name: string): string {
   return `${SQLite.defaultDatabaseDirectory}/${name}`;
 }
