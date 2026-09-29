@@ -1,81 +1,37 @@
-/**
- * Seamless background sync: the *scheduling* layer over {@link runAccountSync}.
- *
- * Convergence has two halves, and a single trigger can't cover both, so this
- * module supplies the primitives clients use to drive sync from real events
- * rather than a poll:
- *
- * - **push** (your edits go out) is best triggered by the local write itself —
- *   the debounced {@link SyncScheduler.kick} below, wired through
- *   {@link withSyncKick}, so a burst of edits collapses to one push;
- * - **pull** (the peer's edits come in) has no local event, so clients call
- *   {@link SyncScheduler.trigger} on app foreground / window focus;
- * - a long {@link SYNC_INTERVAL_MS} interval is only a backstop for the "both
- *   apps open and focused while the peer edits" gap. It is the *only* part with
- *   idle cost, which is why it is long and event-driven triggers do the work.
- *
- * The scheduler owns scheduling only — the actual work (and the "is sync even
- * enabled" guard) is the injected `run` thunk — so it is pure and unit-testable
- * with fake timers, and platform-agnostic (`setInterval`/`setTimeout` exist on
- * both Node and Hermes).
- */
+// When to sync: debounced kicks push writes, focus pulls, and a long interval
+// backs both up. The work itself is the injected `run`.
 
-/** The backstop interval. Long on purpose: events drive the common case, and on
- *  mobile a JS interval only fires while foregrounded anyway. */
+/** The backstop interval, long since events do the common case. */
 export const SYNC_INTERVAL_MS = 15 * 60_000;
 
-/** How long {@link SyncScheduler.kick} waits before syncing, so a burst of local
- *  edits coalesces into a single push. */
+/** How long a kick waits, so a burst of edits becomes one push. */
 export const SYNC_KICK_DEBOUNCE_MS = 2_000;
 
 export interface SyncScheduler {
-  /**
-   * Run a sync now unless one is already in flight (single-flight). Resolves to
-   * the run's result, or `undefined` if it was coalesced into the in-flight run
-   * or the injected `run` guard skipped it (sync not enabled). This is the
-   * **manual** path (the "Sync now" button): it always runs, ignoring the
-   * automatic-sync preference. Automatic callers use {@link autoTrigger}.
-   */
+  /** Syncs now, joining any run in flight, whatever the automatic preference;
+   *  `undefined` when coalesced or skipped. */
   trigger(): Promise<{ at: number; applied?: number } | undefined>;
-  /**
-   * The **automatic** counterpart to {@link trigger}: runs a sync only when
-   * automatic sync is enabled (see {@link setAutoEnabled}), else resolves
-   * `undefined` without doing anything. Every event-driven caller (launch,
-   * window focus / app foreground, post-enable/join) uses this so the user's
-   * "Sync automatically" toggle gates them while the manual button keeps working.
-   *
-   * Unlike {@link trigger}, this **never rejects** — a failure is routed to
-   * `onError` and then swallowed. The automatic path is fire-and-forget (callers
-   * invoke it as `void scheduler.autoTrigger()`), so a rejection here would
-   * otherwise escape as an unhandled promise rejection.
-   */
+  /** {@link trigger} when automatic sync is on; never rejects, since callers
+   *  fire and forget it and `onError` has seen the failure. */
   autoTrigger(): Promise<{ at: number; applied?: number } | undefined>;
-  /**
-   * Debounced trigger for high-frequency events (local writes): (re)schedule a
-   * {@link trigger} after {@link SYNC_KICK_DEBOUNCE_MS}, resetting the timer on
-   * each call. A no-op while automatic sync is disabled. Fire-and-forget.
-   */
+  /** Reschedules a {@link trigger} after the debounce; inert when automatic
+   *  sync is off. */
   kick(): void;
-  /**
-   * Enable or disable *automatic* sync (the per-client "Sync automatically"
-   * preference). While disabled, {@link autoTrigger}, {@link kick}, and the
-   * backstop interval are inert, but {@link trigger} (manual) still works.
-   * Re-enabling fires one catch-up sync; disabling cancels any pending kick.
-   * Only changes in-memory behaviour — the caller persists the preference.
-   */
+  /** Turns automatic sync on, with one catch-up, or off, cancelling a kick;
+   *  the caller persists it. */
   setAutoEnabled(enabled: boolean): void;
   /** Start the periodic backstop interval. Idempotent. */
   start(): void;
-  /** Stop the interval and cancel any pending kick. In-flight runs still resolve. */
+  /** Stops the interval and any pending kick; in-flight runs still resolve. */
   stop(): void;
 }
 
 export function createSyncScheduler(opts: {
-  /** The work + guard. Return `undefined` to signal "skipped" (e.g. not enabled). */
+  /** The work and its guard; `undefined` means skipped. */
   run: () => Promise<{ at: number; applied?: number } | undefined>;
   intervalMs?: number;
   debounceMs?: number;
-  /** Whether *automatic* sync starts enabled (the persisted preference). Default `true`. */
+  /** Whether automatic sync starts on; default `true`. */
   autoEnabled?: boolean;
   onResult?: (result: { at: number; applied?: number }) => void;
   onError?: (error: unknown) => void;
@@ -97,8 +53,7 @@ export function createSyncScheduler(opts: {
   let kickTimer: ReturnType<typeof setTimeout> | undefined;
 
   function trigger(): Promise<{ at: number; applied?: number } | undefined> {
-    // Single-flight: a focus during an interval run, or a kick during a manual
-    // sync, all share the one outstanding run rather than stacking up.
+    // Single-flight: every caller shares the one outstanding run.
     if (inFlight !== undefined) return inFlight;
     const started = (async () => {
       try {
@@ -106,9 +61,8 @@ export function createSyncScheduler(opts: {
         if (result !== undefined) onResult?.(result);
         return result;
       } catch (error) {
-        // Never let a background failure (relay down) escape into a timer/
-        // interval callback and crash the host. Manual callers still see the
-        // rejection because trigger() returns this promise to them.
+        // Reported here, so a timer callback never crashes the host; a manual
+        // caller still sees the rejection.
         onError?.(error);
         throw error;
       } finally {
@@ -119,11 +73,7 @@ export function createSyncScheduler(opts: {
     return started;
   }
 
-  // The automatic path: identical to trigger() but gated on the preference, so a
-  // disabled "Sync automatically" silently no-ops every event-driven sync. It
-  // also swallows the rejection trigger() rethrows — onError has already seen the
-  // failure (e.g. a 401 → re-auth prompt), and every caller fires this as
-  // `void autoTrigger()`, so rethrowing would surface as an unhandled rejection.
+  // trigger(), gated on the preference, swallowing the rejection `onError` saw.
   function autoTrigger(): Promise<
     { at: number; applied?: number } | undefined
   > {
@@ -139,7 +89,7 @@ export function createSyncScheduler(opts: {
       if (kickTimer !== undefined) clearTimeout(kickTimer);
       kickTimer = setTimeout(() => {
         kickTimer = undefined;
-        // Swallow rejections: kick() is fire-and-forget and onError already saw it.
+        // Swallowed: onError already saw it.
         void trigger().catch(() => {});
       }, debounceMs);
     },
@@ -147,11 +97,10 @@ export function createSyncScheduler(opts: {
       if (enabled === autoEnabled) return;
       autoEnabled = enabled;
       if (enabled) {
-        // The user just re-enabled automatic sync: catch up now rather than
-        // waiting for the next focus/write/interval. (autoTrigger never rejects.)
+        // Re-enabled: catch up now rather than at the next event.
         void autoTrigger();
       } else if (kickTimer !== undefined) {
-        // Cancel a write-debounced push that was queued before the user opted out.
+        // Cancel a push queued before the user opted out.
         clearTimeout(kickTimer);
         kickTimer = undefined;
       }
@@ -177,57 +126,13 @@ export function createSyncScheduler(opts: {
   };
 }
 
-/**
- * Names of {@link CoreApi} methods that *mutate* state and so should trigger a
- * sync. Everything else (`list`/`get`/`*For*`/`query`/the view builders) is a
- * read and passes through untouched.
- *
- * **This list must grow by hand when a write is named something new**, because a
- * predicate on *names* can only catch the names it was told about. A write that
- * matches nothing here is silently treated as a read: it lands locally and then
- * waits for the next scheduled tick instead of kicking a push.
- *
- * What stops that going unnoticed is `with-sync-kick.test.ts`, which pins the
- * **whole** `CoreApi` surface with each method classified `read` or `write` by
- * hand. Any method added to core fails that test until it is classified, and any
- * method classified `write` that this predicate does not match fails it too. An
- * earlier version pinned only the predicate's own output, which could not work:
- * filtering the surface through the very predicate under test makes a write it
- * does not match invisible rather than wrong. Every entry below past the original
- * `create|update|edit|softDelete` was a gap found in production, not by a test —
- * `snooze`, then `setPolicy`/`setPermissionState` for the cross-device
- * notification policy, then a batch of
- * nine (`commit`, `merge`, `reject`, `clear`, `regenerate`, and `set` widened to
- * cover `holidays.set*` and `self.set`).
- *
- * `set` is deliberately the bare prefix rather than the three exact names it
- * replaced: every `set*` on the surface is a write, and a hypothetical read named
- * `settingsFor` costing one wasted push is the cheap direction to err in — a
- * missed write costs a stale device instead.
- *
- * TODO: consider retiring the predicate for **observation** instead of naming.
- * Have {@link SqliteDriver} raise a dirty flag on `run`/`exec` and kick when a
- * wrapped call flips it — then "did this write?" is answered by what the call
- * actually did, there is no list to keep, and the whole class of bug this comment
- * documents stops existing. Not done yet because it needs a decision about the
- * writes that should *not* push: migrations, and the internal reconciles
- * (`regenerateSystem`) that already ride their caller's kick. The surface pin in
- * `with-sync-kick.test.ts` makes the naming approach survivable in the meantime,
- * so this is a cleanup to take when it next causes trouble, not a live defect.
- */
+/** The names of {@link CoreApi} writes, which must grow by hand; see the
+ *  README's _Which calls kick a push_. */
 const MUTATING_METHOD =
   /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|link(?=[A-Z]))/;
 
-/**
- * Wrap a {@link CoreApi}-shaped object so that every mutating method calls `kick`
- * after it resolves, at a single seam — clients don't have to remember to kick
- * after each write. Recurses into nested groups (e.g. `contactMethods.emails`).
- * Reads pass through; rejections propagate without a kick (nothing landed).
- *
- * Typed generically over the input shape so it returns the same type it was
- * given (the client keeps its `CoreApi`), and so this stays decoupled from the
- * `CoreApi` type defined in the index module.
- */
+/** Wraps a {@link CoreApi}-shaped object so every write, nested ones too,
+ *  kicks once it resolves; a rejection kicks nothing. */
 export function withSyncKick<T extends object>(core: T, kick: () => void): T {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(core as Record<string, unknown>)) {

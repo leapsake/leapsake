@@ -75,13 +75,28 @@ more entry in that list — no engine change.
 `http-transport.ts` has one retry rule — log in again on a 401 — so it uses `fetch` directly
 rather than `ky` or `ofetch`. A second retry policy is when one of those pays for itself.
 
+**Sessions.** `push` and `pull` authenticate with a short-lived session token, so the
+password-derived verifier transits once per login. The transport logs in on first use and near
+expiry, keeps the token in memory, and on a 401 logs in once more and retries, since the relay
+may have expired or forgotten the session. A login that itself gets a 401 means the verifier is
+stale, the password reset on another device, and it propagates as the `401` clients read as
+"re-authenticate".
+
+**Which calls kick a push.** The scheduler pulls on focus and runs a long interval as a backstop,
+but a push is kicked by the write itself: `withSyncKick` wraps the core API and kicks after any
+method whose **name** `MUTATING_METHOD` matches. A write named something new matches nothing and
+lands without a push, so the list grows by hand. `with-sync-kick.test.ts` pins the **whole** core
+surface, each method classified read or write by hand, so an unclassified method or an unmatched
+write fails it. `set` is a bare prefix: a read named `settingsFor` would cost one wasted push, the
+cheap direction to err.
+
 ## What deliberately lives elsewhere
 
 - **`defineSyncable` / `SyncableRepo`** stay in `@leapsake/data`. That is the primitive
   every repo is built on, not a sync concern; sync only consumes the type.
 - **`SyncStateRepo`** stays in `@leapsake/data`. The watermarks live in an ordinary
   device-local `sync_state` table, and a repo belongs with the repos.
-- **`syncableRepos()` and the account join/recover/register orchestration** stay in
+- **`syncableRepos()`** stays in
   `@leapsake/core`. Deciding _what_ syncs means naming every repo, and the allowlist is
   the security-critical statement of which tables may leave the device — that is
   composition-root work. Importing it here would make this package depend on the entire
@@ -134,6 +149,16 @@ No new key material is minted on that path — the account, its password door an
 recovery key all exist before a relay is ever bound. A joining device **keeps** its local
 data: the join pulls the account, detects the duplicates it introduced, and sends them to
 review ([`@leapsake/core`](../core/README.md)).
+
+## Asking the relay
+
+Forgetting an account on its last device is a deletion **unless some server durably holds a
+copy**, and whether one does depends on who hosts the relay, not on the account: the relay is
+designed to be disposable, and a self-hoster may or may not back their volume up. So
+`fetchRelayCapabilities` asks, and **treats silence as "no"**: a missing endpoint, a timeout, a
+bad body, anything but a literal `true`. The worst outcome is over-warning about a recoverable
+deletion. No relay implements the endpoint yet; it is a check rather than a hardcoded warning so
+that the alarming copy stops on its own the day server-side backup ships.
 
 ## What must stay true for P2P to remain possible
 
