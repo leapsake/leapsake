@@ -131,7 +131,7 @@ The drift rule, so "which one is canonical?" is never a live question: **the in-
 copy is the unreleased version; `vX.Y/` are released ones.** They are never canonical
 for the same thing.
 
-## Two traps
+## Three traps
 
 **Do not add React.** Astro does not need it and `@leapsake/ui/tokens` is plain data
 with no imports. `packages/ui/README.md` documents a real "Invalid hook call" failure
@@ -142,6 +142,10 @@ component finally earns a React island, add the guard in the same commit.
 **`@leapsake/ui` exports raw `.ts` source**, so `astro.config.mjs` lists it under
 `vite.ssr.noExternal`. Without that the build dies on an unparsed TypeScript import
 the moment anything reads the tokens.
+
+**Take `z` from `astro/zod`, and do not add `zod` here.** `astro:content` validates
+collection schemas with Astro's own zod; a direct dependency can resolve to a second
+copy, and a schema built from one instance is then checked by another.
 
 ## Styling
 

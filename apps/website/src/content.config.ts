@@ -1,6 +1,6 @@
 import { glob } from "astro/loaders";
 import { defineCollection } from "astro:content";
-import { z } from "zod";
+import { z } from "astro/zod";
 
 import { docsLoader } from "./lib/docs";
 
