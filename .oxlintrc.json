@@ -35,7 +35,8 @@
         "apps/desktop/src/**",
         "apps/mobile/lib/**",
         "apps/mobile/db/**",
-        "apps/mobile/keystore/**"
+        "apps/mobile/keystore/**",
+        "apps/mobile/app/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",
