@@ -50,7 +50,8 @@
         "packages/crypto/**",
         "packages/notifications/**",
         "packages/contact-links/**",
-        "packages/store-layout/**"
+        "packages/store-layout/**",
+        "packages/contact-import/**"
       ],
       "rules": {
         "leapsake/max-comment-lines": "error",

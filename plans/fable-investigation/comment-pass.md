@@ -29,7 +29,7 @@ lint findings in brackets:
 
 
 
-| `packages/contact-import` |      134 (26) |
+
 | `packages/gifts`          |       80 (17) |
 | `packages/bytes`          |       64 (18) |
 | `packages/highlight`      |       60 (13) |
