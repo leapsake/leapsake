@@ -84,6 +84,14 @@ without globals: a `// @vitest-environment jsdom` docblock, and an explicit
 `afterEach(cleanup)`. Assert what a user perceives — roles, text, the `name` a field submits
 under — not internals.
 
+**A tool a test tier needs is fetched pinned and checksummed; a tool only regeneration needs
+may be a Homebrew prerequisite.** The first keeps a tier the same on every machine and runner:
+[`scripts/lib/ensure-gitleaks.mjs`](scripts/lib/ensure-gitleaks.mjs) downloads one pinned
+`gitleaks`, checks its SHA-256 and caches it for the secret-scan tier. The second may ask for
+`brew install`, but only if its `--check` needs nothing:
+[`scripts/icons.mjs`](scripts/icons.mjs) refuses to render without `rsvg-convert` and `magick`,
+while the icon-agreement tier’s `--check` is a hash comparison that needs neither.
+
 ### The E2E release gate
 
 The driver contract proves the _driver_; the integration layer proves the _shared logic_.
