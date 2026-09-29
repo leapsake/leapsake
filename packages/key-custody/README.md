@@ -105,10 +105,12 @@ The two answers still differ in **custody**, not only in sync:
 A password is never required to _start_ using Leapsake on one device.
 
 **Every device ends up encrypted at rest.** That is the invariant, and the mechanism is
-conversion — not a second store-creation path. `adoptAccountOnThisDevice` (desktop) and
-`adoptStoreForAccount` (mobile) run the same **convert → password door → roster entry →
-destroy the original** ordering that account creation does, because that ordering is what
-makes a crash survivable (`model.md` §8.1).
+conversion — not a second store-creation path. Account creation runs **convert → password door
+→ roster entry → destroy the original**, because that ordering is what makes a crash survivable
+(`model.md` §8.1), and a join's adoption must run the same one. Mobile's `adoptStoreForAccount`
+(`core-context.tsx`) is that sequence today, called by account creation; desktop's join-side
+`adoptAccountOnThisDevice` was deleted with the clients' relay flows and is at the tag
+`relay-clients-final`.
 
 > **The plaintext window on a joining device holds no user data.** Its store is created
 > plaintext at first launch like any other, but the adoption converts it _before_ the first
@@ -166,20 +168,25 @@ outranks any UX guard against taking the wrong branch: a guard reduces how often
 made, this decides what it costs.
 
 It takes two exits, because _"I have a local-only account and I want sync"_ has two meanings —
-and a user knows which one they mean before they know any of the mechanics:
+and a user knows which one they mean before they know any of the mechanics.
+
+**Neither exit has a client today.** The clients' relay flows were deleted on 2026-09-17 and
+return in v0.2; what they did is at the tag `relay-clients-final`. `bindRelayToAccount` and
+`@leapsake/sync`'s account half stay, kept tested against a live relay in
+`apps/server/test/relay.test.ts`, so the rebuild starts from working code.
 
 | The user means                                               | The act                                                                                                                                                                                                                                                               | Where                                                                      |
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | _"Publish the account that is already here"_                 | **bind a relay.** Nothing is minted and nothing is re-encrypted, so the same password and the same recovery phrase keep working. Account creation mints the auth verifier and both master-key wrappings with no relay in sight _precisely_ so this adds no new ritual | `bindRelayToAccount` (`src/bind-relay.ts`)                                 |
-| _"Move this data into the account I already have elsewhere"_ | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under _that_ account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`)                                | `main/db/merge-account-flow.ts` (desktop), `lib/merge-account.ts` (mobile) |
+| _"Move this data into the account I already have elsewhere"_ | **merge.** The store is re-homed under the synced account's id, keeps every row, and opens under _that_ account's password from the next launch. Overlapping people go to duplicate review rather than being fused (`reconcileOnJoin`)                                | both clients' merge flows, at the tag `relay-clients-final`                |
 
 Three constraints hold the pair together. Each is enforced and explained where it lives; they
 are listed here because they are easy to undo from a distance:
 
 - **The merge's relay half runs against a copy.** Joining refuses while a local account row
   exists, so clearing that row on the _live_ store would destroy the user's account identity at
-  exactly the moment the login **failed**. Both merge flows carry the crash table in their
-  doc-comments.
+  exactly the moment the login **failed**. `joinAccountViaRelay` takes any driver for this
+  reason; the deleted merge flows carried the crash table in their doc-comments.
 - **Binding publishes before it persists.** A refused username has to leave a working
   local-only account behind with nothing to roll back.
 - **A taken username is a question, not an error.** It hides both readings above — your own
@@ -190,12 +197,12 @@ are listed here because they are easy to undo from a distance:
 > deliberately removed, because _"silently adopting a second account into a store still homed
 > under the first one's id was never a state worth producing"_. What the invariant asks for is
 > an **explicit, user-initiated merge** — a different thing from letting a roster inconsistency
-> rehome a store by accident. Read the comment on `adopt-account-flow.ts`'s assertion before
-> touching it.
+> rehome a store by accident. The guard is the _"already part of an account"_ refusal in
+> `joinAccount` and `recoverAccount` (`src/session.ts`).
 
 **Not built: merge by recovery phrase.** `recoverAccount` carries the same _"already part of an
 account"_ refusal `joinAccount` does, so it needs the same copy-first treatment and amounts to
-a second full flow; the merge UI hides its recovery affordance rather than offering a button
+a second full flow; a merge UI must hide its recovery affordance rather than offer a button
 that can only throw. The gap is a user who has the account's **phrase** but not its password —
 today they must recover on the other device first. *(Deferred, owner 2026-08-08; see
 [`plans/v0-2.md`](../../plans/v0-2.md) → *Encryption, sync, and the relay*.)*
@@ -418,8 +425,10 @@ the sections above are the decisions it implements.
   On both clients the relay is **optional** at that call — with it, the act also binds a
   relay; without it, the account is local only.
 - **Adopting an account another device created** — the join/recover counterpart, same
-  sequence: `apps/desktop/src/main/db/adopt-account-flow.ts`; on mobile, the _same_
-  `adoptStoreForAccount` that creation uses (`core-context.tsx`).
+  sequence: `joinAccountViaRelay` and `recoverAccountViaRelay` in
+  [`@leapsake/sync`](../sync/README.md), with no client caller until v0.2. Desktop's client
+  flow is at the tag `relay-clients-final`; on mobile, `adoptStoreForAccount` is the
+  conversion creation already uses (`core-context.tsx`).
 - **The doors** — `packages/crypto/src/{recovery,password-sidecar}.ts` for the primitives,
   `sealPasswordDoor` here for the one place a door is sealed, and for where the bytes land:
   desktop's `main/db/sidecars.ts` (files beside the store) and mobile's `db/doors.ts`
@@ -588,31 +597,22 @@ deterministically.
 
 ## Tests
 
-Coverage lives in `apps/desktop/test/integration/` (`key-session`,
-`password-door`, `account-join`, `reauthenticate`, `clear-account`,
-`sync-status`). These need a real encrypted SQLite driver and an OS keystore
-adapter, so they stay integration tests at the app layer rather than moving here.
+Coverage lives in `apps/desktop/test/integration/` (`key-session`, `password-door`,
+`clear-account`, `sync-status`, among others). These need a real encrypted SQLite driver and an
+OS keystore adapter, so they stay integration tests at the app layer rather than moving here.
 They reach these functions through `@leapsake/core`'s re-export.
 
-**The relay-facing flows are tested twice, on purpose.** `joinAccount`,
-`recoverAccount`, `bindRelayToAccount` and the clients' merge flows each have a
-**stub** tier (`apps/desktop/test/support/fake-relay.ts`) and a **live** tier
-against a relay running in-process on an ephemeral port
-(`apps/desktop/test/support/live-relay.ts`, and the `bind → join → converge`
-suite in `apps/server/test/relay.test.ts`). The split is not redundancy:
+**The relay-facing flows are tested live only, until v0.2.** `joinAccount`, `recoverAccount` and
+`bindRelayToAccount` run against a relay in-process on an ephemeral port, in the
+`bind → join → converge` suite in `apps/server/test/relay.test.ts`. The desktop stub tier went
+with the client flows (tag `relay-clients-final`). When the clients return, both tiers are owed,
+and they are not redundant:
 
-- The **stub** answers on demand, so it is the only way to test the orderings and
-  the guards — _what does this device do when the relay refuses?_
-- The **live** relay is the only thing that can answer _does the relay accept what
-  we published, and does its refusal arrive in the shape the client forks on?_ A
-  stub agrees with a bug as readily as with the truth, because it was written from
-  the same reading of the protocol as the code under test. The 409 that drives the
-  merge-or-rename fork is the case in point: the real transport throws
-  `relay register failed: 409` and the desktop stub throws a differently-worded
-  string, and only the live tier proves the client's match still fires.
-
-**Not covered by either: mobile.** `apps/mobile/lib/merge-account.ts` imports
-`expo-sqlite`, whose native engine cannot load headlessly
-(`apps/mobile/README.md` → _Why the driver test needs a device_), so its relay flows are exercised on-device by
-`apps/mobile/test/custody-selftest.ts` against a stub — and the live equivalent
-belongs to the blocked native/E2E tier.
+- A **stub** answers on demand, so it is the only way to test the orderings and the guards —
+  _what does this device do when the relay refuses?_
+- The **live** relay is the only thing that can answer _does the relay accept what we published,
+  and does its refusal arrive in the shape the client forks on?_ A stub agrees with a bug as
+  readily as with the truth, because it was written from the same reading of the protocol as the
+  code under test. The 409 that drives the merge-or-rename fork is the case in point: the real
+  transport throws `relay register failed: 409`, and only a live tier proves a client's match
+  still fires.
