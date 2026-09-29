@@ -8,20 +8,8 @@ import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 
-// The holiday catalog, ported from desktop's HolidayList: what Leapsake knows
-// about, when each next falls, and how many people are attached. The entry point
-// to the observer picker, which is where the feature gets its data.
-//
-// A hidden member of the tab navigator rather than a tab: it's a catalog you
-// consult, not a place you live, so the bar stays under it without spending a
-// button on it. It's reached from Search's browse list; its title and the
-// "Search" link beside it are declared with the bar, in `app/(tabs)/_layout.tsx`.
-// A holiday's own page still pushes onto the root stack, over the bar.
-//
-// Hidden holidays stay listed (sorted last, and marked) rather than filtered
-// out — this is the only screen that can unhide one, so removing them would
-// strand them. (Search indexes them too, deliberately, for the same reason —
-// see `search-service`.)
+// The holiday catalog. Hidden holidays stay listed, last and marked, since
+// this is the only screen that can unhide one.
 export default function HolidaysScreen() {
   const core = useCore();
   const load = useCallback(() => core.holidays.list(), [core]);

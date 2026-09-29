@@ -24,18 +24,13 @@ const MODE_OPTIONS: { value: NotificationMode; label: string }[] = [
   { value: "each", label: "One per reminder" },
 ];
 
-/** The title on the alert a failed write raises. One title for the lot: every
- *  write this screen makes is the same kind of thing — a policy row for some
- *  device — so naming which one failed would say nothing the screen doesn't. */
+/** The title on the alert a failed write raises; every write is a policy. */
 const FAILURE_TITLE = "Couldn’t save that";
 
-/** 9:00 AM, and what a device delivers at until somebody says otherwise. Named
- *  because two places need it: the load below, and the pickers, which have to
- *  show a time before this device has a policy row at all. */
+/** 9:00 AM, shown before this device has a policy row. */
 const DEFAULT_DELIVERY_MINUTE = 540;
 
-/** "9:00 AM" for minute 540 — matches `deliveryMinute`'s "minutes past local
- *  midnight" contract (migration 29). */
+/** "9:00 AM" for minute 540: `deliveryMinute` counts from local midnight. */
 function formatDeliveryTime(minute: number): string {
   const hour24 = Math.floor(minute / 60);
   const min = minute % 60;
@@ -44,9 +39,7 @@ function formatDeliveryTime(minute: number): string {
   return `${hour12}:${min.toString().padStart(2, "0")} ${period}`;
 }
 
-/** Every half-hour of the day — `deliveryMinute`'s picker granularity.
- *  `SelectField`'s value type must
- *  be a string, so the minute travels as one and is parsed back on change. */
+/** Every half-hour of the day, as strings, since `SelectField` takes one. */
 const TIME_OPTIONS: { value: string; label: string }[] = Array.from(
   { length: 48 },
   (_, i) => {
@@ -56,26 +49,8 @@ const TIME_OPTIONS: { value: string; label: string }[] = Array.from(
 );
 
 /**
- * **Notifications** — a root-stack screen reached from the Settings tab. Moved out
- * of Settings (which used to render it unconditionally, pre-account) to stand
- * on its own alongside Holidays, Gifts, Data, etc. — nothing about the section
- * itself changed in the move.
- *
- * Notification policy is pre-account by design — a device gets a policy the
- * moment it mints a local id, before any account exists.
- *
- * **Notification policy** — off by default, per-device, but editable from any device. Two pickers for
- * *this* device (mode, delivery time) plus a read-and-edit list of every
- * other device that has ever written a policy row. Editing another device's
- * row calls the exact same `setPolicy(otherId, patch)` this device's own
- * pickers call — the repo methods already take an explicit `deviceId`
- * (`packages/core/src/index.ts`), so there is no separate code path, only a
- * different id.
- *
- * `useFocusedData` (not a one-shot `useEffect`) so a peer's edit — including
- * one made *to this device's own row*, from another device — appears on
- * return to this screen or on the next background-sync pull, without a
- * manual refresh.
+ * Notification policy, per device and off by default: this device's pickers,
+ * then every other device's row, edited through the same `setPolicy`.
  */
 export default function NotificationsScreen() {
   const core = useCore();
@@ -96,27 +71,8 @@ export default function NotificationsScreen() {
     };
   }, [core, deviceId]);
   const { data, reload } = useFocusedData(load);
-  /**
-   * What the user has just chosen, for as long as the write and the reload
-   * behind it take to make it true.
-   *
-   * ⚠️ **Without this the pickers flicker A → B → A → B**, and the cause is in
-   * `@react-native-picker/picker` rather than here. Spinning the wheel moves it
-   * natively *and* fires `onValueChange`; the picker then compares the index
-   * native landed on against the one its `selectedValue` prop still names, and
-   * when they differ commands native **back** to the prop. Every value on this
-   * screen is read from the database, so between the spin and the reload the
-   * prop still says A: the picker snaps back to it, then jumps to B when the
-   * reload finally lands. Opting in makes the trip long enough to be
-   * unmissable, since it waits on the OS permission dialog before anything is
-   * written at all.
-   *
-   * So the prop has to follow the choice *synchronously*, which is what this is
-   * — an overlay, not a copy. The screen still reads through to the stored
-   * policy, so a peer's edit arriving on a sync pull still appears (see
-   * {@link useFocusedData}); only the value being written is held here, and only
-   * until it is written.
-   */
+  // ⚠️ The choice in flight: the picker snaps back to a `selectedValue` that
+  // lags the spin, so the prop must follow the choice synchronously.
   const [pendingMine, setPendingMine] = useState<{
     mode?: NotificationMode;
     deliveryMinute?: number;
@@ -125,10 +81,8 @@ export default function NotificationsScreen() {
     Record<string, NotificationMode>
   >({});
 
-  // request-at-opt-in (§4): only when the picker leaves `off`, never at
-  // launch and never for a device that is already asking. `wasMode` is passed
-  // rather than read back off `data`, so it is the policy in force *before* this
-  // change whatever the overlay above is currently showing.
+  // Asks only when leaving `off`. `wasMode` is passed, not read off `data`,
+  // so it is the policy in force before this change.
   async function requestPermissionIfOptingIn(
     nextMode: NotificationMode,
     wasMode: NotificationMode,
@@ -147,9 +101,8 @@ export default function NotificationsScreen() {
     );
   }
 
-  // This device's own row: every write also refreshes `label`/`platform`
-  // (`Platform.OS`-derived — no `expo-device`, see the plan doc), so the
-  // cross-device list and this device's own display name never drift apart.
+  // Every write also refreshes `label` and `platform`, so the list of devices
+  // never drifts from this device's own name.
   async function setMine(patch: {
     mode?: NotificationMode;
     deliveryMinute?: number;
@@ -170,10 +123,8 @@ export default function NotificationsScreen() {
     } catch (cause) {
       Alert.alert(FAILURE_TITLE, String(cause));
     } finally {
-      // Back to reading the stored policy either way, and only for the fields
-      // this write carried: after a reload that *is* the value just chosen, and
-      // after a failure it is the one actually in force. A picker still showing
-      // a write that never landed would be lying rather than merely flickering.
+      // Back to the stored policy for these fields, success or failure, so a
+      // picker never shows a write that did not land.
       setPendingMine((current) => {
         const next = { ...current };
         if ("mode" in patch) delete next.mode;
@@ -199,9 +150,7 @@ export default function NotificationsScreen() {
     }
   }
 
-  // What this device's two pickers show: the choice in flight if there is one,
-  // else the stored policy. `data` is null only before the first load, when
-  // nothing that reads these is on screen.
+  // The choice in flight, else the stored policy.
   const mode = pendingMine.mode ?? data?.mode ?? "off";
   const deliveryMinute =
     pendingMine.deliveryMinute ??

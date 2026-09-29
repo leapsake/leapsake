@@ -8,25 +8,8 @@ import { useFocusedData } from "../../lib/useFocusedData";
 import { styles } from "../../lib/styles";
 
 /**
- * Add a gift — the standalone create screen, reached with the **New** tab from
- * the Gifts catalog, ported from desktop's `GiftCreate`. Type a name/URL to
- * capture an idea; add people/pets it would suit; tick anyone who already has it.
- *
- * Reached with a recipient already chosen (`?recipient=<type>:<id>`) from a person
- * or pet's Gifts section, and when a completed `🎁 gift` reminder hands off. Then
- * the picker collapses to that one person or pet. An unresolvable id falls back
- * to the ordinary picker.
- *
- * **`?given=1` is what ticks the box, not the recipient.** The reminder hand-off
- * sends it, because the answer to "record what you gave" is that you gave it. The
- * Gifts section's own "Add gift" does not: that list is a list of things to get
- * somebody, so a gift added to it is one you haven't. Both arrive with a
- * recipient, which is why having a recipient cannot be the signal.
- *
- * **Where saving lands depends on how you got here.** Arriving with a recipient
- * means arriving from somewhere that already shows that recipient's gifts, so it
- * goes back there; arriving from the catalog with no recipient has nowhere to go
- * back to that would show the new gift, so it lands on the catalog.
+ * Add a gift. `?recipient=` fixes who it is for, and saving goes back there;
+ * `?given=1`, not the recipient, ticks it as already given.
  */
 export default function GiftCreateScreen() {
   const core = useCore();
@@ -42,9 +25,7 @@ export default function GiftCreateScreen() {
   );
   const { data, error } = useFocusedData(load);
 
-  // The form declares the header (title + Save) itself, so the title is set here
-  // only for the branches where it isn't mounted yet. Two `Stack.Screen`s for one
-  // route would otherwise race over the same options.
+  // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || data === null) {
     return (
       <>
@@ -77,9 +58,7 @@ export default function GiftCreateScreen() {
       keyboardShouldPersistTaps="handled"
     >
       {fixedRecipient !== undefined && (
-        // Who, not what: the form's own first control now says whether this is an
-        // idea or something already given, and arriving here only settles the
-        // recipient. It is also the sole mention of them, the picker being hidden.
+        // The only mention of the recipient, the picker being hidden.
         <Text style={styles.muted}>A gift for {fixedRecipient.label}.</Text>
       )}
 

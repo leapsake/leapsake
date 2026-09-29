@@ -26,45 +26,18 @@ import {
 } from "../components/ProtectData";
 import { styles } from "../lib/styles";
 
-/**
- * Import from Contacts — asks for the address book, brings in everyone it can
- * see, and from then on keeps bringing in new contacts on its own
- * (`lib/device-contacts-sync.ts`, which has the rules).
- *
- * There is no checklist of our own. The system's permission prompt already asks
- * the question — share everything, or pick — and a second list after it asked it
- * twice. Somebody who brings in more people than they wanted removes them; a
- * removed person stays removed.
- *
- * Duplicates are left to the review after the import (see {@link finish}) rather
- * than flagged beforehand: it merges the two records, where a pre-import warning
- * could only offer to leave the contact out.
- *
- * ## The protect offer comes first *(2026-09-13)*
- *
- * An accountless store is **plaintext by design** (`encryption/model.md` §7.2), and
- * this screen is the single largest write the app ever makes to it — an entire
- * address book. Importing first and offering encryption afterwards was the shape
- * the onboarding nudges used to guarantee, and it is the wrong way round twice
- * over: the whole list lands in the clear, and the conversion that follows cannot
- * scrub those bytes out of free space (`model.md` §12). So a device with no account
- * is asked here, before a single contact is read.
- *
- * ⚠️ **It is an offer, not a wall.** *Import without protecting* is right there and
- * costs one tap, because nothing may stand between opening the app and using it
- * (`model.md` §7). The offer is the opinionated default; the skip is what keeps it
- * a default rather than a gate.
- */
+// Import from Contacts, which switches the sync on; with no account it first
+// offers one (the app's README → Keeping People in step).
 
 type Access = "all" | "limited";
 
 type State =
-  /** Reading custody before anything else — the offer below depends on it. */
+  /** Reading custody, which the offer depends on. */
   | { phase: "checking" }
   /** No account: offer to encrypt this device before the address book lands. */
   | { phase: "offer" }
   | { phase: "protecting" }
-  /** The one-time phrase, which every caller of the form owes the user. */
+  /** The one-time phrase, shown before the import it was created for. */
   | { phase: "revealing"; phrase: string }
   | { phase: "working" }
   | { phase: "denied" }
@@ -81,8 +54,7 @@ export default function ImportScreen() {
   const account = useAccount();
   const router = useRouter();
   const [state, setState] = useState<State>({ phase: "checking" });
-  // Gates the import effect below. Set by taking or declining the offer, and by
-  // the custody check when there is no offer to make.
+  // Gates the import: set by answering the offer, or when there is none.
   const [importing, setImporting] = useState(false);
 
   function startImport() {
@@ -90,9 +62,7 @@ export default function ImportScreen() {
     setImporting(true);
   }
 
-  // Which side of the offer this visit falls on. A store that already holds an
-  // account is encrypted, so there is nothing to ask and the import starts as it
-  // always did.
+  // An account's store is already encrypted, so there is nothing to offer.
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -102,9 +72,7 @@ export default function ImportScreen() {
         if (status.hasAccount) startImport();
         else setState({ phase: "offer" });
       } catch {
-        // A custody read that fails must not strand the user on a screen they
-        // came here to use. Falling through to the import is the same behaviour
-        // this screen had before the offer existed.
+        // A failed custody read must not strand the user: import anyway.
         if (live) startImport();
       }
     })();
@@ -116,9 +84,8 @@ export default function ImportScreen() {
   useEffect(() => {
     if (!importing) return;
     let live = true;
-    // Everything that lands while this screen is up is this import's result,
-    // not only its own run's: see `observeDeviceContactSync` for the background
-    // run that tends to get there first.
+    // Every run that lands while this is up counts, since a background run
+    // tends to get there first.
     const landed: ImportResult = { created: 0, skipped: 0, errors: [] };
     const stopObserving = observeDeviceContactSync((run) => {
       landed.created += run.created;
@@ -137,21 +104,17 @@ export default function ImportScreen() {
         }
         const access: Access =
           permission.accessPrivileges === "limited" ? "limited" : "all";
-        // The first time, iOS's own prompt has just asked who to share. On a
-        // later visit under limited access nothing would ask again, and coming
-        // back here is how somebody shares more — so offer the system picker.
+        // Under iOS's limited access nothing asks again, so a return visit
+        // offers the system picker to share more.
         if (before.granted && access === "limited" && Platform.OS === "ios") {
           await Contact.presentAccessPicker().catch(() => []);
         }
         await core.deviceContacts.setSyncEnabled(true);
-        // Queued behind any run already going, so once this resolves every run
-        // that could have taken these contacts has reported to `landed`.
+        // Queued, so once this resolves every earlier run has reported.
         await syncDeviceContacts(core);
         stopObserving();
         const result = { ...landed, errors: [...landed.errors] };
-        // Import is a natural prompt point for the self-person, mirroring
-        // desktop's ImportReview: offer it only when people actually landed and
-        // no self is set yet — there's now a list to pick from.
+        // Offer to pick yourself once people landed and no self is set.
         const self = await core.self.get().catch(() => undefined);
         if (live) {
           setState({
@@ -171,20 +134,12 @@ export default function ImportScreen() {
     };
   }, [core, importing]);
 
-  /**
-   * Leave the import. Nothing checked the contacts against people who already
-   * existed, or against each other, before they were written — so once they are,
-   * ask the detector and land on the review if it has anything. Unscoped: one
-   * import can implicate many people at once. Mirrors desktop's ImportReview
-   * `finish`.
-   */
+  /** Leave, landing on the duplicates review if the import made any. */
   async function finish(result: ImportResult) {
     const outstanding =
       result.created > 0 ? await core.duplicates.count().catch(() => 0) : 0;
-    // Two different moves, because the two destinations live in different
-    // navigators: the review is another root-stack screen, so it replaces this
-    // one; People & Pets is in the tab navigator underneath, so we drop back to
-    // it rather than stacking a second copy of the tabs on top.
+    // The review is a root-stack screen and replaces this one; People & Pets
+    // is in the tabs underneath, so we drop back to it.
     if (outstanding > 0) router.replace("/duplicates");
     else router.dismissTo("/people");
   }
@@ -205,9 +160,8 @@ export default function ImportScreen() {
           nothing here is encrypted — setting up a login encrypts it first, so
           they land protected rather than in the clear.
         </Text>
-        {/* Promise access, not safety — the same line the form itself takes. An
-            account protects against this device losing its security settings; it
-            does nothing about a lost or broken phone. */}
+        {/* Promises access, not safety: an account does nothing for a lost
+            phone. */}
         <Text style={styles.muted}>
           It takes a minute and nothing is sent anywhere. You can do it later
           from Settings instead, but the contacts imported before then will have
@@ -221,8 +175,7 @@ export default function ImportScreen() {
         >
           <Text style={styles.buttonText}>Protect my data first</Text>
         </Pressable>
-        {/* Named for what it does rather than softened into "skip", because it is
-            the choice with a consequence and the user is entitled to read it. */}
+        {/* Named for its consequence, not softened into "skip". */}
         <Pressable
           testID="import-without-protecting"
           accessibilityRole="button"
@@ -250,8 +203,6 @@ export default function ImportScreen() {
     );
   }
 
-  // The phrase is shown exactly once and is never derivable again, so this stands
-  // between creating the account and the import it was created for.
   if (state.phase === "revealing") {
     return (
       <>
@@ -276,11 +227,7 @@ export default function ImportScreen() {
         >
           <Text style={styles.buttonText}>Open Settings</Text>
         </Pressable>
-        {/* The way on for someone who is not going to grant it. This screen is
-            where the first-run nudge sends people, so a refusal here would
-            otherwise end the only path the app had offered them. Adding by hand
-            is a complete answer to "get started", and the two screens link to
-            each other rather than one way. */}
+        {/* A refusal must not end the first-run path: adding by hand. */}
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push("/add")}
@@ -334,10 +281,8 @@ export default function ImportScreen() {
       {promptSelf && (
         <View style={{ gap: 8 }}>
           <Text style={styles.rowText}>Which of these is you?</Text>
-          {/* `replace`, not `dismissTo`: /about-you is another root-stack
-              screen, so it stands in for this one rather than dropping back to
-              the tabs. Its typeahead is the point at this exact moment — the
-              list behind it is hundreds of names long and you know your own. */}
+          {/* `replace`: /about-you is a root-stack screen, standing in for
+              this one. */}
           <Pressable
             accessibilityRole="button"
             style={styles.button}
@@ -347,16 +292,8 @@ export default function ImportScreen() {
           </Pressable>
         </View>
       )}
-      {/* The one way off this screen, the header's Back being withheld here (see
-          {@link Screen}). They were two controls for one decision and only this
-          one does the work: it asks the detector what the import implicated and
-          lands on the review, where Back would drop the user wherever they
-          happened to arrive from and leave the duplicates unseen.
-
-          A **button** in both states rather than a bare word in one. The quiet
-          style is what lets "Pick yourself" lead without demoting this to a link
-          nobody is sure is tappable — and it is now the only way out, which a
-          link is the wrong shape for. */}
+      {/* The one way off, Back being withheld: Back would skip the
+          duplicates review. */}
       <Pressable
         accessibilityRole="button"
         // Secondary once the self prompt is up, so "Pick yourself" leads.
@@ -376,14 +313,7 @@ export default function ImportScreen() {
   );
 }
 
-/**
- * A simple container for each of the screen's states.
- *
- * `hideBack` is how the finished state ends up with exactly one way out — see
- * the Done button above. Every **other** state keeps Back, and must: none of
- * them offers a way on, so a screen you could not leave is a worse bargain than
- * a redundant control.
- */
+/** A container for each state; only the finished one hides Back. */
 function Screen({
   title,
   hideBack = false,

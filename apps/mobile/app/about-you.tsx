@@ -17,20 +17,16 @@ import { entityHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 
-/**
- * Every user-visible string on this screen, in one place so the later
- * message-catalog sweep is mechanical (AGENTS.md → *User-visible text*).
- */
+/** Every user-visible string on this screen. */
 const TEXT = {
   title: "Tell us about yourself",
   /** Why it is worth answering, said once and without a guilt trip. */
   lede: "Leapsake keeps track of who is who around you, so it helps to know where you are in that. Gifts and family connections both start from you.",
   pick: "Which of these is you?",
-  /** Over the form when there is a list above it, and over it when there isn't. */
+  /** Over the form, with and without a list above it. */
   addWithList: "Or add yourself",
   addAlone: "Add yourself",
-  /** Offered only to a store with nobody in it: the fastest way to get a list to
-   *  pick from, rather than typing a name in to answer one question. */
+  /** Offered only to a store with nobody in it: a list to pick from. */
   importFirst: "Import from your contacts",
   save: "Save",
   saving: "Saving…",
@@ -39,27 +35,8 @@ const TEXT = {
 } as const;
 
 /**
- * **Tell us about yourself** — where the `about-you` onboarding nudge lands, and
- * the only screen that sets the self-person.
- *
- * It replaced the People list's `?pick=self` mode, which could only ask *which of
- * these is you?* and therefore could only be asked once the user had already put
- * someone in the app. That made the step wait on an unrelated action and stacked
- * it onto the moment the first person landed. This screen answers the question
- * from either end, so the nudge stands from day one:
- *
- * - **With people in the store**, a typeahead over them. Better than a list to
- *   scroll at the moment it matters most — straight after importing an address
- *   book, when there are hundreds of rows and you know your own name.
- * - **With none**, the offer to import, because a store with nobody in it wants
- *   an address book more than it wants one hand-typed name.
- * - **Either way, the form**, so "I'm not in there" is always answerable without
- *   leaving.
- *
- * The form is {@link PersonFields} — the name and gender a person is created
- * with — and deliberately *not* the create screen's full staging of milestones,
- * contacts and relationships. This screen asks one question. Landing on your own
- * page afterwards is what puts the rest within reach, your birthday included.
+ * The one screen that sets the self-person: pick from the people there are,
+ * or import some, and either way add yourself by name.
  */
 export default function AboutYouScreen() {
   const core = useCore();
@@ -69,10 +46,7 @@ export default function AboutYouScreen() {
   const form = usePersonForm();
   const [saving, setSaving] = useState(false);
 
-  /** Set an existing person as you, then drop back to Home — the answer is
-   *  recorded and there is nothing further to do here. Home is in the tab
-   *  navigator underneath, so this dismisses to it rather than stacking a second
-   *  copy of the tabs (the same move `import.tsx` makes on the way out). */
+  /** Set an existing person as you, then dismiss to Home in the tabs below. */
   function pick(person: EntityRow) {
     core.self.set(person.id).then(
       () => router.dismissTo("/"),
@@ -80,15 +54,8 @@ export default function AboutYouScreen() {
     );
   }
 
-  /**
-   * Write yourself in, then become the self-person in the same breath.
-   *
-   * It lands on the new person's page rather than back on Home, which is the one
-   * place the two answers differ: picking an existing person tells the app
-   * something it can act on immediately, while a person created here is a name
-   * and nothing else. Their page is where the birthday goes, and it is already
-   * open.
-   */
+  /** Create yourself and become the self-person, landing on your page,
+   *  where the birthday goes. */
   async function save() {
     const shaped = form.submit();
     if (saving) return;
@@ -121,8 +88,7 @@ export default function AboutYouScreen() {
     );
   }
 
-  // Only a person can be you, so a store of nothing but pets counts as empty
-  // here — and is offered the importer, exactly like a store of nothing at all.
+  // Only a person can be you, so a store of only pets counts as empty.
   const people = entities.filter((entity) => entity.type === "person");
 
   return (

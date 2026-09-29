@@ -97,6 +97,12 @@ runs at boot, on foreground, and whenever the address book changes while the app
 Under iOS's limited access the sync sees only what the user chose to share, so a contact added
 to the phone arrives once it is shared.
 
+**A device with no account is offered an account before the import** _(2026-09-13)_. The import
+is the largest write the app makes to a plaintext store, and converting afterwards cannot scrub
+those bytes from free space. It is an offer, not a wall: _Import without protecting_ is one tap.
+There is no checklist of our own either, since the system's permission prompt already asks who
+to share; duplicates are left to the review after the import, which can merge them.
+
 ## Running
 
 ```sh

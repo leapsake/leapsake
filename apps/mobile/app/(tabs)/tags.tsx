@@ -8,20 +8,8 @@ import { tagHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 
-// The tag catalog: every tag in use, alphabetically, each row opening the tag's
-// page (everything wearing it). A catalog like Holidays and Gifts — a hidden
-// member of the tab navigator reached from Search's browse list, keeping the bar
-// under it without a button of its own. Its title and "Search" link are declared
-// with the bar, in `app/(tabs)/_layout.tsx`.
-//
-// It earns a place next to those two for the same reason: tags are created
-// inline, scattered across people, pets, reminders, and gift ideas, so without
-// this there is nowhere to see what tags you actually have. Search finds a tag
-// you can already name; this is for the ones you can't.
-//
-// Tags aren't created here — a tag exists only because something wears it (the
-// repo garbage-collects a tag the moment its last tagging goes), so there's no
-// "New tag" affordance to offer.
+// Every tag in use, alphabetically. None is created here: a tag exists only
+// while something wears it.
 export default function TagsScreen() {
   const core = useCore();
   const load = useCallback(() => core.tags.list(), [core]);
@@ -49,16 +37,8 @@ export default function TagsScreen() {
             </Text>
           }
           renderItem={({ item: tag }) => (
-            /*
-              `accessible` + a label, because `Link` renders a `Text` and the `View`
-              below is therefore a view nested in text — which iOS drops from the
-              accessibility tree entirely. The row is legible on screen and invisible
-              to VoiceOver, and to any driver: `maestro hierarchy` finds no trace of a
-              tag on this screen. Grouping the row under one label restores both.
-              `app/(tabs)/holidays.tsx` has the same shape and the same fix; the People
-              and Gift catalogs nest text rather than a view, so they were never
-              affected.
-            */
+            /* `Link` renders a `Text`, and iOS drops a view nested in text from
+               the accessibility tree; one label restores the row. */
             <Link
               href={tagHref(tag)}
               style={styles.row}

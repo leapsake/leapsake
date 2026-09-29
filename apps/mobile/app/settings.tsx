@@ -11,22 +11,13 @@ import {
 import { colors, styles } from "../lib/styles";
 
 /**
- * Account setup (custody Phase 1/2) — the mobile mirror of desktop's Settings
- * screen, titled "Account" here since the Settings tab is this client's own
- * overflow menu, not this screen. Deliberately a *stateful* screen, not a router
- * loader: the recovery key is shown exactly once and must not survive a
- * navigation or a re-run, so it lives in local state and is dropped the moment
- * the user confirms they've saved it.
- *
- * A root-stack screen reached from the Settings tab (and from Home's "Get
- * started" onboarding nudge, which deep-links straight here). It sets its own
- * header title, which the tab navigator used to.
+ * The Account screen. The recovery phrase lives in local state only, so it
+ * cannot survive a navigation, and goes once the user has saved it.
  */
 export default function SettingsScreen() {
   const account = useAccount();
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  // The phrase currently on screen for its one-and-only showing — from account
-  // creation, or from the rotation that replaced it.
+  // The phrase on screen for its one showing, from creation or rotation.
   const [revealed, setRevealed] = useState<string | null>(null);
 
   function refreshStatus() {
@@ -35,9 +26,7 @@ export default function SettingsScreen() {
 
   useEffect(refreshStatus, [account]);
 
-  // One-time reveal takes over the screen until acknowledged. It keeps the same
-  // header title as the screen it took over, so each branch declares it — the
-  // shape holidays/[id] uses for its own two branches.
+  // The reveal takes over until acknowledged; each branch declares the title.
   if (revealed !== null) {
     return (
       <>
@@ -64,13 +53,7 @@ export default function SettingsScreen() {
         ) : (
           <CreateAccountForm onCreated={setRevealed} />
         )}
-        {/*
-          Getting rid of what is on this device lives on Settings > Data (app/data.tsx)
-          rather than here: it is the same act whether or not an account holds the
-          data, and this screen is about the account itself. What stays is what
-          only makes sense with one — replacing the recovery phrase, and signing
-          out of it.
-        */}
+        {/* Only what needs an account; erasing data lives on Data. */}
         {status !== null && status.hasAccount && (
           <>
             <RecoveryPhraseSection onRotated={setRevealed} />
@@ -100,30 +83,15 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
   );
 }
 
-/**
- * **Sign out** (`model.md` §7.3) — the one action that reaches the Locked state
- * in v0.1, and the mobile mirror of desktop's.
- *
- * Two things it deliberately is not. Not a *Lock* button: Locked is a state, not
- * an affordance, and the app is meant to enter it on the user's behalf once idle
- * locking ships (v0.2). And not two behaviors sharing a name — the promise is
- * *nobody can see my data on this device anymore*. That the encrypted bytes
- * remain is stated plainly, because it is the part a local-only user would
- * otherwise worry about.
- *
- * No confirmation step: it is reversible with the password, and gating it would
- * teach users to tap through the confirmations that *do* matter.
- */
+/** Sign out, with no confirmation: the password reverses it. */
 function SignOutSection() {
   const account = useAccount();
   const [error, setError] = useState<string | null>(null);
 
   function signOut() {
     setError(null);
-    // Not awaited: the provider tears the core down and re-runs its bootstrap as
-    // part of this call, so this screen unmounts into the unlock gate. A
-    // rejection still lands here — it means the sign out was refused up front,
-    // and the screen is still mounted.
+    // Not awaited: success unmounts this into the unlock gate, and only an
+    // up-front refusal comes back here.
     account.signOut().catch((cause: unknown) => {
       setError(cause instanceof Error ? cause.message : "Couldn't sign out.");
     });
@@ -149,16 +117,8 @@ function SignOutSection() {
 }
 
 /**
- * Replace the recovery phrase — **only rendered once an account exists**, and only
- * ever a *replacement*. The phrase is shown once at account creation and never
- * again, so this is the one later route to holding one. Mirrors desktop's
- * section, copy included.
- *
- * The copy has to get this right, because it is counter-intuitive: **it is not a
- * way back in.** It requires the password, and the phrase exists for when the
- * password is gone. Its real job is compromise response — "my phrase leaked" —
- * and someone arriving here after forgetting their password needs the unlock
- * gate instead.
+ * Replace the recovery phrase. Its copy must say it is no way back in: it
+ * needs the password, and exists for a phrase that leaked.
  */
 function RecoveryPhraseSection({
   onRotated,
@@ -179,8 +139,7 @@ function RecoveryPhraseSection({
       const { recoveryPhrase } = await account.rotateRecoveryPhrase(password);
       setPassword("");
       setConfirming(false);
-      // Straight into the same one-time reveal account creation uses: this is the
-      // only time these words are ever displayed.
+      // The same one-time reveal account creation uses.
       onRotated(recoveryPhrase);
     } catch (cause) {
       setError(

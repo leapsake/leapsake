@@ -16,46 +16,14 @@ import { entityHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
 /**
- * Add a person or a pet — the single destination behind **New** on People &
- * Pets. It replaced a chooser screen that asked "person, pet, or import?" with
- * three buttons and then `replace`d itself with one of three forms; the question
- * is now a toggle on the form itself, which opens on **Person** because that is
- * overwhelmingly what a user is adding.
- *
- * Two things the old chooser did that this has to keep doing:
- *
- * - **Import from Contacts** was reachable *only* from it. It is now a link at
- *   the foot of this form (and a row on Menu > Data). The link `push`es rather
- *   than `replace`s, so backing out of the importer returns to a half-filled
- *   form rather than throwing the typing away.
- * - **Nothing stays in the back stack.** The chooser dropped itself so that Back
- *   from a new person's page landed on Home; this screen's `replace` at the end
- *   of {@link save} does the same job.
- *
- * The form **stages** every section the detail pages carry — milestones,
- * contacts, holidays, relationships, gifts — because they are keyed to a bearer
- * id that doesn't exist until the entity is written. That body is
- * {@link EntityFormSections}; {@link applyEntityForm} writes it in one pass once
- * the record exists. A relationship's *other* end needs nothing from the subject
- * either — it is an already-saved person or pet, or a name typed past the end of
- * the list, which becomes an unpublished entity when the batch is written — so
- * it stages like the rest.
- *
- * **This is the last whole-record form, and deliberately so.** Every part of a
- * *saved* person or pet is edited on a small screen of its own, each with a Save
- * that writes one thing. Here nothing is real yet and everything is provisional,
- * so one Save for the lot is the honest shape; there is no half-created person
- * to leave a milestone hanging off.
+ * Add a person or pet, staging every section until the record exists; the
+ * one whole-record form, since a saved record is edited a part at a time.
  */
 export default function AddScreen() {
   const [type, setType] = useState<EntityType>("person");
 
-  // Keyed on the entity type, so flipping the toggle remounts the form and drops
-  // every draft and staged entry with it. That's the intended behaviour (the two
-  // halves share no fields worth carrying across) and it's also the safe one:
-  // both milestone kinds and relationship roles are constrained by the subject's
-  // type, so a staged person milestone isn't necessarily a legal pet milestone,
-  // and a role picked against a person needn't be one a pet can hold.
+  // Keyed on the type, so the toggle drops every staged row: milestone kinds
+  // and roles legal for a person need not be legal for a pet.
   return <AddEntityForm key={type} type={type} onTypeChange={setType} />;
 }
 
@@ -89,9 +57,7 @@ function AddEntityForm({
     if (problem !== undefined || saving) return;
     setSaving(true);
     try {
-      // The whole record, not just its id: the page this screen is about to
-      // replace itself with is titled from it, so the name just typed is already
-      // in the header when it lands (`lib/record-title.ts`).
+      // The whole record, which titles the page this is replaced with.
       const created = await createRecord();
       if (created === null) {
         setSaving(false);
@@ -99,8 +65,6 @@ function AddEntityForm({
       }
       const id = created.id;
 
-      // Everything staged, against the entity that now exists — every row a
-      // create, since nothing was there before.
       const failed = await applyEntityForm(core, type, id, value);
       if (failed.length > 0) {
         Alert.alert(
@@ -110,12 +74,8 @@ function AddEntityForm({
       }
 
       if (isPerson) {
-        // Detection runs at the moment the duplicate is created, while the user
-        // still remembers both entries and can act on them — but only when there
-        // is something to resolve, and only *after* the staged sections land, so
-        // the review compares finished records. Either way this screen is
-        // **replaced**, so back returns home rather than to a filled-in form; the
-        // review screen's "Not now" then replaces itself with the detail page.
+        // After the staged rows land, so the review compares finished records.
+        // Replaced either way, so Back never returns to a filled-in form.
         const matches = await core.duplicates.findFor(id).catch(() => []);
         router.replace(
           matches.length > 0
@@ -131,8 +91,7 @@ function AddEntityForm({
     }
   }
 
-  // Both stable across a keystroke, so typing never reaches the navigator — see
-  // {@link useHeaderSave}.
+  // Both stable across a keystroke, so typing never reaches the navigator.
   const headerRight = useHeaderSave({
     problem,
     saving,
