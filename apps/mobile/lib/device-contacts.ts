@@ -11,27 +11,7 @@ import {
 } from "@leapsake/vcard";
 import type { ContactDate, ContactDetails } from "expo-contacts";
 
-/**
- * The mobile counterpart to the desktop vCard parser (`@leapsake/vcard`'s
- * `parseVCards`): a *format-specific* mapper turning an `expo-contacts` device
- * record into the same Leapsake-shaped {@link ParsedContact} the format-agnostic
- * ingest engine consumes. Keeping it pure — a plain data-in/data-out function
- * that never touches the native module — is what lets it run under node in a unit
- * test; the side-effectful read (permission + `Contact.getAllDetails`) lives in
- * `device-contacts-sync.ts`.
- *
- * Like the vCard parser it never fabricates data: a company card with no
- * given/family name leaves the name empty (the ingest engine then leaves it out
- * and remembers it as seen), and fields Leapsake has no home for (organisation,
- * note) are carried in `dropped[]` rather than silently lost.
- */
-
-/**
- * The slice of `expo-contacts`' `ContactDetails` the mapper reads — the fields the
- * import screen requests from `Contact.getAllDetails`. A structural subset so the
- * mapper stays decoupled from the full native record (and so a test can hand-build
- * one without the native module).
- */
+/** The fields of `expo-contacts`' `ContactDetails` the mapper reads. */
 export type DeviceContact = Pick<
   ContactDetails,
   | "givenName"
@@ -47,18 +27,13 @@ export type DeviceContact = Pick<
   | "dates"
 >;
 
-/** Trim to a non-empty string, or `null` — the shape the parsed schemas want. */
+/** Trim to a non-empty string, or `null`, as the parsed schemas want. */
 function clean(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed !== undefined && trimmed !== "" ? trimmed : null;
 }
 
-/**
- * A postal `country` only as an ISO 3166-1 alpha-2 code (what `countryCodeSchema`
- * demands). `expo-contacts` returns a free-text country *name* ("USA", "United
- * States"), which carries no reliable code — so anything that isn't already a
- * two-letter code stays `null` rather than guessing, mirroring the vCard parser.
- */
+/** A two-letter country code, or `null` for a device's free-text name. */
 function isoCountry(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed !== undefined && /^[A-Za-z]{2}$/.test(trimmed)
@@ -66,24 +41,13 @@ function isoCountry(value: string | null | undefined): string | null {
     : null;
 }
 
-/**
- * A couple of constants Apple ships *unwrapped* (`CNLabelPhoneNumberiPhone` is
- * just `"iPhone"`). Only the ones we deliberately rewrite are listed: "iPhone"
- * becomes "Mobile" so a contact imported from the device and the same contact
- * imported as a vCard — where the parser maps `TYPE=IPHONE` the same way — carry
- * the same label. `iCloud`, `Apple Watch` and friends read fine as-is.
- */
+/** Apple labels rewritten to match what the vCard parser gives them. */
 const PLAIN_LABELS: Record<string, string> = { iphone: "Mobile" };
 
 /** The label to show for a contact method with none of its own. */
 const DEFAULT_LABEL = "Other";
 
-/**
- * Turn a device label into display text: unwrap an Apple label constant (shared
- * with the vCard importer, which meets the very same constants in an exported
- * card), or pass free text through. Falls back to {@link DEFAULT_LABEL} when
- * there is nothing — contact-method labels are `min(1)` in the parsed schema.
- */
+/** A device label as display text; never empty, as the schema requires. */
 function label(value: string | null | undefined): string {
   const trimmed = clean(value);
   if (trimmed === null) return DEFAULT_LABEL;
@@ -93,20 +57,8 @@ function label(value: string | null | undefined): string {
 }
 
 /**
- * One component of a device date, or `null` when it is missing or is not a value
- * a civil date could hold.
- *
- * The range check is not idle defensiveness. iOS reads the labelled `dates` list
- * off `NSDateComponents`, whose components are *not* optional: an unset one holds
- * the sentinel `NSDateComponentUndefined` (`NSIntegerMax`), and `expo-contacts`
- * copies it into the record verbatim instead of reading it as absent. So an
- * anniversary saved with the year left off — the `X-APPLE-OMIT-YEAR` date the
- * Contacts app writes — reaches us as year `9223372036854775807`, and passing that
- * through failed the *entire contact* at the write, since `milestoneSchema`'s
- * `z.number().int()` caps at `Number.MAX_SAFE_INTEGER`. The dedicated birthday
- * field escapes it (its mapper reads Swift's `DateComponents`, whose parts really
- * are optional) and so does Android (its record's parts are nullable), which is
- * why only a year-less *anniversary* ever brought a card down.
+ * iOS's labelled dates give an unset part as `NSIntegerMax`, which fails the
+ * whole contact's write, so anything out of range is read as absent.
  */
 function datePart(value: number | undefined, max: number): number | null {
   return value !== undefined &&
@@ -117,13 +69,7 @@ function datePart(value: number | undefined, max: number): number | null {
     : null;
 }
 
-/**
- * An `expo-contacts` {@link ContactDate} as Leapsake's partial civil date, or
- * `null` when it carries no usable month. `month` is already 1-indexed (1-12) on
- * both platforms, so it maps straight across; `year` is optional (a date without
- * one recurs annually), and every part is read through {@link datePart} so a
- * sentinel or malformed component is treated as absent rather than stored.
- */
+/** A device date as a partial civil date; `null` with no usable month. */
 function partialDateFrom(
   value: ContactDate | null | undefined,
 ): ParsedPartialDate | null {
@@ -150,16 +96,7 @@ function partialDateText(date: ParsedPartialDate): string {
 
 const NOTE_CAP = 300;
 
-/**
- * Map one device contact to a {@link ParsedContact}. Pure — no permission checks,
- * no native calls. Every date from `expo-contacts` is already 1-indexed (1-12) in
- * its month, so it maps straight onto Leapsake's civil-date month.
- *
- * The two date sources are handled asymmetrically on purpose: the dedicated
- * birthday field is authoritative where the platform has one (iOS), and the
- * labelled `dates` list supplies the birthday only where it doesn't (Android),
- * plus any anniversary on either.
- */
+/** Map one device contact to a {@link ParsedContact}, with no native calls. */
 export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   const firstName = clean(contact.givenName) ?? "";
   const lastName = clean(contact.familyName) ?? "";
@@ -174,8 +111,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   const phones: ParsedPhone[] = (contact.phones ?? []).flatMap((phone) => {
     const number = clean(phone.number);
     if (number === null) return [];
-    // `country` stays null: an address-book number carries no reliable ISO code,
-    // and `smsCapable` defaults true (the platform doesn't flag fax lines here).
+    // No reliable ISO code, and no fax flag, so `smsCapable` defaults true.
     return [
       {
         label: label(phone.label),
@@ -203,29 +139,15 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     ];
   });
 
-  // iOS keeps the birthday in its own dedicated field (`CNContactBirthdayKey`),
-  // which is authoritative when present. Android has no such field at all — its
-  // `GetContactDetailsRecord` carries none — and keeps the birthday in `dates`
-  // under a "birthday" label, which is why the fallback below exists.
+  // iOS's dedicated birthday field wins; Android has none and keeps it in
+  // `dates` under a "birthday" label instead.
   const dedicatedBirthday = partialDateFrom(contact.birthday);
 
-  // Surface what we read but can't store, so the review shows "Not imported: …".
+  // What was read but cannot be stored, so it is named rather than lost.
   const dropped: DroppedField[] = [];
 
-  // The platform's "other dates" list. Everything here is labelled, and the label
-  // is the only thing saying what the date *is* — so it is routed through
-  // {@link dateKindFor} rather than assumed — the same map the vCard importer
-  // routes an `X-ABDATE` through. Three outcomes, in order:
-  //
-  //  1. "birthday" — the Android birthday (that platform has no dedicated field).
-  //     It fills the birthday only if the dedicated field was empty, so on iOS a
-  //     duplicate entry can never mint a second birthday milestone.
-  //  2. a label naming one of the eight kinds recoverable from a label alone —
-  //     "Anniversary", "Graduation", "Started a job" — which becomes that
-  //     milestone. iOS offers only Anniversary and Other in its own picker, so
-  //     the rest arrive as free text the user typed.
-  //  3. anything else — dropped, and *named*, so the review says "Not imported:
-  //     Date (Beach house closing)" rather than losing it in silence.
+  // The label is all that says what a date is: a birthday, a kind
+  // `dateKindFor` recognises, or else dropped by name.
   const dates: ParsedDate[] = [];
   let birthdayFromDates: ParsedPartialDate | null = null;
   for (const entry of contact.dates ?? []) {
@@ -249,8 +171,6 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
       kind,
       label: text,
       date,
-      // The device API has no place for a milestone's note or its id — a
-      // contact's date entry is a label and a value, nothing else.
       note: null,
       id: null,
       relationshipId: null,
@@ -265,10 +185,7 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     dropped.push({ property: "Note", value: note.slice(0, NOTE_CAP) });
 
   return {
-    // The device API exposes no stable cross-device id we could carry as a
-    // `UID` — `Contact.id` is local to this address book — and no tag concept
-    // at all. Both stay at the parser's absent value, as do the four facts only
-    // a Leapsake-written card carries.
+    // `Contact.id` is local to this address book, so it is no `UID`.
     uid: null,
     kind: "individual",
     isSelf: false,
@@ -280,16 +197,11 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
     emails,
     phones,
     postals,
-    // `expo-contacts` exposes `socialProfiles` and `instantMessageAddresses`,
-    // but the import screen does not request either today — adding them is a
-    // change to what `Contact.getAllDetails` is asked for, not to this mapper.
+    // Not requested from `Contact.getAllDetails`.
     socials: [],
     birthday: dedicatedBirthday ?? birthdayFromDates,
     dates,
-    // expo-contacts does expose `relationships`, but only ever as a free-text
-    // label and a name, with no role vocabulary to map — unlike a vCard's
-    // `RELATED;TYPE=`. Reading them would mean guessing at the role, so they are
-    // left alone until there is a reason to.
+    // Device relationships are free-text labels with no role vocabulary.
     related: [],
     tags: [],
     dropped,

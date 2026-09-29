@@ -1,31 +1,16 @@
 import { StyleSheet } from "react-native";
 
-// A small shared stylesheet for visual consistency across the app's screens.
-//
-// The **surfaces** are warm rather than white, and the lines drawn on them are
-// warm greys rather than neutral ones. That is the whole of the visual pass so
-// far, deliberately: type and icons are untouched (still the platform font, still
-// emoji), because changing structure and appearance in one go makes a regression
-// indistinguishable from a redesign. Colour and shape are the half that can move
-// without touching a single layout.
+// Warm surfaces and warm-grey lines; type and icons are the platform's own.
 export const colors = {
   text: "#1a1a1a",
   muted: "#6b6b6b",
   /** Warm paper — the ground every screen is drawn on. */
   surface: "#fbf7f0",
-  /**
-   * The chrome that frames the page: the tab bar and the header. A shade deeper
-   * than {@link surface}, which is what separates them from the content without
-   * spending a hard rule on it.
-   */
+  /** The tab bar and header: a shade deeper than {@link surface}. */
   surfaceRaised: "#f4ede1",
   /** Outlines that enclose something — an input, a container. */
   border: "#ded3c2",
-  /**
-   * Separators *between* things — the hairline under a list row. Lighter than
-   * {@link border}: a divider that matches the weight of an input's outline
-   * turns a list into a stack of boxes.
-   */
+  /** The hairline between list rows, lighter than {@link border}. */
   divider: "#eae1d3",
   accent: "#1f6feb",
   /** A wash of `accent` — the mention chip behind `@Name` in a composer. */
@@ -37,7 +22,7 @@ export const colors = {
   scrim: "rgba(0, 0, 0, 0.25)",
 } as const;
 
-/** Corner rounding. `sm` is a control, `lg` is a surface that sits over another. */
+/** Corner rounding. `sm` is a control, `lg` a surface over another. */
 export const radius = {
   sm: 8,
   lg: 16,
@@ -45,19 +30,12 @@ export const radius = {
 
 export const styles = StyleSheet.create({
   screen: {
-    // `flexGrow`, not `flex: 1`: this style is used both as a plain View root
-    // (fills the screen) and as a ScrollView `contentContainerStyle`. On a
-    // scroll content container `flex: 1` clamps the content to the viewport
-    // height, which silently disables scrolling and hides anything below the
-    // fold (e.g. the factory-reset button). `flexGrow` fills when short but
-    // still lets tall content grow and scroll.
+    // Also a ScrollView `contentContainerStyle`, where `flex: 1` would clamp
+    // the content to the viewport and silently stop it scrolling.
     flexGrow: 1,
     padding: 16,
     gap: 16,
-    // Painted here as well as on the navigators' own scene backgrounds
-    // (app/_layout.tsx, app/(tabs)/_layout.tsx). Both are needed: the navigator
-    // covers the overscroll region a ScrollView bounces into, this covers the
-    // content itself.
+    // The navigators paint the overscroll region too; this paints the content.
     backgroundColor: colors.surface,
   },
   header: {
@@ -77,16 +55,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
   },
-  /**
-   * A header action drawn as a bare glyph — the 🔍 and ➕ a catalog carries
-   * (`components/SearchHereLink.tsx`, `components/NewLink.tsx`).
-   *
-   * Smaller than the title it sits beside and larger than a {@link link}: it has
-   * to read as a control at a glance without competing with the screen's name,
-   * and an emoji fills more of its box than letters fill theirs. It does **not**
-   * take `colors.accent` — an emoji ignores `color` on both platforms, so the
-   * tint would be a lie in the stylesheet that the screen never shows.
-   */
+  /** A header action drawn as a bare glyph. No `color`: emoji ignore it. */
   headerGlyph: {
     fontSize: 20,
   },
@@ -110,22 +79,17 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.divider,
   },
-  // A list row with something beside its content — today that is the trailing
-  // chevron on a row that leads somewhere. Composed with `row`, which keeps the
-  // padding and the separator. The gap is shared so every such list sets its
-  // text the same distance from that control.
+  // A list row with a control beside its content. Composed with `row`.
   rowWithLead: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
   },
-  /** A trailing chevron, centred against a row whose content may run to several
-   *  lines: it marks the whole row as a link rather than any one line of it. */
+  /** Centred against a row whose content may run to several lines. */
   rowChevron: {
     alignSelf: "center",
   },
-  /** Everything to the right of a leading control — takes the rest of the width
-   *  so long text wraps beside the control rather than under it. */
+  /** Takes the rest of the width, so long text wraps beside the control. */
   rowBody: {
     flex: 1,
   },
@@ -133,18 +97,8 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
-  // An empty list's message over the offers that fill it (see `EmptyState`).
-  // Padded off the top of the list so it doesn't sit flush under the header.
-  // What a list shows in place of its rows: the fact, then the way out of it,
-  // parked in the middle of the space the rows would have filled.
-  //
-  // Centred because an empty list *is* the whole screen — a message and a button
-  // pinned to the top-left of an otherwise blank page read as the first row of a
-  // list that never arrives, which is exactly the impression an empty state has
-  // to undo. `flexGrow` rather than `flex`, so this fills a content container
-  // that grows (see {@link listContent}) and still draws at its own height in one
-  // that doesn't: a list that forgets to grow its container gets an uncentred
-  // empty state rather than an invisible one.
+  // Centred in a container that grows ({@link listContent}); in one that does
+  // not, `flexGrow` still draws it at its own height rather than not at all.
   emptyState: {
     flexGrow: 1,
     justifyContent: "center",
@@ -155,19 +109,12 @@ export const styles = StyleSheet.create({
   emptyStateMessage: {
     textAlign: "center",
   },
-  /** An empty state's action, sized to its label and not to the screen: it sits
-   *  in the middle of a blank page, where a full-width slab reads as a banner
-   *  rather than as something to press. The `minWidth` is what makes a stack of
-   *  two an even pair — "+ Add a person or pet" and "Import from your contacts"
-   *  are different lengths and would otherwise draw as different buttons. */
+  /** Sized to its label, not the screen; `minWidth` makes two of them even. */
   emptyStateButton: {
     minWidth: 240,
     paddingHorizontal: 24,
   },
-  /** For a list whose padding comes from the screen around it rather than from
-   *  its own content container: grow the container anyway, so an empty state can
-   *  centre itself in the space the rows would have taken. Adds nothing to a list
-   *  that has rows — its children stay top-aligned. */
+  /** Grows a list's content container so an empty state can centre in it. */
   listContent: {
     flexGrow: 1,
   },
@@ -186,16 +133,13 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  /** A section you *open*, drawn as a button rather than a heading (Home's
-   *  "Next 7 days" and "Later" — see `app/(tabs)/index.tsx` → `SECTION_CHROME`).
-   *  Composed over {@link buttonSecondary} and {@link buttonBlock}, which carry
-   *  the colour and the size; this carries only the room it needs in a list of
-   *  hairline-separated rows, which have none of their own to give. */
+  /** A section you open, drawn as a button; composed over
+   *  {@link buttonSecondary} and {@link buttonBlock}, adding only margin. */
   sectionButton: {
     marginTop: 12,
     marginBottom: 4,
   },
-  // The second line of a list row: a muted detail on the left, actions on the right.
+  // A list row's second line: a muted detail left, actions right.
   rowMeta: {
     flexDirection: "row",
     alignItems: "center",
@@ -207,48 +151,30 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
   },
-  // A reminder's offers — what it invites you to do, below the standing actions
-  // on its detail screen. **One per line**, each a full-width button.
-  //
-  // They used to wrap across a row, which is what a row of links can do and a row
-  // of buttons cannot: these labels run to "Not now — ask in 5 days", so a
-  // wrapping strip put a long button beside a short one and broke the column
-  // every stacked control on the screen otherwise keeps. Stacking also lets the
-  // offers stay in offer order — escalating finality — read top to bottom, which
-  // is the order they are meant to be considered in.
+  // A reminder's offers, one full-width button per line, in offer order.
   rowOffers: {
     gap: 12,
     marginTop: 4,
   },
-  // A reminder detail's heading: its title, or its body when it has no title —
-  // whichever the list would have shown. Weight rather than a "Title" label
-  // marks it as the heading, so the thing the screen is about reads as a heading
-  // instead of as the first row of a definition list. Same size as the field
-  // values below it: the nav bar already carries the screen's large title, and a
-  // second 24pt one would shout.
+  // A reminder detail's heading: weight marks it, at the field values' size,
+  // since the nav bar already carries the large title.
   reminderHeading: {
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,
   },
-  // A prompt's occasion, directly under the question it is about: "Birthday ·
-  // tomorrow (2026-09-07)". Muted and one line, deliberately — it is context for
-  // the question, not a field of the reminder, and the definition-list treatment
-  // it used to get put it below the answer form it belongs above.
+  // A prompt's occasion, muted, directly under the question it is about.
   promptOccasion: {
     fontSize: 15,
     color: colors.muted,
     marginTop: 2,
   },
-  // The one line explaining what ticking anything does. Sits above the toggles
-  // rather than under the heading, because it is about the form and not about
-  // the occasion.
+  // The line explaining what ticking anything does, above the toggles.
   promptCaption: {
     fontSize: 15,
     color: colors.muted,
   },
-  // The prompt's answer form: caption, toggles, Save. Roomier than a `field`,
-  // because it is the screen's whole point rather than one entry in a list.
+  // The prompt's answer form: caption, toggles, Save.
   promptForm: {
     gap: 12,
   },
@@ -264,9 +190,7 @@ export const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
-  // A record's bookkeeping footer (see `RecordTimestamps`): both timestamps on
-  // one line, small and muted. Wraps instead of clipping, so the narrowest
-  // phones get two short lines rather than a truncated date.
+  // A record's timestamps on one line; wraps rather than clips when narrow.
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -286,55 +210,35 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 17,
     color: colors.text,
-    // An input is a place to put something *into*, so it reads as a well cut
-    // into the page rather than a card lying on it. On warm paper that only
-    // works if it is lighter than its ground.
+    // Lighter than its ground, so it reads as a well cut into the page.
     backgroundColor: "#ffffff",
   },
-  // Two form fields sharing one line, where one of them is short enough to give
-  // the width away: a contact method's Label ("Mobile") beside the address or
-  // number it names. The widths are proportional rather than fixed so the pair
-  // still holds on the narrowest phone. Bottom-aligned, not top-: that keeps the
-  // two inputs on one line even when the wider field's caption wraps — the
-  // captions go ragged instead, which is much the lesser of the two.
+  // Two fields on one line. Bottom-aligned, so the inputs stay level when the
+  // wider field's caption wraps.
   fieldPair: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 12,
   },
-  // Overrides the above where one half of the pair *grows* — a Typeahead listing
-  // its matches under the field. Bottom-aligning there would carry the narrow
-  // half down the page beside the list instead of leaving it on the input's line.
+  // For a pair where one half grows (a Typeahead's matches): top-aligned, so
+  // the narrow half stays on the input's line.
   fieldPairTop: {
     alignItems: "flex-start",
   },
-  // The two halves of a `fieldPair`, a third and two thirds of it. Which field
-  // takes which is the caller's call — the Label is the narrow one beside an
-  // email address, and so is State beside City.
+  // The two halves of a `fieldPair`, a third and two thirds of it.
   fieldPairNarrow: {
     flex: 1,
   },
   fieldPairWide: {
     flex: 2,
   },
-  // A form embedded in another screen's scroll view (a staged milestone or
-  // contact method on the create screen): the `screen` gap without its padding,
-  // which the host screen has already applied.
+  // A form inside another screen's scroll view: its gap, without its padding.
   inlineForm: {
     gap: 16,
   },
 
-  // --- A field with a glyph at its head ------------------------------------
-  // The 🔍 field, in both places one appears: the Search tab and the filter
-  // inside a `SuggestField`'s sheet. The glyph is a **sibling** of the input
-  // rather than part of its text — it has to outlive the placeholder, and a
-  // value read back to a user must never begin with an emoji — so the box moves
-  // out to a row that wears it and the `TextInput` keeps everything else.
-  //
-  // Composed from `input` rather than copied out of it, at both levels: the row
-  // wears the box (its inherited padding is what sets the height, so the field
-  // is exactly as tall as a plain one), and the input inside takes the same
-  // style back minus the box, which is what keeps the type identical.
+  // A field with a glyph at its head: the row wears `input`'s box, and the
+  // input inside takes `input` minus the box, so height and type match.
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -352,8 +256,7 @@ export const styles = StyleSheet.create({
     // text would sit lower than the glyph beside it.
     paddingVertical: 0,
   },
-  // A password field with its Show/Hide toggle inside the box (`PasswordInput`),
-  // composed from the caller's box the same way as the search row above.
+  // A password field with its Show/Hide toggle inside the box, as above.
   passwordRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -374,11 +277,8 @@ export const styles = StyleSheet.create({
     color: colors.accent,
   },
 
-  // --- Bottom sheets -------------------------------------------------------
-  // A field whose value is chosen somewhere else — the row you tap to open the
-  // sheet, wearing the input's own outline so a form reads as one column of
-  // controls whether or not you can type into them (see `SelectField`,
-  // `SuggestField`). Composed with `input`.
+  // Bottom sheets
+  // The row you tap to open a sheet, composed with `input`.
   pickerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -392,8 +292,7 @@ export const styles = StyleSheet.create({
   fieldPlaceholder: {
     color: colors.muted,
   },
-  // Everything above the sheet: dims the screen and, being the flexible half of
-  // the modal, is also what pins the sheet to the bottom of it.
+  // Dims the screen and, as the modal's flexible half, pins the sheet down.
   sheetBackdrop: {
     flex: 1,
     backgroundColor: colors.scrim,
@@ -403,8 +302,7 @@ export const styles = StyleSheet.create({
     paddingBottom: 24,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
-    // The rounded top corners only read as rounded if what slides under them is
-    // clipped to the same shape.
+    // Clips what slides under the rounded top corners.
     overflow: "hidden",
   },
   // The sheet's top bar: its way out, and where it says what it is.
@@ -435,15 +333,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  /**
-   * The quieter button: the same box as {@link button}, drawn as a raised
-   * surface with an accent label rather than an accent slab.
-   *
-   * It exists so that a screen offering several things at once can say which one
-   * it expects without demoting the others to words. A row of blue *words* is
-   * the failure this replaces — every choice equally weightless, and none of
-   * them obviously tappable.
-   */
+  /** The quieter button: {@link button}'s box, raised, with an accent label. */
   buttonSecondary: {
     backgroundColor: colors.surfaceRaised,
     borderWidth: StyleSheet.hairlineWidth,
@@ -457,31 +347,19 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  /** A {@link buttonSecondary} whose label destroys something. Only the label
-   *  turns red: a filled red slab beside two ordinary buttons reads as the thing
-   *  the screen wants you to do. */
+  /** A {@link buttonSecondary} that destroys: only the label is red. */
   buttonDestructiveText: {
     color: colors.danger,
   },
-  /**
-   * A button that owns its line — full width, centred label, and tall enough to
-   * hit. Composed **over** {@link button} or {@link buttonSecondary}, which carry
-   * the colour; this carries only the size.
-   *
-   * `minHeight` rather than more padding, because padding wraps the *label*: a
-   * one-word button and a button whose label wraps to two lines would otherwise
-   * be different heights in the same stack. 44 is the smallest target either
-   * platform's guidelines accept.
-   */
+  /** A full-width button over {@link button} or {@link buttonSecondary};
+   *  `minHeight`, not padding, so a wrapped label keeps the same height. */
   buttonBlock: {
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
   },
-  /** Two buttons sharing a line, each taking half of it (with {@link buttonFill}
-   *  on both). For a pair of peers — Edit and Delete — where a full-width stack
-   *  would give two standing actions more of the screen than the reminder's own. */
+  /** Two peer buttons sharing a line, each with {@link buttonFill}. */
   buttonRow: {
     flexDirection: "row",
     alignItems: "stretch",
