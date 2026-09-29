@@ -7,37 +7,15 @@ import { TagsInput, tagsRawOf } from "./TagsInput";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/**
- * The plain title, for the moment before the record has loaded and the screen
- * cannot yet know which of the two below it is.
- */
+/** The title before the record has loaded. */
 export const TAGS_TITLE = "Tags";
 
-/**
- * What the screen calls itself, matching the link that opened it: a record with
- * no tags is offered **Add tags**, and landing on a screen headed "Edit tags"
- * would be a different screen from the one that was tapped.
- */
+/** Matches the link that opened it: "Add tags" when there are none. */
 const titleFor = (count: number) => (count === 0 ? "Add tags" : "Edit tags");
 
 /**
- * A record's tags on a screen of their own — behind the **Edit** on the Tags row
- * of a person's or a pet's page, and the only screen either has for the one
- * field their details form deliberately doesn't hold.
- *
- * It is {@link TagsInput} plus what a screen owes it: the header (title and a
- * right-aligned {@link HeaderSave}) and the scroll view. There is no Cancel —
- * "‹ Back" already leaves. See {@link MilestoneForm}, the same shape.
- *
- * **Shared between people and pets rather than mirrored.** The two `update`
- * calls take the same third argument and differ only in which table they touch,
- * and unlike a name there is nothing type-shaped about a tag. The record's own
- * fields go the other way for the same reason: those really are two different
- * questions.
- *
- * An empty `Update*Input` alongside the tags is a legitimate write, and one
- * `packages/core` already makes — it is how a merge bumps the survivor's clock.
- * So tags can be saved without naming a single other field.
+ * A person's or pet's tags on a screen of their own. Saved with an empty
+ * `Update*Input`, a legitimate write that names no other field.
  */
 export function TagsEditForm({
   id,
@@ -51,9 +29,7 @@ export function TagsEditForm({
 }) {
   const core = useCore();
   const router = useRouter();
-  // Seeded **once**, from the tags as they stood when the screen opened: the
-  // route's loader re-runs on focus and whenever a background pull lands, and a
-  // field reseeded mid-edit would throw away what the user had typed.
+  // Seeded once, so a reload on focus cannot discard typing.
   const [raw, setRaw] = useState(() => tagsRawOf(tags));
   const [saving, setSaving] = useState(false);
 
@@ -66,7 +42,7 @@ export function TagsEditForm({
       await (type === "person"
         ? core.people.update(id, {}, names)
         : core.pets.update(id, {}, names));
-      // Back to the record, which refetches on focus and so reads as this left it.
+      // Back to the record, which refetches on focus.
       router.back();
     } catch (e) {
       Alert.alert("Couldn't save", String(e));
@@ -78,9 +54,7 @@ export function TagsEditForm({
     saving,
     onPress: () => void save(),
   });
-  // Fixed at what the screen opened as, not recomputed from what is typed: a
-  // title that flipped to "Edit tags" on the first keystroke would be the header
-  // narrating the field below it.
+  // Fixed when the screen opens, not flipped by the first keystroke.
   const [title] = useState(() => titleFor(tags.length));
   const options = useMemo(() => ({ title, headerRight }), [title, headerRight]);
 

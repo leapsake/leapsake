@@ -19,14 +19,8 @@ const PROFILE_HINT = "profile";
 const MORE = "⋯";
 
 /**
- * The value as the row displays it — the same string as {@link methodValue}
- * everywhere except a postal address, which breaks onto envelope lines so that
- * "Springfield, IL 62704" reads as a place rather than as three more
- * comma-separated fragments of one long line.
- *
- * Kept apart from `methodValue` because that string still has to be one line:
- * it titles the action sheet, fills the "Call Jane?" confirm, and is what a
- * copy falls back to.
+ * {@link methodValue}, but a postal address breaks onto envelope lines; the
+ * one-line form still titles the sheet and fills the confirm.
  */
 function displayValue(entry: ContactMethod): string {
   if (entry.kind === "postal")
@@ -35,27 +29,8 @@ function displayValue(entry: ContactMethod): string {
 }
 
 /**
- * The Contacts section on the Person detail screen: a person's merged contact
- * methods, each one a **way to reach them** rather than a string to read.
- *
- * Each row carries its actions as trailing glyph buttons — 💬 and 📞 on a
- * mobile, ✉️ on an email, 🗺️ on a postal address — so what a row can do is
- * visible without tapping it to find out. Those glyphs used to sit *left* of the
- * label as a per-kind decoration, which spent the row's most useful position
- * saying something the label and value already said. The row body stays pressable
- * for the likeliest action, and the `⋯` opens {@link ContactActionSheet} with
- * everything the buttons hold back (see {@link buttonActions}).
- *
- * The sheet ends in **Edit** and **Remove**, which is where changing a row
- * belongs on a page whose rows are otherwise things to do: they are the only two
- * items about the record rather than about the person, so they sit last and
- * Remove wears the danger colour. Putting them in the sheet rather than in the
- * row is also what freed the row body to be the tap that calls.
- *
- * Which actions exist is decided by `@leapsake/contact-links`, which is pure and
- * shared; which of them this handset can actually perform is decided by
- * `lib/contact-actions.ts`. This file only renders the answer and calls
- * `Linking`. Contacts are person-owned only, so there is no subject-type axis.
+ * A person's contact methods as ways to reach them: glyph buttons per row, the
+ * body its likeliest action, and `⋯` for the rest, ending in Edit and Remove.
  */
 export function ContactsSection({
   ownerId,
@@ -68,7 +43,7 @@ export function ContactsSection({
   /** Who the methods belong to, for the "Call Jane?" confirm. */
   subjectName: string;
   methods: ContactMethod[];
-  /** Refetch the page — a removal writes in place, with nothing to navigate to. */
+  /** Refetch the page after a removal, which has nowhere to navigate to. */
   onChanged: () => void;
 }) {
   const core = useCore();
@@ -127,11 +102,7 @@ export function ContactsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Contact</Text>
-        {/* One way in, not four. The header used to offer Email / Phone /
-            Postal / Social side by side, which asked the user to classify what
-            they were about to type before they had typed it; the form's own
-            Type dropdown asks the same question in the place where the answer
-            is about to matter. */}
+        {/* One way in: the form's Type dropdown asks what kind. */}
         <Link
           href={`/people/${ownerId}/contacts/new`}
           style={styles.link}
@@ -151,13 +122,8 @@ export function ContactsSection({
           return (
             <View key={entry.method.id} style={styles.row}>
               <View style={styles.rowWithLead}>
-                {/* The row body *is* the primary action, and now says so as a
-                    hint rather than a label: the label is the method itself, so
-                    a screen reader reads the number out — it used to announce
-                    "Text — Mobile" and swallow the value entirely — and doesn't
-                    read the same words twice for the row and its 💬 button. A
-                    method with nothing to offer (a blank address) stays a plain,
-                    unpressable row rather than a control that does nothing. */}
+                {/* The action is a hint, not the label, so the value is read
+                    out. With no action the row is not pressable. */}
                 <Pressable
                   accessibilityRole={primary ? "button" : undefined}
                   accessibilityLabel={`${entry.method.label}, ${value}`}
@@ -175,9 +141,7 @@ export function ContactsSection({
                     accessibilityRole="button"
                     accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
                     onPress={() => perform(action, entry)}
-                    // Vertical only: neighbouring buttons are a thumb-width
-                    // apart already, and horizontal slop would have each one
-                    // reaching into the next.
+                    // Vertical only, or neighbouring buttons would overlap.
                     hitSlop={{ top: 10, bottom: 10 }}
                     style={local.action}
                   >

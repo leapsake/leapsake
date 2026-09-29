@@ -9,14 +9,14 @@ import { entityBasePath } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/** The role shown for a neighbor: a free-text note for "other", else the label. */
+/** A neighbor's role: the free-text note for "other", else the label. */
 function roleText(neighbor: RelationshipNeighbor): string {
   return neighbor.otherRole === "other" && neighbor.otherRoleNote
     ? neighbor.otherRoleNote
     : neighbor.otherRoleLabel;
 }
 
-/** How a row is addressed: a stored id, or the triple a dismissal is keyed on. */
+/** A row's key: a stored id, or the triple a dismissal is keyed on. */
 function keyOf(neighbor: RelationshipNeighbor): string {
   return neighbor.origin === "explicit"
     ? neighbor.relationshipId
@@ -24,26 +24,8 @@ function keyOf(neighbor: RelationshipNeighbor): string {
 }
 
 /**
- * The Relationships section on the Person and Pet detail screens, ported from the
- * desktop `RelationshipsSection`. It lists the subject's neighbors — both stored
- * (explicit) edges and the ones the inference engine computes (derived) — already
- * oriented + labelled by the view layer and presented uniformly: each row names
- * who and how, links to them, and carries **Edit** and **Remove**.
- *
- * **The explicit/derived difference is invisible until you act on a row**, which
- * is the right place for it: as a fact about the subject, "Ruth is my sister" is
- * one thing however the app came to know it. Then the two part company —
- *
- * - **Editing** a stored edge re-roles it (`editFromSubject`). Editing a derived
- *   one *materialises* it: there is no row to change, so saving writes the edge
- *   the inference was standing in for. Both keep the other end fixed, because
- *   an endpoint is not a thing either write can move.
- * - **Removing** a stored edge deletes it. A derived one has nothing to delete
- *   and is **dismissed** instead — a remembered "no, they aren't", which is what
- *   stops the engine proposing it again. Each says which it is about to do.
- *
- * Only a stored edge has a page of its own, so only a stored row offers
- * **Details**; a derived one is an inference, with nothing else to show.
+ * Stored and derived neighbors alike. Edit re-roles a stored edge or
+ * materialises a derived one; Remove deletes one or dismisses the other.
  */
 export function RelationshipsSection({
   subjectType,
@@ -54,25 +36,18 @@ export function RelationshipsSection({
   subjectType: EntityType;
   subjectId: string;
   relationships: RelationshipNeighbor[];
-  /** Refetch the page — a removal writes in place, with nowhere to navigate to. */
+  /** Refetch the page after a removal, which has nowhere to navigate to. */
   onChanged: () => void;
 }) {
   const core = useCore();
   const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
 
-  /**
-   * Where **Edit** goes. A stored edge has a route keyed on its id; a derived
-   * one has no id, so it goes to the add route with the pair and the role it was
-   * inferred with — the same screen, opening on what is already true, and saving
-   * turns it into a stored edge.
-   */
+  /** A stored edge's own route, or the add route opening on the inference. */
   function editHref(neighbor: RelationshipNeighbor): string {
     if (neighbor.origin === "explicit") {
       return `${basePath}/relationships/${neighbor.relationshipId}/edit`;
     }
-    // Assembled by hand rather than with `URLSearchParams`, whose `toString`
-    // React Native's URL shim does not implement. Every value here is an id or
-    // an enum, so encoding is belt-and-braces.
+    // By hand: React Native's URL shim lacks `URLSearchParams.toString`.
     const query = [
       `otherType=${encodeURIComponent(neighbor.otherType)}`,
       `otherId=${encodeURIComponent(neighbor.otherId)}`,
@@ -83,8 +58,7 @@ export function RelationshipsSection({
 
   function confirmRemove(neighbor: RelationshipNeighbor) {
     const label = neighbor.otherLabel;
-    // Three removals wearing one word, and the user is told which they are
-    // getting while it can still be reconsidered.
+    // Three removals share one word, so the confirm says which this is.
     const message =
       neighbor.origin === "derived"
         ? `${label} is worked out from your other relationships. Removing it records that they aren't, so it won't come back.`

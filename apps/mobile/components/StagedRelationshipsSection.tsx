@@ -14,26 +14,13 @@ import { RelationshipFields, otherLabelOf } from "./RelationshipFields";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
-/**
- * A relationship being authored on the create form: the draft the write needs
- * bar the subject, whose other end was resolved at pick time so a row can name
- * it without re-consulting the candidate list.
- *
- * Every row here is a create. A saved record's neighbours — a stored edge to
- * re-role, an inferred one to materialise or dismiss — are each their own screen
- * off that record's page, and the three-way distinction that used to live on
- * this type lives in the route that writes.
- */
+/** A relationship being created on the form, its other end resolved at pick. */
 export interface StagedRelationship {
   key: string;
   draft: RelationshipDraft;
 }
 
-/**
- * A row with nobody picked yet — the "Add relationship" tap nobody followed
- * through on. Neither written nor allowed to hold up the Save, for the reason
- * {@link contactRowPending} gives.
- */
+/** A row with nobody picked yet: neither written nor holding up the Save. */
 export function relationshipRowPending(row: StagedRelationship): boolean {
   return row.draft.other === null;
 }
@@ -44,28 +31,8 @@ export function relationshipRowValid(row: StagedRelationship): boolean {
 }
 
 /**
- * Relationships on the **create** screen — the staged counterpart to
- * {@link RelationshipsSection}, held in an array until the form is saved. See
- * {@link StagedMilestonesSection} for why staging works this way, and desktop's
- * `RelationshipFields` for the same section on that client.
- *
- * A row is fully resolved the moment it's picked, which is what lets it be staged
- * at all: the other end is either an existing person or pet, or a name typed past
- * the end of the list, and neither needs the subject to exist. On the create
- * screen only the *subject* is unsaved. So "add a pet, its owner, and the owner's
- * wife" is one pass; relating two brand-new **published** people still takes two,
- * since only one new entity per pass can be the one the form is creating.
- *
- * Candidates come from `core.views.candidates()` rather than
- * `views.relationshipNew`, which needs a subject id to exclude. On the create
- * screen nothing needs excluding — the subject doesn't exist yet, so it cannot be
- * in the list. Neither is an already-staged entity excluded: the same pair may
- * relate in more than one way, which the schema deliberately permits.
- *
- * **Every row is open**, for the reason {@link StagedContactsSection} gives, and
- * every row keeps its picker: each one is a create, so nothing here is
- * constrained by an endpoint a write cannot move. That constraint belongs to the
- * screens off a saved record's page — see {@link RelationshipForm}.
+ * Relationships staged on the create form, every row open. Candidates exclude
+ * nobody: the subject is unsaved, and one pair may relate more than one way.
  */
 export function StagedRelationshipsSection({
   subjectType,
@@ -138,8 +105,7 @@ export function StagedRelationshipsSection({
         <Text style={styles.muted}>No relationships yet.</Text>
       ) : null}
 
-      {/* The picker a new row opens on is the whole of it, so the link waits for
-          the candidates rather than appending a row that can't be filled in. */}
+      {/* Waits for the candidates, or a new row could not be filled in. */}
       {candidates === null ? (
         <Text style={styles.muted}>Loading people and pets…</Text>
       ) : (

@@ -19,35 +19,20 @@ const KIND_HEADING: Record<ContactMethodKind, string> = {
   social: "💬 Social",
 };
 
-/**
- * A row's heading. A social row says which platform, since that is now what the
- * user picked it as — an unknown id shown as stored, the same call
- * {@link ContactsSection} makes — and falls back to "Social" only while the
- * catch-all is waiting to be told.
- */
+/** A row's heading; a social row names its platform once it has one. */
 function headingFor(draft: ContactMethodDraft): string {
   if (draft.kind !== "social") return KIND_HEADING[draft.kind];
   const named = findPlatform(draft.platform)?.name ?? draft.platform.trim();
   return named === "" ? KIND_HEADING.social : `💬 ${named}`;
 }
 
-/**
- * A contact method being authored on the create form: the draft the write will
- * use, plus a key to address the row by. See {@link StagedMilestone}, which is
- * the same idea for the same reasons; a contact has no forward reference to
- * satisfy, so its key is only ever a React key.
- */
+/** A contact method being created on the form, keyed for React only. */
 export interface StagedContact {
   key: string;
   draft: ContactMethodDraft;
 }
 
-/**
- * A row that still has nothing in it — the "Add contact method" tap nobody
- * followed through on. It is neither written nor allowed to hold up the Save: an
- * empty row is a question the user declined to answer, and a form that refused
- * to save until you noticed and removed it would be punishing a stray tap.
- */
+/** An empty row, neither written nor holding up the Save: a stray tap. */
 export function contactRowPending(row: StagedContact): boolean {
   return !contactMethodDraftFilled(row.draft);
 }
@@ -58,21 +43,8 @@ export function contactRowValid(row: StagedContact): boolean {
 }
 
 /**
- * Contact methods on the **create** screen — held in an array until the form is
- * saved, then written through `core.contactMethods.*`. See
- * {@link StagedMilestonesSection} for why staging works this way; the
- * counterpart on the Person screen is {@link ContactsSection}, where a saved
- * method is added and revised one at a time on a screen of its own.
- *
- * Person-only, like the section it mirrors: a pet has no Contacts section on its
- * detail page, so offering one would promise a place to read it back that doesn't
- * exist.
- *
- * **Every row is open**, and stays a row rather than becoming a sub-form with a
- * Save of its own — that Save would have to mean something different from the
- * form's, and nothing would be written any sooner for it. "Add contact method"
- * appends a row; removing takes one out. Both are only edits to the list until
- * the form is saved.
+ * Contact methods staged on the create form, person-only, every row open:
+ * a Save of its own would mean something other than the form's.
  */
 export function StagedContactsSection({
   entries,
@@ -94,8 +66,7 @@ export function StagedContactsSection({
           );
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            {/* What the row is so far, next to the way out of it — the only line
-              that says which method's Remove this is. */}
+            {/* Says which method this Remove is for. */}
             <View style={styles.sectionHeader}>
               <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
               <Pressable
