@@ -3,11 +3,8 @@ import { getEntry, render } from "astro:content";
 
 import Base from "../layouts/Base.astro";
 
-/**
- * The URL App Store Connect requires. Everything on this page comes from the
- * repository's own `PRIVACY.md` — see `src/content.config.ts` for why it is read
- * rather than copied.
- */
+/** The URL App Store Connect requires, rendering the repository's own
+ *  `PRIVACY.md`. */
 const entry = await getEntry("legal", "privacy");
 
 if (!entry) {

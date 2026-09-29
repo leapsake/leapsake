@@ -1,39 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
 
-/**
- * Where Leapsake posts, and the one page that says so.
- *
- * A short, stable URL exists so that a profile bio, a release note, or a reply can
- * link to *one* place instead of listing seven — and so the list changes here, in a
- * commit, rather than in seven bios nobody remembers to edit.
- *
- * **Plain links, deliberately.** No follow buttons, no embedded timelines, no
- * platform SDKs. Every one of those is a third-party script that would watch the
- * visitor, on a site whose home page says the product has "no analytics, no trackers,
- * and no server". The site's own no-JavaScript rule is what keeps that honest, and
- * `test/site.test.ts` fails if a script tag appears.
- *
- * **`rel="me"`** is load-bearing rather than decorative: Mastodon verifies a profile's
- * website by fetching it and looking for a link back to that profile carrying
- * `rel="me"`. So pointing the Mastodon account's website field at this URL is what
- * earns the verified mark — which is worth having on an account impersonation would
- * otherwise be cheap against. The other platforms ignore the attribute; it costs
- * nothing and states the same true thing about each link.
- *
- * The list has no styling of its own on purpose. `Base.astro` is "the page shell, and
- * the only stylesheet", and the app's real visual pass is still ahead — a second
- * stylesheet added here would be one more thing that pass has to find and undo.
- */
+// Where Leapsake posts: plain `rel="me"` links, no scripts; see the README's
+// _Pages_.
 
-/**
- * The accounts, in the order a reader is most likely to want them: conversation
- * first, then video, then the source.
- *
- * `handle` is what a reader would type to search for the account, so it is written
- * the way that platform writes it — Bluesky's is a domain, Mastodon's carries its
- * server, and the rest are bare.
- */
+/** The accounts, conversation first, then video, then source; each `handle`
+ *  written as its platform writes it. */
 const accounts = [
   {
     name: "Bluesky",

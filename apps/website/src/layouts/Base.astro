@@ -1,16 +1,6 @@
 ---
-/**
- * The page shell, and the only stylesheet.
- *
- * Deliberately plain. `@leapsake/ui/tokens` calls itself "a seed, not a design
- * system" and the app's real visual pass is still ahead — so this lays out readable
- * text on the product's palette and stops there. When that pass happens it happens
- * once, for app and site together, and this file inherits it by re-reading the same
- * tokens.
- *
- * The custom properties are *derived* from the token objects rather than written
- * out, so there is no second copy of a colour to update.
- */
+// The page shell and the only stylesheet, derived from `@leapsake/ui/tokens`;
+// see the README's _Styling_.
 import { color, fontSize, fontWeight, radius, space } from "@leapsake/ui/tokens";
 
 interface Props {
@@ -38,16 +28,7 @@ const customProperties = [
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
-    {/*
-      Three files, from `public/`, all generated from the app icon's vector source by
-      `pnpm icons` — see `assets/icon/README.md`.
-
-      The order is the whole trick: a browser that understands the SVG takes it, and one
-      that does not falls back to the `.ico`. Listing the `.ico` first with an explicit
-      `sizes` is what stops Chrome preferring it anyway. `/favicon.ico` is also fetched
-      from the origin root with no markup involved at all, which is what feed readers and
-      chat unfurlers do, so it has to exist under that exact name regardless.
-    */}
+    {/* The order matters; see the README's _Icons_. */}
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

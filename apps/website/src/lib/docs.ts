@@ -5,21 +5,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Loader } from "astro/loaders";
 import { parseFrontmatter } from "astro/markdown";
 
-/**
- * Consumer-facing documentation, gathered from wherever in the repository it lives.
- *
- * **A `slug` in the frontmatter is what publishes a file.** Nothing about a file's
- * location makes it a doc, so a guide can sit beside the code it describes — which
- * is the arrangement the rest of the repo already uses for its stable "why"
- * (`plans/README.md`). A markdown file with no `slug` is technical documentation and
- * is passed over; there is no second flag to forget, because the slug is the URL and
- * a doc without one has nowhere to be published to.
- *
- * The cost of dropping the location convention is that you can no longer see the
- * published set from a file tree. `docs-manifest.json` buys that back, and more: it
- * is committed, so a changed *public URL* shows up in a pull request diff rather than
- * only in a deploy.
- */
+// Gathers every markdown file with a `slug` from the repository; see the
+// README's _Documentation_.
 
 const WEBSITE = resolve(fileURLToPath(import.meta.url), "../../..");
 
@@ -33,14 +20,8 @@ const SKIP = new Set([
   ".astro",
 ]);
 
-/**
- * The tree to gather docs from, and where the manifest lands.
- *
- * Normally the repository. `LEAPSAKE_DOCS_ROOT` redirects both at a scratch
- * directory, which is the seam `test/docs.test.ts` uses to exercise the collision
- * and schema failures against real files without putting fixtures inside the repo —
- * where a crashed test could leave one behind and publish it.
- */
+/** Where docs are gathered and the manifest written: the repository, unless
+ *  `LEAPSAKE_DOCS_ROOT` points tests at a scratch tree. */
 function roots() {
   const override = process.env.LEAPSAKE_DOCS_ROOT;
   const root = override ?? resolve(WEBSITE, "../..");
@@ -66,7 +47,7 @@ export function docsLoader(): Loader {
       store.clear();
       const { root, manifest } = roots();
 
-      /** slug → the file that claimed it, so a second claim can name both. */
+      /** Each slug's file, so a second claim can name both. */
       const sources = new Map<string, string>();
 
       for await (const file of markdownFiles(root)) {
@@ -93,9 +74,7 @@ export function docsLoader(): Loader {
         }
         sources.set(slug, source);
 
-        // Throws on anything the collection schema rejects — an unknown section, a
-        // malformed slug, a missing title. A file that has opted in by carrying a
-        // slug is held to the whole shape.
+        // A file with a slug is held to the whole schema, and throws otherwise.
         const data = await parseData({
           id: slug,
           data: frontmatter,
@@ -119,14 +98,8 @@ export function docsLoader(): Loader {
   };
 }
 
-/**
- * Write the manifest, but only when it would change — a loader runs on every hot
- * reload in dev, and rewriting an identical file each time would churn its mtime for
- * nothing.
- *
- * Sorted, so the committed file has a stable order and its diff shows only real
- * changes to the published set.
- */
+/** Writes the sorted manifest only when it changes, as a loader runs on every
+ *  hot reload. */
 async function writeManifest(path: string, sources: Map<string, string>) {
   const next =
     JSON.stringify(

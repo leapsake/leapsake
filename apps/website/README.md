@@ -18,8 +18,8 @@ cuts no release.
 What being in the monorepo buys, and a separate repo would have cost:
 
 - `PRIVACY.md` is rendered from the repository root, so its "changes in the same
-  commit as the code that invalidates it" invariant survives with **no sync step**.
-  See `src/content.config.ts`.
+  commit as the code that invalidates it" invariant survives with **no sync step**; a
+  copy here would be a second place that promise could be missed.
 - `@leapsake/ui` is a `workspace:*` import, so the site can wear the product's design
   tokens without publishing a package to a registry.
 - Feature docs can be authored in the same commit as the feature they describe.
@@ -147,6 +147,28 @@ the moment anything reads the tokens.
 collection schemas with Astro's own zod; a direct dependency can resolve to a second
 copy, and a schema built from one instance is then checked by another.
 
+## Pages
+
+- **`/privacy`** renders `PRIVACY.md`, which opens with an HTML comment of internal
+  notes: how each claim was verified, and a `plans/` link. Astro passes raw HTML
+  through, so `src/lib/strip-comments.mjs` drops HTML comments, and `test/privacy.test.ts`
+  asserts the built page holds none, so losing the plugin fails a test rather than leaking.
+  It hooks Sätteri, Astro's default Markdown processor, because remark plugins would need
+  `@astrojs/markdown-remark` back; it is a plain object rather than `defineMdastPlugin`,
+  which would add a dependency on `satteri` for type inference alone.
+- **`/follow`** is the one stable URL a bio or a reply links to, so the list changes in a
+  commit, not in seven bios. **Plain links only**: follow buttons, embeds and SDKs are
+  third-party scripts watching the visitor, and `test/site.test.ts` fails on a script tag.
+  **`rel="me"` is load-bearing**: Mastodon verifies a profile by finding a `rel="me"`
+  link back to it, which earns the verified mark that makes impersonation dearer. The page
+  has no styling of its own, so the visual pass has nothing extra to undo.
+- **`/`** is a placeholder until the marketing page, so the policy URL is not an orphan.
+
+A doc's loader writes `docs-manifest.json` sorted, and only when it changes, since it
+runs on every hot reload. `LEAPSAKE_DOCS_ROOT` points it at a scratch tree, which is how
+`test/docs.test.ts` tests collisions against real files without leaving a fixture in
+the repo to be published.
+
 ## Styling
 
 One stylesheet, in `src/layouts/Base.astro`, and the custom properties in it are
@@ -170,6 +192,11 @@ is: regenerating needs librsvg and ImageMagick, and the Cloudflare Pages builder
 neither. `test/site.test.ts` (run by `pnpm test:integration`) proves the three files
 reach `dist/` and that the layout links them, which is the half the hash check cannot
 see.
+
+The order of the links is the trick: a browser that understands the SVG takes it, and one
+that does not falls back to the `.ico`, listed first with an explicit `sizes` so Chrome
+does not prefer it anyway. `/favicon.ico` must exist under that name regardless, because
+feed readers and chat unfurlers fetch it from the origin root with no markup at all.
 
 ## Known gap: `.astro` files are not formatted
 

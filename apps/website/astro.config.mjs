@@ -8,18 +8,14 @@ export default defineConfig({
   site: "https://leapsake.com",
 
   markdown: {
-    // `satteri()` is the default processor; naming it here is what lets the pipeline
-    // be extended. See the plugin's own doc-comment — PRIVACY.md's internal notes are
-    // an HTML comment, and Astro would otherwise ship them in the page source.
+    // Named, so it can take the plugin that keeps PRIVACY.md's HTML comment out
+    // of the page; see the README's _Pages_.
     processor: satteri({ mdastPlugins: [stripHtmlComments] }),
   },
 
   vite: {
     ssr: {
-      // `@leapsake/ui` exports raw `.ts` source rather than a build (its exports map
-      // points straight at `src/`), so Vite has to transpile it instead of treating
-      // it as an external dependency. Without this the build dies on an unparsed
-      // TypeScript import the moment anything reads the tokens.
+      // `@leapsake/ui` exports raw `.ts`, which Vite must transpile.
       noExternal: ["@leapsake/ui"],
     },
   },
