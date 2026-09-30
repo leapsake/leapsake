@@ -87,7 +87,9 @@ let activeCore: CoreApi | undefined;
 let storeSwapping = false;
 
 function setActiveCore(): void {
-  activeCore = createCore(driver);
+  activeCore = createCore(driver, {
+    phoneRegion: app.getLocaleCountryCode() || null,
+  });
 }
 
 /** Built per call, so it reflects a conversion since the last read. */

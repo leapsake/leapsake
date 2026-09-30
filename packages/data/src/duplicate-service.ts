@@ -10,6 +10,7 @@ import {
   normalizePhone,
   scoreDuplicate,
 } from "@leapsake/schema";
+import { phoneE164 } from "@leapsake/phone";
 import type { SqliteDriver } from "./driver.js";
 import type { NotADuplicateRepo } from "./not-a-duplicate-repo.js";
 
@@ -85,7 +86,13 @@ function pairKey(idA: string, idB: string): string {
 export function createDuplicateService(
   driver: SqliteDriver,
   repos: { notADuplicate: NotADuplicateRepo },
+  options: { phoneRegion?: string | null } = {},
 ): DuplicateService {
+  /** One match key per number however it was written: its international
+   *  form where that resolves, else its digits. */
+  const phoneKey = (raw: string): string =>
+    phoneE164(raw, options.phoneRegion) || normalizePhone(raw);
+
   /** Every active **published** person as a scorer input, contacts indexed by
    *  owner. Unpublished people are out (README, "Unpublished entities"). */
   async function loadInputs(): Promise<
@@ -120,7 +127,7 @@ export function createDuplicateService(
     const phonesBy = new Map<string, string[]>();
     for (const row of phones) {
       const list = phonesBy.get(row.owner_id) ?? [];
-      list.push(normalizePhone(row.normalized));
+      list.push(phoneKey(row.normalized));
       phonesBy.set(row.owner_id, list);
     }
 
@@ -193,7 +200,7 @@ export function createDuplicateService(
       name,
       foldedName: fold(name),
       emails: contact.emails.map(normalizeEmail),
-      phones: contact.phones.map(normalizePhone),
+      phones: contact.phones.map(phoneKey),
       handles: contact.handles.map((h) => ({
         platform: h.platform,
         handle: normalizeHandle(h.handle),

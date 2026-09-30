@@ -120,6 +120,34 @@ describe("createCore — duplicate detection", () => {
     expect(await core.duplicates.findCandidates()).toHaveLength(0);
   });
 
+  it("matches a number with and without its country code", async () => {
+    core = createCore(driver, { phoneRegion: "US" });
+    const a = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    const b = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    for (const [id, number] of [
+      [a.id, "(412) 606-2561"],
+      [b.id, "+1 412 606 2561"],
+    ] as const) {
+      await core.contactMethods.phones.create({
+        ownerType: "person",
+        ownerId: id,
+        label: "mobile",
+        number,
+      });
+    }
+
+    const candidates = await core.duplicates.findCandidates();
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].tier).toBe("high");
+    expect(candidates[0].reasons).toContain("Shared phone +14126062561");
+  });
+
   it("does not propose unrelated people", async () => {
     await core.people.create({ firstName: "Jane", lastName: "Wainwright" }, []);
     await core.people.create({ firstName: "Harry", lastName: "Bailey" }, []);

@@ -297,7 +297,12 @@ const PARTNER_ROLE: Partial<Record<MilestoneKind, RelationshipRole>> = {
   "first-date": "partner",
 };
 
-export function createCore(driver: SqliteDriver) {
+export function createCore(
+  driver: SqliteDriver,
+  /** `phoneRegion`: the device's ISO country, which a number written without
+   *  its country code is read as. */
+  options: { phoneRegion?: string | null } = {},
+) {
   const people = createPeopleRepo(driver);
   const pets = createPetsRepo(driver);
   const tags = createTagsRepo(driver);
@@ -337,7 +342,11 @@ export function createCore(driver: SqliteDriver) {
     dismissals,
   });
   const search = createSearchService(driver);
-  const duplicates = createDuplicateService(driver, { notADuplicate });
+  const duplicates = createDuplicateService(
+    driver,
+    { notADuplicate },
+    { phoneRegion: options.phoneRegion },
+  );
   const entities = createEntityService({
     people,
     pets,

@@ -45,6 +45,7 @@ import {
 } from "@leapsake/notifications";
 import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
+import { deviceRegion } from "./device-region";
 import { PasswordInput } from "../components/PasswordInput";
 import { openActiveStore } from "./open-active-store";
 import { useRecoveryGate } from "./use-recovery-gate";
@@ -288,11 +289,16 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
       // Every mutating call reconciles this device's notifications.
       const buildCore = (): CoreApi =>
-        withSyncKick(createCore(driver), () => {
-          if (coreRef.current !== null) {
-            void reconcileNotifications(coreRef.current);
-          }
-        });
+        withSyncKick(
+          createCore(driver, {
+            phoneRegion: deviceRegion(),
+          }),
+          () => {
+            if (coreRef.current !== null) {
+              void reconcileNotifications(coreRef.current);
+            }
+          },
+        );
 
       const bootedCore = buildCore();
       coreRef.current = bootedCore;
