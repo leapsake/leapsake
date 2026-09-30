@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Link, Stack, useLocalSearchParams } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
+import { CheckboxBox } from "../../../components/Checkbox";
 import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -92,38 +93,16 @@ export default function HolidayDetailScreen() {
     );
   };
 
-  // An arrow, not a hoisted `function`, so TypeScript keeps the narrowing.
   const toggleHidden = () => {
-    const next = !holiday.hidden;
-    const run = () =>
-      core.holidays
-        .setHidden(id, next)
-        .then(reload, (e: unknown) => Alert.alert("Couldn't save", String(e)));
-    if (!next) {
-      void run();
-      return;
-    }
-    Alert.alert(
-      "Hide holiday",
-      `Hide ${holiday.name}? It will stop producing reminders. Your saved answers about who observes it are kept.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Hide", style: "destructive", onPress: () => void run() },
-      ],
-    );
+    core.holidays
+      .setHidden(id, !holiday.hidden)
+      .then(reload, (e: unknown) => Alert.alert("Couldn't save", String(e)));
   };
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* `holidayTitle`, which every link to this page also sends ahead. */}
       <Stack.Screen options={{ title: holidayTitle(holiday) }} />
-
-      {holiday.hidden && (
-        <Text style={styles.muted}>
-          This holiday is hidden — it produces no reminders. Your saved answers
-          about who observes it are kept.
-        </Text>
-      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Upcoming</Text>
@@ -199,11 +178,21 @@ export default function HolidayDetailScreen() {
         )}
       </View>
 
-      <Pressable accessibilityRole="button" onPress={toggleHidden}>
-        <Text style={[styles.link, holiday.hidden ? undefined : styles.danger]}>
-          {holiday.hidden ? "Unhide this holiday" : "Hide this holiday"}
+      <View style={styles.field}>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: holiday.hidden }}
+          style={styles.rowWithLead}
+          onPress={toggleHidden}
+        >
+          <CheckboxBox checked={holiday.hidden} />
+          <Text style={styles.fieldValue}>Hide this holiday</Text>
+        </Pressable>
+        <Text style={styles.muted}>
+          A hidden holiday produces no reminders. Your saved answers about who
+          observes it are kept.
         </Text>
-      </Pressable>
+      </View>
     </ScrollView>
   );
 }
