@@ -19,10 +19,8 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/**
- * Once anything has called `console.error`, renders a small element with the `console-error`
- * testID whose accessibility label is the first message. The E2E harness fails a flow on it.
- */
+/** Once anything calls `console.error`, renders a `console-error` element
+ *  labelled with the first message; the E2E harness fails a flow on it. */
 export default function ConsoleErrorMarker() {
   const message = useSyncExternalStore(subscribe, () => firstError);
   if (message === null) return null;

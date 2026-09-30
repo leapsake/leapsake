@@ -6,7 +6,7 @@ import { runDriverContractSelfTest } from "../driver-contract-selftest";
 import type { CaseResult } from "../test-api";
 import { TEST_ONLY_MARKER } from "../test-only";
 
-/** Runs the driver contract against the real expo-sqlite engine and shows PASS or FAIL. */
+/** Runs the on-device suites on real expo-sqlite and shows PASS or FAIL. */
 export default function DriverContractSelfTest() {
   const [results, setResults] = useState<CaseResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +28,7 @@ export default function DriverContractSelfTest() {
 
   const passed = results?.filter((r) => r.status === "pass").length ?? 0;
   const total = results?.length ?? 0;
-  // `total > 0` guards against a vacuous green: if the suite ever registers zero
-  // cases (a broken import, a no-op shim), 0/0 must read FAIL, not PASS — otherwise
-  // a stale/silently-empty run would show (and a future harness would assert) PASS.
+  // A run that registered no cases reads FAIL, never a vacuous PASS.
   const allPassed = results !== null && total > 0 && passed === total;
 
   return (
@@ -57,10 +55,8 @@ export default function DriverContractSelfTest() {
           </View>
         ) : (
           <>
-            {/* The single terminal-confirmable signal a future Maestro/Detox flow
-                asserts on (testing backlog step 3): `testID` to locate it and an
-                `accessibilityLabel` of exactly "PASS"/"FAIL" so the harness keys on a
-                stable token, independent of the human-readable count. */}
+            {/* The harness keys on this label's "PASS"/"FAIL", never on the
+                count; see `apps/mobile/README.md`. */}
             <View
               testID="driver-selftest-status"
               accessibilityLabel={allPassed ? "PASS" : "FAIL"}

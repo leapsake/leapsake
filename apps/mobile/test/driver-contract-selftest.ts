@@ -6,24 +6,8 @@ import { runCustodySelfTest } from "./custody-selftest";
 import { runSharedObjectRaceSelfTest } from "./shared-object-race-selftest";
 import { type CaseResult, createCollectingTestApi } from "./test-api";
 
-/**
- * The mobile native test tier (testing keystone): run the shared
- * {@link runDriverContract} spec against the *production* `expoSqliteDriver` over a
- * real, encrypted expo-sqlite database, in the app's own runtime on a
- * simulator/emulator. expo-sqlite is a native module that can't load headlessly, so
- * this is the only prod-faithful way to pin the mobile driver to the same observable
- * contract desktop's Vitest run pins its driver to (`apps/mobile/README.md` → *Why the driver test needs a device*).
- */
-
-/**
- * A fresh, isolated, *encrypted* throwaway DB per call — the contract provisions
- * and tears down a driver per case. Mirrors the production open path
- * (`apps/mobile/lib/core-context.tsx`): `PRAGMA key` as the very first statement on
- * the connection, before any access. Opened synchronously (and keyed via `execSync`)
- * so this satisfies the contract's synchronous `DriverFactory` while the driver's
- * query methods stay async — exactly the methods production calls. `crypto.randomUUID`
- * is polyfilled at boot in `apps/mobile/index.ts`.
- */
+/** A throwaway encrypted database keyed first, as production opens one; sync
+ *  only to satisfy the contract's synchronous `DriverFactory`. */
 function makeExpoTestDriver() {
   const name = `selftest-${crypto.randomUUID()}.db`;
   const db = SQLite.openDatabaseSync(name);
@@ -31,11 +15,8 @@ function makeExpoTestDriver() {
   return {
     driver: expoSqliteDriver(db),
     cleanup: async () => {
-      // Tolerate a handle a test already closed through the driver's `close()`
-      // (the contract's close case does exactly this) — expo-sqlite throws
-      // "Access to closed resource" on a double `closeSync`. This mirrors the
-      // desktop factory's `if (db.open)` guard; expo-sqlite exposes no `isOpen`,
-      // so we swallow the already-closed throw rather than test a flag.
+      // A test may already have closed it; expo-sqlite has no `isOpen` and
+      // throws on a double `closeSync`.
       try {
         db.closeSync();
       } catch {
@@ -46,15 +27,8 @@ function makeExpoTestDriver() {
   };
 }
 
-/**
- * Register both native suites against the real engine and execute them, returning a
- * pass/fail result per case for the self-test screen to render.
- *
- * Two suites share one run (and so one PASS/FAIL banner, one `pnpm test:native`
- * gate): the driver contract, which pins the `SqliteDriver` port, and the custody
- * suite, which pins the *engine* behaviors the custody work assumes — keyless opens
- * and the §8.1 conversion. Both are things only a device can answer.
- */
+/** Runs every on-device suite against the real engine under one PASS/FAIL,
+ *  a result per case; see `apps/mobile/README.md`. */
 export async function runDriverContractSelfTest(): Promise<CaseResult[]> {
   const { api, run } = createCollectingTestApi();
   runDriverContract(api, makeExpoTestDriver);

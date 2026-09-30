@@ -7,10 +7,8 @@ import { useCore } from "../../lib/core-context";
 import { styles } from "../../lib/styles";
 import { TEST_ONLY_MARKER } from "../test-only";
 
-/**
- * Runs the export on mount and writes the archive to `dev-export.zip` in the cache, so the
- * whole path can be checked from outside without the share sheet.
- */
+/** Runs the export on mount into `dev-export.zip` in the cache, so the whole
+ *  path can be checked from outside without the share sheet. */
 export default function DevExport() {
   const core = useCore();
   const [line, setLine] = useState("running…");

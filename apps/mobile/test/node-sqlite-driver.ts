@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3-multiple-ciphers";
 import type { SqliteDriver } from "@leapsake/core";
 
-/** A driver over the engine desktop ships, for Vitest tiers that need real SQLite. */
+/** A driver over desktop's engine, for Vitest tiers that need real SQLite. */
 export function sqliteDriver(db: Database.Database): SqliteDriver {
   return {
     exec: async (sql) => void db.exec(sql),

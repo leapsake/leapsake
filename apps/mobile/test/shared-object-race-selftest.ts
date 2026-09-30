@@ -1,8 +1,8 @@
 import * as SQLite from "expo-sqlite";
 import type { TestApi } from "@leapsake/data/testing";
 
-// Statements stay referenced so the live shared-object count only climbs: every wave
-// forces the native registry through a larger rehash while earlier calls resolve ids.
+// Statements stay referenced so the shared-object count only climbs: each wave
+// forces a larger native rehash while earlier calls resolve ids.
 const WAVES = [1024, 2048, 4096, 8192, 16384, 32768];
 
 function describeRejection(reason: unknown): string {

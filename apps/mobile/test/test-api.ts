@@ -1,27 +1,13 @@
 import type { TestApi } from "@leapsake/data/testing";
 
-/**
- * A minimal, runner-agnostic `describe`/`it`/`expect` that *collects* results,
- * standing in for Vitest on device: the mobile native engine (expo-sqlite) can't
- * load in Node, so the shared {@link runDriverContract} suite runs in-app against
- * the real driver and reports PASS/FAIL on screen instead of to a test runner
- * (see `apps/mobile/README.md`).
- *
- * It is typed against {@link TestApi} (the exact slice the contract drives) so the
- * matcher surface here can't silently drift from what the spec needs — a missing or
- * mis-typed matcher is a compile error. `it` only *registers* cases; `run()`
- * executes them sequentially (the contract's bodies are async and each provisions
- * its own driver), collecting a pass/fail + message per case.
- */
 export interface CaseResult {
   name: string;
   status: "pass" | "fail";
   error?: string;
 }
 
-/** Structural equality for the values the contract compares: primitives, plain
- *  objects, arrays, and byte buffers (a Node Buffer is a `Uint8Array` subclass, so
- *  both backends' BLOB results compare by bytes). */
+/** Structural equality over primitives, plain objects, arrays and byte
+ *  buffers, so both backends' BLOB results compare by bytes. */
 function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
 
@@ -69,6 +55,8 @@ function show(value: unknown): string {
   }
 }
 
+/** Vitest's `describe`/`it`/`expect` for on-device suites: `it` registers,
+ *  and `run()` executes the cases in order, collecting a result for each. */
 export function createCollectingTestApi(): {
   api: TestApi;
   run: () => Promise<CaseResult[]>;
@@ -127,8 +115,8 @@ export function createCollectingTestApi(): {
   });
 
   const api: TestApi = {
-    // The contract registers everything synchronously inside one describe; just run
-    // the body so its `it`s land in `cases`.
+    // Suites register synchronously, so running the body lands its `it`s in
+    // `cases`.
     describe: (_name, fn) => fn(),
     it: (name, fn) => cases.push({ name, fn }),
     expect,

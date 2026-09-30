@@ -13,10 +13,8 @@ type State =
   | { kind: "done" }
   | { kind: "error"; message: string };
 
-/**
- * Deletes secrets from the secure store to simulate losing the OS keychain: the db-key
- * alone, the device identity alone, or everything.
- */
+/** Simulates losing the OS keychain by deleting the db-key alone, the
+ *  device identity alone, or everything. */
 export default function ClearKeys() {
   const [state, setState] = useState<State>({ kind: "idle" });
 
