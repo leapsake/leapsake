@@ -7,6 +7,7 @@ import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
 import { useCore, useAccount } from "../lib/core-context";
 import { exportAndShare } from "../lib/export-share";
+import { showFormProblem } from "../lib/form-problem";
 import { colors, styles } from "../lib/styles";
 
 /**
@@ -50,6 +51,10 @@ export default function DataScreen() {
 /** The word a user must type to arm the (irreversible) account deletion. */
 const FORGET_ACCOUNT_PHRASE = "DELETE";
 
+const NOT_CONFIRMED = "Not confirmed yet";
+const typeToConfirm = (phrase: string) =>
+  `Type ${phrase} in the box above to confirm.`;
+
 /**
  * Remove this account and its data. Unless something claims a durable copy,
  * it is worded as the deletion it is, with a typed confirmation.
@@ -91,7 +96,12 @@ function ForgetAccountSection() {
     !lastCopy || typed.trim().toUpperCase() === FORGET_ACCOUNT_PHRASE;
 
   async function forget() {
-    if (working || !armed) return;
+    if (working) return;
+    if (!armed)
+      return showFormProblem(
+        typeToConfirm(FORGET_ACCOUNT_PHRASE),
+        NOT_CONFIRMED,
+      );
     setError(null);
     setWorking(true);
     try {
@@ -179,7 +189,6 @@ function ForgetAccountSection() {
             (!armed || working) && { opacity: 0.5 },
           ]}
           accessibilityState={{ busy: working }}
-          disabled={!armed}
           onPress={forget}
         >
           <Text style={styles.buttonText}>
@@ -191,13 +200,13 @@ function ForgetAccountSection() {
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.button, { backgroundColor: colors.border }]}
+          style={[styles.buttonSecondary, styles.buttonBlock]}
           accessibilityState={{ busy: working }}
           onPress={() => {
             if (!working) cancel();
           }}
         >
-          <Text style={styles.buttonText}>Cancel</Text>
+          <Text style={styles.buttonSecondaryText}>Cancel</Text>
         </Pressable>
         {error !== null && (
           <Text style={styles.danger} accessibilityRole="alert">
@@ -226,7 +235,12 @@ function FactoryResetSection() {
   const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
 
   async function reset() {
-    if (working || !armed) return;
+    if (working) return;
+    if (!armed)
+      return showFormProblem(
+        typeToConfirm(FACTORY_RESET_PHRASE),
+        NOT_CONFIRMED,
+      );
     setError(null);
     setWorking(true);
     try {
@@ -288,7 +302,6 @@ function FactoryResetSection() {
               (!armed || working) && { opacity: 0.5 },
             ]}
             accessibilityState={{ busy: working }}
-            disabled={!armed}
             onPress={reset}
           >
             <Text style={styles.buttonText}>
@@ -296,13 +309,13 @@ function FactoryResetSection() {
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.button, { backgroundColor: colors.border }]}
+            style={[styles.buttonSecondary, styles.buttonBlock]}
             accessibilityState={{ busy: working }}
             onPress={() => {
               if (!working) cancel();
             }}
           >
-            <Text style={styles.buttonText}>Cancel</Text>
+            <Text style={styles.buttonSecondaryText}>Cancel</Text>
           </Pressable>
           {error !== null && (
             <Text style={styles.danger} accessibilityRole="alert">

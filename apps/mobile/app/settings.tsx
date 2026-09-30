@@ -8,7 +8,11 @@ import {
   CreateAccountForm,
   RecoveryKeyReveal,
 } from "../components/ProtectData";
+import { showFormProblem } from "../lib/form-problem";
 import { colors, styles } from "../lib/styles";
+
+const NOT_CONFIRMED = "Not confirmed yet";
+const PASSWORD_FIRST = "Enter your password to confirm.";
 
 /**
  * The Account screen. The recovery phrase lives in local state only, so it
@@ -132,7 +136,8 @@ function RecoveryPhraseSection({
   const [error, setError] = useState<string | null>(null);
 
   async function rotate() {
-    if (working || password === "") return;
+    if (working) return;
+    if (password === "") return showFormProblem(PASSWORD_FIRST, NOT_CONFIRMED);
     setError(null);
     setWorking(true);
     try {
@@ -186,7 +191,6 @@ function RecoveryPhraseSection({
               },
             ]}
             accessibilityState={{ busy: working }}
-            disabled={password === ""}
             onPress={() => void rotate()}
           >
             <Text style={styles.buttonText}>
@@ -194,7 +198,7 @@ function RecoveryPhraseSection({
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.button, { backgroundColor: colors.border }]}
+            style={styles.buttonSecondary}
             accessibilityState={{ busy: working }}
             onPress={() => {
               if (working) return;
@@ -203,7 +207,7 @@ function RecoveryPhraseSection({
               setError(null);
             }}
           >
-            <Text style={styles.buttonText}>Cancel</Text>
+            <Text style={styles.buttonSecondaryText}>Cancel</Text>
           </Pressable>
         </>
       )}

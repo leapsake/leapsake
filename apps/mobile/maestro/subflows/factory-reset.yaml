@@ -121,7 +121,7 @@ appId: com.leapsake.app
 
 # Fill and fire whichever is now open. `eraseText` first, because a field still holding the
 # word from a dead run would otherwise become ERASEERASE, which arms nothing — and the flow
-# would fail on a disabled button rather than on anything real.
+# would fail on a "Not confirmed yet" alert rather than on anything real.
 - runFlow:
     when:
       visible:

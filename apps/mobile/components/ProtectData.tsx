@@ -5,7 +5,12 @@ import { MIN_PASSWORD_LENGTH } from "@leapsake/core";
 import { CheckboxBox } from "./Checkbox";
 import { PasswordInput } from "./PasswordInput";
 import { useAccount } from "../lib/core-context";
+import { showFormProblem } from "../lib/form-problem";
 import { colors, styles } from "../lib/styles";
+
+const NOT_SAVED_YET = "Save your phrase first";
+const SAVE_PHRASE_FIRST =
+  "Write your recovery phrase down or copy it somewhere safe, then tick “I’ve saved my recovery phrase”.";
 
 // Account creation and the one-time reveal, always a pair: a caller that
 // skips the reveal has lost the user's only sight of their phrase.
@@ -172,8 +177,11 @@ export function RecoveryKeyReveal({
           styles.button,
           !acknowledged && { backgroundColor: colors.border },
         ]}
-        disabled={!acknowledged}
-        onPress={onDone}
+        onPress={() =>
+          acknowledged
+            ? onDone()
+            : showFormProblem(SAVE_PHRASE_FIRST, NOT_SAVED_YET)
+        }
       >
         <Text style={styles.buttonText}>Done</Text>
       </Pressable>
