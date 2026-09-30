@@ -1,4 +1,3 @@
-import { Text, View } from "react-native";
 import type { ContactMethodKind } from "@leapsake/schema";
 import {
   type ContactMethodDraft,
@@ -9,9 +8,8 @@ import {
   findPlatform,
 } from "@leapsake/contact-links";
 import { ContactMethodFields } from "./ContactMethodFields";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { DraftRow } from "./DraftRow";
 import { RecordSection } from "./RecordSection";
-import { styles } from "../lib/styles";
 
 /** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
 const KIND_GLYPH: Record<ContactMethodKind, string> = {
@@ -82,21 +80,18 @@ export function StagedContactsSection({
             entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
           );
         return (
-          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            {/* Says which method this menu is for. */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>
+          <DraftRow
+            key={entry.key}
+            label={
+              <>
                 {KIND_GLYPH[entry.draft.kind]} {nameFor(entry.draft)}
-              </Text>
-              <RowMenu
-                subject={nameFor(entry.draft)}
-                items={[
-                  rowMenuItem.remove(() =>
-                    onChange(entries.filter((e) => e.key !== entry.key)),
-                  ),
-                ]}
-              />
-            </View>
+              </>
+            }
+            subject={nameFor(entry.draft)}
+            onRemove={() =>
+              onChange(entries.filter((e) => e.key !== entry.key))
+            }
+          >
             <ContactMethodFields
               canChangeKind
               draft={entry.draft}
@@ -107,7 +102,7 @@ export function StagedContactsSection({
                 )
               }
             />
-          </View>
+          </DraftRow>
         );
       })}
     </RecordSection>

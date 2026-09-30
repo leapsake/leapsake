@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   type GiftDraft,
@@ -8,7 +8,7 @@ import {
   emptyGiftDraft,
   giftDraftValid,
 } from "./GiftFields";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { DraftRow } from "./DraftRow";
 import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -69,20 +69,12 @@ export function StagedGiftsSection({
       {entries.map((row) => {
         const name = row.draft.title.trim() || NEW_GIFT;
         return (
-          <View key={row.key} style={[styles.row, styles.inlineForm]}>
-            {/* Says which gift this menu is for. */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>{name}</Text>
-              <RowMenu
-                subject={name}
-                items={[
-                  rowMenuItem.remove(() =>
-                    onChange(entries.filter((r) => r.key !== row.key)),
-                  ),
-                ]}
-              />
-            </View>
-
+          <DraftRow
+            key={row.key}
+            label={name}
+            subject={name}
+            onRemove={() => onChange(entries.filter((r) => r.key !== row.key))}
+          >
             <GiftIdentityFields
               draft={row.draft}
               onChange={(draft) => patch(row.key, draft)}
@@ -97,7 +89,7 @@ export function StagedGiftsSection({
             {!giftDraftValid(row.draft) && (
               <Text style={styles.danger}>This gift needs a name.</Text>
             )}
-          </View>
+          </DraftRow>
         );
       })}
     </RecordSection>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
 import {
   type EntityType,
@@ -11,7 +11,7 @@ import {
   rolesForSubject,
 } from "@leapsake/schema";
 import { RelationshipFields, otherLabelOf } from "./RelationshipFields";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { DraftRow } from "./DraftRow";
 import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -90,18 +90,14 @@ export function StagedRelationshipsSection({
             entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
           );
         return (
-          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>{label}</Text>
-              <RowMenu
-                subject={label}
-                items={[
-                  rowMenuItem.remove(() =>
-                    onChange(entries.filter((e) => e.key !== entry.key)),
-                  ),
-                ]}
-              />
-            </View>
+          <DraftRow
+            key={entry.key}
+            label={label}
+            subject={label}
+            onRemove={() =>
+              onChange(entries.filter((e) => e.key !== entry.key))
+            }
+          >
             <RelationshipFields
               candidates={candidates ?? []}
               draft={entry.draft}
@@ -112,7 +108,7 @@ export function StagedRelationshipsSection({
               roleOptions={roleOptions}
               otherTypes={otherTypesFor(entry.draft.role)}
             />
-          </View>
+          </DraftRow>
         );
       })}
 

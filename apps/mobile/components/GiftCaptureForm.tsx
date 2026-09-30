@@ -10,7 +10,7 @@ import {
 } from "@leapsake/ui/headless";
 import { GiftGivenCheckbox, GiftIdentityFields } from "./GiftFields";
 import { useHeaderSave } from "./HeaderSave";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { DraftRow } from "./DraftRow";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
@@ -152,19 +152,17 @@ export function GiftCaptureFields({
           {fields.recipients.map((r) => {
             const key = partyKey(r.option);
             return (
-              <View key={key} style={styles.row}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{r.option.label}</Text>
-                  <RowMenu
-                    subject={r.option.label}
-                    items={[rowMenuItem.remove(() => onRemoveRecipient(key))]}
-                  />
-                </View>
+              <DraftRow
+                key={key}
+                label={r.option.label}
+                subject={r.option.label}
+                onRemove={() => onRemoveRecipient(key)}
+              >
                 <GiftGivenCheckbox
                   value={r.given}
                   onChange={(given) => onRecipientGiven(key, given)}
                 />
-              </View>
+              </DraftRow>
             );
           })}
         </View>

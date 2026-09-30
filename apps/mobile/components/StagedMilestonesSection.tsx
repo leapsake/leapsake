@@ -1,4 +1,3 @@
-import { Text, View } from "react-native";
 import {
   type MilestoneBearerType,
   type MilestoneDraft,
@@ -9,9 +8,8 @@ import {
   milestoneLabel,
 } from "@leapsake/schema";
 import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { DraftRow } from "./DraftRow";
 import { RecordSection } from "./RecordSection";
-import { styles } from "../lib/styles";
 
 /** A milestone being created on the form; the key survives earlier removals. */
 export interface StagedMilestone {
@@ -70,23 +68,20 @@ export function StagedMilestonesSection({
         const icon = kindDefs[entry.draft.kind].icon;
         const date = shaped.ok ? formatMilestoneDate(shaped.input) : "";
         return (
-          <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            {/* Says which milestone this menu is for. */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>
+          <DraftRow
+            key={entry.key}
+            label={
+              <>
                 {icon ? `${icon} ` : ""}
                 {label}
                 {date === "" ? "" : ` · ${date}`}
-              </Text>
-              <RowMenu
-                subject={label}
-                items={[
-                  rowMenuItem.remove(() =>
-                    onChange(entries.filter((e) => e.key !== entry.key)),
-                  ),
-                ]}
-              />
-            </View>
+              </>
+            }
+            subject={label}
+            onRemove={() =>
+              onChange(entries.filter((e) => e.key !== entry.key))
+            }
+          >
             <MilestoneFields
               collapseSchedule
               bearerType={bearerType}
@@ -100,7 +95,7 @@ export function StagedMilestonesSection({
                 )
               }
             />
-          </View>
+          </DraftRow>
         );
       })}
     </RecordSection>
