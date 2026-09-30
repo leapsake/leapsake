@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
 import {
   type EntityType,
@@ -12,6 +12,7 @@ import {
 } from "@leapsake/schema";
 import { RelationshipFields, otherLabelOf } from "./RelationshipFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -66,6 +67,19 @@ export function StagedRelationshipsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Relationships</Text>
+        {/* Waits for the candidates, or a new row could not be filled in. */}
+        {candidates !== null && (
+          <SectionLink
+            what="relationship"
+            action="add"
+            onPress={() =>
+              onChange([
+                ...entries,
+                { key: crypto.randomUUID(), draft: relationshipDraftOf() },
+              ])
+            }
+          />
+        )}
       </View>
 
       {entries.map((entry) => {
@@ -105,21 +119,8 @@ export function StagedRelationshipsSection({
         <Text style={styles.muted}>No relationships yet.</Text>
       ) : null}
 
-      {/* Waits for the candidates, or a new row could not be filled in. */}
-      {candidates === null ? (
+      {candidates === null && (
         <Text style={styles.muted}>Loading people and pets…</Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            onChange([
-              ...entries,
-              { key: crypto.randomUUID(), draft: relationshipDraftOf() },
-            ])
-          }
-        >
-          <Text style={styles.link}>Add relationship</Text>
-        </Pressable>
       )}
     </View>
   );

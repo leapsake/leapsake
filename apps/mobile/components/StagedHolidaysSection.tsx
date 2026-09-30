@@ -5,6 +5,7 @@ import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -51,9 +52,11 @@ export function StagedHolidaysSection({
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Holidays</Text>
         {!adding && (
-          <Pressable accessibilityRole="button" onPress={() => setAdding(true)}>
-            <Text style={styles.link}>Add holiday</Text>
-          </Pressable>
+          <SectionLink
+            what="holiday"
+            action="add"
+            onPress={() => setAdding(true)}
+          />
         )}
       </View>
 

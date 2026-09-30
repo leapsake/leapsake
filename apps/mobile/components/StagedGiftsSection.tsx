@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   type GiftDraft,
@@ -9,6 +9,7 @@ import {
   giftDraftValid,
 } from "./GiftFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -54,6 +55,16 @@ export function StagedGiftsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Gifts</Text>
+        <SectionLink
+          what="gift"
+          action="add"
+          onPress={() =>
+            onChange([
+              ...entries,
+              { key: crypto.randomUUID(), draft: emptyGiftDraft() },
+            ])
+          }
+        />
       </View>
 
       {entries.map((row) => {
@@ -92,18 +103,6 @@ export function StagedGiftsSection({
       })}
 
       {entries.length === 0 && <Text style={styles.muted}>No gifts yet.</Text>}
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() =>
-          onChange([
-            ...entries,
-            { key: crypto.randomUUID(), draft: emptyGiftDraft() },
-          ])
-        }
-      >
-        <Text style={styles.link}>Add gift</Text>
-      </Pressable>
     </View>
   );
 }

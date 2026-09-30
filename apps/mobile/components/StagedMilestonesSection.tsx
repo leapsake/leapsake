@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import {
   type MilestoneBearerType,
   type MilestoneDraft,
@@ -10,6 +10,7 @@ import {
 } from "@leapsake/schema";
 import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { styles } from "../lib/styles";
 
 /** A milestone being created on the form; the key survives earlier removals. */
@@ -46,6 +47,19 @@ export function StagedMilestonesSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Milestones</Text>
+        <SectionLink
+          what="milestone"
+          action="add"
+          onPress={() =>
+            onChange([
+              ...entries,
+              {
+                key: crypto.randomUUID(),
+                draft: milestoneDraftOf({ bearerType }),
+              },
+            ])
+          }
+        />
       </View>
 
       {entries.map((entry) => {
@@ -94,21 +108,6 @@ export function StagedMilestonesSection({
       {entries.length === 0 ? (
         <Text style={styles.muted}>No milestones yet.</Text>
       ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={() =>
-          onChange([
-            ...entries,
-            {
-              key: crypto.randomUUID(),
-              draft: milestoneDraftOf({ bearerType }),
-            },
-          ])
-        }
-      >
-        <Text style={styles.link}>Add milestone</Text>
-      </Pressable>
     </View>
   );
 }

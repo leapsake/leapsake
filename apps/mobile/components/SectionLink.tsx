@@ -1,5 +1,5 @@
-import { StyleSheet } from "react-native";
-import { Link } from "expo-router";
+import { StyleSheet, Text } from "react-native";
+import { useRouter } from "expo-router";
 import { styles } from "../lib/styles";
 
 const GLYPH = { add: "➕", edit: "⋯" } as const;
@@ -9,27 +9,29 @@ const LABEL = {
 } as const;
 
 /**
- * A section header's action as a bare glyph: ➕ to add, ⋯ to edit. `what`
- * names it for a screen reader, which reads the whole phrase, e.g. "Add gift".
+ * A section header's ➕ (add) or ⋯ (edit), opening `href` or running `onPress`.
+ * A screen reader hears the whole phrase instead: "Add gift", "Edit tags".
  */
 export function SectionLink({
-  href,
   what,
   action = "edit",
+  ...target
 }: {
-  href: string;
   what: string;
   action?: "add" | "edit";
-}) {
+} & ({ href: string } | { onPress: () => void })) {
+  const router = useRouter();
   return (
-    <Link
-      href={href}
+    <Text
       accessibilityRole="button"
       accessibilityLabel={LABEL[action](what)}
+      onPress={() =>
+        "href" in target ? router.push(target.href) : target.onPress()
+      }
       style={action === "add" ? local.add : [styles.link, local.edit]}
     >
       {GLYPH[action]}
-    </Link>
+    </Text>
   );
 }
 

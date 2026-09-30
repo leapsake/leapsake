@@ -2,7 +2,7 @@
 #
 # "Add milestone" appends a row that is already open and live — there is no
 # sub-form and no second "Add" to press — so staging one is a matter of filling
-# it in. The row is appended where the link was, but its fields run below the
+# it in. The row opens under the section's heading, but its fields run below the
 # fold, so the year is scrolled to rather than assumed on screen.
 #
 # **The year is not decoration.** A row nobody has typed into is treated as the
