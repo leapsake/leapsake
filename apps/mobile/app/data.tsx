@@ -401,7 +401,7 @@ function ExportSection() {
       </Text>
       <Pressable
         testID="export-start"
-        style={[styles.button, working && { opacity: 0.5 }]}
+        style={[styles.button, styles.buttonBlock, working && { opacity: 0.5 }]}
         accessibilityState={{ busy: working }}
         onPress={run}
       >
@@ -435,7 +435,11 @@ function ExportFirstOffer({ busy = false }: { busy?: boolean }) {
     <>
       <Pressable
         testID="export-first-start"
-        style={[styles.button, (working || busy) && { opacity: 0.5 }]}
+        style={[
+          styles.button,
+          styles.buttonBlock,
+          (working || busy) && { opacity: 0.5 },
+        ]}
         accessibilityState={{ busy: working || busy }}
         onPress={() => {
           if (!busy) run();

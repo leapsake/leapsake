@@ -48,6 +48,9 @@ export function ActionSheet({
           <Pressable
             key={item.key}
             accessibilityRole="button"
+            accessibilityLabel={item.label}
+            accessibilityHint={item.hint}
+            testID={`action-sheet-${item.key}`}
             style={local.option}
             onPress={() => {
               // Close first: a pushed screen would arrive behind the modal.

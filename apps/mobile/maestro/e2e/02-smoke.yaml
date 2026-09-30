@@ -133,7 +133,5 @@ appId: com.leapsake.app
 - assertVisible: ".*1815.*"
 - tapOn: "More actions for .*Birthday.*"
 - tapOn:
-    text: "Edit"
-    childOf:
-      id: "action-sheet"
+    id: "action-sheet-edit"
 - assertVisible: ".*Met at the Analytical Engine talk.*"
