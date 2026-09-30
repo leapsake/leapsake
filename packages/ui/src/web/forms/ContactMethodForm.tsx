@@ -135,10 +135,6 @@ export function ContactMethodFields({
               placeholder={m.contactMethodForm.optional}
             />
           </Field>{" "}
-          <CountrySelect
-            value={fields.country}
-            onChange={(country) => set("country", country)}
-          />{" "}
           <label>
             <input
               type="checkbox"
@@ -284,7 +280,7 @@ export function ContactMethodFields({
 }
 
 /**
- * The phone and postal country picker: the short {@link contactCountryOptions}
+ * The postal country picker: the short {@link contactCountryOptions}
  * list, plus a stored country outside it so editing keeps it.
  */
 function CountrySelect({

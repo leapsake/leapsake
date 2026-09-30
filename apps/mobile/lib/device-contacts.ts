@@ -111,13 +111,12 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   const phones: ParsedPhone[] = (contact.phones ?? []).flatMap((phone) => {
     const number = clean(phone.number);
     if (number === null) return [];
-    // No reliable ISO code, and no fax flag, so `smsCapable` defaults true.
+    // No fax flag, so `smsCapable` defaults true.
     return [
       {
         label: label(phone.label),
         number,
         extension: null,
-        country: null,
         smsCapable: true,
       },
     ];

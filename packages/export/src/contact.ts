@@ -54,7 +54,6 @@ export function toExportContact(input: {
               label: m.method.label,
               number: m.method.number,
               extension: m.method.extension,
-              country: m.method.country,
               smsCapable: m.method.smsCapable,
             },
           ]

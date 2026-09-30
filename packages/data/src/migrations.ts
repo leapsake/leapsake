@@ -736,6 +736,13 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 39,
+    async up(driver) {
+      // A phone's country is read from its number, never stored beside it.
+      await driver.exec(`ALTER TABLE phone_numbers DROP COLUMN country`);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

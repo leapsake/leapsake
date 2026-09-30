@@ -78,7 +78,6 @@ describe("core.import.commit", () => {
               label: "Mobile",
               number: "+1 555 100",
               extension: null,
-              country: null,
               smsCapable: true,
             },
           ],

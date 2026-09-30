@@ -86,14 +86,12 @@ describe("parseVCards — contact methods", () => {
         label: "Mobile",
         number: "+1 555 100",
         extension: null,
-        country: null,
         smsCapable: true,
       },
       {
         label: "Fax",
         number: "555 200",
         extension: null,
-        country: null,
         smsCapable: false,
       },
     ]);
@@ -698,25 +696,26 @@ describe("parseVCards — card identity", () => {
 });
 
 describe("parseVCards — the X-LEAPSAKE parameters", () => {
-  it("reads a phone's extension and ISO country", () => {
+  it("reads a phone's extension, ignoring an older export's country", () => {
     const [c] = parseVCards(
       card(
         "FN:Jane Wainwright",
         "TEL;TYPE=WORK;X-LEAPSAKE-EXT=4021;X-LEAPSAKE-COUNTRY=GB:+44 20 7946 0018",
       ),
     );
-    expect(c.phones[0].extension).toBe("4021");
-    expect(c.phones[0].country).toBe("GB");
+    expect(c.phones[0]).toEqual({
+      label: "Work",
+      number: "+44 20 7946 0018",
+      extension: "4021",
+      smsCapable: true,
+    });
   });
 
-  it("leaves a foreign card's phone without either", () => {
-    // A standard `TEL` has nowhere to put an extension or a country, so absent
-    // is the honest answer rather than a guess parsed out of the number.
+  it("leaves a foreign card's phone without an extension", () => {
     const [c] = parseVCards(
       card("FN:Jane Wainwright", "TEL;TYPE=WORK:+44 20 7946 0018"),
     );
     expect(c.phones[0].extension).toBeNull();
-    expect(c.phones[0].country).toBeNull();
   });
 
   it("reads a social profile's opaque platform user id", () => {

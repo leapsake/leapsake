@@ -88,7 +88,6 @@ export const phoneNumberSchema = z.object({
   number: z.string().min(1),
   normalized: z.string(), // may be empty when the input carries no digits
   extension: z.string().min(1).nullable(),
-  country: countryCodeSchema.nullable(),
   smsCapable: z.boolean(),
   reachableOn: z.array(z.string()).default([]),
 });
@@ -99,7 +98,6 @@ export const createPhoneInputSchema = z.object({
   ...inputSpine,
   number: z.string().min(1),
   extension: z.string().min(1).nullable().optional(),
-  country: countryCodeSchema.nullable().optional(),
   smsCapable: z.boolean().optional(), // defaults to true in the repo
   reachableOn: z.array(z.string()).optional(), // defaults to [] in the repo
 });
@@ -110,7 +108,6 @@ export const updatePhoneInputSchema = z.object({
   label: z.string().min(1).optional(),
   number: z.string().min(1).optional(),
   extension: z.string().min(1).nullable().optional(),
-  country: countryCodeSchema.nullable().optional(),
   smsCapable: z.boolean().optional(),
   reachableOn: z.array(z.string()).optional(),
 });

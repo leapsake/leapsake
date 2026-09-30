@@ -77,7 +77,6 @@ describe("core.export.archive", () => {
       label: "Mobile",
       number: "+1 555 0100",
       extension: "204",
-      country: "US",
     });
     await core.contactMethods.postals.create({
       ownerType: "person",
@@ -106,7 +105,6 @@ describe("core.export.archive", () => {
     expect(vcf).toContain(`UID:urn:uuid:${mary.id}`);
     expect(vcf).toContain("CATEGORIES:Family,Work");
     expect(vcf).toContain("X-LEAPSAKE-EXT=204");
-    expect(vcf).toContain("X-LEAPSAKE-COUNTRY=US");
     expect(vcf).toContain("X-ABADR:US");
     expect(vcf).toContain(`PRODID:-//Leapsake//Leapsake ${VERSION}//EN`);
 

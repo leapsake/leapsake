@@ -159,10 +159,6 @@ export function ContactMethodFields({
               keyboardType="number-pad"
             />
           </View>
-          <CountryField
-            value={draft.country}
-            onChange={(value) => set("country", value)}
-          />
           <Pressable
             accessibilityRole="checkbox"
             accessibilityState={{ checked: draft.smsCapable }}

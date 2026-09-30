@@ -364,12 +364,9 @@ describe("writeVCards — contact methods", () => {
     expectRoundTrip([c]);
   });
 
-  it("carries an extension and a country as params on the TEL", () => {
-    const text = write([
-      contact({ phones: [phone({ extension: "204", country: "GB" })] }),
-    ]);
+  it("carries an extension as a param on the TEL", () => {
+    const text = write([contact({ phones: [phone({ extension: "204" })] })]);
     expect(text).toContain("X-LEAPSAKE-EXT=204");
-    expect(text).toContain("X-LEAPSAKE-COUNTRY=GB");
   });
 
   /**
@@ -990,7 +987,6 @@ function phone(over: Partial<ExportContact["phones"][number]> = {}) {
     label: "Mobile",
     number: "+1 555 100",
     extension: null,
-    country: null,
     smsCapable: true,
     ...over,
   };

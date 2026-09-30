@@ -155,7 +155,6 @@ export function createContactMethodsRepo(
         number: parsed.number,
         normalized: normalizePhone(parsed.number),
         extension: parsed.extension ?? null,
-        country: parsed.country ?? null,
         // Assume textable unless the user says otherwise (landline/fax).
         smsCapable: parsed.smsCapable ?? true,
         // An unasked number reaches no platform until the user says so.

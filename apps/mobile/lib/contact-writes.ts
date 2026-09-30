@@ -29,7 +29,6 @@ export function createContact(
       label: value.label,
       number: value.number,
       extension: value.extension,
-      country: value.country,
       smsCapable: value.smsCapable,
       reachableOn: value.reachableOn,
     });
@@ -73,7 +72,6 @@ export function updateContact(
       label: value.label,
       number: value.number,
       extension: value.extension,
-      country: value.country,
       smsCapable: value.smsCapable,
       reachableOn: value.reachableOn,
     });

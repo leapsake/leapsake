@@ -231,12 +231,9 @@ function telLine(
   if (!phone.smsCapable && !params.some((p) => p.value === "FAX")) {
     params.push({ key: "TYPE", value: "FAX" });
   }
-  // Two facts `TEL` has nowhere to put, riding it as parameters.
+  // A fact `TEL` has nowhere to put, riding it as a parameter.
   if (phone.extension !== null) {
     params.push({ key: "X-LEAPSAKE-EXT", value: phone.extension });
-  }
-  if (phone.country !== null) {
-    params.push({ key: "X-LEAPSAKE-COUNTRY", value: phone.country });
   }
   return { group, name: "TEL", params, value: phone.number };
 }

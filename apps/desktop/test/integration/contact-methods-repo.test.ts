@@ -144,25 +144,14 @@ describe("phones", () => {
     expect(e164.normalized).toBe("+15551234567");
   });
 
-  it("stores extension and country, and updates them", async () => {
+  it("stores an extension, and updates it", async () => {
     const created = await repo.phones.create(
-      phone(crypto.randomUUID(), { extension: "42", country: "US" }),
+      phone(crypto.randomUUID(), { extension: "42" }),
     );
     expect(created.extension).toBe("42");
-    expect(created.country).toBe("US");
 
-    const updated = await repo.phones.update(created.id, {
-      extension: null,
-      country: "GB",
-    });
+    const updated = await repo.phones.update(created.id, { extension: null });
     expect(updated?.extension).toBeNull();
-    expect(updated?.country).toBe("GB");
-  });
-
-  it("rejects a malformed country code", async () => {
-    await expect(
-      repo.phones.create(phone(crypto.randomUUID(), { country: "USA" })),
-    ).rejects.toThrow();
   });
 
   it("defaults smsCapable to true and lets it be set and updated", async () => {

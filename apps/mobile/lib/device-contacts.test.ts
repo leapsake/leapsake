@@ -47,7 +47,6 @@ describe("deviceContactToParsed", () => {
         label: "mobile",
         number: "+15551234567",
         extension: null,
-        country: null,
         smsCapable: true,
       },
     ]);

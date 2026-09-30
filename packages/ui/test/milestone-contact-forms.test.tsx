@@ -236,7 +236,7 @@ describe("ContactMethodForm", () => {
     expect(screen.getByLabelText("Email")).toHaveProperty("required", true);
   });
 
-  it("asks for number, extension, country, SMS and by-number platforms", () => {
+  it("asks for number, extension, SMS and by-number platforms", () => {
     const { container } = renderWithUi(
       <ContactMethodForm kind="phone" cancelTo="/back" submitting={false} />,
     );
@@ -245,7 +245,6 @@ describe("ContactMethodForm", () => {
       "label",
       "number",
       "extension",
-      "country",
       "smsCapable",
       // One checkbox per phone-keyed platform, rendered from the registry
       // rather than listed here — adding one is a registry entry, not a form
@@ -349,7 +348,6 @@ describe("ContactMethodForm", () => {
       label: "Mobile",
       number: "555-0100",
       extension: "12",
-      country: null,
       smsCapable: false,
       reachableOn: ["whatsapp"],
     } as unknown as PhoneNumber;

@@ -58,13 +58,11 @@ export interface ParsedEmail {
   address: string;
 }
 
-/** One parsed phone; `country` is ISO-3166 alpha-2 or `null`, never guessed,
- *  and `smsCapable` is `false` only for fax. */
+/** One parsed phone; `smsCapable` is `false` only for fax. */
 export interface ParsedPhone {
   label: string;
   number: string;
   extension: string | null;
-  country: string | null;
   smsCapable: boolean;
 }
 
@@ -181,7 +179,6 @@ export const parsedContactSchema = z.object({
       label: z.string().min(1),
       number: z.string().min(1),
       extension: z.string().min(1).nullable(),
-      country: z.string().nullable(),
       smsCapable: z.boolean(),
     }),
   ),

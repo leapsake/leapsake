@@ -113,7 +113,6 @@ export function createImportApi(deps: ImportApiDeps) {
             label: phone.label,
             number: phone.number,
             extension: phone.extension,
-            country: phone.country,
             smsCapable: phone.smsCapable,
           });
         },

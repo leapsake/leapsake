@@ -26,7 +26,7 @@ export interface ContactMethodDraft {
   locality: string;
   region: string;
   postalCode: string;
-  /** Phone and postal both; null when unset. */
+  /** Null when unset. */
   country: string | null;
   /** Social. A registry id, or a name typed for a platform it doesn't know. */
   platform: string;
@@ -43,7 +43,6 @@ export type ContactMethodValue =
       label: string;
       number: string;
       extension: string | null;
-      country: string | null;
       smsCapable: boolean;
       reachableOn: string[];
     }
@@ -122,13 +121,11 @@ export function contactMethodDraftOf(
   if (start.kind === "email")
     return { ...draft, address: start.method.address };
   if (start.kind === "phone") {
-    const { number, extension, country, smsCapable, reachableOn } =
-      start.method;
+    const { number, extension, smsCapable, reachableOn } = start.method;
     return {
       ...draft,
       number,
       extension: extension ?? "",
-      country,
       smsCapable,
       reachableOn: [...(reachableOn ?? [])],
     };
@@ -222,7 +219,6 @@ function valueOf(draft: ContactMethodDraft, label: string): ContactMethodValue {
       label,
       number: draft.number.trim(),
       extension: blankToNull(draft.extension),
-      country: countryOf(draft.country),
       smsCapable: draft.smsCapable,
       reachableOn: draft.reachableOn,
     };

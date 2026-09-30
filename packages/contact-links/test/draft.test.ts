@@ -25,7 +25,6 @@ describe("contactMethodDraftOf", () => {
       label: "Mobile",
       number: "",
       smsCapable: true,
-      country: null,
       platform: HANDLE_PLATFORMS[0]!.id,
     });
   });
@@ -39,7 +38,6 @@ describe("contactMethodDraftOf", () => {
         number: "555-0100",
         normalized: "5550100",
         extension: null,
-        country: "US",
         smsCapable: false,
         reachableOn: ["whatsapp"],
       },
@@ -49,7 +47,6 @@ describe("contactMethodDraftOf", () => {
       label: "Work",
       number: "555-0100",
       extension: "",
-      country: "US",
       smsCapable: false,
       reachableOn: ["whatsapp"],
     });
@@ -124,12 +121,11 @@ describe("contactMethodInputOf", () => {
     });
   });
 
-  it("nulls a blank extension and uppercases the country", () => {
+  it("nulls a blank extension", () => {
     const shaped = contactMethodInputOf({
       ...contactMethodDraftOf("phone"),
       number: " 555-0100 ",
       extension: "  ",
-      country: "us",
       reachableOn: ["whatsapp"],
     });
     expect(shaped).toEqual({
@@ -139,19 +135,18 @@ describe("contactMethodInputOf", () => {
         label: "Mobile",
         number: "555-0100",
         extension: null,
-        country: "US",
         smsCapable: true,
         reachableOn: ["whatsapp"],
       },
     });
   });
 
-  it("nulls a postal address's blank optional lines", () => {
+  it("nulls a postal address's blank optional lines and uppercases the country", () => {
     const shaped = contactMethodInputOf({
       ...contactMethodDraftOf("postal"),
       line1: "320 Sycamore",
       locality: "Bedford Falls",
-      country: "",
+      country: "us",
     });
     expect(shaped).toEqual({
       ok: true,
@@ -163,7 +158,7 @@ describe("contactMethodInputOf", () => {
         locality: "Bedford Falls",
         region: null,
         postalCode: null,
-        country: null,
+        country: "US",
       },
     });
   });

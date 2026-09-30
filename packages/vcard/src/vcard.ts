@@ -456,7 +456,6 @@ function buildContact(
             number,
             // Our own parameters; `null` on a foreign card.
             extension: paramValue(p, "X-LEAPSAKE-EXT"),
-            country: paramValue(p, "X-LEAPSAKE-COUNTRY"),
             smsCapable: !types.includes("FAX"),
           });
         }

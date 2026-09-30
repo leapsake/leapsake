@@ -132,7 +132,7 @@ which is also what Contacts itself displays; that fix is what lets the writer em
 
 **Facts vCard has no vocabulary for ride _parameters_, not properties.** `X-LEAPSAKE-ROLE` and
 `-REL-ID` on a `RELATED`, `-MILESTONE-ID`/`-KIND`/`-NOTE`/`-REL` on an `X-ABDATE`,
-`-EXT`/`-COUNTRY` on a `TEL`. Partly so a fact cannot be separated from what it qualifies — but
+`-EXT` on a `TEL`. Partly so a fact cannot be separated from what it qualifies — but
 mostly because an unknown _parameter_ is invisible to any parser, while an unknown _property_
 lands in this reader's own `dropped` list. Spelled as properties, a user re-importing their own
 file would be shown a list of their own fields that "could not be imported".
