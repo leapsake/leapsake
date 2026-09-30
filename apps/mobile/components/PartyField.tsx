@@ -119,7 +119,7 @@ export function PartyField({
             accessibilityState={{ busy }}
             onPress={() => void remove()}
           >
-            <Text style={styles.link}>{COPY.remove}</Text>
+            <Text style={[styles.link, styles.danger]}>{COPY.remove}</Text>
           </Pressable>
         </View>
       </View>

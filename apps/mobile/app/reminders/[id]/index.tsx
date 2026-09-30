@@ -291,19 +291,13 @@ export default function ReminderDetailScreen() {
               accessibilityRole="button"
               onPress={confirmDelete}
               style={[
-                styles.buttonSecondary,
+                styles.button,
+                styles.buttonDestructive,
                 styles.buttonBlock,
                 styles.buttonFill,
               ]}
             >
-              <Text
-                style={[
-                  styles.buttonSecondaryText,
-                  styles.buttonDestructiveText,
-                ]}
-              >
-                Delete
-              </Text>
+              <Text style={styles.buttonText}>Delete</Text>
             </Pressable>
           )}
         </View>
@@ -371,7 +365,12 @@ export default function ReminderDetailScreen() {
                 key={reminderActionKey(action)}
                 accessibilityRole="button"
                 style={[
-                  isCta ? styles.button : styles.buttonSecondary,
+                  // "Don't ask again" is a tombstone, red like Delete.
+                  offer.kind === "dismiss"
+                    ? [styles.button, styles.buttonDestructive]
+                    : isCta
+                      ? styles.button
+                      : styles.buttonSecondary,
                   styles.buttonBlock,
                 ]}
                 onPress={() => {
@@ -385,14 +384,9 @@ export default function ReminderDetailScreen() {
               >
                 <Text
                   style={
-                    isCta
+                    isCta || offer.kind === "dismiss"
                       ? styles.buttonText
-                      : [
-                          styles.buttonSecondaryText,
-                          // "Don't ask again" is a tombstone, red like Delete.
-                          offer.kind === "dismiss" &&
-                            styles.buttonDestructiveText,
-                        ]
+                      : styles.buttonSecondaryText
                   }
                 >
                   {offer.label}

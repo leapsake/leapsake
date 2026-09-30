@@ -139,8 +139,12 @@ export default function PetDetailScreen() {
       <MentionedInSection reminders={mentionedIn} />
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete pet</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmDelete}
+        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+      >
+        <Text style={styles.buttonText}>Delete pet</Text>
       </Pressable>
 
       <RecordTimestamps createdAt={pet.createdAt} updatedAt={pet.updatedAt} />

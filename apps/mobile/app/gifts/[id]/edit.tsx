@@ -113,8 +113,12 @@ export default function GiftIdeaEditScreen() {
         onChanged={reload}
       />
 
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Remove gift idea</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmDelete}
+        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+      >
+        <Text style={styles.buttonText}>Remove gift idea</Text>
       </Pressable>
     </ScrollView>
   );

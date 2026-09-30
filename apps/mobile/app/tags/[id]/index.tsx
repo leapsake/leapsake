@@ -161,8 +161,12 @@ export default function TagDetailScreen() {
         </View>
       )}
 
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete tag</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmDelete}
+        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+      >
+        <Text style={styles.buttonText}>Delete tag</Text>
       </Pressable>
     </ScrollView>
   );

@@ -66,7 +66,7 @@ export function ReminderScheduleFields({
               <Text style={styles.fieldValue}>Remind me</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => remove(i)}>
-              <Text style={styles.link}>Remove</Text>
+              <Text style={[styles.link, styles.danger]}>Remove</Text>
             </Pressable>
           </View>
           <SelectField

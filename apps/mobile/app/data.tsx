@@ -112,7 +112,7 @@ function ForgetAccountSection() {
           signing out — the data is deleted, not locked.
         </Text>
         <Pressable
-          style={[styles.button, { backgroundColor: colors.border }]}
+          style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
           onPress={beginConfirm}
         >
           <Text style={styles.buttonText}>Forget account…</Text>
@@ -174,7 +174,8 @@ function ForgetAccountSection() {
         <Pressable
           style={[
             styles.button,
-            lastCopy && { backgroundColor: colors.danger },
+            styles.buttonDestructive,
+            styles.buttonBlock,
             (!armed || working) && { opacity: 0.5 },
           ]}
           accessibilityState={{ busy: working }}
@@ -252,7 +253,7 @@ function FactoryResetSection() {
       </Text>
       {!confirming ? (
         <Pressable
-          style={[styles.button, { backgroundColor: colors.border }]}
+          style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
           onPress={() => setConfirming(true)}
         >
           <Text style={styles.buttonText}>Factory reset…</Text>
@@ -282,7 +283,8 @@ function FactoryResetSection() {
           <Pressable
             style={[
               styles.button,
-              { backgroundColor: colors.danger },
+              styles.buttonDestructive,
+              styles.buttonBlock,
               (!armed || working) && { opacity: 0.5 },
             ]}
             accessibilityState={{ busy: working }}

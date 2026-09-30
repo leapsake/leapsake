@@ -93,8 +93,12 @@ export default function RelationshipDetailScreen() {
         onChanged={reload}
       />
 
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete relationship</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmDelete}
+        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+      >
+        <Text style={styles.buttonText}>Delete relationship</Text>
       </Pressable>
     </ScrollView>
   );

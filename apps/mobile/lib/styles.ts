@@ -347,9 +347,9 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  /** A {@link buttonSecondary} that destroys: only the label is red. */
-  buttonDestructiveText: {
-    color: colors.danger,
+  /** A {@link button} that destroys: red, with the same white label. */
+  buttonDestructive: {
+    backgroundColor: colors.danger,
   },
   /** A full-width button over {@link button} or {@link buttonSecondary};
    *  `minHeight`, not padding, so a wrapped label keeps the same height. */

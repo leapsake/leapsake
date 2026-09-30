@@ -178,8 +178,12 @@ export default function PersonDetailScreen() {
       )}
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
-      <Pressable accessibilityRole="button" onPress={confirmDelete}>
-        <Text style={[styles.link, styles.danger]}>Delete person</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={confirmDelete}
+        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+      >
+        <Text style={styles.buttonText}>Delete person</Text>
       </Pressable>
 
       <RecordTimestamps

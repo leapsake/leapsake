@@ -190,7 +190,7 @@ export default function HolidayDetailScreen() {
                     accessibilityRole="button"
                     onPress={() => removeObserver(observer)}
                   >
-                    <Text style={styles.danger}>Remove</Text>
+                    <Text style={[styles.link, styles.danger]}>Remove</Text>
                   </Pressable>
                 </View>
               </View>
