@@ -547,6 +547,20 @@ the new pod's Swift for SwiftUI imports is a dead end. The cause is `pod install
 `ios/` project generated against an older pod state; with RN's prebuilt artifacts, the result is
 an inconsistent debug link.
 
+The same mix can link and then **crash at launch** instead _(2026-09-30)_: a segfault in
+`facebook::react::Props::Props()` under `expo::ExpoViewProps`, visible only in the crash report
+in `~/Library/Logs/DiagnosticReports/Leapsake-*.ips`.
+
+Both come from Release builds left in `ios/Pods`. React Native's core, its dependencies and
+Hermes, and each precompiled Expo module, ship a Debug and a Release tarball; a build-phase
+script swaps them per configuration, trusting a `.last_build_configuration` marker. A Release
+build in `ios/` (a release, or a local build to a phone) followed by a `pod install` can leave a
+marker that no longer describes its binary, and then nothing swaps back. `pnpm ios` therefore
+runs [`scripts/ios-prebuilt-flavour.mjs`](../../scripts/ios-prebuilt-flavour.mjs) first: it
+compares every installed simulator binary with its Debug tarball, and on any mismatch deletes
+`ios/` and Leapsake's DerivedData so `expo run:ios` regenerates them. That regeneration downloads
+React Native's tarballs again.
+
 `ios/` is **gitignored** and CNG-managed — every native fact lives in `app.json` — so throwing it
 away costs nothing but build time, and is the first thing to try:
 
