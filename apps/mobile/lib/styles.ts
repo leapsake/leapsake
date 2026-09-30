@@ -359,13 +359,4 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
   },
-  /** Two peer buttons sharing a line, each with {@link buttonFill}. */
-  buttonRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 12,
-  },
-  buttonFill: {
-    flex: 1,
-  },
 });

@@ -266,41 +266,21 @@ export default function ReminderDetailScreen() {
           </Text>
         </View>
       )}
-      {/* The engine owns an automatic reminder's text, and a nudge offers its
-          own "don't ask again", so either button can be absent. */}
-      {(canEdit || canDelete) && (
-        <View style={styles.buttonRow}>
-          {canEdit && (
-            // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which
-            // throws on a `style` array rather than merging it.
-            <Link href={`/reminders/${id}/edit`} asChild>
-              <Pressable
-                accessibilityRole="button"
-                style={StyleSheet.flatten([
-                  styles.buttonSecondary,
-                  styles.buttonBlock,
-                  styles.buttonFill,
-                ])}
-              >
-                <Text style={styles.buttonSecondaryText}>Edit</Text>
-              </Pressable>
-            </Link>
-          )}
-          {canDelete && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={confirmDelete}
-              style={[
-                styles.button,
-                styles.buttonDestructive,
-                styles.buttonBlock,
-                styles.buttonFill,
-              ]}
-            >
-              <Text style={styles.buttonText}>Delete</Text>
-            </Pressable>
-          )}
-        </View>
+      {/* The engine owns an automatic reminder's text: no Edit. */}
+      {canEdit && (
+        // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which
+        // throws on a `style` array rather than merging it.
+        <Link href={`/reminders/${id}/edit`} asChild>
+          <Pressable
+            accessibilityRole="button"
+            style={StyleSheet.flatten([
+              styles.buttonSecondary,
+              styles.buttonBlock,
+            ])}
+          >
+            <Text style={styles.buttonSecondaryText}>Edit</Text>
+          </Pressable>
+        </Link>
       )}
       {/* The prompt is answered here; Save untouched is "just the day". */}
       {planTarget !== undefined && (
@@ -395,6 +375,16 @@ export default function ReminderDetailScreen() {
             );
           })}
         </View>
+      )}
+      {/* Last on the screen; a nudge offers its own "don't ask again". */}
+      {canDelete && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={confirmDelete}
+          style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
+        >
+          <Text style={styles.buttonText}>Delete</Text>
+        </Pressable>
       )}
     </ScrollView>
   );
