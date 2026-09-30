@@ -9,6 +9,7 @@ import {
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -52,9 +53,11 @@ export function MilestonesSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Milestones</Text>
-        <Link href={`${basePath}/milestones/new`} style={styles.link}>
-          Add milestone
-        </Link>
+        <SectionLink
+          href={`${basePath}/milestones/new`}
+          what="milestone"
+          action="add"
+        />
       </View>
 
       {entries.length === 0 ? (
@@ -88,7 +91,8 @@ export function MilestonesSection({
                   ) : null
                 ) : (
                   <RowMenu
-                    subject={heading}
+                    subject={milestoneLabel(milestone)}
+                    title={heading}
                     items={[
                       rowMenuItem.edit(() =>
                         router.push(

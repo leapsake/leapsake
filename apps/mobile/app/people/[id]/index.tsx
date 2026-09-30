@@ -10,7 +10,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
-import { EditLink } from "../../../components/EditLink";
+import { SectionLink } from "../../../components/SectionLink";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
@@ -113,7 +113,7 @@ export default function PersonDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Details</Text>
-          <EditLink href={`/people/${id}/edit`} what={fullName(person)} />
+          <SectionLink href={`/people/${id}/edit`} what={fullName(person)} />
         </View>
         <PersonDetailFields person={person} gender={gender.value} />
       </View>
@@ -156,7 +156,7 @@ export default function PersonDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tags</Text>
-          <EditLink
+          <SectionLink
             href={`/people/${id}/tags/edit`}
             what="tags"
             action={tags.length === 0 ? "add" : "edit"}

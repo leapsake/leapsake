@@ -13,18 +13,24 @@ import { RowMenu, rowMenuItem } from "./RowMenu";
 import { styles } from "../lib/styles";
 
 /** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
-const KIND_HEADING: Record<ContactMethodKind, string> = {
-  email: "✉️ Email",
-  phone: "📞 Phone",
-  postal: "🏠 Postal address",
-  social: "💬 Social",
+const KIND_GLYPH: Record<ContactMethodKind, string> = {
+  email: "✉️",
+  phone: "📞",
+  postal: "🏠",
+  social: "💬",
+};
+const KIND_NAME: Record<ContactMethodKind, string> = {
+  email: "Email",
+  phone: "Phone",
+  postal: "Postal address",
+  social: "Social",
 };
 
-/** A row's heading; a social row names its platform once it has one. */
-function headingFor(draft: ContactMethodDraft): string {
-  if (draft.kind !== "social") return KIND_HEADING[draft.kind];
+/** A row's name; a social row names its platform once it has one. */
+function nameFor(draft: ContactMethodDraft): string {
+  if (draft.kind !== "social") return KIND_NAME[draft.kind];
   const named = findPlatform(draft.platform)?.name ?? draft.platform.trim();
-  return named === "" ? KIND_HEADING.social : `💬 ${named}`;
+  return named === "" ? KIND_NAME.social : named;
 }
 
 /** A contact method being created on the form, keyed for React only. */
@@ -69,9 +75,11 @@ export function StagedContactsSection({
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
             {/* Says which method this menu is for. */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
+              <Text style={styles.fieldLabel}>
+                {KIND_GLYPH[entry.draft.kind]} {nameFor(entry.draft)}
+              </Text>
               <RowMenu
-                subject={headingFor(entry.draft)}
+                subject={nameFor(entry.draft)}
                 items={[
                   rowMenuItem.remove(() =>
                     onChange(entries.filter((e) => e.key !== entry.key)),

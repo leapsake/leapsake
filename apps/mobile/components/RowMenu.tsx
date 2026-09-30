@@ -24,6 +24,16 @@ export function RowMenu({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={moreActionsFor(subject)}
+        // Each option is also a custom action, reachable without the sheet.
+        accessibilityActions={items.map((item) => ({
+          name: item.key,
+          label: item.label,
+        }))}
+        onAccessibilityAction={(event) =>
+          items
+            .find((item) => item.key === event.nativeEvent.actionName)
+            ?.onPress()
+        }
         onPress={() => setOpen(true)}
         hitSlop={{ top: 10, bottom: 10, left: 8, right: 12 }}
         style={local.button}

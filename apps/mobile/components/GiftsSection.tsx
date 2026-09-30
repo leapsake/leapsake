@@ -7,6 +7,7 @@ import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { colors, styles } from "../lib/styles";
 import { useCore } from "../lib/core-context";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 
 /**
  * What someone is down for, given ones last. The tick writes where it stands;
@@ -55,12 +56,11 @@ export function GiftsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Gifts</Text>
-        <Link
+        <SectionLink
           href={`/gifts/new?recipient=${partyKey({ type: recipientType, id: recipientId })}`}
-          style={styles.link}
-        >
-          Add gift
-        </Link>
+          what="gift"
+          action="add"
+        />
       </View>
 
       {ordered.length === 0 ? (

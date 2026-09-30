@@ -7,6 +7,7 @@ import {
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -98,9 +99,11 @@ export function RelationshipsSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Relationships</Text>
-        <Link href={`${basePath}/relationships/new`} style={styles.link}>
-          Add relationship
-        </Link>
+        <SectionLink
+          href={`${basePath}/relationships/new`}
+          what="relationship"
+          action="add"
+        />
       </View>
 
       {relationships.length === 0 ? (

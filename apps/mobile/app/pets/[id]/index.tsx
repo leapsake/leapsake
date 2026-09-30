@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { EditLink } from "../../../components/EditLink";
+import { SectionLink } from "../../../components/SectionLink";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
@@ -91,7 +91,7 @@ export default function PetDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Details</Text>
-          <EditLink href={`/pets/${id}/edit`} what={pet.name} />
+          <SectionLink href={`/pets/${id}/edit`} what={pet.name} />
         </View>
         <PetDetailFields pet={pet} gender={gender.value} />
       </View>
@@ -127,7 +127,7 @@ export default function PetDetailScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Tags</Text>
-          <EditLink
+          <SectionLink
             href={`/pets/${id}/tags/edit`}
             what="tags"
             action={tags.length === 0 ? "add" : "edit"}

@@ -1,9 +1,10 @@
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { type ContactMethod, postalAddressLines } from "@leapsake/schema";
 import { type LinkAction, resolveActions } from "@leapsake/contact-links";
 import type { SheetItem } from "./ActionSheet";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import {
   VERB_ICON,
   actionLabel,
@@ -91,13 +92,11 @@ export function ContactsSection({
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Contact</Text>
         {/* One way in: the form's Type dropdown asks what kind. */}
-        <Link
+        <SectionLink
           href={`/people/${ownerId}/contacts/new`}
-          style={styles.link}
-          accessibilityRole="button"
-        >
-          Add contact method
-        </Link>
+          what="contact method"
+          action="add"
+        />
       </View>
 
       {methods.length === 0 ? (

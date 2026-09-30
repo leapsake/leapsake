@@ -1,11 +1,12 @@
 import { Alert, Text, View } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import type { BearerHolidayCandidate } from "@leapsake/core";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { formatOccurrence } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { RowMenu, rowMenuItem } from "./RowMenu";
+import { SectionLink } from "./SectionLink";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -54,12 +55,11 @@ export function HolidaysSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Holidays</Text>
-        <Link
+        <SectionLink
           href={`${entityBasePath(bearerType)}/${bearerId}/holidays/new`}
-          style={styles.link}
-        >
-          Add holiday
-        </Link>
+          what="holiday"
+          action="add"
+        />
       </View>
 
       {observed.length === 0 ? (
