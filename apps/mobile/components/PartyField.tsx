@@ -1,4 +1,4 @@
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { RelationshipCandidate } from "@leapsake/core";
 import type { EntityType } from "@leapsake/schema";
@@ -9,6 +9,7 @@ import {
   entityBasePath,
   usePartyField,
 } from "@leapsake/ui/headless";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -16,8 +17,6 @@ import { styles } from "../lib/styles";
 const COPY = {
   add: (name: string) => `Add “${name}”`,
   addAs: (name: string, type: EntityType) => `Add “${name}” as a new ${type}`,
-  edit: "Edit",
-  remove: "Remove",
   editFailed: "Couldn’t save them",
   removeFailed: "Couldn’t remove them",
 } as const;
@@ -46,7 +45,7 @@ export function PartyField({
 }) {
   const core = useCore();
   const router = useRouter();
-  const { canEdit, busy, edit, remove } = usePartyField({
+  const { canEdit, edit, remove } = usePartyField({
     value,
     onChange,
     commit,
@@ -104,24 +103,13 @@ export function PartyField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.rowMeta}>
         <Text style={styles.fieldValue}>{value.label}</Text>
-        <View style={styles.rowActions}>
-          {canEdit && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ busy }}
-              onPress={() => void edit()}
-            >
-              <Text style={styles.link}>{COPY.edit}</Text>
-            </Pressable>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ busy }}
-            onPress={() => void remove()}
-          >
-            <Text style={[styles.link, styles.danger]}>{COPY.remove}</Text>
-          </Pressable>
-        </View>
+        <RowMenu
+          subject={value.label}
+          items={[
+            ...(canEdit ? [rowMenuItem.edit(() => void edit())] : []),
+            rowMenuItem.remove(() => void remove()),
+          ]}
+        />
       </View>
     </View>
   );

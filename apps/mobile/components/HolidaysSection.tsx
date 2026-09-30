@@ -1,10 +1,11 @@
-import { Alert, Pressable, Text, View } from "react-native";
-import { Link } from "expo-router";
+import { Alert, Text, View } from "react-native";
+import { Link, useRouter } from "expo-router";
 import type { BearerHolidayCandidate } from "@leapsake/core";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { formatOccurrence } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { splitBearerHolidays } from "@leapsake/view-models";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -25,6 +26,7 @@ export function HolidaysSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const router = useRouter();
   // Only what this bearer keeps; what is addable is the picker's business.
   const { observed } = splitBearerHolidays(holidays);
 
@@ -75,21 +77,17 @@ export function HolidaysSection({
                   ? "—"
                   : formatOccurrence(holiday.nextOccurrence)}
               </Text>
-              <View style={styles.rowActions}>
-                <Link
-                  href={`/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`}
-                  style={styles.link}
-                >
-                  Reminders
-                </Link>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${holiday.name}`}
-                  onPress={() => confirmRemove(holiday)}
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
-              </View>
+              <RowMenu
+                subject={holiday.name}
+                items={[
+                  rowMenuItem.reminders(() =>
+                    router.push(
+                      `/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`,
+                    ),
+                  ),
+                  rowMenuItem.remove(() => confirmRemove(holiday)),
+                ]}
+              />
             </View>
           </View>
         ))

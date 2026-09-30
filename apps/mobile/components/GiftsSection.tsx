@@ -1,11 +1,12 @@
 import { Alert, Linking, Pressable, Text, View } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import type { GiftForRecipient } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { colors, styles } from "../lib/styles";
 import { useCore } from "../lib/core-context";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 
 /**
  * What someone is down for, given ones last. The tick writes where it stands;
@@ -24,6 +25,7 @@ export function GiftsSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const router = useRouter();
   const ordered = sortGiftsGivenLast(gifts, (row) => row.ideaTitle);
 
   function setGiven(row: GiftForRecipient, given: boolean) {
@@ -85,13 +87,15 @@ export function GiftsSection({
                     </Text>
                   </Link>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${row.ideaTitle}`}
-                  onPress={() => confirmRemove(row)}
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
+                <RowMenu
+                  subject={row.ideaTitle}
+                  items={[
+                    rowMenuItem.edit(() =>
+                      router.push(`/gifts/${row.giftIdeaId}/edit`),
+                    ),
+                    rowMenuItem.remove(() => confirmRemove(row)),
+                  ]}
+                />
               </View>
               {row.ideaUrl !== null && <GiftLink url={row.ideaUrl} />}
             </View>

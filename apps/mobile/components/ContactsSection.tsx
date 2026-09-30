@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { type ContactMethod, postalAddressLines } from "@leapsake/schema";
 import { type LinkAction, resolveActions } from "@leapsake/contact-links";
-import { ContactActionSheet, type SheetItem } from "./ContactActionSheet";
+import type { SheetItem } from "./ActionSheet";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import {
   VERB_ICON,
   actionLabel,
@@ -16,7 +16,6 @@ import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
 const PROFILE_HINT = "profile";
-const MORE = "⋯";
 
 /**
  * {@link methodValue}, but a postal address breaks onto envelope lines; the
@@ -49,7 +48,6 @@ export function ContactsSection({
   const core = useCore();
   const router = useRouter();
   const { schemes, region, perform } = useContactReach(subjectName);
-  const [openFor, setOpenFor] = useState<string | null>(null);
 
   function confirmRemove(entry: ContactMethod) {
     Alert.alert("Remove contact", `Remove ${entry.method.label}?`, [
@@ -81,20 +79,10 @@ export function ContactsSection({
         hint: action.reach === "profile" ? PROFILE_HINT : undefined,
         onPress: () => perform(action, entry),
       })),
-      {
-        key: "edit",
-        glyph: "✏️",
-        label: "Edit",
-        onPress: () =>
-          router.push(`/people/${ownerId}/contacts/${entry.method.id}/edit`),
-      },
-      {
-        key: "remove",
-        glyph: "🗑️",
-        label: "Remove",
-        danger: true,
-        onPress: () => confirmRemove(entry),
-      },
+      rowMenuItem.edit(() =>
+        router.push(`/people/${ownerId}/contacts/${entry.method.id}/edit`),
+      ),
+      rowMenuItem.remove(() => confirmRemove(entry)),
     ];
   }
 
@@ -153,23 +141,12 @@ export function ContactsSection({
                     </Text>
                   </Pressable>
                 ))}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`More actions for ${entry.method.label}`}
-                  onPress={() => setOpenFor(entry.method.id)}
-                  hitSlop={{ top: 10, bottom: 10, right: 12 }}
-                  style={local.action}
-                >
-                  <Text style={styles.link}>{MORE}</Text>
-                </Pressable>
+                <RowMenu
+                  subject={entry.method.label}
+                  title={`${entry.method.label} · ${value}`}
+                  items={sheetItems(entry, actions)}
+                />
               </View>
-
-              <ContactActionSheet
-                visible={openFor === entry.method.id}
-                title={`${entry.method.label} · ${value}`}
-                items={sheetItems(entry, actions)}
-                onClose={() => setOpenFor(null)}
-              />
             </View>
           );
         })

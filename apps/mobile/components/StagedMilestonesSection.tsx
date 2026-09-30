@@ -9,6 +9,7 @@ import {
   milestoneLabel,
 } from "@leapsake/schema";
 import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { styles } from "../lib/styles";
 
 /** A milestone being created on the form; the key survives earlier removals. */
@@ -57,22 +58,21 @@ export function StagedMilestonesSection({
         const date = shaped.ok ? formatMilestoneDate(shaped.input) : "";
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            {/* Says which milestone this Remove is for. */}
+            {/* Says which milestone this menu is for. */}
             <View style={styles.sectionHeader}>
               <Text style={styles.fieldLabel}>
                 {icon ? `${icon} ` : ""}
                 {label}
                 {date === "" ? "" : ` · ${date}`}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${label}`}
-                onPress={() =>
-                  onChange(entries.filter((e) => e.key !== entry.key))
-                }
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
+              <RowMenu
+                subject={label}
+                items={[
+                  rowMenuItem.remove(() =>
+                    onChange(entries.filter((e) => e.key !== entry.key)),
+                  ),
+                ]}
+              />
             </View>
             <MilestoneFields
               collapseSchedule

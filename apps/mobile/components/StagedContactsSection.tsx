@@ -9,6 +9,7 @@ import {
   findPlatform,
 } from "@leapsake/contact-links";
 import { ContactMethodFields } from "./ContactMethodFields";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { styles } from "../lib/styles";
 
 /** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
@@ -66,18 +67,17 @@ export function StagedContactsSection({
           );
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
-            {/* Says which method this Remove is for. */}
+            {/* Says which method this menu is for. */}
             <View style={styles.sectionHeader}>
               <Text style={styles.fieldLabel}>{headingFor(entry.draft)}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${entry.draft.label}`}
-                onPress={() =>
-                  onChange(entries.filter((e) => e.key !== entry.key))
-                }
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
+              <RowMenu
+                subject={headingFor(entry.draft)}
+                items={[
+                  rowMenuItem.remove(() =>
+                    onChange(entries.filter((e) => e.key !== entry.key)),
+                  ),
+                ]}
+              />
             </View>
             <ContactMethodFields
               canChangeKind

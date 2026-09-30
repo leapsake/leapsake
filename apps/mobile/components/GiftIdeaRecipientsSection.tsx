@@ -4,6 +4,7 @@ import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { CheckboxBox } from "./Checkbox";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -114,13 +115,10 @@ export function GiftIdeaRecipientsSection({
               <Text style={styles.muted}>
                 {isGiven(row) ? "✓ Given" : "Not given yet"}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${row.recipientLabel}`}
-                onPress={() => confirmRemove(row)}
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
+              <RowMenu
+                subject={row.recipientLabel}
+                items={[rowMenuItem.remove(() => confirmRemove(row))]}
+              />
             </View>
           </View>
         ))

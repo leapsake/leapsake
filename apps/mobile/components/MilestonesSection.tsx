@@ -1,5 +1,5 @@
-import { Alert, Pressable, Text, View } from "react-native";
-import { Link } from "expo-router";
+import { Alert, Text, View } from "react-native";
+import { Link, useRouter } from "expo-router";
 import {
   type MilestoneBearerType,
   type MilestoneTimelineEntry,
@@ -8,6 +8,7 @@ import {
   milestoneLabel,
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -27,6 +28,7 @@ export function MilestonesSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const router = useRouter();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
   function confirmRemove(entry: MilestoneTimelineEntry) {
@@ -85,20 +87,17 @@ export function MilestonesSection({
                     </Link>
                   ) : null
                 ) : (
-                  <View style={styles.rowActions}>
-                    <Link
-                      href={`${basePath}/milestones/${milestone.id}/edit`}
-                      style={styles.link}
-                    >
-                      Edit
-                    </Link>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => confirmRemove(entry)}
-                    >
-                      <Text style={[styles.link, styles.danger]}>Remove</Text>
-                    </Pressable>
-                  </View>
+                  <RowMenu
+                    subject={heading}
+                    items={[
+                      rowMenuItem.edit(() =>
+                        router.push(
+                          `${basePath}/milestones/${milestone.id}/edit`,
+                        ),
+                      ),
+                      rowMenuItem.remove(() => confirmRemove(entry)),
+                    ]}
+                  />
                 )}
               </View>
             </View>

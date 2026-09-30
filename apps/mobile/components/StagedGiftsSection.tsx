@@ -8,8 +8,11 @@ import {
   emptyGiftDraft,
   giftDraftValid,
 } from "./GiftFields";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
+
+const NEW_GIFT = "New gift";
 
 /** A gift being created on the form, keyed for React. */
 export interface StagedGift {
@@ -53,42 +56,40 @@ export function StagedGiftsSection({
         <Text style={styles.sectionTitle}>Gifts</Text>
       </View>
 
-      {entries.map((row) => (
-        <View key={row.key} style={[styles.row, styles.inlineForm]}>
-          {/* Says which gift this Remove is for; blank until it is named. */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.fieldLabel}>
-              {row.draft.title.trim() === ""
-                ? "New gift"
-                : row.draft.title.trim()}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${
-                row.draft.title.trim() === "" ? "new gift" : row.draft.title
-              }`}
-              onPress={() => onChange(entries.filter((r) => r.key !== row.key))}
-            >
-              <Text style={[styles.link, styles.danger]}>Remove</Text>
-            </Pressable>
+      {entries.map((row) => {
+        const name = row.draft.title.trim() || NEW_GIFT;
+        return (
+          <View key={row.key} style={[styles.row, styles.inlineForm]}>
+            {/* Says which gift this menu is for. */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.fieldLabel}>{name}</Text>
+              <RowMenu
+                subject={name}
+                items={[
+                  rowMenuItem.remove(() =>
+                    onChange(entries.filter((r) => r.key !== row.key)),
+                  ),
+                ]}
+              />
+            </View>
+
+            <GiftIdentityFields
+              draft={row.draft}
+              onChange={(draft) => patch(row.key, draft)}
+              ideaPool={ideaPool}
+            />
+            <GiftGivenCheckbox
+              value={row.draft.given}
+              onChange={(given) => patch(row.key, { ...row.draft, given })}
+            />
+
+            {/* A name, said where it is missing, not only at Save. */}
+            {!giftDraftValid(row.draft) && (
+              <Text style={styles.danger}>This gift needs a name.</Text>
+            )}
           </View>
-
-          <GiftIdentityFields
-            draft={row.draft}
-            onChange={(draft) => patch(row.key, draft)}
-            ideaPool={ideaPool}
-          />
-          <GiftGivenCheckbox
-            value={row.draft.given}
-            onChange={(given) => patch(row.key, { ...row.draft, given })}
-          />
-
-          {/* A name, said where it is missing, not only at Save. */}
-          {!giftDraftValid(row.draft) && (
-            <Text style={styles.danger}>This gift needs a name.</Text>
-          )}
-        </View>
-      ))}
+        );
+      })}
 
       {entries.length === 0 && <Text style={styles.muted}>No gifts yet.</Text>}
 

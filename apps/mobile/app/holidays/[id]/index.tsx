@@ -7,9 +7,10 @@ import {
   Text,
   View,
 } from "react-native";
-import { Link, Stack, useLocalSearchParams } from "expo-router";
+import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { CheckboxBox } from "../../../components/Checkbox";
+import { RowMenu, rowMenuItem } from "../../../components/RowMenu";
 import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -21,6 +22,7 @@ import { formatOccurrence } from "@leapsake/schema";
 // (`@leapsake/holidays` README).
 export default function HolidayDetailScreen() {
   const core = useCore();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const load = useCallback(
@@ -164,14 +166,17 @@ export default function HolidayDetailScreen() {
                     {observer.bearerType === "pet" ? " (pet)" : ""}
                   </Text>
                 </Link>
-                <View style={styles.rowActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => removeObserver(observer)}
-                  >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
-                  </Pressable>
-                </View>
+                <RowMenu
+                  subject={observer.label}
+                  items={[
+                    rowMenuItem.reminders(() =>
+                      router.push(
+                        `/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`,
+                      ),
+                    ),
+                    rowMenuItem.remove(() => removeObserver(observer)),
+                  ]}
+                />
               </View>
             </View>
           ))

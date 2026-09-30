@@ -1,11 +1,12 @@
-import { Alert, Pressable, Text, View } from "react-native";
-import { Link } from "expo-router";
+import { Alert, Text, View } from "react-native";
+import { Link, useRouter } from "expo-router";
 import {
   type EntityType,
   type RelationshipNeighbor,
   baseRole,
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -40,6 +41,7 @@ export function RelationshipsSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const router = useRouter();
   const basePath = `${entityBasePath(subjectType)}/${subjectId}`;
 
   /** A stored edge's own route, or the add route opening on the inference. */
@@ -113,26 +115,22 @@ export function RelationshipsSection({
               </Link>
               <View style={styles.rowMeta}>
                 <Text style={styles.muted}>{roleText(neighbor)}</Text>
-                <View style={styles.rowActions}>
-                  {neighbor.origin === "explicit" ? (
-                    <Link
-                      href={`/relationships/${neighbor.relationshipId}`}
-                      style={styles.link}
-                    >
-                      Details
-                    </Link>
-                  ) : null}
-                  <Link href={editHref(neighbor)} style={styles.link}>
-                    Edit
-                  </Link>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${neighbor.otherLabel}`}
-                    onPress={() => confirmRemove(neighbor)}
-                  >
-                    <Text style={[styles.link, styles.danger]}>Remove</Text>
-                  </Pressable>
-                </View>
+                <RowMenu
+                  subject={neighbor.otherLabel}
+                  items={[
+                    ...(neighbor.origin === "explicit"
+                      ? [
+                          rowMenuItem.details(() =>
+                            router.push(
+                              `/relationships/${neighbor.relationshipId}`,
+                            ),
+                          ),
+                        ]
+                      : []),
+                    rowMenuItem.edit(() => router.push(editHref(neighbor))),
+                    rowMenuItem.remove(() => confirmRemove(neighbor)),
+                  ]}
+                />
               </View>
             </View>
           );

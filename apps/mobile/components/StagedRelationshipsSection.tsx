@@ -11,8 +11,11 @@ import {
   rolesForSubject,
 } from "@leapsake/schema";
 import { RelationshipFields, otherLabelOf } from "./RelationshipFields";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
+
+const NEW_RELATIONSHIP = "New relationship";
 
 /** A relationship being created on the form, its other end resolved at pick. */
 export interface StagedRelationship {
@@ -66,7 +69,7 @@ export function StagedRelationshipsSection({
       </View>
 
       {entries.map((entry) => {
-        const label = otherLabelOf(entry.draft);
+        const label = otherLabelOf(entry.draft) || NEW_RELATIONSHIP;
         const setDraft = (draft: RelationshipDraft) =>
           onChange(
             entries.map((e) => (e.key === entry.key ? { ...e, draft } : e)),
@@ -74,18 +77,15 @@ export function StagedRelationshipsSection({
         return (
           <View key={entry.key} style={[styles.row, styles.inlineForm]}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.fieldLabel}>
-                {label === "" ? "New relationship" : label}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${label}`}
-                onPress={() =>
-                  onChange(entries.filter((e) => e.key !== entry.key))
-                }
-              >
-                <Text style={[styles.link, styles.danger]}>Remove</Text>
-              </Pressable>
+              <Text style={styles.fieldLabel}>{label}</Text>
+              <RowMenu
+                subject={label}
+                items={[
+                  rowMenuItem.remove(() =>
+                    onChange(entries.filter((e) => e.key !== entry.key)),
+                  ),
+                ]}
+              />
             </View>
             <RelationshipFields
               candidates={candidates ?? []}

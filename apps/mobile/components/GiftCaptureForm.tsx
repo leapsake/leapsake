@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { GiftIdea } from "@leapsake/schema";
 import {
@@ -10,14 +10,13 @@ import {
 } from "@leapsake/ui/headless";
 import { GiftGivenCheckbox, GiftIdentityFields } from "./GiftFields";
 import { useHeaderSave } from "./HeaderSave";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 import { Typeahead } from "./Typeahead";
 
 const TEXT = {
   recipientsLabel: "Who’s it for? (optional)",
-  remove: "Remove",
-  removeLabel: (name: string) => `Remove ${name}`,
   titleRequired: "A gift needs a name.",
   saveFailed: (error: string) => `Couldn’t save: ${error}`,
 };
@@ -156,15 +155,10 @@ export function GiftCaptureFields({
               <View key={key} style={styles.row}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>{r.option.label}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={TEXT.removeLabel(r.option.label)}
-                    onPress={() => onRemoveRecipient(key)}
-                  >
-                    <Text style={[styles.link, styles.danger]}>
-                      {TEXT.remove}
-                    </Text>
-                  </Pressable>
+                  <RowMenu
+                    subject={r.option.label}
+                    items={[rowMenuItem.remove(() => onRemoveRecipient(key))]}
+                  />
                 </View>
                 <GiftGivenCheckbox
                   value={r.given}

@@ -4,6 +4,7 @@ import type { HolidayListItem } from "@leapsake/core";
 import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -86,15 +87,14 @@ export function StagedHolidaysSection({
                     ? "—"
                     : formatOccurrence(holiday.nextOccurrence)}
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${holiday.name}`}
-                  onPress={() =>
-                    onChange(entries.filter((h) => h.id !== holiday.id))
-                  }
-                >
-                  <Text style={[styles.link, styles.danger]}>Remove</Text>
-                </Pressable>
+                <RowMenu
+                  subject={holiday.name}
+                  items={[
+                    rowMenuItem.remove(() =>
+                      onChange(entries.filter((h) => h.id !== holiday.id)),
+                    ),
+                  ]}
+                />
               </View>
             </View>
           ))}

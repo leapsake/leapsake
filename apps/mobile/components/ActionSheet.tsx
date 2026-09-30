@@ -3,7 +3,7 @@ import { colors, radius, styles } from "../lib/styles";
 
 const CANCEL = "Cancel";
 
-/** One row of the sheet: a way to reach someone, or a way to manage the row. */
+/** One option in the sheet. */
 export interface SheetItem {
   key: string;
   glyph: string;
@@ -14,16 +14,15 @@ export interface SheetItem {
   onPress: () => void;
 }
 
-/** Every action a contact-method row holds beyond its one tap, then Edit and
- *  Remove. */
-export function ContactActionSheet({
+/** A row's actions as a bottom sheet of full-width options, then Cancel. */
+export function ActionSheet({
   visible,
   title,
   items,
   onClose,
 }: {
   visible: boolean;
-  /** What the sheet is about — the method's label and value. */
+  /** What the sheet is about, e.g. the row's label. */
   title: string;
   items: readonly SheetItem[];
   onClose: () => void;
@@ -41,7 +40,7 @@ export function ContactActionSheet({
         style={local.backdrop}
         onPress={onClose}
       />
-      <View style={local.sheet} testID="contact-action-sheet">
+      <View style={local.sheet} testID="action-sheet">
         <Text style={local.title} numberOfLines={2}>
           {title}
         </Text>

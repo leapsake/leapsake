@@ -9,6 +9,7 @@ import {
   verbOf,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
+import { RowMenu, rowMenuItem } from "./RowMenu";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 
@@ -65,9 +66,10 @@ export function ReminderScheduleFields({
               <CheckboxBox checked={rule.enabled} />
               <Text style={styles.fieldValue}>Remind me</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => remove(i)}>
-              <Text style={[styles.link, styles.danger]}>Remove</Text>
-            </Pressable>
+            <RowMenu
+              subject={reminderRuleLabel(rule)}
+              items={[rowMenuItem.remove(() => remove(i))]}
+            />
           </View>
           <SelectField
             label="Action"
