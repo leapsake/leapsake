@@ -1,5 +1,5 @@
-import { Alert, Text, View } from "react-native";
-import { Link, useRouter } from "expo-router";
+import { Alert } from "react-native";
+import { useRouter } from "expo-router";
 import {
   type MilestoneBearerType,
   type MilestoneTimelineEntry,
@@ -8,10 +8,10 @@ import {
   milestoneLabel,
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
 import { RecordSection } from "./RecordSection";
+import { SummaryRow } from "./SummaryRow";
 import { useCore } from "../lib/core-context";
-import { styles } from "../lib/styles";
 
 /**
  * A bearer's milestones, and a person's or pet's from their relationships,
@@ -72,36 +72,36 @@ export function MilestonesSection({
             ? ` · with ${entry.otherLabel}`
             : "");
         return (
-          <View key={milestone.id} style={styles.row}>
-            <Text style={styles.rowText}>{heading}</Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>{date === "" ? "—" : date}</Text>
-              {/* Read-only here: the relationship owns its editing. */}
-              {fromRelationship ? (
-                entry.relationshipId !== null ? (
-                  <Link
-                    href={`/relationships/${entry.relationshipId}`}
-                    style={styles.link}
-                  >
-                    Details
-                  </Link>
-                ) : null
-              ) : (
-                <RowMenu
-                  subject={milestoneLabel(milestone)}
-                  title={heading}
-                  items={[
-                    rowMenuItem.edit(() =>
-                      router.push(
-                        `${basePath}/milestones/${milestone.id}/edit`,
-                      ),
-                    ),
-                    rowMenuItem.remove(() => confirmRemove(entry)),
-                  ]}
-                />
-              )}
-            </View>
-          </View>
+          <SummaryRow
+            key={milestone.id}
+            title={heading}
+            detail={date === "" ? "—" : date}
+            menu={
+              fromRelationship && entry.relationshipId === null
+                ? undefined
+                : {
+                    subject: milestoneLabel(milestone),
+                    title: heading,
+                    // Read-only here: the relationship owns its editing.
+                    items: fromRelationship
+                      ? [
+                          rowMenuItem.details(() =>
+                            router.push(
+                              `/relationships/${entry.relationshipId}`,
+                            ),
+                          ),
+                        ]
+                      : [
+                          rowMenuItem.edit(() =>
+                            router.push(
+                              `${basePath}/milestones/${milestone.id}/edit`,
+                            ),
+                          ),
+                          rowMenuItem.remove(() => confirmRemove(entry)),
+                        ],
+                  }
+            }
+          />
         );
       })}
     </RecordSection>

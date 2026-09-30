@@ -6,7 +6,8 @@ import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { colors, styles } from "../lib/styles";
 import { useCore } from "../lib/core-context";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
+import { SummaryRow } from "./SummaryRow";
 import { RecordSection } from "./RecordSection";
 
 /**
@@ -66,8 +67,9 @@ export function GiftsSection({
       {ordered.map((row) => {
         const given = isGiven(row);
         return (
-          <View key={row.id} style={styles.row}>
-            <View style={styles.rowMeta}>
+          <SummaryRow
+            key={row.id}
+            title={
               <View style={styles.rowWithLead}>
                 <Pressable
                   accessibilityRole="checkbox"
@@ -84,18 +86,19 @@ export function GiftsSection({
                   </Text>
                 </Link>
               </View>
-              <RowMenu
-                subject={row.ideaTitle}
-                items={[
-                  rowMenuItem.edit(() =>
-                    router.push(`/gifts/${row.giftIdeaId}/edit`),
-                  ),
-                  rowMenuItem.remove(() => confirmRemove(row)),
-                ]}
-              />
-            </View>
+            }
+            menu={{
+              subject: row.ideaTitle,
+              items: [
+                rowMenuItem.edit(() =>
+                  router.push(`/gifts/${row.giftIdeaId}/edit`),
+                ),
+                rowMenuItem.remove(() => confirmRemove(row)),
+              ],
+            }}
+          >
             {row.ideaUrl !== null && <GiftLink url={row.ideaUrl} />}
-          </View>
+          </SummaryRow>
         );
       })}
     </RecordSection>

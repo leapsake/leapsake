@@ -4,7 +4,8 @@ import type { HolidayListItem } from "@leapsake/core";
 import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
+import { SummaryRow } from "./SummaryRow";
 import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -78,24 +79,23 @@ export function StagedHolidaysSection({
       )}
 
       {entries.map((holiday) => (
-        <View key={holiday.id} style={styles.row}>
-          <Text style={styles.rowText}>{holiday.name}</Text>
-          <View style={styles.rowMeta}>
-            <Text style={styles.muted}>
-              {holiday.nextOccurrence === null
-                ? "—"
-                : formatOccurrence(holiday.nextOccurrence)}
-            </Text>
-            <RowMenu
-              subject={holiday.name}
-              items={[
-                rowMenuItem.remove(() =>
-                  onChange(entries.filter((h) => h.id !== holiday.id)),
-                ),
-              ]}
-            />
-          </View>
-        </View>
+        <SummaryRow
+          key={holiday.id}
+          title={holiday.name}
+          detail={
+            holiday.nextOccurrence === null
+              ? "—"
+              : formatOccurrence(holiday.nextOccurrence)
+          }
+          menu={{
+            subject: holiday.name,
+            items: [
+              rowMenuItem.remove(() =>
+                onChange(entries.filter((h) => h.id !== holiday.id)),
+              ),
+            ],
+          }}
+        />
       ))}
     </RecordSection>
   );

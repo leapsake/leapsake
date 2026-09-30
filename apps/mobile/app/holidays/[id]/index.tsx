@@ -10,7 +10,8 @@ import {
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { CheckboxBox } from "../../../components/Checkbox";
-import { RowMenu, rowMenuItem } from "../../../components/RowMenu";
+import { rowMenuItem } from "../../../components/RowMenu";
+import { SummaryRow } from "../../../components/SummaryRow";
 import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
@@ -153,11 +154,9 @@ export default function HolidayDetailScreen() {
         ) : (
           // Reminder rules are per observance, so each observer has a schedule.
           observers.map((observer) => (
-            <View
+            <SummaryRow
               key={`${observer.bearerType}:${observer.bearerId}`}
-              style={styles.row}
-            >
-              <View style={styles.rowMeta}>
+              title={
                 <Link
                   href={`/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`}
                 >
@@ -166,19 +165,19 @@ export default function HolidayDetailScreen() {
                     {observer.bearerType === "pet" ? " (pet)" : ""}
                   </Text>
                 </Link>
-                <RowMenu
-                  subject={observer.label}
-                  items={[
-                    rowMenuItem.reminders(() =>
-                      router.push(
-                        `/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`,
-                      ),
+              }
+              menu={{
+                subject: observer.label,
+                items: [
+                  rowMenuItem.reminders(() =>
+                    router.push(
+                      `/holidays/${id}/observers/${observer.bearerType}/${observer.bearerId}`,
                     ),
-                    rowMenuItem.remove(() => removeObserver(observer)),
-                  ]}
-                />
-              </View>
-            </View>
+                  ),
+                  rowMenuItem.remove(() => removeObserver(observer)),
+                ],
+              }}
+            />
           ))
         )}
       </View>

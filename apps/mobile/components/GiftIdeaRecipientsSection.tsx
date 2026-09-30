@@ -1,11 +1,12 @@
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text } from "react-native";
 import type { GiftForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { CheckboxBox } from "./Checkbox";
 import { RecordSection } from "./RecordSection";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
+import { SummaryRow } from "./SummaryRow";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
@@ -98,27 +99,26 @@ export function GiftIdeaRecipientsSection({
       />
 
       {ordered.map((row) => (
-        <View key={row.id} style={styles.row}>
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isGiven(row) }}
-            accessibilityLabel={row.recipientLabel}
-            style={styles.rowWithLead}
-            onPress={() => setGiven(row, !isGiven(row))}
-          >
-            <CheckboxBox checked={isGiven(row)} />
-            <Text style={styles.rowText}>{row.recipientLabel}</Text>
-          </Pressable>
-          <View style={styles.rowMeta}>
-            <Text style={styles.muted}>
-              {isGiven(row) ? "✓ Given" : "Not given yet"}
-            </Text>
-            <RowMenu
-              subject={row.recipientLabel}
-              items={[rowMenuItem.remove(() => confirmRemove(row))]}
-            />
-          </View>
-        </View>
+        <SummaryRow
+          key={row.id}
+          title={
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isGiven(row) }}
+              accessibilityLabel={row.recipientLabel}
+              style={styles.rowWithLead}
+              onPress={() => setGiven(row, !isGiven(row))}
+            >
+              <CheckboxBox checked={isGiven(row)} />
+              <Text style={styles.rowText}>{row.recipientLabel}</Text>
+            </Pressable>
+          }
+          detail={isGiven(row) ? "✓ Given" : "Not given yet"}
+          menu={{
+            subject: row.recipientLabel,
+            items: [rowMenuItem.remove(() => confirmRemove(row))],
+          }}
+        />
       ))}
     </RecordSection>
   );

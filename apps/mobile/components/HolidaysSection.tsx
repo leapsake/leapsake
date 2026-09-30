@@ -1,12 +1,13 @@
-import { Alert, Text, View } from "react-native";
+import { Alert, Text } from "react-native";
 import { useRouter } from "expo-router";
 import type { BearerHolidayCandidate } from "@leapsake/core";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { formatOccurrence } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { splitBearerHolidays } from "@leapsake/view-models";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
 import { RecordSection } from "./RecordSection";
+import { SummaryRow } from "./SummaryRow";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -63,30 +64,31 @@ export function HolidaysSection({
       emptyText="No holidays yet."
     >
       {observed.map((holiday) => (
-        <View key={holiday.id} style={styles.row}>
-          <Text style={styles.rowText}>
-            {holiday.name}
-            {holiday.hidden ? " (hidden)" : ""}
-          </Text>
-          <View style={styles.rowMeta}>
-            <Text style={styles.muted}>
-              {holiday.nextOccurrence === null
-                ? "—"
-                : formatOccurrence(holiday.nextOccurrence)}
+        <SummaryRow
+          key={holiday.id}
+          title={
+            <Text style={styles.rowText}>
+              {holiday.name}
+              {holiday.hidden ? " (hidden)" : ""}
             </Text>
-            <RowMenu
-              subject={holiday.name}
-              items={[
-                rowMenuItem.reminders(() =>
-                  router.push(
-                    `/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`,
-                  ),
+          }
+          detail={
+            holiday.nextOccurrence === null
+              ? "—"
+              : formatOccurrence(holiday.nextOccurrence)
+          }
+          menu={{
+            subject: holiday.name,
+            items: [
+              rowMenuItem.reminders(() =>
+                router.push(
+                  `/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`,
                 ),
-                rowMenuItem.remove(() => confirmRemove(holiday)),
-              ]}
-            />
-          </View>
-        </View>
+              ),
+              rowMenuItem.remove(() => confirmRemove(holiday)),
+            ],
+          }}
+        />
       ))}
     </RecordSection>
   );

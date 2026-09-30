@@ -1,4 +1,4 @@
-import { Alert, Text, View } from "react-native";
+import { Alert } from "react-native";
 import { Link, useRouter } from "expo-router";
 import {
   type EntityType,
@@ -6,8 +6,9 @@ import {
   baseRole,
 } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
-import { RowMenu, rowMenuItem } from "./RowMenu";
+import { rowMenuItem } from "./RowMenu";
 import { RecordSection } from "./RecordSection";
+import { SummaryRow } from "./SummaryRow";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -109,30 +110,31 @@ export function RelationshipsSection({
       {relationships.map((neighbor) => {
         const otherPath = `${entityBasePath(neighbor.otherType)}/${neighbor.otherId}`;
         return (
-          <View key={keyOf(neighbor)} style={styles.row}>
-            <Link href={otherPath} style={styles.rowText}>
-              {neighbor.otherLabel}
-            </Link>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>{roleText(neighbor)}</Text>
-              <RowMenu
-                subject={neighbor.otherLabel}
-                items={[
-                  ...(neighbor.origin === "explicit"
-                    ? [
-                        rowMenuItem.details(() =>
-                          router.push(
-                            `/relationships/${neighbor.relationshipId}`,
-                          ),
+          <SummaryRow
+            key={keyOf(neighbor)}
+            title={
+              <Link href={otherPath} style={styles.rowText}>
+                {neighbor.otherLabel}
+              </Link>
+            }
+            detail={roleText(neighbor)}
+            menu={{
+              subject: neighbor.otherLabel,
+              items: [
+                ...(neighbor.origin === "explicit"
+                  ? [
+                      rowMenuItem.details(() =>
+                        router.push(
+                          `/relationships/${neighbor.relationshipId}`,
                         ),
-                      ]
-                    : []),
-                  rowMenuItem.edit(() => router.push(editHref(neighbor))),
-                  rowMenuItem.remove(() => confirmRemove(neighbor)),
-                ]}
-              />
-            </View>
-          </View>
+                      ),
+                    ]
+                  : []),
+                rowMenuItem.edit(() => router.push(editHref(neighbor))),
+                rowMenuItem.remove(() => confirmRemove(neighbor)),
+              ],
+            }}
+          />
         );
       })}
     </RecordSection>
