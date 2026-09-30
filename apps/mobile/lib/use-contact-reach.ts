@@ -9,6 +9,7 @@ import {
   findPlatform,
 } from "@leapsake/contact-links";
 import { targetUrl } from "./contact-actions";
+import { deviceRegion } from "./device-region";
 
 // Tapping a contact method on this handset: the native half of
 // `contact-actions.ts`, shared by every surface that reaches a person.
@@ -69,10 +70,11 @@ function useSupportedSchemes(): ReadonlySet<string> {
   return schemes;
 }
 
-/** Which schemes this device answers, and what a press does. `subjectName`
- *  names the person in the call confirmation. */
+/** Which schemes this device answers, its region, and what a press does.
+ *  `subjectName` names the person in the call confirmation. */
 export function useContactReach(subjectName: string): {
   schemes: ReadonlySet<string>;
+  region: string | null;
   perform: (action: LinkAction, entry: ContactMethod) => void;
 } {
   const schemes = useSupportedSchemes();
@@ -99,5 +101,5 @@ export function useContactReach(subjectName: string): {
     void open();
   }
 
-  return { schemes, perform };
+  return { schemes, region: deviceRegion(), perform };
 }

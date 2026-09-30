@@ -48,11 +48,13 @@ client's to probe with `canOpenURL`, falling back to the https URL.
 
 A typed handle is kept as its owner writes it. `bareHandle` accepts a pasted profile URL (its last
 path segment), drops a leading `@` and any query, and preserves case, since platforms ignore it and
-the lookup key is normalized separately. A phone number's country code is optional, and never
-guessed: text, call and FaceTime pass a number without a leading `+` as bare digits, which the
-device dials in its own country, since `+` before a national number reads its area code as a
-country code (`(412) 606-2561` becomes Switzerland's `+41`). WhatsApp and Signal links only work
-in international form, so a number without its `+` offers neither.
+the lookup key is normalized separately. A phone number's country code is optional: text, call
+and FaceTime pass a number without a leading `+` as bare digits, which the device dials in its
+own country, since `+` before a national number reads its area code as a country code
+(`(412) 606-2561` becomes Switzerland's `+41`). WhatsApp and Signal links only work in
+international form, so `resolveActions` takes the device's `region` and works that form out
+with [`@leapsake/phone`](../phone/README.md); a number that does not resolve offers neither
+rather than a guess.
 
 ## The contact-method form's draft lives here
 

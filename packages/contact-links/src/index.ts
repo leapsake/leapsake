@@ -22,12 +22,7 @@ export type {
   ContactMethodDraftResult,
   ContactMethodValue,
 } from "./draft.js";
-export {
-  bareHandle,
-  phoneDialable,
-  phoneDigits,
-  phoneE164,
-} from "./normalize.js";
+export { bareHandle, phoneDialable, phoneDigits } from "./normalize.js";
 export type {
   ActionVerb,
   LinkAction,

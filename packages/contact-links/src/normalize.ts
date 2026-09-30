@@ -25,17 +25,11 @@ export function phoneDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
-/** A number as `+<digits>` when it was written with its `+`, else empty:
- *  a national number is never given a guessed country code. */
-export function phoneE164(raw: string): string {
-  const digits = phoneDigits(raw);
-  return raw.trim().startsWith("+") && digits !== "" ? `+${digits}` : "";
-}
-
-/** A number for `tel:`/`sms:`: E.164 when international, else bare digits
- *  the device dials in its own country. */
+/** A number for `tel:`/`sms:` as written: `+<digits>` with its country
+ *  code, else bare digits the device dials in its own country. */
 export function phoneDialable(raw: string): string {
-  return phoneE164(raw) || phoneDigits(raw);
+  const digits = phoneDigits(raw);
+  return raw.trim().startsWith("+") && digits !== "" ? `+${digits}` : digits;
 }
 
 /** Percent-encodes a value for a URL path segment or query value. */

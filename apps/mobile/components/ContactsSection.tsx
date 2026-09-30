@@ -48,7 +48,7 @@ export function ContactsSection({
 }) {
   const core = useCore();
   const router = useRouter();
-  const { schemes, perform } = useContactReach(subjectName);
+  const { schemes, region, perform } = useContactReach(subjectName);
   const [openFor, setOpenFor] = useState<string | null>(null);
 
   function confirmRemove(entry: ContactMethod) {
@@ -116,7 +116,10 @@ export function ContactsSection({
         <Text style={styles.muted}>No contact methods yet.</Text>
       ) : (
         methods.map((entry) => {
-          const actions = offeredActions(resolveActions(entry), schemes);
+          const actions = offeredActions(
+            resolveActions(entry, { region }),
+            schemes,
+          );
           const primary = actions[0];
           const value = methodValue(entry);
           return (

@@ -1,7 +1,8 @@
 import { formatPostalAddress } from "@leapsake/schema";
 import type { LinkAction, Platform, PlatformLink } from "./types.js";
 import { findPlatform, PHONE_PLATFORMS } from "./platforms.js";
-import { encode, phoneDialable, phoneE164 } from "./normalize.js";
+import { phoneE164 } from "@leapsake/phone";
+import { encode, phoneDialable } from "./normalize.js";
 
 /** The shape {@link resolveActions} reads, structural so an unsaved method
  *  passes too. */
@@ -71,7 +72,10 @@ function copyAction(id: string, text: string): LinkAction {
 
 /** Everything the user could do with one contact method, best first; see
  *  the README's _What a row offers, in order_. */
-export function resolveActions(entry: ContactMethodLike): LinkAction[] {
+export function resolveActions(
+  entry: ContactMethodLike,
+  { region }: { region?: string | null } = {},
+): LinkAction[] {
   if (entry.kind === "email") {
     const address = entry.method.address.trim();
     if (address === "") return [];
@@ -127,9 +131,9 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
     );
 
     // Opt-in only: Leapsake cannot tell whether a number is on WhatsApp.
-    // These links need the country code, so a national number offers none.
+    // These need the international form, so an unresolved number offers none.
     const confirmed = new Set(reachableOn ?? []);
-    const e164 = phoneE164(number);
+    const e164 = phoneE164(number, region);
     for (const platform of PHONE_PLATFORMS) {
       if (!confirmed.has(platform.id) || e164 === "") continue;
       for (const link of platform.fromPhone?.(e164) ?? []) {

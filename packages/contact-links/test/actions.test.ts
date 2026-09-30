@@ -46,7 +46,7 @@ describe("phone", () => {
   it("leads with a text when the number can receive one", () => {
     const actions = resolveActions({
       kind: "phone",
-      method: { number: "+1 (555) 010-9999", smsCapable: true },
+      method: { number: "+1 (412) 606-2561", smsCapable: true },
     });
     expect(ids(actions)).toEqual([
       "phone.text",
@@ -54,13 +54,13 @@ describe("phone", () => {
       "phone.facetime",
       "phone.copy",
     ]);
-    expect(actions[0].url).toBe("sms:+15550109999");
+    expect(actions[0].url).toBe("sms:+14126062561");
   });
 
   it("omits the text entirely for a landline, promoting Call to primary", () => {
     const actions = resolveActions({
       kind: "phone",
-      method: { number: "+15550109999", smsCapable: false },
+      method: { number: "+14126062561", smsCapable: false },
     });
     expect(ids(actions)).not.toContain("phone.text");
     expect(actions[0].id).toBe("phone.call");
@@ -69,7 +69,7 @@ describe("phone", () => {
   it("asks before calling, and only before calling", () => {
     const actions = resolveActions({
       kind: "phone",
-      method: { number: "+15550109999" },
+      method: { number: "+14126062561" },
     });
     expect(actions.filter((a) => a.confirm).map((a) => a.id)).toEqual([
       "phone.call",
@@ -78,20 +78,20 @@ describe("phone", () => {
 
   it("assumes a number is textable when smsCapable is not given", () => {
     expect(
-      primary({ kind: "phone", method: { number: "+15550109999" } })?.id,
+      primary({ kind: "phone", method: { number: "+14126062561" } })?.id,
     ).toBe("phone.text");
   });
 
   it("offers a phone platform only once the user has confirmed it", () => {
     const bare = resolveActions({
       kind: "phone",
-      method: { number: "+15550109999" },
+      method: { number: "+14126062561" },
     });
     expect(ids(bare)).not.toContain("phone.whatsapp");
 
     const confirmed = resolveActions({
       kind: "phone",
-      method: { number: "+15550109999", reachableOn: ["whatsapp"] },
+      method: { number: "+14126062561", reachableOn: ["whatsapp"] },
     });
     expect(ids(confirmed)).toContain("phone.whatsapp");
     expect(ids(confirmed)).not.toContain("phone.signal");
@@ -101,13 +101,13 @@ describe("phone", () => {
     const actions = resolveActions({
       kind: "phone",
       method: {
-        number: "+1 (555) 010-9999",
+        number: "+1 (412) 606-2561",
         reachableOn: ["whatsapp", "signal"],
       },
     });
     const byId = new Map(actions.map((a) => [a.id, a.url]));
-    expect(byId.get("phone.whatsapp")).toBe("https://wa.me/15550109999");
-    expect(byId.get("phone.signal")).toBe("https://signal.me/#p/+15550109999");
+    expect(byId.get("phone.whatsapp")).toBe("https://wa.me/14126062561");
+    expect(byId.get("phone.signal")).toBe("https://signal.me/#p/+14126062561");
   });
 
   it("texts, calls and FaceTimes a number with no country code as written", () => {
@@ -129,16 +129,18 @@ describe("phone", () => {
     expect(actions[0].url).toBe("sms:+14126062561");
   });
 
-  it("offers no WhatsApp or Signal for a number with no country code", () => {
-    const actions = resolveActions({
+  it("reads a number with no country code as the region's for WhatsApp", () => {
+    const entry = {
       kind: "phone",
-      method: {
-        number: "(412) 606-2561",
-        reachableOn: ["whatsapp", "signal"],
-      },
-    });
-    expect(ids(actions)).not.toContain("phone.whatsapp");
-    expect(ids(actions)).not.toContain("phone.signal");
+      method: { number: "(412) 606-2561", reachableOn: ["whatsapp"] },
+    } as const;
+    const whatsapp = (region: string | null) =>
+      resolveActions(entry, { region }).find((a) => a.id === "phone.whatsapp");
+
+    expect(whatsapp("US")?.url).toBe("https://wa.me/14126062561");
+    // Not a valid number there, and no region at all: no guess.
+    expect(whatsapp("GB")).toBeUndefined();
+    expect(whatsapp(null)).toBeUndefined();
   });
 
   it("falls back to copying a number that holds no digits", () => {
@@ -259,7 +261,7 @@ describe("the registry as a whole", () => {
     ...resolveActions({
       kind: "phone",
       method: {
-        number: "+15550109999",
+        number: "+14126062561",
         reachableOn: PLATFORMS.map((p) => p.id),
       },
     }),
@@ -333,7 +335,7 @@ describe("the registry as a whole", () => {
   it("ends every non-empty list with copy, so no row dead-ends", () => {
     const lists = [
       resolveActions({ kind: "email", method: { address: "a@b.com" } }),
-      resolveActions({ kind: "phone", method: { number: "+15550109999" } }),
+      resolveActions({ kind: "phone", method: { number: "+14126062561" } }),
       resolveActions({ kind: "postal", method: postal }),
       resolveActions({
         kind: "social",

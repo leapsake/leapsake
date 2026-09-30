@@ -21,11 +21,11 @@ export function ContactReachButtons({
   /** Whether to head the strip with their name, when a reminder has several. */
   named?: boolean;
 }) {
-  const { schemes, perform } = useContactReach(subjectName);
+  const { schemes, region, perform } = useContactReach(subjectName);
   const offers = methods
     .map((entry) => ({
       entry,
-      action: offeredActions(resolveActions(entry), schemes)[0],
+      action: offeredActions(resolveActions(entry, { region }), schemes)[0],
     }))
     .filter(
       (

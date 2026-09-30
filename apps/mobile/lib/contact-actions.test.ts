@@ -30,7 +30,7 @@ const action = (over: Partial<LinkAction> = {}): LinkAction => ({
 
 describe("schemeOf", () => {
   it("reads the scheme off a URL", () => {
-    expect(schemeOf("facetime:+15550109999")).toBe("facetime");
+    expect(schemeOf("facetime:+14126062561")).toBe("facetime");
     expect(schemeOf("https://example.com")).toBe("https");
     expect(schemeOf("geo:0,0?q=x")).toBe("geo");
   });
@@ -76,7 +76,7 @@ describe("targetUrl", () => {
 describe("offeredActions", () => {
   const phone = resolveActions({
     kind: "phone",
-    method: { number: "+15550109999", reachableOn: ["whatsapp"] },
+    method: { number: "+14126062561", reachableOn: ["whatsapp"] },
   });
 
   it("keeps everything on a device that opens every scheme", () => {
@@ -172,7 +172,7 @@ describe("app.json declares what the registry can emit", () => {
       ...resolveActions({
         kind: "phone",
         method: {
-          number: "+15550109999",
+          number: "+14126062561",
           reachableOn: PLATFORMS.map((p) => p.id),
         },
       }),
