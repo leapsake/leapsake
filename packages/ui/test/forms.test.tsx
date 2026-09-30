@@ -43,7 +43,7 @@ describe("FormShell", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
       "Add a person",
     );
-    // Outside the fieldset, so it stays legible while the fields grey out.
+    // In the header, not among the fields.
     expect(
       screen.getByRole("button", { name: "Add" }).closest("fieldset"),
     ).toBeNull();

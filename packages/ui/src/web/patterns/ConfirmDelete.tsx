@@ -44,10 +44,12 @@ export function ConfirmDelete({
           Object.entries(hiddenFields).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
-        <button type="submit" aria-disabled={submitting}>
-          {confirmLabel}
-        </button>{" "}
-        <Link href={cancelTo}>{m.common.cancel}</Link>
+        <fieldset>
+          <button type="submit" aria-disabled={submitting}>
+            {confirmLabel}
+          </button>{" "}
+          <Link href={cancelTo}>{m.common.cancel}</Link>
+        </fieldset>
       </Form>
     </main>
   );

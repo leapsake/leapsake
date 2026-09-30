@@ -22,7 +22,7 @@ export function FormShell({
   submitting: boolean;
   /** Why the form isn't ready; Save stays pressable and says this. */
   problem?: string;
-  /** Hidden inputs outside the fieldset, so disabling it never drops them. */
+  /** Rendered after the header and before the fieldset, e.g. hidden inputs. */
   beforeFields?: ReactNode;
   children: ReactNode;
 }) {
