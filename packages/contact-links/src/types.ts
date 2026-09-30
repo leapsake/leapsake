@@ -42,8 +42,9 @@ export interface Platform {
   fromHandle?: (handle: string) => PlatformLink[];
   /** Ordered link candidates for the opaque id; set iff `acceptsUserId`. */
   fromUserId?: (userId: string) => PlatformLink[];
-  /** Ordered link candidates for a number; `phone`-keyed platforms only. */
-  fromPhone?: (phone: { digits: string; e164: string }) => PlatformLink[];
+  /** Ordered link candidates for an E.164 number; `phone`-keyed platforms
+   *  only. */
+  fromPhone?: (e164: string) => PlatformLink[];
 }
 
 /** One thing the user can do with a contact method, if the device can. */

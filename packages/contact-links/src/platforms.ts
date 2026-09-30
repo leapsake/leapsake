@@ -8,17 +8,17 @@ export const PLATFORMS: readonly Platform[] = [
     id: "whatsapp",
     name: "WhatsApp",
     key: "phone",
-    fromPhone: ({ digits }) =>
-      digits === "" ? [] : [{ web: `https://wa.me/${digits}`, reach: "chat" }],
+    fromPhone: (e164) => [
+      { web: `https://wa.me/${e164.slice(1)}`, reach: "chat" },
+    ],
   },
   {
     id: "signal",
     name: "Signal",
     key: "phone",
-    fromPhone: ({ e164 }) =>
-      e164 === ""
-        ? []
-        : [{ web: `https://signal.me/#p/${e164}`, reach: "chat" }],
+    fromPhone: (e164) => [
+      { web: `https://signal.me/#p/${e164}`, reach: "chat" },
+    ],
   },
   {
     id: "telegram",

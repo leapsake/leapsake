@@ -110,6 +110,37 @@ describe("phone", () => {
     expect(byId.get("phone.signal")).toBe("https://signal.me/#p/+15550109999");
   });
 
+  it("texts, calls and FaceTimes a number with no country code as written", () => {
+    const actions = resolveActions({
+      kind: "phone",
+      method: { number: "(412) 606-2561" },
+    });
+    const byId = new Map(actions.map((a) => [a.id, a.url]));
+    expect(byId.get("phone.text")).toBe("sms:4126062561");
+    expect(byId.get("phone.call")).toBe("tel:4126062561");
+    expect(byId.get("phone.facetime")).toBe("facetime:4126062561");
+  });
+
+  it("keeps the country code of an international number", () => {
+    const actions = resolveActions({
+      kind: "phone",
+      method: { number: "+1 (412) 606-2561" },
+    });
+    expect(actions[0].url).toBe("sms:+14126062561");
+  });
+
+  it("offers no WhatsApp or Signal for a number with no country code", () => {
+    const actions = resolveActions({
+      kind: "phone",
+      method: {
+        number: "(412) 606-2561",
+        reachableOn: ["whatsapp", "signal"],
+      },
+    });
+    expect(ids(actions)).not.toContain("phone.whatsapp");
+    expect(ids(actions)).not.toContain("phone.signal");
+  });
+
   it("falls back to copying a number that holds no digits", () => {
     const actions = resolveActions({
       kind: "phone",

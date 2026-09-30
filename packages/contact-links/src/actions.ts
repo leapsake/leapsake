@@ -1,7 +1,7 @@
 import { formatPostalAddress } from "@leapsake/schema";
 import type { LinkAction, Platform, PlatformLink } from "./types.js";
 import { findPlatform, PHONE_PLATFORMS } from "./platforms.js";
-import { encode, phoneDigits, phoneE164 } from "./normalize.js";
+import { encode, phoneDialable, phoneE164 } from "./normalize.js";
 
 /** The shape {@link resolveActions} reads, structural so an unsaved method
  *  passes too. */
@@ -91,9 +91,8 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
 
   if (entry.kind === "phone") {
     const { number, smsCapable = true, reachableOn } = entry.method;
-    const e164 = phoneE164(number);
-    const digits = phoneDigits(number);
-    if (digits === "") return [copyAction("phone.copy", number.trim())];
+    const dialable = phoneDialable(number);
+    if (dialable === "") return [copyAction("phone.copy", number.trim())];
 
     const actions: LinkAction[] = [];
     // A number that can't text offers none, which puts Call first.
@@ -101,7 +100,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       actions.push({
         id: "phone.text",
         verb: "text",
-        url: `sms:${e164}`,
+        url: `sms:${dialable}`,
         native: false,
         reach: "chat",
         confirm: false,
@@ -111,7 +110,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       {
         id: "phone.call",
         verb: "call",
-        url: `tel:${e164}`,
+        url: `tel:${dialable}`,
         native: false,
         reach: null,
         // A call is disruptive and irreversible, so it asks first.
@@ -120,7 +119,7 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
       {
         id: "phone.facetime",
         verb: "video",
-        url: `facetime:${e164}`,
+        url: `facetime:${dialable}`,
         native: true,
         reach: "chat",
         confirm: false,
@@ -128,10 +127,12 @@ export function resolveActions(entry: ContactMethodLike): LinkAction[] {
     );
 
     // Opt-in only: Leapsake cannot tell whether a number is on WhatsApp.
+    // These links need the country code, so a national number offers none.
     const confirmed = new Set(reachableOn ?? []);
+    const e164 = phoneE164(number);
     for (const platform of PHONE_PLATFORMS) {
-      if (!confirmed.has(platform.id)) continue;
-      for (const link of platform.fromPhone?.({ digits, e164 }) ?? []) {
+      if (!confirmed.has(platform.id) || e164 === "") continue;
+      for (const link of platform.fromPhone?.(e164) ?? []) {
         actions.push(toAction(`phone.${platform.id}`, platform, link));
       }
     }

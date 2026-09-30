@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bareHandle, phoneDigits, phoneE164 } from "../src/index.js";
+import {
+  bareHandle,
+  phoneDialable,
+  phoneDigits,
+  phoneE164,
+} from "../src/index.js";
 
 describe("bareHandle", () => {
   it("passes a plain handle through untouched", () => {
@@ -49,13 +54,21 @@ describe("phone normalization", () => {
     expect(phoneDigits("555.0109")).toBe("5550109");
   });
 
-  it("adds the + E.164 links expect", () => {
+  it("gives E.164 only for a number written with its country code", () => {
     expect(phoneE164("+1 (555) 010-9999")).toBe("+15550109999");
-    expect(phoneE164("555 0109")).toBe("+5550109");
+    expect(phoneE164(" +33 1 23 45 67 89")).toBe("+33123456789");
+    expect(phoneE164("(412) 606-2561")).toBe("");
+  });
+
+  it("leaves a national number national, for the device to dial locally", () => {
+    expect(phoneDialable("(412) 606-2561")).toBe("4126062561");
+    expect(phoneDialable("+1 (412) 606-2561")).toBe("+14126062561");
   });
 
   it("returns empty rather than a bare + for a number with no digits", () => {
     expect(phoneE164("ask my mum")).toBe("");
+    expect(phoneE164("+")).toBe("");
+    expect(phoneDialable("ask my mum")).toBe("");
     expect(phoneDigits("ask my mum")).toBe("");
   });
 });

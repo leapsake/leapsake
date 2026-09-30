@@ -20,15 +20,22 @@ export function bareHandle(raw: string): string {
   return value.replace(/^@+/, "").replace(/\/+$/, "").trim();
 }
 
-/** A number as bare digits for a `wa.me` URL, never guessing a country code. */
+/** A number as bare digits, for telling whether it holds a number at all. */
 export function phoneDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
-/** A number as `+<digits>` for `signal.me` and friends, `+` added always. */
+/** A number as `+<digits>` when it was written with its `+`, else empty:
+ *  a national number is never given a guessed country code. */
 export function phoneE164(raw: string): string {
   const digits = phoneDigits(raw);
-  return digits === "" ? "" : `+${digits}`;
+  return raw.trim().startsWith("+") && digits !== "" ? `+${digits}` : "";
+}
+
+/** A number for `tel:`/`sms:`: E.164 when international, else bare digits
+ *  the device dials in its own country. */
+export function phoneDialable(raw: string): string {
+  return phoneE164(raw) || phoneDigits(raw);
 }
 
 /** Percent-encodes a value for a URL path segment or query value. */
