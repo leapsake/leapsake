@@ -6,7 +6,7 @@ import { formatOccurrence } from "@leapsake/schema";
 import { entityBasePath } from "@leapsake/ui/headless";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -52,46 +52,42 @@ export function HolidaysSection({
   }
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Holidays</Text>
-        <SectionLink
-          href={`${entityBasePath(bearerType)}/${bearerId}/holidays/new`}
-          what="holiday"
-          action="add"
-        />
-      </View>
-
-      {observed.length === 0 ? (
-        <Text style={styles.muted}>No holidays yet.</Text>
-      ) : (
-        observed.map((holiday) => (
-          <View key={holiday.id} style={styles.row}>
-            <Text style={styles.rowText}>
-              {holiday.name}
-              {holiday.hidden ? " (hidden)" : ""}
+    <RecordSection
+      title="Holidays"
+      link={{
+        href: `${entityBasePath(bearerType)}/${bearerId}/holidays/new`,
+        what: "holiday",
+        action: "add",
+      }}
+      isEmpty={observed.length === 0}
+      emptyText="No holidays yet."
+    >
+      {observed.map((holiday) => (
+        <View key={holiday.id} style={styles.row}>
+          <Text style={styles.rowText}>
+            {holiday.name}
+            {holiday.hidden ? " (hidden)" : ""}
+          </Text>
+          <View style={styles.rowMeta}>
+            <Text style={styles.muted}>
+              {holiday.nextOccurrence === null
+                ? "—"
+                : formatOccurrence(holiday.nextOccurrence)}
             </Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>
-                {holiday.nextOccurrence === null
-                  ? "—"
-                  : formatOccurrence(holiday.nextOccurrence)}
-              </Text>
-              <RowMenu
-                subject={holiday.name}
-                items={[
-                  rowMenuItem.reminders(() =>
-                    router.push(
-                      `/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`,
-                    ),
+            <RowMenu
+              subject={holiday.name}
+              items={[
+                rowMenuItem.reminders(() =>
+                  router.push(
+                    `/holidays/${holiday.id}/observers/${bearerType}/${bearerId}`,
                   ),
-                  rowMenuItem.remove(() => confirmRemove(holiday)),
-                ]}
-              />
-            </View>
+                ),
+                rowMenuItem.remove(() => confirmRemove(holiday)),
+              ]}
+            />
           </View>
-        ))
-      )}
-    </View>
+        </View>
+      ))}
+    </RecordSection>
   );
 }

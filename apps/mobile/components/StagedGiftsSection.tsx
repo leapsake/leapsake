@@ -9,7 +9,7 @@ import {
   giftDraftValid,
 } from "./GiftFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -52,21 +52,20 @@ export function StagedGiftsSection({
     onChange(entries.map((row) => (row.key === key ? { ...row, draft } : row)));
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Gifts</Text>
-        <SectionLink
-          what="gift"
-          action="add"
-          onPress={() =>
-            onChange([
-              ...entries,
-              { key: crypto.randomUUID(), draft: emptyGiftDraft() },
-            ])
-          }
-        />
-      </View>
-
+    <RecordSection
+      title="Gifts"
+      link={{
+        what: "gift",
+        action: "add",
+        onPress: () =>
+          onChange([
+            ...entries,
+            { key: crypto.randomUUID(), draft: emptyGiftDraft() },
+          ]),
+      }}
+      isEmpty={entries.length === 0}
+      emptyText="No gifts yet."
+    >
       {entries.map((row) => {
         const name = row.draft.title.trim() || NEW_GIFT;
         return (
@@ -101,8 +100,6 @@ export function StagedGiftsSection({
           </View>
         );
       })}
-
-      {entries.length === 0 && <Text style={styles.muted}>No gifts yet.</Text>}
-    </View>
+    </RecordSection>
   );
 }

@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { SectionLink } from "../../../components/SectionLink";
+import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
@@ -88,13 +88,12 @@ export default function PetDetailScreen() {
       {/* `petTitle`, which every link to this page also sends ahead. */}
       <Stack.Screen options={{ title: petTitle(pet) }} />
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <SectionLink href={`/pets/${id}/edit`} what={pet.name} />
-        </View>
+      <RecordSection
+        title="Details"
+        link={{ href: `/pets/${id}/edit`, what: pet.name }}
+      >
         <PetDetailFields pet={pet} gender={gender.value} />
-      </View>
+      </RecordSection>
 
       <MilestonesSection
         bearerType="pet"
@@ -124,17 +123,16 @@ export default function PetDetailScreen() {
         onChanged={reload}
       />
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tags</Text>
-          <SectionLink
-            href={`/pets/${id}/tags/edit`}
-            what="tags"
-            action={tags.length === 0 ? "add" : "edit"}
-          />
-        </View>
+      <RecordSection
+        title="Tags"
+        link={{
+          href: `/pets/${id}/tags/edit`,
+          what: "tags",
+          action: tags.length === 0 ? "add" : "edit",
+        }}
+      >
         <TagsField tags={tags} />
-      </View>
+      </RecordSection>
 
       <MentionedInSection reminders={mentionedIn} />
 

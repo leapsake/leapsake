@@ -10,7 +10,7 @@ import {
 } from "@leapsake/contact-links";
 import { ContactMethodFields } from "./ContactMethodFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import { styles } from "../lib/styles";
 
 /** What each row calls itself, mirroring {@link ContactsSection}'s glyphs. */
@@ -62,21 +62,20 @@ export function StagedContactsSection({
   onChange: (entries: StagedContact[]) => void;
 }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contact</Text>
-        <SectionLink
-          what="contact method"
-          action="add"
-          onPress={() =>
-            onChange([
-              ...entries,
-              { key: crypto.randomUUID(), draft: contactMethodDraftOf() },
-            ])
-          }
-        />
-      </View>
-
+    <RecordSection
+      title="Contact"
+      link={{
+        what: "contact method",
+        action: "add",
+        onPress: () =>
+          onChange([
+            ...entries,
+            { key: crypto.randomUUID(), draft: contactMethodDraftOf() },
+          ]),
+      }}
+      isEmpty={entries.length === 0}
+      emptyText="No contact methods yet."
+    >
       {entries.map((entry) => {
         const setDraft = (draft: ContactMethodDraft) =>
           onChange(
@@ -111,10 +110,6 @@ export function StagedContactsSection({
           </View>
         );
       })}
-
-      {entries.length === 0 ? (
-        <Text style={styles.muted}>No contact methods yet.</Text>
-      ) : null}
-    </View>
+    </RecordSection>
   );
 }

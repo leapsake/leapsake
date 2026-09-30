@@ -10,7 +10,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
-import { SectionLink } from "../../../components/SectionLink";
+import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
@@ -110,13 +110,12 @@ export default function PersonDetailScreen() {
         </Pressable>
       )}
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Details</Text>
-          <SectionLink href={`/people/${id}/edit`} what={fullName(person)} />
-        </View>
+      <RecordSection
+        title="Details"
+        link={{ href: `/people/${id}/edit`, what: fullName(person) }}
+      >
         <PersonDetailFields person={person} gender={gender.value} />
-      </View>
+      </RecordSection>
 
       <ContactsSection
         ownerId={person.id}
@@ -153,17 +152,16 @@ export default function PersonDetailScreen() {
         onChanged={reload}
       />
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tags</Text>
-          <SectionLink
-            href={`/people/${id}/tags/edit`}
-            what="tags"
-            action={tags.length === 0 ? "add" : "edit"}
-          />
-        </View>
+      <RecordSection
+        title="Tags"
+        link={{
+          href: `/people/${id}/tags/edit`,
+          what: "tags",
+          action: tags.length === 0 ? "add" : "edit",
+        }}
+      >
         <TagsField tags={tags} />
-      </View>
+      </RecordSection>
 
       <MentionedInSection reminders={mentionedIn} />
 

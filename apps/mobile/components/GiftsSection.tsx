@@ -7,7 +7,7 @@ import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { colors, styles } from "../lib/styles";
 import { useCore } from "../lib/core-context";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 
 /**
  * What someone is down for, given ones last. The tick writes where it stands;
@@ -53,56 +53,52 @@ export function GiftsSection({
   }
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Gifts</Text>
-        <SectionLink
-          href={`/gifts/new?recipient=${partyKey({ type: recipientType, id: recipientId })}`}
-          what="gift"
-          action="add"
-        />
-      </View>
-
-      {ordered.length === 0 ? (
-        <Text style={styles.muted}>No gifts yet.</Text>
-      ) : (
-        ordered.map((row) => {
-          const given = isGiven(row);
-          return (
-            <View key={row.id} style={styles.row}>
-              <View style={styles.rowMeta}>
-                <View style={styles.rowWithLead}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: given }}
-                    accessibilityLabel={`${row.ideaTitle} — ${given ? "given" : "not given yet"}`}
-                    hitSlop={12}
-                    onPress={() => setGiven(row, !given)}
-                  >
-                    <Text style={styles.muted}>{given ? "✓" : "○"}</Text>
-                  </Pressable>
-                  <Link href={`/gifts/${row.giftIdeaId}/edit`}>
-                    <Text style={[styles.rowText, { color: colors.accent }]}>
-                      {row.ideaTitle}
-                    </Text>
-                  </Link>
-                </View>
-                <RowMenu
-                  subject={row.ideaTitle}
-                  items={[
-                    rowMenuItem.edit(() =>
-                      router.push(`/gifts/${row.giftIdeaId}/edit`),
-                    ),
-                    rowMenuItem.remove(() => confirmRemove(row)),
-                  ]}
-                />
+    <RecordSection
+      title="Gifts"
+      link={{
+        href: `/gifts/new?recipient=${partyKey({ type: recipientType, id: recipientId })}`,
+        what: "gift",
+        action: "add",
+      }}
+      isEmpty={ordered.length === 0}
+      emptyText="No gifts yet."
+    >
+      {ordered.map((row) => {
+        const given = isGiven(row);
+        return (
+          <View key={row.id} style={styles.row}>
+            <View style={styles.rowMeta}>
+              <View style={styles.rowWithLead}>
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: given }}
+                  accessibilityLabel={`${row.ideaTitle} — ${given ? "given" : "not given yet"}`}
+                  hitSlop={12}
+                  onPress={() => setGiven(row, !given)}
+                >
+                  <Text style={styles.muted}>{given ? "✓" : "○"}</Text>
+                </Pressable>
+                <Link href={`/gifts/${row.giftIdeaId}/edit`}>
+                  <Text style={[styles.rowText, { color: colors.accent }]}>
+                    {row.ideaTitle}
+                  </Text>
+                </Link>
               </View>
-              {row.ideaUrl !== null && <GiftLink url={row.ideaUrl} />}
+              <RowMenu
+                subject={row.ideaTitle}
+                items={[
+                  rowMenuItem.edit(() =>
+                    router.push(`/gifts/${row.giftIdeaId}/edit`),
+                  ),
+                  rowMenuItem.remove(() => confirmRemove(row)),
+                ]}
+              />
             </View>
-          );
-        })
-      )}
-    </View>
+            {row.ideaUrl !== null && <GiftLink url={row.ideaUrl} />}
+          </View>
+        );
+      })}
+    </RecordSection>
   );
 }
 

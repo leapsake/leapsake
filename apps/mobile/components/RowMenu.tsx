@@ -6,18 +6,16 @@ import { styles } from "../lib/styles";
 const MORE = "⋯";
 const moreActionsFor = (subject: string) => `More actions for ${subject}`;
 
-/** A row's trailing `⋯`, which opens its actions in an {@link ActionSheet}. */
-export function RowMenu({
-  subject,
-  title = subject,
-  items,
-}: {
+export interface RowMenuProps {
   /** What the row is, for the button's accessibility label. */
   subject: string;
   /** The sheet's heading, when it should say more than {@link subject}. */
   title?: string;
   items: readonly SheetItem[];
-}) {
+}
+
+/** A row's trailing `⋯`, which opens its actions in an {@link ActionSheet}. */
+export function RowMenu({ subject, title = subject, items }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   return (
     <>

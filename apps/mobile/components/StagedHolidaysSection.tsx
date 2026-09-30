@@ -5,7 +5,7 @@ import { formatOccurrence } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
 
@@ -48,18 +48,16 @@ export function StagedHolidaysSection({
   );
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Holidays</Text>
-        {!adding && (
-          <SectionLink
-            what="holiday"
-            action="add"
-            onPress={() => setAdding(true)}
-          />
-        )}
-      </View>
-
+    <RecordSection
+      title="Holidays"
+      link={
+        adding
+          ? undefined
+          : { what: "holiday", action: "add", onPress: () => setAdding(true) }
+      }
+      isEmpty={entries.length === 0 && !adding}
+      emptyText="No holidays yet."
+    >
       {adding && (
         <View style={styles.inlineForm}>
           {catalog === null ? (
@@ -79,28 +77,26 @@ export function StagedHolidaysSection({
         </View>
       )}
 
-      {entries.length === 0
-        ? !adding && <Text style={styles.muted}>No holidays yet.</Text>
-        : entries.map((holiday) => (
-            <View key={holiday.id} style={styles.row}>
-              <Text style={styles.rowText}>{holiday.name}</Text>
-              <View style={styles.rowMeta}>
-                <Text style={styles.muted}>
-                  {holiday.nextOccurrence === null
-                    ? "—"
-                    : formatOccurrence(holiday.nextOccurrence)}
-                </Text>
-                <RowMenu
-                  subject={holiday.name}
-                  items={[
-                    rowMenuItem.remove(() =>
-                      onChange(entries.filter((h) => h.id !== holiday.id)),
-                    ),
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
-    </View>
+      {entries.map((holiday) => (
+        <View key={holiday.id} style={styles.row}>
+          <Text style={styles.rowText}>{holiday.name}</Text>
+          <View style={styles.rowMeta}>
+            <Text style={styles.muted}>
+              {holiday.nextOccurrence === null
+                ? "—"
+                : formatOccurrence(holiday.nextOccurrence)}
+            </Text>
+            <RowMenu
+              subject={holiday.name}
+              items={[
+                rowMenuItem.remove(() =>
+                  onChange(entries.filter((h) => h.id !== holiday.id)),
+                ),
+              ]}
+            />
+          </View>
+        </View>
+      ))}
+    </RecordSection>
   );
 }

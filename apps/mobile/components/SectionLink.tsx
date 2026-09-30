@@ -8,6 +8,11 @@ const LABEL = {
   edit: (what: string) => `Edit ${what}`,
 } as const;
 
+export type SectionLinkProps = {
+  what: string;
+  action?: "add" | "edit";
+} & ({ href: string } | { onPress: () => void });
+
 /**
  * A section header's ➕ (add) or ⋯ (edit), opening `href` or running `onPress`.
  * A screen reader hears the whole phrase instead: "Add gift", "Edit tags".
@@ -16,10 +21,7 @@ export function SectionLink({
   what,
   action = "edit",
   ...target
-}: {
-  what: string;
-  action?: "add" | "edit";
-} & ({ href: string } | { onPress: () => void })) {
+}: SectionLinkProps) {
   const router = useRouter();
   return (
     <Text

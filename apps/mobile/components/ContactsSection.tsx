@@ -4,7 +4,7 @@ import { type ContactMethod, postalAddressLines } from "@leapsake/schema";
 import { type LinkAction, resolveActions } from "@leapsake/contact-links";
 import type { SheetItem } from "./ActionSheet";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import {
   VERB_ICON,
   actionLabel,
@@ -88,69 +88,64 @@ export function ContactsSection({
   }
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Contact</Text>
-        {/* One way in: the form's Type dropdown asks what kind. */}
-        <SectionLink
-          href={`/people/${ownerId}/contacts/new`}
-          what="contact method"
-          action="add"
-        />
-      </View>
-
-      {methods.length === 0 ? (
-        <Text style={styles.muted}>No contact methods yet.</Text>
-      ) : (
-        methods.map((entry) => {
-          const actions = offeredActions(
-            resolveActions(entry, { region }),
-            schemes,
-          );
-          const primary = actions[0];
-          const value = methodValue(entry);
-          return (
-            <View key={entry.method.id} style={styles.row}>
-              <View style={styles.rowWithLead}>
-                {/* The action is a hint, not the label, so the value is read
+    <RecordSection
+      title="Contact"
+      link={{
+        href: `/people/${ownerId}/contacts/new`,
+        what: "contact method",
+        action: "add",
+      }}
+      isEmpty={methods.length === 0}
+      emptyText="No contact methods yet."
+    >
+      {methods.map((entry) => {
+        const actions = offeredActions(
+          resolveActions(entry, { region }),
+          schemes,
+        );
+        const primary = actions[0];
+        const value = methodValue(entry);
+        return (
+          <View key={entry.method.id} style={styles.row}>
+            <View style={styles.rowWithLead}>
+              {/* The action is a hint, not the label, so the value is read
                     out. With no action the row is not pressable. */}
+              <Pressable
+                accessibilityRole={primary ? "button" : undefined}
+                accessibilityLabel={`${entry.method.label}, ${value}`}
+                accessibilityHint={primary ? actionLabel(primary) : undefined}
+                disabled={primary === undefined}
+                onPress={() => primary && perform(primary, entry)}
+                style={styles.rowBody}
+              >
+                <Text style={styles.rowText}>{entry.method.label}</Text>
+                <Text style={styles.muted}>{displayValue(entry)}</Text>
+              </Pressable>
+              {buttonActions(actions).map((action) => (
                 <Pressable
-                  accessibilityRole={primary ? "button" : undefined}
-                  accessibilityLabel={`${entry.method.label}, ${value}`}
-                  accessibilityHint={primary ? actionLabel(primary) : undefined}
-                  disabled={primary === undefined}
-                  onPress={() => primary && perform(primary, entry)}
-                  style={styles.rowBody}
+                  key={action.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
+                  onPress={() => perform(action, entry)}
+                  // Vertical only, or neighbouring buttons would overlap.
+                  hitSlop={{ top: 10, bottom: 10 }}
+                  style={local.action}
                 >
-                  <Text style={styles.rowText}>{entry.method.label}</Text>
-                  <Text style={styles.muted}>{displayValue(entry)}</Text>
+                  <Text style={local.actionGlyph}>
+                    {VERB_ICON[action.verb]}
+                  </Text>
                 </Pressable>
-                {buttonActions(actions).map((action) => (
-                  <Pressable
-                    key={action.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
-                    onPress={() => perform(action, entry)}
-                    // Vertical only, or neighbouring buttons would overlap.
-                    hitSlop={{ top: 10, bottom: 10 }}
-                    style={local.action}
-                  >
-                    <Text style={local.actionGlyph}>
-                      {VERB_ICON[action.verb]}
-                    </Text>
-                  </Pressable>
-                ))}
-                <RowMenu
-                  subject={entry.method.label}
-                  title={`${entry.method.label} · ${value}`}
-                  items={sheetItems(entry, actions)}
-                />
-              </View>
+              ))}
+              <RowMenu
+                subject={entry.method.label}
+                title={`${entry.method.label} · ${value}`}
+                items={sheetItems(entry, actions)}
+              />
             </View>
-          );
-        })
-      )}
-    </View>
+          </View>
+        );
+      })}
+    </RecordSection>
   );
 }
 

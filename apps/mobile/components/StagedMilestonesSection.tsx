@@ -10,7 +10,7 @@ import {
 } from "@leapsake/schema";
 import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
 import { RowMenu, rowMenuItem } from "./RowMenu";
-import { SectionLink } from "./SectionLink";
+import { RecordSection } from "./RecordSection";
 import { styles } from "../lib/styles";
 
 /** A milestone being created on the form; the key survives earlier removals. */
@@ -44,24 +44,23 @@ export function StagedMilestonesSection({
   onChange: (entries: StagedMilestone[]) => void;
 }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Milestones</Text>
-        <SectionLink
-          what="milestone"
-          action="add"
-          onPress={() =>
-            onChange([
-              ...entries,
-              {
-                key: crypto.randomUUID(),
-                draft: milestoneDraftOf({ bearerType }),
-              },
-            ])
-          }
-        />
-      </View>
-
+    <RecordSection
+      title="Milestones"
+      link={{
+        what: "milestone",
+        action: "add",
+        onPress: () =>
+          onChange([
+            ...entries,
+            {
+              key: crypto.randomUUID(),
+              draft: milestoneDraftOf({ bearerType }),
+            },
+          ]),
+      }}
+      isEmpty={entries.length === 0}
+      emptyText="No milestones yet."
+    >
       {entries.map((entry) => {
         const shaped = milestoneInputOf(entry.draft);
         const label = milestoneLabel({
@@ -104,10 +103,6 @@ export function StagedMilestonesSection({
           </View>
         );
       })}
-
-      {entries.length === 0 ? (
-        <Text style={styles.muted}>No milestones yet.</Text>
-      ) : null}
-    </View>
+    </RecordSection>
   );
 }

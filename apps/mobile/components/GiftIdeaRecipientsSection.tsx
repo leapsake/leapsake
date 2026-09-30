@@ -4,6 +4,7 @@ import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
 import { isGiven, sortGiftsGivenLast } from "@leapsake/view-models";
 import { CheckboxBox } from "./Checkbox";
+import { RecordSection } from "./RecordSection";
 import { RowMenu, rowMenuItem } from "./RowMenu";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
@@ -80,11 +81,11 @@ export function GiftIdeaRecipientsSection({
   }
 
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>For…</Text>
-      </View>
-
+    <RecordSection
+      title="For…"
+      isEmpty={ordered.length === 0}
+      emptyText="Not for anyone in particular yet."
+    >
       <Typeahead
         multi
         label="Add a person or pet this would suit"
@@ -96,33 +97,29 @@ export function GiftIdeaRecipientsSection({
         getLabel={(c) => c.label}
       />
 
-      {ordered.length === 0 ? (
-        <Text style={styles.muted}>Not for anyone in particular yet.</Text>
-      ) : (
-        ordered.map((row) => (
-          <View key={row.id} style={styles.row}>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isGiven(row) }}
-              accessibilityLabel={row.recipientLabel}
-              style={styles.rowWithLead}
-              onPress={() => setGiven(row, !isGiven(row))}
-            >
-              <CheckboxBox checked={isGiven(row)} />
-              <Text style={styles.rowText}>{row.recipientLabel}</Text>
-            </Pressable>
-            <View style={styles.rowMeta}>
-              <Text style={styles.muted}>
-                {isGiven(row) ? "✓ Given" : "Not given yet"}
-              </Text>
-              <RowMenu
-                subject={row.recipientLabel}
-                items={[rowMenuItem.remove(() => confirmRemove(row))]}
-              />
-            </View>
+      {ordered.map((row) => (
+        <View key={row.id} style={styles.row}>
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isGiven(row) }}
+            accessibilityLabel={row.recipientLabel}
+            style={styles.rowWithLead}
+            onPress={() => setGiven(row, !isGiven(row))}
+          >
+            <CheckboxBox checked={isGiven(row)} />
+            <Text style={styles.rowText}>{row.recipientLabel}</Text>
+          </Pressable>
+          <View style={styles.rowMeta}>
+            <Text style={styles.muted}>
+              {isGiven(row) ? "✓ Given" : "Not given yet"}
+            </Text>
+            <RowMenu
+              subject={row.recipientLabel}
+              items={[rowMenuItem.remove(() => confirmRemove(row))]}
+            />
           </View>
-        ))
-      )}
-    </View>
+        </View>
+      ))}
+    </RecordSection>
   );
 }
