@@ -21,7 +21,7 @@
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
     "@types/proxy-addr": "^2.0.3",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.0"
   }
 }

@@ -34,13 +34,13 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   },
   "devEngines": {
     "packageManager": {
