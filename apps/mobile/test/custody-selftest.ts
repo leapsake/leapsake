@@ -187,7 +187,7 @@ export function runCustodySelfTest(t: TestApi): void {
     });
   });
 
-  describe("custody: per-account store paths (§7.4)", () => {
+  describe("custody: per-account store paths", () => {
     // Mobile passes expo-sqlite a nested name, so whether one opens, with its
     // directory created, decides the per-account layout.
     it("opens a store under a nested, per-account name", async () => {
@@ -545,7 +545,7 @@ export function runCustodySelfTest(t: TestApi): void {
     });
   });
 
-  describe("custody: the portable plaintext → encrypted conversion (§8.1)", () => {
+  describe("custody: the portable plaintext → encrypted conversion", () => {
     it("copies schema, rows and indexes into a keyed database", async () => {
       const sourceName = scratchName("convert-src");
       const targetName = scratchName("convert-dst");
