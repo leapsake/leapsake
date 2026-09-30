@@ -19,6 +19,20 @@ catalogs:
       specifier: 19.2.3
       version: 19.2.3
 
+overrides:
+  '@xmldom/xmldom@0.8': ^0.8.15
+  '@xmldom/xmldom@0.9': ^0.9.12
+  baseline-browser-mapping@2: ^2.11.0
+  brace-expansion@5: ^5.0.12
+  browserslist@4: ^4.28.7
+  fast-uri@3: ^3.1.8
+  js-yaml@4: ^4.3.2
+  nanoid@3: ^3.3.18
+  postcss@8: ^8.5.23
+  shell-quote@1: ^1.9.0
+  undici@7: ^7.29.1
+  undici@8: ^8.10.2
+
 patchedDependencies:
   expo-contacts@56.0.13:
     hash: 7e628f8fc9aabd9ec94469df4615c5cda0e9badb0b23aa2617d25fac2adf2132
@@ -5868,7 +5882,7 @@ packages:
     resolution: {integrity: sha512-pJ2sYawQS0R/WI928Gj5GlPhTGzbMelq0+4INtSYNDV9ErKJcX6xjGWkoG/VnB3dpUm00zALaqkrUD77pO5TDQ==}
     hasBin: true
     peerDependencies:
-      browserslist: '>= 4.21.0'
+      browserslist: ^4.28.7
 
   use-callback-ref@1.3.3:
     resolution: {integrity: sha512-jQL3lRnocaFtu3V00JToYz/4QkNWswxijDaCVNZRiRTO3HQDLsdu1ZtmIUvV4yPp+rvWm5j0y0TG/S61cuijTg==}
