@@ -28,7 +28,7 @@
   },
   "overrides": [
     {
-      "files": ["**/*.test.*", "apps/mobile/test/**"],
+      "files": ["**/*.test.*"],
       "rules": {
         "leapsake/max-comment-lines": "off",
         "leapsake/no-decision-comments": "off",
