@@ -5,8 +5,8 @@ import { holdWhileSubmitting } from "./hold-while-submitting.js";
 import { Breadcrumbs, type Crumb } from "../primitives/Breadcrumbs.js";
 
 /**
- * The confirm-before-destroying screen every delete route shares. Its fieldset
- * disables while posting, so a double-click can't post twice.
+ * The confirm-before-destroying screen every delete route shares. A second
+ * press while posting is ignored; nothing is disabled.
  */
 export function ConfirmDelete({
   trail,
@@ -44,12 +44,10 @@ export function ConfirmDelete({
           Object.entries(hiddenFields).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}
-        <fieldset>
-          <button type="submit" aria-disabled={submitting}>
-            {confirmLabel}
-          </button>{" "}
-          <Link href={cancelTo}>{m.common.cancel}</Link>
-        </fieldset>
+        <button type="submit" aria-disabled={submitting}>
+          {confirmLabel}
+        </button>{" "}
+        <Link href={cancelTo}>{m.common.cancel}</Link>
       </Form>
     </main>
   );

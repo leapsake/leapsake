@@ -88,8 +88,6 @@ describe("ConfirmDelete", () => {
       ["otherId", "42"],
       ["role", "parent"],
     ]);
-    // Outside the fieldset — the browser drops disabled controls on submit.
-    expect(hidden.every((i) => i.closest("fieldset") === null)).toBe(true);
   });
 
   it("renders no hidden fields when none are given", () => {
