@@ -44,16 +44,26 @@ const TEXT = {
   continue: "Continue",
   none: "No possible duplicates found.",
   scopedNone: "Nothing else looks like the same person.",
-  mergeTitle: "Which one do you want to keep?",
+  mergeTitle: "Merge these two?",
   mergeMessage:
-    "Everything on the other moves onto the one you keep, then the other is deleted. This can’t be undone.",
-  keep: (name: string) => `Keep ${name}`,
-  keepLeft: "Keep the one on the left",
-  keepRight: "Keep the one on the right",
+    "Everything on one moves onto the other, and the extra record is deleted. This can’t be undone.",
+  nameTitle: "Which name do you want to keep?",
+  nameMessage:
+    "Everything else on both is kept. The other record is deleted. This can’t be undone.",
+  keep: (name: string) => `Keep “${name}”`,
   cancel: "Cancel",
   mergeFailed: "Couldn’t merge",
   saveFailed: "Couldn’t save",
 } as const;
+
+/** Whether two people are named alike in every part, middle name included. */
+function sameName(a: Person, b: Person): boolean {
+  return (
+    a.firstName === b.firstName &&
+    a.middleName === b.middleName &&
+    a.lastName === b.lastName
+  );
+}
 
 /** A candidate pair with both people's pages loaded. */
 interface Pair {
@@ -106,23 +116,33 @@ export default function DuplicatesScreen() {
     );
   }
 
-  /** Ask which of the pair to keep, then merge the other into it. */
+  /** Merge the pair, asking which name to keep only when the names differ:
+   *  everything else on both moves onto whichever is kept. */
   function confirmMerge({ a, b }: Pair) {
     const merge = (survivor: Person, duplicate: Person) =>
       core.people.merge(survivor.id, duplicate.id).then(
         () => reload(),
         (e: unknown) => Alert.alert(TEXT.mergeFailed, String(e)),
       );
-    // Neither button is red, so neither reads as the safer choice; two people
-    // of one name are told apart by where they sit on screen.
-    const sameName = fullName(a.person) === fullName(b.person);
-    Alert.alert(TEXT.mergeTitle, TEXT.mergeMessage, [
+    if (sameName(a.person, b.person)) {
+      Alert.alert(TEXT.mergeTitle, TEXT.mergeMessage, [
+        { text: TEXT.cancel, style: "cancel" },
+        {
+          text: TEXT.merge,
+          style: "destructive",
+          onPress: () => merge(a.person, b.person),
+        },
+      ]);
+      return;
+    }
+    // Neither name is red, so neither reads as the safer choice.
+    Alert.alert(TEXT.nameTitle, TEXT.nameMessage, [
       {
-        text: sameName ? TEXT.keepLeft : TEXT.keep(fullName(a.person)),
+        text: TEXT.keep(fullName(a.person)),
         onPress: () => merge(a.person, b.person),
       },
       {
-        text: sameName ? TEXT.keepRight : TEXT.keep(fullName(b.person)),
+        text: TEXT.keep(fullName(b.person)),
         onPress: () => merge(b.person, a.person),
       },
       { text: TEXT.cancel, style: "cancel" },
