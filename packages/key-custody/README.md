@@ -25,6 +25,10 @@ reinstall, migration, repair, or the signing-identity change below) the _only_ w
 24-word phrase the user had never been asked to save. **A key the user does not hold protects
 little and can lose everything.** So: no custody, no encryption.
 
+> **Reopened for after the iOS transfer** _(owner, 2026-09-30)_: encrypting by default is to be
+> reconsidered once that re-key is behind us. The open questions are in
+> [`plans/shipping.md`](../../plans/shipping.md) → _Part 2_, step 4.
+
 |                             | **Unauthenticated**                       | **Authenticated**                                           |
 | --------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
 | **Custody**                 | none                                      | username + password, with a recovery phrase as the backstop |

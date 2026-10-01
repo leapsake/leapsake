@@ -55,6 +55,21 @@ more; the version string is spent only once a version is _released_.
 3. **macOS follows, signed under the company's Developer ID from its first release**
    ([`desktop-packaging.md`](./desktop-packaging.md)). That ordering is not incidental; see the
    re-key cost below.
+4. **Revisit encrypting by default** _(owner, 2026-09-30)_. Once the transfer is behind us,
+   reconsider encrypting from first launch under a keychain-held key, with the Home nudge
+   inviting a login to _recover_ the data rather than to protect it — possibly with a lighter
+   secret than username + password, such as a password and its phrase alone. It waits for the
+   transfer because under that default the transfer (below) would strand every user without a
+   login. What still has to be answered then:
+   - **Keychain loss outside a transfer.** A reinstall, repair, or a restore from an
+     unencrypted Finder backup (which omits the keychain) loses the key. Without a secret the
+     user holds, that data is gone.
+   - **What it buys on iOS.** Data Protection already encrypts the container, and an
+     `AFTER_FIRST_UNLOCK` key unlocks under the same conditions as the file.
+   - **The copy.** “Recover” reads as “if I lose my phone”, which a login held only on this
+     device cannot do.
+   - **Shipped installs.** Pre-v0.1 latitude will have expired, so plaintext stores need a
+     migration.
 
 **Why GA has to come first:** Apple's transfer criteria require at least one **released**
 version. The only alternative, freeing the name and re-reserving it from the company, opens a
