@@ -255,9 +255,7 @@ describe("onboarding reminders", () => {
       h.signals.hasEntitiesBesidesSelf = true; // the user's first person/pet lands
       await regenerateSystemReminders(h.deps);
       const nudge = h.byId(idFor("enable-notifications"));
-      expect(nudge?.title).toBe(
-        "🔔 Turn on notifications so reminders reach you",
-      );
+      expect(nudge?.title).toBe("🔔 Turn on notifications");
       expect(nudge?.dueDate).toBeNull();
     });
 
@@ -291,9 +289,7 @@ describe("onboarding reminders", () => {
 
       const invitation = h.byId(idFor("create-account"));
       expect(invitation?.deletedAt).toBeNull();
-      expect(invitation?.title).toBe(
-        "🔐 Set up your login to protect the data on this device",
-      );
+      expect(invitation?.title).toBe("🔐 Encrypt your data");
       // Dateless like every nudge — it is a standing offer, not a deadline.
       expect(invitation?.dueDate).toBeNull();
     });

@@ -360,10 +360,9 @@ interface OnboardingStep {
  */
 const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
-    // Stands from day one, so an import lands in an encrypted store. The copy
-    // promises access, not safety: a backup is what survives a lost device.
+    // Stands from day one, so an import lands in an encrypted store.
     key: "create-account",
-    title: "🔐 Set up your login to protect the data on this device",
+    title: "🔐 Encrypt your data",
     route: "create-account",
     applies: (s) => !s.hasAccount,
   },
@@ -385,7 +384,7 @@ const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     // Waits for someone to be notified about. Its condition is store-scoped,
     // its question per-device: see the README's notifications-nudge section.
     key: "enable-notifications",
-    title: "🔔 Turn on notifications so reminders reach you",
+    title: "🔔 Turn on notifications",
     route: "enable-notifications",
     applies: (s) => s.hasEntitiesBesidesSelf && !s.hasNotificationPolicy,
   },

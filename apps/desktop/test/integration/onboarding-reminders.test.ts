@@ -141,9 +141,7 @@ describe("onboarding reminders (end to end through core)", () => {
       const invited = (await systemReminders()).find(
         (r) => r.id === idFor("create-account"),
       );
-      expect(invited?.title).toBe(
-        "🔐 Set up your login to protect the data on this device",
-      );
+      expect(invited?.title).toBe("🔐 Encrypt your data");
       expect(invited?.dueDate).toBeNull();
       expect(onboardingRouteOf(invited!.id)).toBe("create-account");
 
