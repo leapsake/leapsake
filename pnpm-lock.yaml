@@ -169,6 +169,9 @@ importers:
       '@leapsake/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
+      '@leapsake/phone':
+        specifier: workspace:*
+        version: link:../../packages/phone
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../../packages/schema

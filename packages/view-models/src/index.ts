@@ -1,4 +1,10 @@
 // `@leapsake/view-models`: pure derivations over loaded data; see the README.
+export { comparePair } from "./duplicate-pair.js";
+export type {
+  DifferingField,
+  PairFact,
+  SharedField,
+} from "./duplicate-pair.js";
 export { isGiven, sortGiftsGivenLast, sortIdeasGivenLast } from "./gifts.js";
 export type { GiftGivenState } from "./gifts.js";
 export { splitBearerHolidays } from "./holidays.js";

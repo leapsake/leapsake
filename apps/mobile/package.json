@@ -18,6 +18,7 @@
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
     "@leapsake/notifications": "workspace:*",
+    "@leapsake/phone": "workspace:*",
     "@leapsake/schema": "workspace:*",
     "@leapsake/store-layout": "workspace:*",
     "@leapsake/ui": "workspace:*",

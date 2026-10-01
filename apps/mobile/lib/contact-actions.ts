@@ -1,4 +1,5 @@
-import type { LinkAction } from "@leapsake/contact-links";
+import { type LinkAction, findPlatform } from "@leapsake/contact-links";
+import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
 
 // The device half of tapping a contact method, kept pure: the component
 // probes the schemes once and makes the native calls.
@@ -104,4 +105,22 @@ export function buttonActions(actions: readonly LinkAction[]): LinkAction[] {
     taken.add(glyph);
     return true;
   });
+}
+
+/** The one-line value shown under each method's label. */
+export function methodValue(entry: ContactMethod): string {
+  if (entry.kind === "email") return entry.method.address;
+  if (entry.kind === "phone") {
+    const ext = entry.method.extension ? ` ext. ${entry.method.extension}` : "";
+    const noSms = entry.method.smsCapable ? "" : " (no texts)";
+    return entry.method.number + ext + noSms;
+  }
+  if (entry.kind === "social") {
+    // Names the platform beside the handle; an unknown platform id is shown
+    // as stored, not hidden.
+    const { platform, handle, url } = entry.method;
+    const name = findPlatform(platform)?.name ?? platform;
+    return handle === "" ? (url ?? name) : `${name} · ${handle}`;
+  }
+  return formatPostalAddress(entry.method);
 }

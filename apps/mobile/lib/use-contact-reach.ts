@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { Alert, Linking } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { type ContactMethod, formatPostalAddress } from "@leapsake/schema";
+import type { ContactMethod } from "@leapsake/schema";
 import {
   type LinkAction,
   NATIVE_SCHEMES,
   SCHEME_PROBES,
-  findPlatform,
 } from "@leapsake/contact-links";
-import { targetUrl } from "./contact-actions";
+import { methodValue, targetUrl } from "./contact-actions";
 import { deviceRegion } from "./device-region";
 
 // Tapping a contact method on this handset: the native half of
@@ -20,24 +19,6 @@ const COPIED = "Copied";
 async function copyToClipboard(text: string) {
   await Clipboard.setStringAsync(text);
   Alert.alert(COPIED);
-}
-
-/** The one-line value shown under each method's label. */
-export function methodValue(entry: ContactMethod): string {
-  if (entry.kind === "email") return entry.method.address;
-  if (entry.kind === "phone") {
-    const ext = entry.method.extension ? ` ext. ${entry.method.extension}` : "";
-    const noSms = entry.method.smsCapable ? "" : " (no texts)";
-    return entry.method.number + ext + noSms;
-  }
-  if (entry.kind === "social") {
-    // Names the platform beside the handle; an unknown platform id is shown
-    // as stored, not hidden.
-    const { platform, handle, url } = entry.method;
-    const name = findPlatform(platform)?.name ?? platform;
-    return handle === "" ? (url ?? name) : `${name} · ${handle}`;
-  }
-  return formatPostalAddress(entry.method);
 }
 
 /**

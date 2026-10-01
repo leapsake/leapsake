@@ -9,9 +9,10 @@ import {
   VERB_ICON,
   actionLabel,
   buttonActions,
+  methodValue,
   offeredActions,
 } from "../lib/contact-actions";
-import { methodValue, useContactReach } from "../lib/use-contact-reach";
+import { useContactReach } from "../lib/use-contact-reach";
 import { deleteContact } from "../lib/contact-writes";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";

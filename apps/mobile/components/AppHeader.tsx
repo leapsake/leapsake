@@ -19,7 +19,8 @@ const LOGO_SIZE = { full: 26, compact: 19 } as const;
  */
 export interface AppHeaderProps {
   title: string;
-  /** A leading action after Back, from `headerLeft`; unused today. */
+  /** A leading action after Back, from `headerLeft`; a screen whose Back
+   *  must go elsewhere hides Back and draws a {@link HeaderBack} here. */
   left?: ReactNode;
   /** The screen's actions, as one node already laid out. */
   right?: ReactNode;
@@ -39,7 +40,7 @@ export function AppHeader({
   const insets = useSafeAreaInsets();
   // With Back, both sides take the wider one's width, so the title centres.
   const [sides, setSides] = useState({ left: 0, right: 0 });
-  const centred = onBack !== undefined;
+  const centred = onBack !== undefined || left !== undefined;
   const sideWidth = Math.max(sides.left, sides.right);
   const fontSize = headerScroll.interpolate({
     inputRange: [0, COLLAPSE_DISTANCE],
@@ -75,15 +76,7 @@ export function AppHeader({
                 );
               }}
             >
-              {onBack !== undefined && (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={onBack}
-                  hitSlop={8}
-                >
-                  <Text style={local.back}>{BACK_LABEL}</Text>
-                </Pressable>
-              )}
+              {onBack !== undefined && <HeaderBack onPress={onBack} />}
               {left}
             </View>
           </View>
@@ -133,6 +126,15 @@ export function AppHeader({
         )}
       </View>
     </View>
+  );
+}
+
+/** The header's Back control. */
+export function HeaderBack({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8}>
+      <Text style={local.back}>{BACK_LABEL}</Text>
+    </Pressable>
   );
 }
 
