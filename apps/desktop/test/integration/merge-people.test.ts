@@ -5,6 +5,7 @@ import {
   runMigrations,
   syncableRepos,
 } from "@leapsake/core";
+import { mentionToken } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 
@@ -271,6 +272,75 @@ describe("createCore — mergePeople", () => {
       "SELECT lower_id, higher_id FROM not_a_duplicate WHERE deleted_at IS NULL",
     ))!;
     expect(remaining).toEqual({ lower_id: lo, higher_id: hi });
+  });
+
+  it("points a reminder that @mentions the loser at the survivor", async () => {
+    const george = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    const duplicate = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    const reminder = await core.reminders.create({
+      title: `Call ${mentionToken("George Bailey", "person", duplicate.id)}`,
+    });
+
+    await core.people.merge(george.id, duplicate.id);
+
+    expect(
+      (await core.reminders.mentioning("person", george.id)).map((r) => r.id),
+    ).toEqual([reminder.id]);
+    expect(await core.reminders.mentioning("person", duplicate.id)).toEqual([]);
+    expect((await core.reminders.get(reminder.id))!.title).toBe(
+      `Call ${mentionToken("George Bailey", "person", george.id)}`,
+    );
+  });
+
+  it("gives the survivor the loser's gender when it has none", async () => {
+    const george = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    const duplicate = await core.people.create(
+      { firstName: "George", lastName: "Bailey", gender: "male" },
+      [],
+    );
+
+    await core.people.merge(george.id, duplicate.id);
+
+    expect((await core.people.get(george.id))!.gender).toBe("male");
+  });
+
+  it("keeps the survivor's own gender over the loser's", async () => {
+    const mary = await core.people.create(
+      { firstName: "Mary", lastName: "Hatch", gender: "female" },
+      [],
+    );
+    const duplicate = await core.people.create(
+      { firstName: "Mary", lastName: "Hatch", gender: "nonbinary" },
+      [],
+    );
+
+    await core.people.merge(mary.id, duplicate.id);
+
+    expect((await core.people.get(mary.id))!.gender).toBe("female");
+  });
+
+  it("publishes an unpublished survivor when the loser was published", async () => {
+    const george = await core.people.create(
+      { firstName: "George", lastName: "Bailey", standing: "unpublished" },
+      [],
+    );
+    const duplicate = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+
+    await core.people.merge(george.id, duplicate.id);
+
+    expect((await core.people.get(george.id))!.standing).toBe("published");
   });
 
   it("refuses to merge a person into itself", async () => {

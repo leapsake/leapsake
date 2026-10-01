@@ -102,6 +102,20 @@ export function parseMentions(text: string): Mention[] {
   return mentions;
 }
 
+/** `text` with every mention of one entity pointed at another instead, each
+ *  token keeping the name it was written with. */
+export function repointMentionTokens(
+  text: string,
+  targetType: EntityType,
+  fromId: string,
+  toId: string,
+): string {
+  return text.replaceAll(
+    `](${targetType}:${fromId})`,
+    `](${targetType}:${toId})`,
+  );
+}
+
 /** Replace each mention token with the `@Violet Bick` a reader sees. */
 export function plainMentionText(text: string): string {
   return text.replace(

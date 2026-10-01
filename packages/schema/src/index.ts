@@ -186,6 +186,7 @@ export type {
 export {
   MENTION_NAMESPACE,
   mentionToken,
+  repointMentionTokens,
   activeMentionQuery,
   activeHashtagQuery,
   parseMentions,

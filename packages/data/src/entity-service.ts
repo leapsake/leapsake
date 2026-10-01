@@ -5,17 +5,21 @@ import {
   entityLabel,
   isPublished,
   kindAllowsBearer,
+  parseMentions,
+  repointMentionTokens,
 } from "@leapsake/schema";
 import type { ContactMethodsRepo } from "./contact-methods-repo.js";
 import type { DismissalsRepo } from "./dismissals-repo.js";
 import type { SqliteDriver } from "./driver.js";
 import type { GiftRecipientsRepo } from "./gift-recipients-repo.js";
+import type { MentionsRepo } from "./mentions-repo.js";
 import type { ObservancesRepo } from "./holidays-repo.js";
 import type { MilestonesRepo } from "./milestones-repo.js";
 import type { NotADuplicateRepo } from "./not-a-duplicate-repo.js";
 import type { PeopleRepo } from "./people-repo.js";
 import type { PetsRepo } from "./pets-repo.js";
 import type { RelationshipsRepo } from "./relationships-repo.js";
+import type { RemindersRepo } from "./reminders-repo.js";
 import type { TagsRepo } from "./tags-repo.js";
 
 /** Whether a patch makes an entity more than a name. A name edit does not; a
@@ -43,6 +47,8 @@ export interface EntityServiceDeps {
   observances: ObservancesRepo;
   giftRecipients: GiftRecipientsRepo;
   notADuplicate: NotADuplicateRepo;
+  reminders: RemindersRepo;
+  mentions: MentionsRepo;
   /** Composes a whole merge into one transaction. */
   driver: SqliteDriver;
 }
@@ -79,6 +85,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     observances,
     giftRecipients,
     notADuplicate,
+    reminders,
+    mentions,
     driver,
   } = deps;
 
@@ -130,6 +138,51 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
           await milestones.moveToBearer(m.id, other.type, other.id);
         else await milestones.softDelete(m.id);
       }
+    }
+  }
+
+  /** What the survivor lacks that the loser has: a gender, or published
+   *  standing. Its name is its own. */
+  async function fieldsToCarry(
+    survivorId: string,
+    loserId: string,
+  ): Promise<{ gender?: Person["gender"]; standing?: "published" }> {
+    const [survivor, loser] = await Promise.all([
+      people.get(survivorId),
+      people.get(loserId),
+    ]);
+    if (survivor === undefined || loser === undefined) return {};
+    return {
+      ...(survivor.gender === null && loser.gender !== null
+        ? { gender: loser.gender }
+        : {}),
+      ...(!isPublished(survivor.standing) && isPublished(loser.standing)
+        ? { standing: "published" as const }
+        : {}),
+    };
+  }
+
+  /** Rewrite each reminder that @mentions one person to mention another, and
+   *  re-derive its mention rows from the new text. Transaction-free. */
+  async function repointMentions(fromId: string, toId: string): Promise<void> {
+    for (const id of await mentions.bearerIdsForTarget("person", fromId)) {
+      const reminder = await reminders.get(id);
+      if (reminder === undefined) continue;
+      const repoint = (text: string | null) =>
+        text === null
+          ? null
+          : repointMentionTokens(text, "person", fromId, toId);
+      const title = repoint(reminder.title);
+      const body = repoint(reminder.body);
+      await reminders.update(id, { title, body });
+      await mentions.setEntityMentions(
+        "reminder",
+        id,
+        parseMentions(`${title ?? ""}\n${body ?? ""}`).map((m) => ({
+          targetType: m.targetType,
+          targetId: m.targetId,
+        })),
+      );
     }
   }
 
@@ -201,8 +254,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
         ? publishIfUnpublished(type, id)
         : Promise.resolve(),
 
-    /** Absorb `loser` into `survivor` in one transaction: re-point every fact,
-     *  then tombstone the loser. The survivor's own fields win as they are. */
+    /** Absorb `loser` into `survivor` in one transaction: re-point every fact
+     *  and mention, fill what the survivor lacks, then tombstone the loser. */
     mergePeople: async (survivorId: string, loserId: string): Promise<void> => {
       if (survivorId === loserId) {
         throw new Error("mergePeople: survivor and loser are the same person");
@@ -218,9 +271,13 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
         // Carry the "not a duplicate" memory across so the merge doesn't strand
         // or self-pair a rejection (it re-canonicalizes and drops self/dupes).
         await notADuplicate.repointEntity(loserId, survivorId);
-        // Bump the survivor's clock so the merged survivor wins LWW against any
+        await repointMentions(loserId, survivorId);
+        // Also bumps the survivor's clock, so the merge wins LWW against any
         // concurrent edit to the loser still in flight from another device.
-        await people.update(survivorId, {});
+        await people.update(
+          survivorId,
+          await fieldsToCarry(survivorId, loserId),
+        );
         await people.softDelete(loserId);
       });
     },

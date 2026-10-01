@@ -358,6 +358,8 @@ export function createCore(
     observances,
     giftRecipients,
     notADuplicate,
+    reminders,
+    mentions,
     driver,
   });
   const relationshipsSvc = createRelationshipService({

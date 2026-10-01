@@ -5,6 +5,7 @@ import {
   mentionToken,
   parseMentions,
   plainMentionText,
+  repointMentionTokens,
   splitAnnotatedText,
 } from "./mention.js";
 
@@ -17,6 +18,22 @@ describe("mentionToken", () => {
       `@[Violet Bick](person:${VIOLET})`,
     );
     expect(mentionToken("Jimmy", "pet", JIMMY)).toBe(`@[Jimmy](pet:${JIMMY})`);
+  });
+});
+
+describe("repointMentionTokens", () => {
+  it("points every mention of one entity at another, keeping its name", () => {
+    const text = `${mentionToken("Vi", "person", VIOLET)} and ${mentionToken("Violet Bick", "person", VIOLET)}`;
+
+    expect(repointMentionTokens(text, "person", VIOLET, JIMMY)).toBe(
+      `${mentionToken("Vi", "person", JIMMY)} and ${mentionToken("Violet Bick", "person", JIMMY)}`,
+    );
+  });
+
+  it("leaves a mention of a different type with the same id alone", () => {
+    const text = mentionToken("Jimmy", "pet", VIOLET);
+
+    expect(repointMentionTokens(text, "person", VIOLET, JIMMY)).toBe(text);
   });
 });
 
