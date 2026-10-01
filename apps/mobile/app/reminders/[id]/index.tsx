@@ -126,10 +126,11 @@ export default function ReminderDetailScreen() {
   const planTarget = targets.plans.find((t) => t.reminderId === id);
   // A `🗓 plan` prompt is drawn as a question, with its answer form inline.
   const isPrompt = planTarget !== undefined;
-  const isOnboardingNudge = onboardingRouteOf(id) !== null;
+  const isDuplicatesNudge = id === duplicatesNudgeId;
+  const isNudge = onboardingRouteOf(id) !== null || isDuplicatesNudge;
   // Only an errand can be completed: a prompt retires by being answered, a
-  // first-run nudge when its condition is met.
-  const isErrand = !isPrompt && !isOnboardingNudge;
+  // nudge when its condition is met.
+  const isErrand = !isPrompt && !isNudge;
   // Only on a `wish` about a person (one per partner for a couple); with no
   // contact methods the view-model offers the collect prompt instead.
   const contactTargets = targets.contacts.filter((t) => t.reminderId === id);
@@ -139,7 +140,7 @@ export default function ReminderDetailScreen() {
   const contactTarget = contactTargets[0];
   const actions = reminderActionsOf(reminder, {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
-    isDuplicatesNudge: id === duplicatesNudgeId,
+    isDuplicatesNudge,
     planTarget,
     // Knows a partner, not the date: "When is your anniversary?"
     partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
