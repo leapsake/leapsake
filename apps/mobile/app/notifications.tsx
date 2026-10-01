@@ -11,18 +11,19 @@ import {
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import type { NotificationMode } from "@leapsake/core";
+import { CheckboxBox } from "../components/Checkbox";
 import { SelectField } from "../components/SelectField";
 import { useCore, useDeviceId } from "../lib/core-context";
 import { requestNotificationPermissionOnThisDevice } from "../lib/notification-permission";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 
-/** The three-way notification mode, in the order it appears on both clients. */
-const MODE_OPTIONS: { value: NotificationMode; label: string }[] = [
-  { value: "off", label: "Off" },
-  { value: "digest", label: "Digest" },
-  { value: "each", label: "One per reminder" },
-];
+/** The label on this phone's own checkbox. */
+const THIS_PHONE_LABEL = "Notify me on this phone";
+
+/** Ticked is `digest`, the only mode this screen writes; a stored `each`
+ *  from a v0.1 build shows ticked too, since it is planned as `digest`. */
+const modeFor = (on: boolean): NotificationMode => (on ? "digest" : "off");
 
 /** The title on the alert a failed write raises; every write is a policy. */
 const FAILURE_TITLE = "Couldn’t save that";
@@ -168,11 +169,10 @@ export default function NotificationsScreen() {
         </Text>
         {data !== null && (
           <View style={{ gap: 8 }}>
-            <SelectField
-              label="On this phone"
-              value={mode}
-              options={MODE_OPTIONS}
-              onChange={(next) => void setMine({ mode: next })}
+            <CheckboxRow
+              label={THIS_PHONE_LABEL}
+              checked={mode !== "off"}
+              onToggle={(on) => void setMine({ mode: modeFor(on) })}
             />
             {mode !== "off" && (
               <SelectField
@@ -205,12 +205,11 @@ export default function NotificationsScreen() {
               <View style={{ gap: 8, marginTop: 8 }}>
                 <Text style={styles.sectionTitle}>Other devices</Text>
                 {data.others.map((row) => (
-                  <SelectField
+                  <CheckboxRow
                     key={row.id}
                     label={row.label ?? row.platform ?? "Unknown device"}
-                    value={pendingOthers[row.id] ?? row.mode}
-                    options={MODE_OPTIONS}
-                    onChange={(next) => void setOtherMode(row.id, next)}
+                    checked={(pendingOthers[row.id] ?? row.mode) !== "off"}
+                    onToggle={(on) => void setOtherMode(row.id, modeFor(on))}
                   />
                 ))}
               </View>
@@ -219,5 +218,29 @@ export default function NotificationsScreen() {
         )}
       </ScrollView>
     </>
+  );
+}
+
+/** A row that is itself the checkbox: the whole row is the tap target. */
+function CheckboxRow({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: (on: boolean) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      style={[styles.field, styles.rowWithLead, { paddingVertical: 8 }]}
+      onPress={() => onToggle(!checked)}
+    >
+      <CheckboxBox checked={checked} />
+      <Text style={styles.fieldValue}>{label}</Text>
+    </Pressable>
   );
 }
