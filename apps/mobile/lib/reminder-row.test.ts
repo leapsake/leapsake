@@ -4,7 +4,13 @@ import {
   reminderActionsOf,
 } from "@leapsake/view-models";
 import { describe, expect, it } from "vitest";
-import { REMOVAL_COPY, isAnsweredInline, offerFor } from "./reminder-row";
+import {
+  REMOVAL_COPY,
+  foldSnoozes,
+  isAnsweredInline,
+  offerFor,
+  remindInLabel,
+} from "./reminder-row";
 
 const NOW = 1_800_000_000_000;
 
@@ -191,6 +197,35 @@ describe("offerFor", () => {
 
   it("offers an ordinary reminder only its put-offs", () => {
     expect(offersFor(actionsFor("user-written"))).toEqual(REMIND_ME);
+  });
+});
+
+describe("foldSnoozes", () => {
+  it("folds a nudge's snoozes into one entry where the first stood", () => {
+    expect(foldSnoozes(actionsFor(idFor("about-you")))).toEqual([
+      { kind: "cta", cta: { kind: "onboarding", route: "about-you" } },
+      { kind: "remind-me", days: [1, 3, 7] },
+      { kind: "dismiss" },
+    ]);
+  });
+
+  it("leaves a lone snooze as its own button", () => {
+    const actions: ReminderRowAction[] = [
+      { kind: "snooze", days: 1 },
+      { kind: "dismiss" },
+    ];
+
+    expect(foldSnoozes(actions)).toEqual(actions);
+  });
+});
+
+describe("remindInLabel", () => {
+  it("words each preset as the sheet's options", () => {
+    expect([1, 3, 7].map(remindInLabel)).toEqual([
+      "Tomorrow",
+      "In 3 days",
+      "Next week",
+    ]);
   });
 });
 

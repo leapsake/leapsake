@@ -44,6 +44,16 @@ function remindMeLabel(days: number): string {
   return `Remind me in ${days} days`;
 }
 
+/** The control that opens the “Remind me in…” sheet, and the sheet's title. */
+export const REMIND_ME_IN = { button: "Remind me in…", sheet: "Remind me" };
+
+/** One length in the “Remind me in…” sheet, which already says “remind me”. */
+export function remindInLabel(days: number): string {
+  if (days === 1) return "Tomorrow";
+  if (days === 7) return "Next week";
+  return `In ${days} days`;
+}
+
 function labelOf(action: ReminderRowAction): string {
   if (action.kind === "snooze") return remindMeLabel(action.days);
   return LABELS[reminderOfferLabelOf(action) as keyof typeof LABELS];
@@ -114,6 +124,27 @@ export function offerFor(action: ReminderRowAction): RowOffer {
     case "dismiss":
       return { kind: "dismiss", label };
   }
+}
+
+/** An offer as the detail screen draws it: every snooze folded into one. */
+export type DrawnAction =
+  | ReminderRowAction
+  | { kind: "remind-me"; days: number[] };
+
+/**
+ * Folds two or more snoozes into one “Remind me in…” entry where the first
+ * stood; a lone snooze stays its own one-tap button.
+ */
+export function foldSnoozes(actions: ReminderRowAction[]): DrawnAction[] {
+  const days = actions.flatMap((a) => (a.kind === "snooze" ? [a.days] : []));
+  if (days.length < 2) return actions;
+  const first = actions.findIndex((a) => a.kind === "snooze");
+  const rest = actions.filter((a) => a.kind !== "snooze");
+  return [
+    ...rest.slice(0, first),
+    { kind: "remind-me", days },
+    ...rest.slice(first),
+  ];
 }
 
 /**

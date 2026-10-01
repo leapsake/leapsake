@@ -24,6 +24,7 @@ import {
   reminderActionsOf,
   reminderRowOf,
 } from "@leapsake/view-models";
+import { ActionSheet } from "../../../components/ActionSheet";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { PartnerField, linkedPartner } from "../../../components/PartnerField";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
@@ -31,9 +32,12 @@ import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import {
+  REMIND_ME_IN,
   REMOVAL_COPY,
+  foldSnoozes,
   isAnsweredInline,
   offerFor,
+  remindInLabel,
 } from "../../../lib/reminder-row";
 import { colors, styles } from "../../../lib/styles";
 
@@ -66,6 +70,7 @@ export default function ReminderDetailScreen() {
   const [partner, setPartner] = useState<PartyChoice | null | undefined>(
     undefined,
   );
+  const [remindMeOpen, setRemindMeOpen] = useState(false);
   const load = useCallback(
     () =>
       Promise.all([
@@ -315,7 +320,7 @@ export default function ReminderDetailScreen() {
         </View>
       )}
       {(isErrand || offered.length > 0) && (
-        // The offers, in offer order; each kind appears once, so it keys.
+        // The offers, in offer order, snoozes folded into one sheet.
         <View style={styles.rowOffers}>
           {/* ⚠️ Errands only: `setCompleted` would stamp a nudge whose
               condition is unmet, leaving it in Completed for good. */}
@@ -335,7 +340,20 @@ export default function ReminderDetailScreen() {
               </Text>
             </Pressable>
           )}
-          {offered.map((action) => {
+          {foldSnoozes(offered).map((action) => {
+            if (action.kind === "remind-me")
+              return (
+                <Pressable
+                  key="remind-me"
+                  accessibilityRole="button"
+                  style={[styles.buttonSecondary, styles.buttonBlock]}
+                  onPress={() => setRemindMeOpen(true)}
+                >
+                  <Text style={styles.buttonSecondaryText}>
+                    {REMIND_ME_IN.button}
+                  </Text>
+                </Pressable>
+              );
             const offer = offerFor(action);
             // The CTA is filled, the ways out quiet. A prompt's CTA was
             // dropped, so its Save is the one filled button.
@@ -376,6 +394,22 @@ export default function ReminderDetailScreen() {
           })}
         </View>
       )}
+      <ActionSheet
+        visible={remindMeOpen}
+        title={REMIND_ME_IN.sheet}
+        items={offered.flatMap((action) =>
+          action.kind === "snooze"
+            ? [
+                {
+                  key: reminderActionKey(action),
+                  label: remindInLabel(action.days),
+                  onPress: () => snooze(action.days),
+                },
+              ]
+            : [],
+        )}
+        onClose={() => setRemindMeOpen(false)}
+      />
       {/* Last on the screen; a nudge offers its own "don't ask again". */}
       {canDelete && (
         <Pressable

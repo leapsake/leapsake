@@ -6,7 +6,7 @@ const CANCEL = "Cancel";
 /** One option in the sheet. */
 export interface SheetItem {
   key: string;
-  glyph: string;
+  glyph?: string;
   label: string;
   /** A muted trailing note: "profile" where a link opens no conversation. */
   hint?: string;
@@ -58,7 +58,9 @@ export function ActionSheet({
               item.onPress();
             }}
           >
-            <Text style={local.glyph}>{item.glyph}</Text>
+            {item.glyph === undefined ? null : (
+              <Text style={local.glyph}>{item.glyph}</Text>
+            )}
             <Text
               style={[local.label, item.danger === true && local.dangerLabel]}
             >
