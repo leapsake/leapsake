@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editDueDate } from "./date-parts";
+import { datePartFinished, editDueDate } from "./date-parts";
 
 // Local noon on 24 September 2026, so "today" is the same civil day in any zone.
 const NOW = new Date(2026, 8, 24, 12).getTime();
@@ -43,5 +43,26 @@ describe("a reminder’s due date as it is typed", () => {
     expect(editDueDate(typed, parts("3", "9", "2030"), NOW).parts.year).toBe(
       "2030",
     );
+  });
+});
+
+describe("when a typed date part is finished", () => {
+  it("finishes a month at two digits, or one no month begins with", () => {
+    expect(datePartFinished("month", "1")).toBe(false);
+    expect(datePartFinished("month", "0")).toBe(false);
+    expect(datePartFinished("month", "2")).toBe(true);
+    expect(datePartFinished("month", "11")).toBe(true);
+    expect(datePartFinished("month", "")).toBe(false);
+  });
+
+  it("finishes a day at two digits, or one no day begins with", () => {
+    expect(datePartFinished("day", "3")).toBe(false);
+    expect(datePartFinished("day", "4")).toBe(true);
+    expect(datePartFinished("day", "09")).toBe(true);
+  });
+
+  it("finishes a year at four digits", () => {
+    expect(datePartFinished("year", "202")).toBe(false);
+    expect(datePartFinished("year", "2026")).toBe(true);
   });
 });

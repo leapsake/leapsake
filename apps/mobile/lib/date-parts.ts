@@ -39,3 +39,12 @@ export function editDueDate(
   const year = String(upcomingYear(next, todayCivil(now)));
   return { parts: { ...next, year }, yearTouched };
 }
+
+/** Whether a typed month or day can take no further digit that would make
+ *  sense: two digits, or one no valid two-digit value starts with. */
+export function datePartFinished(part: keyof DateParts, text: string): boolean {
+  if (part === "year") return text.length >= 4;
+  if (text.length >= 2) return true;
+  const firstOfTwoDigits = part === "month" ? 1 : 3;
+  return /^\d$/.test(text) && Number(text) > firstOfTwoDigits;
+}

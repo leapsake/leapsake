@@ -1,6 +1,13 @@
-import { useState } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import type { DateParts } from "@leapsake/schema";
+import { datePartFinished } from "../lib/date-parts";
 import { colors, styles } from "../lib/styles";
 
 const PART_LABELS = { month: "Month", day: "Day", year: "Year" } as const;
@@ -30,6 +37,26 @@ export function DatePartsFields({
   const [focused, setFocused] = useState<Part | null>(null);
   const [blurred, setBlurred] = useState(false);
   const showError = error !== null && blurred && focused === null;
+  const inputs = useRef<Partial<Record<Part, TextInput | null>>>({});
+  const screenReader = useScreenReader();
+
+  // Without a screen reader, typing flows on and Backspace flows back.
+  const edit = (part: Part, text: string) => {
+    onChange({ ...value, [part]: text });
+    const next = PARTS[PARTS.indexOf(part) + 1];
+    const grew = text.length > value[part].length;
+    if (screenReader || next === undefined || !grew) return;
+    if (datePartFinished(part, text) && value[next] === "") {
+      inputs.current[next]?.focus();
+    }
+  };
+
+  const stepBack = (part: Part) => {
+    const previous = PARTS[PARTS.indexOf(part) - 1];
+    if (screenReader || previous === undefined || value[part] !== "") return;
+    onChange({ ...value, [previous]: value[previous].slice(0, -1) });
+    inputs.current[previous]?.focus();
+  };
 
   return (
     <View style={styles.field}>
@@ -46,11 +73,17 @@ export function DatePartsFields({
               {PART_LABELS[part]}
             </Text>
             <TextInput
+              ref={(input) => {
+                inputs.current[part] = input;
+              }}
               testID={`${testIDPrefix}-${part}`}
               accessibilityLabel={PART_LABELS[part]}
               style={[styles.input, showError && local.invalid]}
               value={value[part]}
-              onChangeText={(text) => onChange({ ...value, [part]: text })}
+              onChangeText={(text) => edit(part, text)}
+              onKeyPress={({ nativeEvent }) => {
+                if (nativeEvent.key === "Backspace") stepBack(part);
+              }}
               onFocus={() => setFocused(part)}
               onBlur={() => {
                 setFocused((current) => (current === part ? null : current));
@@ -65,6 +98,19 @@ export function DatePartsFields({
       {showError ? <Text style={styles.muted}>{error}</Text> : null}
     </View>
   );
+}
+
+function useScreenReader(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isScreenReaderEnabled().then(setEnabled);
+    const sub = AccessibilityInfo.addEventListener(
+      "screenReaderChanged",
+      setEnabled,
+    );
+    return () => sub.remove();
+  }, []);
+  return enabled;
 }
 
 const local = StyleSheet.create({
