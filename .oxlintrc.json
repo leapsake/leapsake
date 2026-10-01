@@ -21,6 +21,11 @@
           {
             "name": "expo-notifications",
             "message": "Schedule through `apps/mobile/lib/notification-scheduler.ts` instead. Every pending notification competes for a platform budget the planner sizes (PLATFORM_NOTIFICATION_BUDGET), and one scheduled outside it is invisible to that accounting — on iOS it silently pushes a real reminder past the 64-request ceiling. If you genuinely need a second call site, add it to the override in .oxlintrc.json deliberately."
+          },
+          {
+            "name": "react-native",
+            "importNames": ["Switch"],
+            "message": "Draw a `CheckboxBox` in a row that is itself the checkbox. Leapsake should feel as close to pen and paper as it can, and a tick box reads as paper where a switch reads as a phone setting."
           }
         ]
       }
@@ -38,7 +43,18 @@
     {
       "files": ["apps/mobile/lib/notification-scheduler.ts", "apps/mobile/app/notifications.tsx"],
       "rules": {
-        "no-restricted-imports": "off"
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react-native",
+                "importNames": ["Switch"],
+                "message": "Draw a `CheckboxBox` in a row that is itself the checkbox. Leapsake should feel as close to pen and paper as it can, and a tick box reads as paper where a switch reads as a phone setting."
+              }
+            ]
+          }
+        ]
       }
     }
   ],
