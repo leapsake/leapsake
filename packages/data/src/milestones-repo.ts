@@ -18,7 +18,11 @@ import {
 } from "./entity-repo.js";
 
 export interface MilestonesRepo extends EntityRepo<Milestone> {
-  create(input: CreateMilestoneInput): Promise<Milestone>;
+  /** `imported` marks a milestone a contacts import wrote. */
+  create(
+    input: CreateMilestoneInput,
+    opts?: { imported?: boolean },
+  ): Promise<Milestone>;
   update(
     id: string,
     input: UpdateMilestoneInput,
@@ -66,12 +70,13 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
     table: "milestones",
     schema: milestoneSchema,
     orderBy: "year, month, day",
+    booleans: ["imported"],
   });
 
   return {
     ...base,
 
-    async create(input) {
+    async create(input, opts) {
       const parsed = createMilestoneInputSchema.parse(input);
       const now = Date.now();
       // `insert` re-validates the day⇒month / bearer-type rules.
@@ -84,6 +89,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         month: parsed.month ?? null,
         day: parsed.day ?? null,
         note: parsed.note ?? null,
+        imported: opts?.imported ?? false,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -112,8 +118,10 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         month: number | null;
         day: number | null;
         created_at: number;
+        imported: number;
       }>(
-        `SELECT id, kind, bearer_type, bearer_id, year, month, day, created_at
+        `SELECT id, kind, bearer_type, bearer_id, year, month, day, created_at,
+                imported
            FROM milestones
           WHERE deleted_at IS NULL AND month IS NOT NULL AND day IS NOT NULL`,
       );
@@ -126,6 +134,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         month: r.month,
         day: r.day,
         createdAt: r.created_at,
+        imported: r.imported === 1,
       }));
     },
 

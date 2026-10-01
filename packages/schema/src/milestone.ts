@@ -484,6 +484,7 @@ export const milestoneSchema = z
     month: z.number().int().min(1).max(12).nullable(),
     day: z.number().int().min(1).max(31).nullable(),
     note: z.string().min(1).nullable(), // free text; also the `other`-kind label
+    imported: z.boolean(), // arrived through a contacts import, not by hand
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
     deletedAt: z.number().int().nullable(),
@@ -516,6 +517,8 @@ export interface RemindEligibleMilestone {
    * the occasion, so nothing already past by then counts against the user.
    */
   createdAt: number;
+  /** Whether it arrived through a contacts import rather than by hand. */
+  imported: boolean;
 }
 
 /**

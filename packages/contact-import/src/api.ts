@@ -144,27 +144,33 @@ export function createImportApi(deps: ImportApiDeps) {
         // ⚠️ The engine's bearer type: a pet's birthday stored as a person's
         // commits silently and is never listed.
         addBirthday: async (bearerType, bearerId, birthday) => {
-          await milestones.create({
-            kind: "birthday",
-            bearerType,
-            bearerId,
-            year: birthday.year,
-            month: birthday.month,
-            day: birthday.day,
-          });
+          await milestones.create(
+            {
+              kind: "birthday",
+              bearerType,
+              bearerId,
+              year: birthday.year,
+              month: birthday.month,
+              day: birthday.day,
+            },
+            { imported: true },
+          );
         },
         // Kind and bearer are settled and checked; this only writes.
         addDate: async (bearerType, bearerId, date) => {
-          await milestones.create({
-            kind: date.kind,
-            bearerType,
-            bearerId,
-            year: date.date.year,
-            month: date.date.month,
-            day: date.date.day,
-            // An `other` falls back to its label, for a hand-built payload.
-            note: date.note ?? (date.kind === "other" ? date.label : null),
-          });
+          await milestones.create(
+            {
+              kind: date.kind,
+              bearerType,
+              bearerId,
+              year: date.date.year,
+              month: date.date.month,
+              day: date.date.day,
+              // An `other` falls back to its label, for a hand-built payload.
+              note: date.note ?? (date.kind === "other" ? date.label : null),
+            },
+            { imported: true },
+          );
         },
         // A named relation: an unpublished person with one edge.
         addRelated: async (ownerType, ownerId, relation) => {

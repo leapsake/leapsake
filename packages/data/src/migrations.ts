@@ -743,6 +743,15 @@ export const migrations: Migration[] = [
       await driver.exec(`ALTER TABLE phone_numbers DROP COLUMN country`);
     },
   },
+  {
+    version: 40,
+    async up(driver) {
+      // Whether a milestone arrived through a contacts import, not by hand.
+      await driver.exec(
+        `ALTER TABLE milestones ADD COLUMN imported INTEGER NOT NULL DEFAULT 0`,
+      );
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

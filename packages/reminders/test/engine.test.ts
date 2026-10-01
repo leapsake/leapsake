@@ -133,6 +133,7 @@ function birthday(
     month: occ.month,
     day: occ.day,
     createdAt: 0,
+    imported: false,
   };
 }
 
@@ -151,6 +152,7 @@ function death(
     month: occ.month,
     day: occ.day,
     createdAt: 0,
+    imported: false,
   };
 }
 

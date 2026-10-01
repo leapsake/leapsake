@@ -200,6 +200,7 @@ function milestone(
     ...date,
     note,
     createdAt: 1_700_000_000_000,
+    imported: false,
     updatedAt: 1_700_000_000_000,
     deletedAt: null,
   };
@@ -692,6 +693,7 @@ function birthday(
     ...date,
     note: null,
     createdAt: 1_700_000_000_000,
+    imported: false,
     updatedAt: 1_700_000_000_000,
     deletedAt: null,
   };

@@ -51,6 +51,7 @@ describe("milestonesRepo", () => {
     expect(m.month).toBe(3);
     expect(m.day).toBe(9);
     expect(m.note).toBeNull();
+    expect(m.imported).toBe(false);
     expect(m.createdAt).toBeGreaterThan(0);
     expect(m.updatedAt).toBe(m.createdAt);
     expect(m.deletedAt).toBeNull();
@@ -69,6 +70,18 @@ describe("milestonesRepo", () => {
     expect(recurring.year).toBeNull();
     expect(recurring.month).toBe(3);
     expect(recurring.day).toBe(9);
+  });
+
+  it("marks a milestone imported only when asked, and reads it back", async () => {
+    const bearer = crypto.randomUUID();
+    const imported = await repo.create(birthday(bearer), { imported: true });
+    const byHand = await repo.create(birthday(bearer));
+
+    expect(await repo.get(imported.id)).toMatchObject({ imported: true });
+    expect(await repo.get(byHand.id)).toMatchObject({ imported: false });
+    const eligible = await repo.listRemindEligible();
+    expect(eligible.find((m) => m.id === imported.id)?.imported).toBe(true);
+    expect(eligible.find((m) => m.id === byHand.id)?.imported).toBe(false);
   });
 
   it("persists and retrieves a created milestone", async () => {

@@ -115,7 +115,12 @@ describe("core.import.commit", () => {
     const milestones = await core.milestones.listForBearer("person", person.id);
     expect(milestones).toHaveLength(1);
     expect(milestones[0].kind).toBe("birthday");
-    expect(milestones[0]).toMatchObject({ year: 1992, month: 3, day: 9 });
+    expect(milestones[0]).toMatchObject({
+      year: 1992,
+      month: 3,
+      day: 9,
+      imported: true,
+    });
   });
 
   it("skips a skip decision and isolates a bad contact", async () => {
@@ -793,6 +798,7 @@ describe("core.import.commit — milestones", () => {
     expect(own[0]).toMatchObject({
       kind: "other",
       note: "Beach house closing",
+      imported: true,
     });
   });
 });
