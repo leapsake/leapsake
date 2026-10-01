@@ -1,9 +1,7 @@
 import { z } from "zod";
 
-/**
- * How a device is notified while the app is closed: `off` (the default), one
- * daily `digest`, or one notification for `each` reminder.
- */
+/** How a device is notified while closed: `off` or a daily `digest`. `each`
+ *  parses, as v0.1 builds could store it, and is planned as `digest`. */
 export const notificationModeSchema = z.enum(["off", "digest", "each"]);
 export type NotificationMode = z.infer<typeof notificationModeSchema>;
 

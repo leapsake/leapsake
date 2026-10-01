@@ -40,7 +40,6 @@ function reminder(
 }
 
 const POLICY_DIGEST = { mode: "digest" as const, deliveryMinute: 540 }; // 09:00
-const POLICY_EACH = { mode: "each" as const, deliveryMinute: 540 };
 const NOW = localInstant(2026, 8, 15, 8, 0);
 
 /** The service notice is the one planned entry not about a reminder; these two
@@ -104,7 +103,7 @@ describe("planNotifications", () => {
       reminder({ id: ONBOARDING_REMINDERS[0].id, dueDate: dueDay }),
     ];
 
-    const result = planNotifications(reminders, POLICY_EACH, NOW);
+    const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
     expect(result.map((n) => n.reminderId)).toEqual(["keep"]);
   });
@@ -116,11 +115,11 @@ describe("planNotifications", () => {
       dueDate: due({ year: 2026, month: 8, day: 20 }),
     });
 
-    const result = planNotifications([r], POLICY_EACH, NOW);
+    const result = planNotifications([r], POLICY_DIGEST, NOW);
 
     expect(result.map((n) => [n.id, n.fireAt])).toEqual([
-      ["each:gift:2026-08-16", localInstant(2026, 8, 16, 9, 0)],
-      ["each:gift:2026-08-20", localInstant(2026, 8, 20, 9, 0)],
+      ["digest:2026-08-16", localInstant(2026, 8, 16, 9, 0)],
+      ["digest:2026-08-20", localInstant(2026, 8, 20, 9, 0)],
     ]);
   });
 
@@ -128,9 +127,9 @@ describe("planNotifications", () => {
     const day = due({ year: 2026, month: 8, day: 20 });
     const r = reminder({ id: "wish", activeFrom: day, dueDate: day });
 
-    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
-      "each:wish:2026-08-20",
-    ]);
+    expect(planNotifications([r], POLICY_DIGEST, NOW).map((n) => n.id)).toEqual(
+      ["digest:2026-08-20"],
+    );
   });
 
   // The regression this replaced: a snoozed row used to be dropped outright,
@@ -143,10 +142,9 @@ describe("planNotifications", () => {
       dueDate: due({ year: 2026, month: 8, day: 20 }),
     });
 
-    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
-      "each:gift:2026-08-17",
-      "each:gift:2026-08-20",
-    ]);
+    expect(planNotifications([r], POLICY_DIGEST, NOW).map((n) => n.id)).toEqual(
+      ["digest:2026-08-17", "digest:2026-08-20"],
+    );
   });
 
   it("notifies a dateless row on the day its snooze ends", () => {
@@ -156,9 +154,9 @@ describe("planNotifications", () => {
       snoozedUntil: due({ year: 2026, month: 8, day: 18 }),
     });
 
-    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
-      "each:question:2026-08-18",
-    ]);
+    expect(planNotifications([r], POLICY_DIGEST, NOW).map((n) => n.id)).toEqual(
+      ["digest:2026-08-18"],
+    );
   });
 
   it("ignores a snooze that has already ended", () => {
@@ -168,9 +166,9 @@ describe("planNotifications", () => {
       dueDate: due({ year: 2026, month: 8, day: 20 }),
     });
 
-    expect(planNotifications([r], POLICY_EACH, NOW).map((n) => n.id)).toEqual([
-      "each:r1:2026-08-20",
-    ]);
+    expect(planNotifications([r], POLICY_DIGEST, NOW).map((n) => n.id)).toEqual(
+      ["digest:2026-08-20"],
+    );
   });
 
   it("digest bundles one row's return with another's due day, counting each once", () => {
@@ -193,7 +191,7 @@ describe("planNotifications", () => {
     expect(result[0].title).toBe("2 reminders today");
   });
 
-  it("each mode caps to the soonest NOTIFICATION_BUDGET, notice included", () => {
+  it("caps to the soonest NOTIFICATION_BUDGET, notice included", () => {
     const reminders = Array.from({ length: NOTIFICATION_BUDGET + 5 }, (_, i) =>
       reminder({
         id: `r${i}`,
@@ -201,7 +199,7 @@ describe("planNotifications", () => {
       }),
     );
 
-    const result = planNotifications(reminders, POLICY_EACH, NOW);
+    const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
     // The budget is the whole plan, the service notice included — overshooting
     // it by one would be the silent iOS drop the budget exists to prevent.
@@ -215,24 +213,6 @@ describe("planNotifications", () => {
     expect(tripwireOf(result)).not.toBeNull();
   });
 
-  // The horizon that makes digest hard to overshoot bounds `system` reminders
-  // only; enough far-future `user` ones on distinct days would sail past iOS's
-  // ceiling if the cap were still `each`-only, as it originally was.
-  it("digest mode caps to the soonest NOTIFICATION_BUDGET too", () => {
-    const reminders = Array.from({ length: NOTIFICATION_BUDGET + 5 }, (_, i) =>
-      reminder({
-        id: `r${i}`,
-        // One per distinct day, so each lands in its own digest bucket.
-        dueDate: due({ year: 2026, month: 9, day: 1 }) + i * 86_400_000,
-      }),
-    );
-
-    const result = planNotifications(reminders, POLICY_DIGEST, NOW);
-
-    expect(result).toHaveLength(NOTIFICATION_BUDGET);
-    expect(result[0].id).toBe("digest:2026-09-01");
-  });
-
   it("honours a caller-supplied budget over the default", () => {
     const reminders = Array.from({ length: 10 }, (_, i) =>
       reminder({
@@ -244,14 +224,14 @@ describe("planNotifications", () => {
     // Ten days of coverage is far too short to warrant a notice, so no slot is
     // held back for one — a budget of 3 buys three real notifications.
     expect(
-      realOnly(planNotifications(reminders, POLICY_EACH, NOW, { budget: 3 })),
+      realOnly(planNotifications(reminders, POLICY_DIGEST, NOW, { budget: 3 })),
     ).toHaveLength(3);
     // Android's case: a budget far above the candidate count keeps everything.
     expect(
-      planNotifications(reminders, POLICY_EACH, NOW, { budget: 200 }),
+      planNotifications(reminders, POLICY_DIGEST, NOW, { budget: 200 }),
     ).toHaveLength(10);
     expect(
-      planNotifications(reminders, POLICY_EACH, NOW, {
+      planNotifications(reminders, POLICY_DIGEST, NOW, {
         budget: Number.POSITIVE_INFINITY,
       }),
     ).toHaveLength(10);
@@ -265,11 +245,23 @@ describe("planNotifications", () => {
       reminder({ id: "live", dueDate: due({ year: 2026, month: 9, day: 1 }) }),
     ];
 
-    const result = planNotifications(reminders, POLICY_EACH, NOW, {
+    const result = planNotifications(reminders, POLICY_DIGEST, NOW, {
       budget: 1,
     });
 
     expect(result.map((n) => n.reminderId)).toEqual(["live"]);
+  });
+
+  it("plans a stored `each` exactly like `digest`", () => {
+    const day: CivilDate = { year: 2026, month: 8, day: 20 };
+    const reminders = [
+      reminder({ id: "r1", title: "Call Harry", dueDate: due(day) }),
+      reminder({ id: "r2", title: "Gift Tilly", dueDate: due(day) }),
+    ];
+
+    expect(
+      planNotifications(reminders, { mode: "each", deliveryMinute: 540 }, NOW),
+    ).toEqual(planNotifications(reminders, POLICY_DIGEST, NOW));
   });
 
   it("drops entries whose fire time has already passed now", () => {
@@ -296,7 +288,7 @@ describe("planNotifications — the running-out notice", () => {
   );
 
   it("fires 30 days before the last scheduled notification", () => {
-    const result = planNotifications(YEAR_OF_REMINDERS, POLICY_EACH, NOW);
+    const result = planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW);
 
     const real = realOnly(result);
     const coverageEnd = real[real.length - 1].fireAt;
@@ -306,7 +298,7 @@ describe("planNotifications — the running-out notice", () => {
   // Warning at the edge teaches nothing actionable: ignore it and coverage ends
   // immediately. Firing early leaves a month of real notifications behind it.
   it("fires before the coverage it warns about ends", () => {
-    const result = planNotifications(YEAR_OF_REMINDERS, POLICY_EACH, NOW);
+    const result = planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW);
 
     const tripwire = tripwireOf(result);
     expect(tripwire).not.toBeNull();
@@ -317,7 +309,7 @@ describe("planNotifications — the running-out notice", () => {
 
   it("opens the app rather than any one reminder", () => {
     const tripwire = tripwireOf(
-      planNotifications(YEAR_OF_REMINDERS, POLICY_EACH, NOW),
+      planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW),
     );
 
     expect(tripwire?.reminderId).toBeNull();
@@ -327,7 +319,7 @@ describe("planNotifications — the running-out notice", () => {
   // and nagging someone whose app is simply empty would be re-engagement, the
   // line this notice is not allowed to cross.
   it("is absent when nothing at all is scheduled", () => {
-    expect(planNotifications([], POLICY_EACH, NOW)).toEqual([]);
+    expect(planNotifications([], POLICY_DIGEST, NOW)).toEqual([]);
   });
 
   // Coverage shorter than the warning itself: a notice about tomorrow is not a
@@ -337,7 +329,7 @@ describe("planNotifications — the running-out notice", () => {
       reminder({ id: "r1", dueDate: due({ year: 2026, month: 8, day: 20 }) }),
     ];
 
-    expect(tripwireOf(planNotifications(soon, POLICY_EACH, NOW))).toBeNull();
+    expect(tripwireOf(planNotifications(soon, POLICY_DIGEST, NOW))).toBeNull();
   });
 
   // Its id is fixed so a re-plan updates the one notice in place, and its
@@ -345,17 +337,17 @@ describe("planNotifications — the running-out notice", () => {
   // steady-state reconcile a no-op instead of churning the OS every open.
   it("is stable across re-plans at different nows", () => {
     const a = tripwireOf(
-      planNotifications(YEAR_OF_REMINDERS, POLICY_EACH, NOW),
+      planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW),
     );
     const later = NOW + 5 * DAY;
     const b = tripwireOf(
-      planNotifications(YEAR_OF_REMINDERS, POLICY_EACH, later),
+      planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, later),
     );
 
     expect(a).toEqual(b);
   });
 
-  it("is planned in digest mode too", () => {
+  it("is planned in the digest", () => {
     expect(
       tripwireOf(planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW)),
     ).not.toBeNull();

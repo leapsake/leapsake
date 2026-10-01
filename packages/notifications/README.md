@@ -47,11 +47,11 @@ of plan and then went quiet — failing exactly the user a reminder app exists f
 a year's worth via `listNotifiableReminders`, which computes the reminders that _will_ exist
 without writing them (see `@leapsake/reminders`' `NOTIFICATION_WINDOW_DAYS`).
 
-What this package does own is the **budget**: both modes are capped to the soonest
+What this package does own is the **budget**: every plan is capped to the soonest
 `options.budget`, defaulting to `NOTIFICATION_BUDGET` (60 — the tightest platform ceiling, iOS's
 64 minus headroom; each platform's real number lives with the code that knows its platform). The
-cap applies to `digest` as well as `each`, because the 30-day bound that made digest hard to
-overshoot no longer exists — and never covered far-future `user` reminders anyway. Past entries
+digest needs the cap too: the 30-day bound that once made it hard to overshoot no longer exists,
+and never covered far-future `user` reminders anyway. Past entries
 are dropped **before** the cap, so a stale one never takes a live one's slot, and the cap keeps the
 soonest, since the far end is the least urgent and the likeliest to be re-planned first.
 
@@ -75,14 +75,20 @@ This is the **one** app-generated notification allowed through; onboarding nudge
 (`onboardingRouteOf`). The distinction to hold: a service notice reports that something the user
 asked for is about to stop working; re-engagement tells them they'd get more out of coming back.
 
-## `digest` vs `each` — same schedule, different tap targets
+## One mode: the digest _(owner, 2026-09-30)_
 
-Every reminder notifying on a given day fires at the same `deliveryMinute` in either mode: `each`
-is not more timely, it is _digest, exploded, with a tap target per item_. `planNotifications`
-reflects that directly — both modes derive from the same (reminder, day) pairs `notifyDaysOf`
-yields; `each` just skips the bundling step. Digest copy (`digestCopy` in `planner.ts`) is
-computed at plan time and is **provisional wording** — free to change without touching the
-reconcile mechanics, which only care about the `title`/`body` shape, not their content.
+Every reminder notifying on a given day fires at the same `deliveryMinute`, bundled into one
+notification: tapping a digest of one reminder opens it, and a digest of more opens the list. The
+copy (`digestCopy` in `planner.ts`) is **provisional wording**, free to change without touching the
+reconcile mechanics, which only care about the `title`/`body` shape.
+
+v0.1 also offered `each`, one notification per reminder. It was no more timely (the same schedule,
+exploded, with a tap target per item) and it spent the budget one slot per reminder rather than
+per day, so the users with the most reminders ran out of coverage first. It was removed from the
+UI, but `each` is still a valid stored mode, because v0.1 builds can write it into a synced row,
+and the planner treats it as `digest`. To bring it back, restore `planEach` from git history and
+branch on the mode in `planNotifications` again. Once no v0.1 installs remain, the schema can drop
+it instead.
 
 ## Fire time is local wall-clock math, not the due-date storage convention
 

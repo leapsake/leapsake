@@ -4,7 +4,8 @@ import { civilFromDueMs, daysUntil, reminderLabel } from "@leapsake/schema";
 import type { CivilDate } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/reminders";
 
-/** How a device wants its reminders to reach it. */
+/** How a device wants its reminders to reach it. `each` is planned exactly
+ *  like `digest`; v0.1 builds could still store it. */
 export type NotificationMode = "off" | "digest" | "each";
 
 /** The slice of a `Reminder` row {@link planNotifications} reads. */
@@ -68,10 +69,8 @@ export function planNotifications(
   const days = reminders.flatMap((reminder) =>
     notifyDaysOf(reminder).map((day) => ({ reminder, day })),
   );
-  const planned =
-    policy.mode === "digest"
-      ? planDigest(days, policy)
-      : planEach(days, policy);
+  // `each` falls through to the digest too; one-per-reminder was `planEach`.
+  const planned = planDigest(days, policy);
 
   const live = planned.filter((n) => n.fireAt > now);
   live.sort((a, b) => a.fireAt - b.fireAt);
@@ -148,7 +147,7 @@ function notifyDaysOf(r: NotifiableReminder): CivilDate[] {
   return [...days.values()];
 }
 
-/** One reminder on one of its days: what both modes plan from. */
+/** One reminder on one of its days: what the digest plans from. */
 interface NotifyingDay {
   reminder: NotifiableReminder;
   day: CivilDate;
@@ -190,22 +189,6 @@ function planDigest(
         reminderId: dayReminders.length === 1 ? dayReminders[0].id : null,
       };
     });
-}
-
-/** One notification per reminder-day; {@link planNotifications} orders and
- *  caps. */
-function planEach(
-  days: readonly NotifyingDay[],
-  policy: NotificationPolicy,
-): DesiredNotification[] {
-  return days.map(({ reminder, day }) => ({
-    // The day is in the id, as one reminder can notify on two days.
-    id: `each:${reminder.id}:${isoOf(day)}`,
-    fireAt: fireAtFor(day, policy.deliveryMinute),
-    title: "Leapsake",
-    body: reminderLabel(reminder),
-    reminderId: reminder.id,
-  }));
 }
 
 /** A day's digest copy: provisional; only its shape matters. */
