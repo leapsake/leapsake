@@ -558,14 +558,14 @@ measured rather than a little above the median.
 
 A budget that generous is only affordable if the _cheap_ failures stop paying it, which is
 the other half of the change. Every way the form can be refused leaves the submit button
-reading "Protect my data" and the app doing nothing, so the flow now asks that question
+reading "Encrypt my data" and the app doing nothing, so the flow now asks that question
 first and separately:
 
 ```yaml
 - tapOn:
     id: "account-submit"
 - extendedWaitUntil: # the form was accepted at all
-    notVisible: "Protect my data"
+    notVisible: "Encrypt my data"
     timeout: 15000
 - extendedWaitUntil: # ...and only then, the conversion
     visible: "Save your recovery phrase"
@@ -582,7 +582,7 @@ Two shapes were tried on the way here and are worth not re-deriving:
 ⚠️ **Do not loop `while: visible: "Encrypting your data…"`.** It is the obvious phrasing for
 "wait while the app says it is working" and it is racy. `tapOn` returns as soon as the view
 hierarchy changes, which on a loaded machine is _before_ React has committed the re-render,
-so Maestro reads the button still saying "Protect my data", skips the loop and falls straight
+so Maestro reads the button still saying "Encrypt my data", skips the loop and falls straight
 through — measured doing exactly that with the host cores saturated, which is the one
 condition such a loop would exist for.
 

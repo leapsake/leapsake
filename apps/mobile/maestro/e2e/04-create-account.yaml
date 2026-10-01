@@ -19,7 +19,7 @@ appId: com.leapsake.app
       PASSWORD: "correct-horse-battery-staple"
 
 # The reveal replaces the form rather than sitting beneath it.
-- assertNotVisible: "Protect your data"
+- assertNotVisible: "Encrypt your data"
 - assertVisible: '24\. .*'
 - assertNotVisible: '25\. .*'
 

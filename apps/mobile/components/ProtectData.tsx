@@ -77,7 +77,7 @@ export function CreateAccountForm({
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Protect your data</Text>
+      <Text style={styles.sectionTitle}>Encrypt your data</Text>
       <Text style={styles.muted}>
         A username and password encrypt your Leapsake data on this phone —
         nothing is sent anywhere. They protect access to your data, not the data
@@ -131,7 +131,7 @@ export function CreateAccountForm({
         onPress={() => void onSubmit()}
       >
         <Text style={styles.buttonText}>
-          {busy ? "Encrypting your data…" : "Protect my data"}
+          {busy ? "Encrypting your data…" : "Encrypt my data"}
         </Text>
       </Pressable>
     </View>

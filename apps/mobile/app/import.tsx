@@ -173,7 +173,7 @@ export default function ImportScreen() {
           style={[styles.button, styles.buttonBlock]}
           onPress={() => setState({ phase: "protecting" })}
         >
-          <Text style={styles.buttonText}>Protect my data first</Text>
+          <Text style={styles.buttonText}>Encrypt my data first</Text>
         </Pressable>
         {/* Named for its consequence, not softened into "skip". */}
         <Pressable
@@ -183,7 +183,7 @@ export default function ImportScreen() {
           onPress={startImport}
         >
           <Text style={styles.buttonSecondaryText}>
-            Import without protecting
+            Import without encrypting
           </Text>
         </Pressable>
       </Screen>
@@ -193,7 +193,7 @@ export default function ImportScreen() {
   if (state.phase === "protecting") {
     return (
       <>
-        <Stack.Screen options={{ title: "Protect your data" }} />
+        <Stack.Screen options={{ title: "Encrypt your data" }} />
         <ScrollView contentContainerStyle={styles.screen}>
           <CreateAccountForm
             onCreated={(phrase) => setState({ phase: "revealing", phrase })}
@@ -207,7 +207,7 @@ export default function ImportScreen() {
     return (
       <>
         <Stack.Screen
-          options={{ title: "Protect your data", headerBackVisible: false }}
+          options={{ title: "Encrypt your data", headerBackVisible: false }}
         />
         <RecoveryKeyReveal recoveryKey={state.phrase} onDone={startImport} />
       </>

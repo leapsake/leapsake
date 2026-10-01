@@ -8,7 +8,7 @@
 appId: com.leapsake.app
 ---
 - openLink: "leapsake://settings"
-- assertVisible: "Protect your data"
+- assertVisible: "Encrypt your data"
 
 # Both password fields are `secureTextEntry` with identical (empty) accessibility text, so
 # all three are reached by id — the ids exist for this flow, and the comment beside them in
@@ -78,7 +78,7 @@ appId: com.leapsake.app
 # --- the form was accepted ----------------------------------------------------------------
 # **Fifteen seconds of insurance against eight minutes of the wrong question.** Every way
 # `onSubmit` refuses the form — an empty username, a short password, a mismatch — leaves the
-# button reading "Protect my data" with an error beside it, and the app doing nothing at all.
+# button reading "Encrypt my data" with an error beside it, and the app doing nothing at all.
 # Without this the caller would then spend its whole conversion budget waiting for a reveal
 # that was never coming, and report the *reveal* as the failure. That is not hypothetical:
 # on 2026-09-05, with the host cores saturated, `inputText` dropped characters into the two
@@ -89,7 +89,7 @@ appId: com.leapsake.app
 # changes, which on a loaded machine is *before* React has committed the button's re-render.
 # A bare `assertNotVisible` here reads the pre-tap label and fails on a healthy app.
 - extendedWaitUntil:
-    notVisible: "Protect my data"
+    notVisible: "Encrypt my data"
     timeout: 15000
 
 # --- the one-time reveal ----------------------------------------------------------------

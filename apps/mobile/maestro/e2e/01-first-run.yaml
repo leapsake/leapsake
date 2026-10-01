@@ -84,7 +84,7 @@ appId: com.leapsake.app
 # below it already says the word.
 #
 # The screen it opens is named for custody — with no account it titles itself "Account",
-# not "Account & sync" — and "Protect your data" is the create-an-account offer's own
+# not "Account & sync" — and "Encrypt your data" is the create-an-account offer's own
 # heading.
 - runFlow:
     file: ../subflows/tap-checked-text.yaml
@@ -92,7 +92,7 @@ appId: com.leapsake.app
       TARGET: "tab-settings"
       EXPECT: ".*Account.*"
 - tapOn: ".*Account.*"
-- assertVisible: "Protect your data"
+- assertVisible: "Encrypt your data"
 
 # And the phrase is offered nowhere, because there is no account to have one. A build that
 # revealed a recovery phrase to an accountless device would be minting keys. This is the
