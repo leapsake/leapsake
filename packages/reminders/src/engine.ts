@@ -776,14 +776,15 @@ async function computeDesired(
       // Each enabled rule, with the deadline and run-up it actually has for
       // this occurrence — not always the ones it was written with.
       const timed: TimedRule[] = [];
+      const timing = planTiming(m.kind, resolved.rules, learnedDaysOut);
       // Asked only while it still offers a choice; the day-of wish it leaves
-      // behind is already on the schedule.
+      // behind is already on the schedule. An import asks only in time.
       if (
         mayAsk &&
         asksAbout(occ) &&
+        !(timing.late && m.imported) &&
         planOffers(m.kind, resolved.rules, days).length >= 2
       ) {
-        const timing = planTiming(m.kind, resolved.rules, learnedDaysOut);
         timed.push({
           rule: {
             action: "plan",

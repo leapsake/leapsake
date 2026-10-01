@@ -368,6 +368,12 @@ So every deadline is measured from the day the app **learned** of the occasion �
   day the soonest-to-expire of its remaining offers is still on offer — and is on display from the
   day it arrived. Ignoring it past that genuinely costs something, which is what makes calling it
   overdue honest.
+- **…but not for an import** _(owner, 2026-09-30)_. A late question suits one birthday typed in by
+  hand, while the user is thinking of that person. A contacts import brings six weeks of birthdays
+  at once — 23 questions on one real address book's first day. So a milestone the import wrote
+  (`imported`, desktop drop and phone sync alike) is asked about only in time: a late one keeps only
+  its kind's defaults (a birthday's day-of wish), and the question comes back next year on time. Where to draw that
+  line is expected to move as more people import.
 - **A question with one answer is not asked**, and an ignored one **retires once only the wish is
   left** rather than lingering to the occasion. The wish it leaves behind is already on the
   schedule.

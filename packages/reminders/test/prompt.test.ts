@@ -415,6 +415,55 @@ describe("an occasion the app learns about late", () => {
   });
 });
 
+/** The milestone as a contacts import would have written it today. */
+const importedToday = (
+  m: RemindEligibleMilestone,
+): RemindEligibleMilestone => ({
+  ...learnedToday(m),
+  imported: true,
+});
+
+describe("an occasion a contacts import brings in", () => {
+  let h: ReturnType<typeof makeHarness>;
+  beforeEach(() => {
+    h = makeHarness();
+  });
+
+  it("is not asked about when it arrives too late to ask in time", async () => {
+    const occ = daysOut(20);
+    h.setMilestones([importedToday(birthday("m1", "p1", occ))]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(0);
+
+    h.setToday(occ);
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem().map((r) => r.title)).toEqual([
+      `🎉 Wish ${mentionToken("Violet", "person", "p1")} a happy birthday`,
+    ]);
+  });
+
+  it("is asked about as usual when it arrives in time", async () => {
+    const occ = daysOut(APPEARS_DAYS);
+    h.setMilestones([importedToday(birthday("m1", "p1", occ))]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(1);
+  });
+
+  it("is asked about the next year, eight weeks ahead", async () => {
+    const occ = daysOut(20);
+    h.setMilestones([importedToday(birthday("m1", "p1", occ))]);
+    const next: CivilDate = { ...occ, year: occ.year + 1 };
+    h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts().map((p) => p.id)).toEqual([
+      deterministicUuid(
+        SYSTEM_REMINDER_NAMESPACE,
+        `milestone:m1:${next.year}:plan`,
+      ),
+    ]);
+  });
+});
+
 describe("an answer given late", () => {
   let h: ReturnType<typeof makeHarness>;
   beforeEach(() => {

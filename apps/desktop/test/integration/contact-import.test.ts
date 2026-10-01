@@ -163,24 +163,35 @@ describe("core.import.commit", () => {
     expect(person.lastName).toBeNull();
   });
 
-  it("reconciles a birthday reminder for an imported birthday", async () => {
-    // A birthday within the lead window should materialize a system reminder.
-    const today = new Date();
-    const soon = new Date(today.getTime() + 3 * 86_400_000);
+  // An import's birthdays all arrive at once; asking late about each would
+  // bury the first day, while one typed in by hand is asked about.
+  it("asks late about a birthday added by hand, not one imported", async () => {
+    const soon = new Date(Date.now() + 20 * 86_400_000);
+    const date = {
+      year: null,
+      month: soon.getMonth() + 1,
+      day: soon.getDate(),
+    };
     await core.import.commit([
-      {
-        action: "create",
-        contact: contact({
-          birthday: {
-            year: null,
-            month: soon.getMonth() + 1,
-            day: soon.getDate(),
-          },
-        }),
-      },
+      { action: "create", contact: contact({ birthday: date }) },
     ]);
-    const reminders = await core.reminders.list();
-    expect(reminders.some((r) => r.source === "system")).toBe(true);
+    const questions = async () =>
+      (await core.reminders.list()).filter((r) => r.title?.startsWith("🗓"));
+    expect(await questions()).toEqual([]);
+
+    const george = await core.people.create(
+      { firstName: "George", lastName: "Bailey" },
+      [],
+    );
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: george.id,
+      ...date,
+    });
+    expect((await questions()).map((r) => r.title)).toEqual([
+      expect.stringContaining("George Bailey"),
+    ]);
   });
 });
 
