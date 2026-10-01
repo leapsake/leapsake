@@ -202,7 +202,8 @@ export default function DuplicatesScreen() {
             >
               <Text style={styles.buttonSecondaryText}>{TEXT.notTheSame}</Text>
             </Pressable>
-            {data.candidates.length > 1 && (
+            {/* Scoped, "Not now" is the one way past, skipping them all. */}
+            {focus === null && data.candidates.length > 1 && (
               <Pressable
                 accessibilityRole="button"
                 style={[styles.buttonSecondary, styles.buttonBlock]}
