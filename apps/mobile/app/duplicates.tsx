@@ -44,9 +44,12 @@ const TEXT = {
   continue: "Continue",
   none: "No possible duplicates found.",
   scopedNone: "Nothing else looks like the same person.",
-  mergeTitle: "Merge people",
-  mergeMessage: (duplicate: string, survivor: string) =>
-    `Merge ${duplicate} into ${survivor}? Everything on ${duplicate} moves over and the duplicate is deleted. This can’t be undone.`,
+  mergeTitle: "Which one do you want to keep?",
+  mergeMessage:
+    "Everything on the other moves onto the one you keep, then the other is deleted. This can’t be undone.",
+  keep: (name: string) => `Keep ${name}`,
+  keepLeft: "Keep the one on the left",
+  keepRight: "Keep the one on the right",
   cancel: "Cancel",
   mergeFailed: "Couldn’t merge",
   saveFailed: "Couldn’t save",
@@ -103,28 +106,27 @@ export default function DuplicatesScreen() {
     );
   }
 
-  /** Merge the pair; scoped, the person just added keeps their record. */
-  function confirmMerge(pair: Pair, focus: Person | null) {
-    const [survivor, duplicate] =
-      focus !== null && focus.id === pair.b.person.id
-        ? [pair.b.person, pair.a.person]
-        : [pair.a.person, pair.b.person];
-    Alert.alert(
-      TEXT.mergeTitle,
-      TEXT.mergeMessage(fullName(duplicate), fullName(survivor)),
-      [
-        { text: TEXT.cancel, style: "cancel" },
-        {
-          text: TEXT.merge,
-          style: "destructive",
-          onPress: () =>
-            core.people.merge(survivor.id, duplicate.id).then(
-              () => reload(),
-              (e: unknown) => Alert.alert(TEXT.mergeFailed, String(e)),
-            ),
-        },
-      ],
-    );
+  /** Ask which of the pair to keep, then merge the other into it. */
+  function confirmMerge({ a, b }: Pair) {
+    const merge = (survivor: Person, duplicate: Person) =>
+      core.people.merge(survivor.id, duplicate.id).then(
+        () => reload(),
+        (e: unknown) => Alert.alert(TEXT.mergeFailed, String(e)),
+      );
+    // Neither button is red, so neither reads as the safer choice; two people
+    // of one name are told apart by where they sit on screen.
+    const sameName = fullName(a.person) === fullName(b.person);
+    Alert.alert(TEXT.mergeTitle, TEXT.mergeMessage, [
+      {
+        text: sameName ? TEXT.keepLeft : TEXT.keep(fullName(a.person)),
+        onPress: () => merge(a.person, b.person),
+      },
+      {
+        text: sameName ? TEXT.keepRight : TEXT.keep(fullName(b.person)),
+        onPress: () => merge(b.person, a.person),
+      },
+      { text: TEXT.cancel, style: "cancel" },
+    ]);
   }
 
   const focus = data?.focus ?? null;
@@ -186,7 +188,7 @@ export default function DuplicatesScreen() {
                 styles.buttonBlock,
               ]}
               onPress={() => {
-                if (data.pair !== null) confirmMerge(data.pair, focus);
+                if (data.pair !== null) confirmMerge(data.pair);
               }}
             >
               <Text style={styles.buttonText}>{TEXT.merge}</Text>
