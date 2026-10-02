@@ -37,7 +37,9 @@ export default function GiftsScreen() {
           ListEmptyComponent={
             <EmptyState
               message="No gifts yet."
-              actions={[{ href: "/gifts/new", label: "+ Add a gift idea" }]}
+              actions={[
+                { href: "/gifts/new", label: "Add a gift idea", glyph: "🎁" },
+              ]}
             />
           }
           renderItem={({ item: { idea, tags, recipients } }) => (
