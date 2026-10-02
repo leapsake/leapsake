@@ -51,12 +51,13 @@ export default function PeoplePetsScreen() {
           }
           ListEmptyComponent={
             // Import too, which has no header action: the bigger win on a
-            // first run.
+            // first run. A pet last, as the rarer case.
             <EmptyState
               message="Nobody here yet."
               actions={[
-                { href: "/add", label: "+ Add a person or pet" },
+                { href: "/add", label: "+ Add a person" },
                 { href: "/import", label: "Import from your contacts" },
+                { href: "/add?type=pet", label: "Add a pet" },
               ]}
             />
           }

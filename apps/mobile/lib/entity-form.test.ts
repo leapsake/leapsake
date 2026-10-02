@@ -1,6 +1,11 @@
 import { contactMethodDraftOf } from "@leapsake/contact-links";
 import { describe, expect, it, vi } from "vitest";
-import { emptyEntityForm, entityFormProblem } from "./entity-form";
+import {
+  emptyEntityForm,
+  entityFormProblem,
+  hasStagedRows,
+  switchedEntityForm,
+} from "./entity-form";
 
 // The form's row helpers live beside their components; these stand in for what those import.
 vi.mock("react-native", () => ({ StyleSheet: { create: (s: unknown) => s } }));
@@ -37,5 +42,36 @@ describe("entityFormProblem", () => {
     expect(entityFormProblem("person", value)).toBe(
       "Finish or remove the unfinished contact method before saving.",
     );
+  });
+});
+
+describe("switchedEntityForm", () => {
+  it("brings a person's name, gender and tags to the pet", () => {
+    const value = emptyEntityForm();
+    value.person = {
+      firstName: "Mary",
+      middleName: " ",
+      lastName: "Hatch",
+      gender: "female",
+      tags: "family",
+    };
+    expect(switchedEntityForm("person", value).pet).toEqual({
+      name: "Mary Hatch",
+      gender: "female",
+      tags: "family",
+    });
+  });
+
+  it("brings a pet's name to the person's first name", () => {
+    const value = emptyEntityForm();
+    value.pet = { name: "Buffalo", gender: null, tags: "" };
+    expect(switchedEntityForm("pet", value).person.firstName).toBe("Buffalo");
+  });
+
+  it("drops every staged row", () => {
+    const value = emptyEntityForm();
+    value.contacts = [{ key: "c-1", draft: contactMethodDraftOf("phone") }];
+    expect(hasStagedRows(value)).toBe(true);
+    expect(hasStagedRows(switchedEntityForm("person", value))).toBe(false);
   });
 });

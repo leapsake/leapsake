@@ -34,10 +34,7 @@ const TEXT = {
   gifts: "Name each gift, or remove it, before saving.",
 } as const;
 
-/**
- * A new person or pet with every row staged, none written yet. Both drafts are
- * kept, so the type toggle can flip between them without losing either.
- */
+/** A new person or pet with every row staged, none written yet. */
 export interface EntityFormValue {
   person: PersonDraft;
   pet: PetDraft;
@@ -58,6 +55,38 @@ export function emptyEntityForm(): EntityFormValue {
     holidays: [],
     gifts: [],
   };
+}
+
+/** A fresh form for the other type with the name, gender and tags; staged
+ *  rows go, as a milestone kind or role legal for one may not be for both. */
+export function switchedEntityForm(
+  from: EntityType,
+  value: EntityFormValue,
+): EntityFormValue {
+  const next = emptyEntityForm();
+  if (from === "person") {
+    const { firstName, middleName, lastName, gender, tags } = value.person;
+    const name = [firstName, middleName, lastName]
+      .map((part) => part.trim())
+      .filter((part) => part !== "")
+      .join(" ");
+    next.pet = { name, gender, tags };
+  } else {
+    const { name, gender, tags } = value.pet;
+    next.person = { ...next.person, firstName: name, gender, tags };
+  }
+  return next;
+}
+
+/** Whether switching type would throw away a staged row. */
+export function hasStagedRows(value: EntityFormValue): boolean {
+  return [
+    value.milestones,
+    value.contacts,
+    value.relationships,
+    value.holidays,
+    value.gifts,
+  ].some((rows) => rows.length > 0);
 }
 
 /**
