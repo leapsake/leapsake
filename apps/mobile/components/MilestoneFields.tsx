@@ -10,6 +10,7 @@ import {
   milestoneDraftWithSchedule,
 } from "@leapsake/schema";
 import { DatePartsFields } from "./DatePartsFields";
+import { DetailField } from "./DetailField";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
@@ -65,6 +66,7 @@ export function MilestoneFields({
   errors,
   bearerType,
   collapseSchedule = false,
+  kindFixed = false,
   scroll = false,
 }: {
   draft: MilestoneDraft;
@@ -73,6 +75,8 @@ export function MilestoneFields({
   bearerType: MilestoneBearerType;
   /** Put the reminder schedule behind a disclosure. */
   collapseSchedule?: boolean;
+  /** Show the kind without a picker, where the caller chose it. */
+  kindFixed?: boolean;
   /** Fill a screen of its own, in a scroll view. */
   scroll?: boolean;
 }) {
@@ -91,12 +95,19 @@ export function MilestoneFields({
 
   const fields = (
     <>
-      <SelectField
-        label={TEXT.kind}
-        value={draft.kind}
-        options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
-        onChange={(kind) => onChange(milestoneDraftWithKind(draft, kind))}
-      />
+      {kindFixed ? (
+        <DetailField
+          label={TEXT.kind}
+          value={`${def.icon ? `${def.icon} ` : ""}${def.label}`}
+        />
+      ) : (
+        <SelectField
+          label={TEXT.kind}
+          value={draft.kind}
+          options={kinds.map((k) => ({ value: k.kind, label: k.label }))}
+          onChange={(kind) => onChange(milestoneDraftWithKind(draft, kind))}
+        />
+      )}
 
       {/* `milestone-year` is an E2E anchor: subflows/stage-birthday.yaml. */}
       <DatePartsFields
@@ -121,11 +132,6 @@ export function MilestoneFields({
           onChangeText={(note) => onChange({ ...draft, note })}
         />
       </View>
-
-      <Text style={styles.muted}>
-        {def.icon ? `${def.icon} ` : ""}
-        {def.label}
-      </Text>
 
       {collapseSchedule ? (
         <>

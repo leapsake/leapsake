@@ -81,6 +81,7 @@ export function MilestoneForm({
         onChange={(draft) => update(() => draft)}
         errors={form.errors}
         bearerType={bearerType}
+        kindFixed={milestone === undefined && initialKind !== undefined}
       />
     </>
   );
