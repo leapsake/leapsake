@@ -16,7 +16,7 @@ export function EmptyState({
 }: {
   message: string;
   /** In the order they're offered; the first is the ordinary path. */
-  actions: readonly { href: Href; label: string }[];
+  actions: readonly { href: Href; label: string; glyph?: string }[];
 }) {
   return (
     <View style={styles.emptyState}>
@@ -30,19 +30,32 @@ export function EmptyState({
           <Link key={action.label} href={action.href} asChild>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={action.label}
               style={StyleSheet.flatten([
                 isPrimary ? styles.button : styles.buttonSecondary,
                 styles.buttonBlock,
                 styles.emptyStateButton,
               ])}
             >
-              <Text
-                style={
-                  isPrimary ? styles.buttonText : styles.buttonSecondaryText
-                }
-              >
-                {action.label}
-              </Text>
+              <View style={local.content}>
+                {action.glyph !== undefined && (
+                  // Decoration: the label alone names the button.
+                  <Text
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                    style={local.glyph}
+                  >
+                    {action.glyph}
+                  </Text>
+                )}
+                <Text
+                  style={
+                    isPrimary ? styles.buttonText : styles.buttonSecondaryText
+                  }
+                >
+                  {action.label}
+                </Text>
+              </View>
             </Pressable>
           </Link>
         );
@@ -50,3 +63,8 @@ export function EmptyState({
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  content: { flexDirection: "row", alignItems: "center", gap: 8 },
+  glyph: { fontSize: 18 },
+});
