@@ -1,5 +1,6 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { colors, radius, styles } from "../lib/styles";
+import { Sheet } from "./Sheet";
 
 const CANCEL = "Cancel";
 
@@ -28,70 +29,56 @@ export function ActionSheet({
   onClose: () => void;
 }) {
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      style={local.sheet}
+      testID="action-sheet"
     >
+      <Text style={local.title} numberOfLines={2}>
+        {title}
+      </Text>
+      {items.map((item) => (
+        <Pressable
+          key={item.key}
+          accessibilityRole="button"
+          accessibilityLabel={item.label}
+          accessibilityHint={item.hint}
+          testID={`action-sheet-${item.key}`}
+          style={local.option}
+          onPress={() => {
+            // Close first: a pushed screen would arrive behind the modal.
+            onClose();
+            item.onPress();
+          }}
+        >
+          {item.glyph === undefined ? null : (
+            <Text style={local.glyph}>{item.glyph}</Text>
+          )}
+          <Text
+            style={[local.label, item.danger === true && local.dangerLabel]}
+          >
+            {item.label}
+          </Text>
+          {item.hint === undefined ? null : (
+            <Text style={local.hint}>{item.hint}</Text>
+          )}
+        </Pressable>
+      ))}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={CANCEL}
-        style={local.backdrop}
+        style={local.cancel}
         onPress={onClose}
-      />
-      <View style={local.sheet} testID="action-sheet">
-        <Text style={local.title} numberOfLines={2}>
-          {title}
-        </Text>
-        {items.map((item) => (
-          <Pressable
-            key={item.key}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-            accessibilityHint={item.hint}
-            testID={`action-sheet-${item.key}`}
-            style={local.option}
-            onPress={() => {
-              // Close first: a pushed screen would arrive behind the modal.
-              onClose();
-              item.onPress();
-            }}
-          >
-            {item.glyph === undefined ? null : (
-              <Text style={local.glyph}>{item.glyph}</Text>
-            )}
-            <Text
-              style={[local.label, item.danger === true && local.dangerLabel]}
-            >
-              {item.label}
-            </Text>
-            {item.hint === undefined ? null : (
-              <Text style={local.hint}>{item.hint}</Text>
-            )}
-          </Pressable>
-        ))}
-        <Pressable
-          accessibilityRole="button"
-          style={local.cancel}
-          onPress={onClose}
-        >
-          <Text style={styles.link}>{CANCEL}</Text>
-        </Pressable>
-      </View>
-    </Modal>
+      >
+        <Text style={styles.link}>{CANCEL}</Text>
+      </Pressable>
+    </Sheet>
   );
 }
 
 const local = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: colors.scrim,
-  },
+  /** Padded and spaced, its options being boxes rather than rows. */
   sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 32,

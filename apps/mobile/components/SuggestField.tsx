@@ -1,8 +1,5 @@
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +7,7 @@ import {
   View,
 } from "react-native";
 import { SearchInput } from "./SearchInput";
+import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
 
 /**
@@ -88,79 +86,63 @@ export function SuggestField({
         <Text style={styles.chevron}>›</Text>
       </Pressable>
 
-      <Modal
+      {/* Pinned to the bottom, where the keyboard would cover the field;
+          half the screen however few rows, or it reads as a toast. */}
+      <Sheet
         visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={close}
+        onClose={close}
+        close="cancel"
+        title={label}
+        avoidKeyboard
+        style={{ minHeight: height / 2 }}
       >
-        {/* Pinned to the bottom, where the keyboard would cover the field. */}
-        <KeyboardAvoidingView
-          style={local.fill}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <Pressable style={styles.sheetBackdrop} onPress={close} />
-          {/* Half the screen however few rows, or it reads as a toast. */}
-          <View style={[styles.sheet, { minHeight: height / 2 }]}>
-            <View style={styles.sheetBar}>
-              <Text style={styles.sheetTitle}>{label}</Text>
-              <Pressable accessibilityRole="button" onPress={close}>
-                <Text style={styles.link}>Cancel</Text>
-              </Pressable>
-            </View>
+        <View style={local.body}>
+          <SearchInput
+            value={query}
+            onChangeText={(next) => {
+              setQuery(next);
+              setTyping(true);
+            }}
+            placeholder={`Type a ${label.toLowerCase()}`}
+            // A placeholder leaves the accessible name once there is a
+            // value.
+            accessibilityLabel={label}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (typed !== "") choose(typed);
+            }}
+          />
 
-            <View style={local.body}>
-              <SearchInput
-                value={query}
-                onChangeText={(next) => {
-                  setQuery(next);
-                  setTyping(true);
-                }}
-                placeholder={`Type a ${label.toLowerCase()}`}
-                // A placeholder leaves the accessible name once there is a
-                // value.
-                accessibilityLabel={label}
-                returnKeyType="done"
-                onSubmitEditing={() => {
-                  if (typed !== "") choose(typed);
-                }}
-              />
-
-              {/* The current value is not bolded (it would read as a heading),
+          {/* The current value is not bolded (it would read as a heading),
                   only announced as selected. */}
-              {matches.map((suggestion) => (
-                <Pressable
-                  key={suggestion}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: suggestion === value }}
-                  style={styles.row}
-                  onPress={() => choose(suggestion)}
-                >
-                  <Text style={styles.rowText}>{suggestion}</Text>
-                </Pressable>
-              ))}
+          {matches.map((suggestion) => (
+            <Pressable
+              key={suggestion}
+              accessibilityRole="button"
+              accessibilityState={{ selected: suggestion === value }}
+              style={styles.row}
+              onPress={() => choose(suggestion)}
+            >
+              <Text style={styles.rowText}>{suggestion}</Text>
+            </Pressable>
+          ))}
 
-              {offerTyped ? (
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.row}
-                  onPress={() => choose(typed)}
-                >
-                  <Text style={styles.rowText}>Use “{typed}”</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          {offerTyped ? (
+            <Pressable
+              accessibilityRole="button"
+              style={styles.row}
+              onPress={() => choose(typed)}
+            >
+              <Text style={styles.rowText}>Use “{typed}”</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </Sheet>
     </View>
   );
 }
 
 const local = StyleSheet.create({
-  fill: {
-    flex: 1,
-  },
   body: {
     paddingHorizontal: 16,
     paddingTop: 12,

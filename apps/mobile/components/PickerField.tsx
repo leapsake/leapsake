@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { SearchInput } from "./SearchInput";
+import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
 
 /**
@@ -80,83 +80,65 @@ export function PickerField<T>({
         <Text style={styles.chevron}>›</Text>
       </Pressable>
 
-      <Modal
+      {/* No `avoidKeyboard`: the filter sits high, and lifting the sheet
+          pushed its bar under the status bar. */}
+      <Sheet
         visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOpen(false)}
+        onClose={() => setOpen(false)}
+        close="cancel"
+        title={label}
+        style={{ height: height * 0.75 }}
       >
-        {/* No `KeyboardAvoidingView`: the filter sits high, and lifting the
-            sheet pushed its bar under the status bar. */}
-        <>
-          <Pressable
-            style={styles.sheetBackdrop}
-            onPress={() => setOpen(false)}
+        <View style={local.body}>
+          <SearchInput
+            testID={testID === undefined ? undefined : `${testID}-filter`}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={`Find a ${label.toLowerCase()}`}
+            // A placeholder leaves the accessible name once there is a
+            // value.
+            accessibilityLabel={label}
           />
-          <View style={[styles.sheet, { height: height * 0.75 }]}>
-            <View style={styles.sheetBar}>
-              <Text style={styles.sheetTitle}>{label}</Text>
+        </View>
+
+        <ScrollView
+          style={local.list}
+          contentContainerStyle={local.body}
+          keyboardShouldPersistTaps="handled"
+        >
+          {matches.length === 0 ? (
+            <Text style={styles.muted}>{emptyText}</Text>
+          ) : (
+            matches.map((option) => (
               <Pressable
+                key={getKey(option)}
+                // Its label is a decoy twice over: the filter and Gboard's
+                // suggestion strip both show it (maestro/README.md).
+                testID={
+                  testID === undefined
+                    ? undefined
+                    : `${testID}-option-${getKey(option)}`
+                }
                 accessibilityRole="button"
-                onPress={() => setOpen(false)}
+                accessibilityState={{
+                  selected: value !== null && getKey(option) === getKey(value),
+                }}
+                style={styles.row}
+                onPress={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
               >
-                <Text style={styles.link}>Cancel</Text>
+                {renderOption ? (
+                  renderOption(option)
+                ) : (
+                  <Text style={styles.rowText}>{getLabel(option)}</Text>
+                )}
               </Pressable>
-            </View>
-
-            <View style={local.body}>
-              <SearchInput
-                testID={testID === undefined ? undefined : `${testID}-filter`}
-                value={query}
-                onChangeText={setQuery}
-                placeholder={`Find a ${label.toLowerCase()}`}
-                // A placeholder leaves the accessible name once there is a
-                // value.
-                accessibilityLabel={label}
-              />
-            </View>
-
-            <ScrollView
-              style={local.list}
-              contentContainerStyle={local.body}
-              keyboardShouldPersistTaps="handled"
-            >
-              {matches.length === 0 ? (
-                <Text style={styles.muted}>{emptyText}</Text>
-              ) : (
-                matches.map((option) => (
-                  <Pressable
-                    key={getKey(option)}
-                    // Its label is a decoy twice over: the filter and Gboard's
-                    // suggestion strip both show it (maestro/README.md).
-                    testID={
-                      testID === undefined
-                        ? undefined
-                        : `${testID}-option-${getKey(option)}`
-                    }
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      selected:
-                        value !== null && getKey(option) === getKey(value),
-                    }}
-                    style={styles.row}
-                    onPress={() => {
-                      onChange(option);
-                      setOpen(false);
-                    }}
-                  >
-                    {renderOption ? (
-                      renderOption(option)
-                    ) : (
-                      <Text style={styles.rowText}>{getLabel(option)}</Text>
-                    )}
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </>
-      </Modal>
+            ))
+          )}
+        </ScrollView>
+      </Sheet>
     </View>
   );
 }

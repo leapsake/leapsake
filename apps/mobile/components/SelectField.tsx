@@ -1,14 +1,8 @@
 import { useState } from "react";
-import {
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { colors, radius, styles } from "../lib/styles";
+import { Sheet } from "./Sheet";
 
 /**
  * A short, finite enum as the native picker (the app's README → Form
@@ -77,28 +71,10 @@ export function SelectField<T extends string | null>({
         <Text style={styles.chevron}>›</Text>
       </Pressable>
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOpen(false)}
-      >
-        <Pressable
-          style={styles.sheetBackdrop}
-          onPress={() => setOpen(false)}
-        />
-        <View style={styles.sheet}>
-          <View style={[styles.sheetBar, local.doneOnly]}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setOpen(false)}
-            >
-              <Text style={styles.link}>Done</Text>
-            </Pressable>
-          </View>
-          {picker}
-        </View>
-      </Modal>
+      {/* The wheel says what the field is, so the bar holds only Done. */}
+      <Sheet visible={open} onClose={() => setOpen(false)} close="done">
+        {picker}
+      </Sheet>
     </View>
   );
 }
@@ -108,9 +84,5 @@ const local = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
-  },
-  // The wheel says what the field is, so the bar holds only Done.
-  doneOnly: {
-    justifyContent: "flex-end",
   },
 });
