@@ -8,7 +8,11 @@ import {
   partyKey,
   useGiftCaptureForm,
 } from "@leapsake/ui/headless";
-import { GiftGivenCheckbox, GiftIdentityFields } from "./GiftFields";
+import {
+  GiftGivenCheckbox,
+  GiftIdentityFields,
+  giftDraftEmpty,
+} from "./GiftFields";
 import { useHeaderSave } from "./HeaderSave";
 import { DraftRow } from "./DraftRow";
 import { useCore } from "../lib/core-context";
@@ -99,7 +103,7 @@ export function GiftCaptureForm({
 }
 
 /** A gift, and who it is for with a tick each (or the one fixed
- *  recipient's). */
+ *  recipient's), asked once the gift has a name or a link. */
 export function GiftCaptureFields({
   fields,
   onIdentityChange,
@@ -138,7 +142,7 @@ export function GiftCaptureFields({
           value={fields.given}
           onChange={(given) => onIdentityChange({ ...fields, given })}
         />
-      ) : (
+      ) : giftDraftEmpty(fields) ? null : (
         <View style={styles.section}>
           <Typeahead
             multi
