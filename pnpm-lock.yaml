@@ -166,6 +166,9 @@ importers:
       '@leapsake/highlight':
         specifier: workspace:*
         version: link:../../packages/highlight
+      '@leapsake/link-preview':
+        specifier: workspace:*
+        version: link:../../packages/link-preview
       '@leapsake/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
@@ -479,6 +482,8 @@ importers:
       '@leapsake/schema':
         specifier: workspace:*
         version: link:../schema
+
+  packages/link-preview: {}
 
   packages/notifications:
     dependencies:

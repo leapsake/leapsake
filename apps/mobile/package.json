@@ -17,6 +17,7 @@
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
     "@leapsake/highlight": "workspace:*",
+    "@leapsake/link-preview": "workspace:*",
     "@leapsake/notifications": "workspace:*",
     "@leapsake/phone": "workspace:*",
     "@leapsake/schema": "workspace:*",

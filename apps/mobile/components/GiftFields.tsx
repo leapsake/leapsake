@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { fetchLinkPreview } from "@leapsake/link-preview";
 import type { GiftIdea } from "@leapsake/schema";
 import {
   giftUrlLabel,
@@ -38,6 +40,40 @@ export function giftDraftValid(draft: GiftDraft): boolean {
 }
 
 /**
+ * Name a nameless gift after its link's share card, unless a name is typed
+ * first. Whether a lookup is under way.
+ */
+function useNameFromLink(
+  draft: GiftDraft,
+  onChange: (draft: GiftDraft) => void,
+): boolean {
+  const latest = useRef({ draft, onChange });
+  latest.current = { draft, onChange };
+  const [looking, setLooking] = useState(false);
+  const nameless = draft.title.trim() === "";
+
+  useEffect(() => {
+    if (draft.url === "" || !nameless) return;
+    const lookup = new AbortController();
+    setLooking(true);
+    void fetchLinkPreview(draft.url, lookup.signal).then((preview) => {
+      if (lookup.signal.aborted) return;
+      setLooking(false);
+      const now = latest.current.draft;
+      if (preview?.title && now.url === draft.url && now.title.trim() === "") {
+        latest.current.onChange({ ...now, title: preview.title });
+      }
+    });
+    return () => {
+      lookup.abort();
+      setLooking(false);
+    };
+  }, [draft.url, nameless]);
+
+  return looking;
+}
+
+/**
  * A gift's name and link in one field: a pasted link drops into a chip below.
  * Checked on paste and blur only, since `https://e` already parses.
  */
@@ -51,6 +87,7 @@ export function GiftIdentityFields({
   ideaPool: readonly GiftIdea[];
 }) {
   const trimmedTitle = draft.title.trim();
+  const lookingUpName = useNameFromLink(draft, onChange);
 
   // An exact match is what submitting does, so it is not offered.
   const suggestions =
@@ -83,7 +120,9 @@ export function GiftIdentityFields({
       <TextInput
         testID="gift-title"
         style={styles.input}
-        placeholder="Name it, or paste a link"
+        placeholder={
+          lookingUpName ? "Looking up its name…" : "Name it, or paste a link"
+        }
         value={draft.title}
         onChangeText={typed}
         onBlur={settle}
