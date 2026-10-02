@@ -62,9 +62,8 @@ appId: com.leapsake.app
 
 # Open whichever confirmation this device offers. Every step here is conditional, because
 # `openLink` does not remount a route that is already mounted: a previous run that died
-# mid-confirm leaves this screen already armed and the opening button gone. Factory reset is
-# reached by its id, since its button and the section heading above it share the words;
-# Forget account's ellipsis does the same job.
+# mid-confirm leaves this screen already armed and the opening button gone. Each button is
+# reached by its id, since it shares its words with the section heading above it.
 # **The whole opening is retried.** A tap on either button is sometimes swallowed on a slow
 # host, leaving this screen exactly as it was — measured twice on hosted runners, and not
 # fixed by tapping a point inside the element. Each attempt re-reads the screen, so a tap
@@ -104,11 +103,12 @@ appId: com.leapsake.app
             - assertVisible: "Export data first"
       - runFlow:
           when:
-            visible: "Forget account…"
+            visible:
+              id: "forget-account-start"
           commands:
             # As above: a point inside the element, so the tap reaches the Pressable.
             - tapOn:
-                text: "Forget account…"
+                id: "forget-account-start"
                 point: "50%,50%"
             # Entering this confirmation asks the relay whether it keeps a durable copy, so the
             # fields arrive a beat after the tap. Waiting for the field is the difference
@@ -147,12 +147,12 @@ appId: com.leapsake.app
           id: "forget-account-confirm"
       - eraseText
       - inputText: "DELETE"
-      # The title, not the button: "Delete all data on this device" is a plain `Text` at
-      # the head of the section, while "Delete all data" is what we are about to press.
+      # The field's label: a plain `Text` in the screen's scroll view, which no
+      # touchable claims.
       - runFlow:
           file: dismiss-keyboard.yaml
           env:
-            ANCHOR: "Delete all data on this device"
+            ANCHOR: "Type DELETE to confirm"
       - tapOn: "Delete all data"
 
 # **Both branches put the keyboard away before reaching for their button.** Each sits
