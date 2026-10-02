@@ -34,10 +34,48 @@ describe("linkPreviewOf", () => {
     expect(linkPreviewOf(html, PAGE).title).toBe("First");
   });
 
-  it("ignores the page <title>, which bot walls fill with their own", () => {
+  it("falls back to the page <title> when there is no og:title", () => {
+    expect(linkPreviewOf("<title>Train set</title>", PAGE).title).toBe(
+      "Train set",
+    );
+  });
+
+  it("prefers og:title to the page <title>", () => {
+    const html =
+      '<title>Buy a train set | Shop</title><meta property="og:title" content="Train set">';
+    expect(linkPreviewOf(html, PAGE).title).toBe("Train set");
+  });
+
+  it("drops the site's own name from either end of a <title>", () => {
+    const amazon = "https://www.amazon.com/dp/B0BSHF7WHW";
     expect(
-      linkPreviewOf("<title>Just a moment...</title>", PAGE).title,
-    ).toBeNull();
+      linkPreviewOf("<title>Amazon.com: Spooky Village Puzzle</title>", amazon)
+        .title,
+    ).toBe("Spooky Village Puzzle");
+    expect(
+      linkPreviewOf("<title>Train set | shop.example.com</title>", PAGE).title,
+    ).toBe("Train set");
+  });
+
+  it("has no title when the <title> is only the site's name", () => {
+    const amazon = "https://www.amazon.com/dp/B0BSHF7WHW";
+    expect(linkPreviewOf("<title>Amazon.com</title>", amazon).title).toBeNull();
+  });
+
+  it("has no title from a bot wall's <title>", () => {
+    for (const wall of [
+      "Just a moment...",
+      "Just a moment&hellip;",
+      "Attention Required! | Cloudflare",
+      "Robot Check",
+    ]) {
+      expect(linkPreviewOf(`<title>${wall}</title>`, PAGE).title).toBeNull();
+    }
+  });
+
+  it("reads only the <title> in the <head>, not an SVG's in the body", () => {
+    const html = "<head></head><body><svg><title>Close</title></svg></body>";
+    expect(linkPreviewOf(html, PAGE).title).toBeNull();
   });
 
   it("reads og:image as an absolute address", () => {

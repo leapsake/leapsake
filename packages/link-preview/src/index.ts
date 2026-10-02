@@ -20,7 +20,17 @@ const NAMED_ENTITIES: Record<string, string> = {
   copy: "©",
 };
 
-/** A page’s Open Graph tags (`og:*`), what its share card is drawn from. */
+/** Titles of pages that stand in for the real one while checking for bots. */
+const BOT_WALL_TITLES = new Set([
+  "just a moment...",
+  "just a moment…",
+  "attention required! | cloudflare",
+  "access denied",
+  "robot check",
+  "hang tight! routing to checkout...",
+]);
+
+/** What a link's share card would say, mostly from its `og:` tags. */
 export interface LinkPreview {
   title: string | null;
   /** An absolute http(s) address, however the page wrote it. */
@@ -28,8 +38,8 @@ export interface LinkPreview {
 }
 
 /**
- * The `og:` tags in the HTML of the page at `pageUrl`; a tag that is absent
- * or blank is `null`.
+ * The `og:` tags in the HTML of the page at `pageUrl`, the title falling back
+ * to `<title>`; anything absent or blank is `null`.
  */
 export function linkPreviewOf(html: string, pageUrl: string): LinkPreview {
   const tags = new Map<string, string>();
@@ -46,7 +56,7 @@ export function linkPreviewOf(html: string, pageUrl: string): LinkPreview {
     }
   }
   return {
-    title: cleanText(tags.get("og:title")),
+    title: cleanText(tags.get("og:title")) ?? documentTitleOf(html, pageUrl),
     image: absoluteWebUrl(cleanText(tags.get("og:image")), pageUrl),
   };
 }
@@ -76,6 +86,34 @@ export async function fetchLinkPreview(
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
+  }
+}
+
+/**
+ * The `<title>` in the page's `<head>`, without a leading or trailing site
+ * name ("Amazon.com: …"). A bot wall's, or the bare site name, is `null`.
+ */
+function documentTitleOf(html: string, pageUrl: string): string | null {
+  const head = html.split(/<\/head>/i)[0];
+  const title = cleanText(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(head)?.[1]);
+  if (title === null || BOT_WALL_TITLES.has(title.toLowerCase())) return null;
+
+  const site = hostOf(pageUrl);
+  if (site === "") return title;
+  const name = site.replaceAll(".", String.raw`\.`);
+  const separator = String.raw`\s*[:|\-–—]\s*`;
+  const trimmed = title
+    .replace(new RegExp(`^${name}${separator}`, "i"), "")
+    .replace(new RegExp(`${separator}${name}$`, "i"), "");
+  return trimmed === "" || trimmed.toLowerCase() === site ? null : trimmed;
+}
+
+/** The page's host, lowercase and without `www.`. */
+function hostOf(pageUrl: string): string {
+  try {
+    return new URL(pageUrl).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
   }
 }
 
