@@ -63,6 +63,7 @@ import type {
   RelationshipNeighbor,
   RelationshipRole,
   Reminder,
+  ReminderAction,
   ReminderRuleInput,
   SearchHit,
   SelfPerson,
@@ -81,6 +82,7 @@ import {
   isPublished,
   isRomanticRole,
   kindAllowsBearer,
+  handedOverInPerson,
   kindDefs,
   promptAnswerOf,
   resolveReminderSchedule,
@@ -96,6 +98,7 @@ export type { OnboardingReminder, OnboardingRoute } from "@leapsake/reminders";
 // The reminder shapes a client types its screens against.
 export type {
   ContactReminderTarget,
+  DeliveryReminderTarget,
   GiftReminderTarget,
   LinkPartnerReminderTarget,
   PartnershipReminderTarget,
@@ -288,6 +291,13 @@ export type CoreApi = ReturnType<typeof createCore>;
 export interface PlanAnswer {
   year: number;
   rules: ReminderRuleInput[];
+}
+
+/** A posting to hand over in person instead, for the one year it is due. */
+export interface InPersonAnswer {
+  year: number;
+  /** The `send:*` action being handed over instead. */
+  action: ReminderAction;
 }
 
 /** Who a person's milestone is with, for `milestones.linkPartner`. */
@@ -954,6 +964,30 @@ export function createCore(
         answer: PlanAnswer,
       ): Promise<void> => {
         await driver.transaction(() => writePlanAnswer(milestoneId, answer));
+        await regenerateSystem();
+      },
+      // That year's rules, posting swapped for handing over; still as written
+      // when they were, so no other deadline slides.
+      answerInPerson: async (
+        milestoneId: string,
+        { year, action }: InPersonAnswer,
+      ): Promise<void> => {
+        await driver.transaction(async () => {
+          const milestone = await milestones.get(milestoneId);
+          if (milestone === undefined) return;
+          const resolved = resolveReminderSchedule(
+            milestone.kind,
+            await reminderRules.listForBearer("milestone", milestoneId),
+          );
+          const answer = resolved.answers.get(year);
+          await reminderRules.replaceAnswer(
+            "milestone",
+            milestoneId,
+            year,
+            handedOverInPerson(answer?.rules ?? resolved.rules, action),
+            answer?.writtenAt ?? resolved.writtenAt ?? milestone.createdAt,
+          );
+        });
         await regenerateSystem();
       },
       // Move a person's milestone onto their relationship with a partner.

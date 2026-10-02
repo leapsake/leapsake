@@ -17,6 +17,7 @@ import {
   giftIdeaInputOf,
   milestoneInputOf,
   partsFromIso,
+  isReminderAction,
   isReminderEditable,
   personInputOf,
   petInputOf,
@@ -907,6 +908,21 @@ async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
+/** Swaps this year's posting for handing it over on the day. */
+async function milestoneInPersonAction({
+  request,
+  params,
+}: ActionFunctionArgs) {
+  const formData = await request.formData();
+  const action = String(formData.get("action"));
+  if (!isReminderAction(action)) return null;
+  await window.api.milestones.answerInPerson(params.milestoneId as string, {
+    year: Number(formData.get("year")),
+    action,
+  });
+  return null;
+}
+
 /** This year retires the prompt's own row; ever stops the milestone asking. */
 async function milestoneStopAskingAction({
   request,
@@ -1044,6 +1060,11 @@ const routes: RouteObject[] = [
         loader: milestonePlanLoader,
         element: <MilestonePlanPrompt />,
         action: milestonePlanAction,
+      },
+      {
+        // Action-only: a posting's “Giving it in person” fetcher posts here.
+        path: "milestones/:milestoneId/in-person",
+        action: milestoneInPersonAction,
       },
       {
         path: "milestones/:milestoneId/stop-asking",

@@ -22,6 +22,7 @@ import {
   offerLabel,
   planOffers,
   promptAnswerOf,
+  handedOverInPerson,
   promptDraftOf,
   promptItemsOf,
   setPromptItem,
@@ -562,5 +563,23 @@ describe("the prompt's draft and answer", () => {
       "wish",
     ]);
     expect(writtenOf(orphan)).toEqual(["send:card", "wish"]);
+  });
+});
+
+describe("handedOverInPerson", () => {
+  it("swaps the posting for handing it over on the day", () => {
+    const rules: ReminderRuleInput[] = [
+      { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+      { action: "send:gift", label: null, offsetDays: 7, enabled: true },
+      { action: "give:gift", label: null, offsetDays: 0, enabled: false },
+      { action: "send:card", label: null, offsetDays: 7, enabled: true },
+    ];
+    expect(handedOverInPerson(rules, "send:gift")).toEqual([
+      { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+      { action: "send:gift", label: null, offsetDays: 7, enabled: false },
+      // The card is still posted: only the reminder tapped changes.
+      { action: "send:card", label: null, offsetDays: 7, enabled: true },
+      { action: "give:gift", label: null, offsetDays: 0, enabled: true },
+    ]);
   });
 });

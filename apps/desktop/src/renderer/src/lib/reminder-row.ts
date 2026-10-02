@@ -1,5 +1,5 @@
 import type { OnboardingRoute } from "@leapsake/core";
-import type { ReminderRuleInput } from "@leapsake/schema";
+import type { ReminderAction, ReminderRuleInput } from "@leapsake/schema";
 import {
   type ReminderCta,
   type ReminderOfferLabel,
@@ -35,6 +35,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
   stopAsking: "Don’t ask again…",
+  giveInPerson: "Giving it in person",
 };
 
 /** A “Remind me in…” button's words for a day count, matching mobile's. */
@@ -86,6 +87,13 @@ export type RowAffordance =
       year: number;
       schedule: ReminderRuleInput[];
       label: string;
+    }
+  | {
+      kind: "in-person";
+      to: string;
+      year: number;
+      action: ReminderAction;
+      label: string;
     };
 
 /**
@@ -119,6 +127,14 @@ export function rowAffordanceFor(
       };
     case "dismiss":
       return { kind: "link", to: `/reminders/${reminderId}/delete`, label };
+    case "give-in-person":
+      return {
+        kind: "in-person",
+        to: `/milestones/${action.milestoneId}/in-person`,
+        year: action.year,
+        action: action.action,
+        label,
+      };
     case "stop-asking":
       return {
         kind: "link",

@@ -14,6 +14,7 @@ import {
   promptOffsetDays,
   setPromptItem,
   reminderLabel,
+  resolveReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -232,6 +233,46 @@ describe("the plan prompt, end to end through core", () => {
     expect((await systemReminders()).map(reminderLabel)).toEqual([
       "🛒 Get a card for @Violet Bick",
     ]);
+  });
+
+  // “Giving it in person” on the posting: this year's gift is handed over on
+  // the day instead, and buying it keeps its own deadline.
+  it("hands a posted gift over in person, for that year alone", async () => {
+    // Fifteen days out, the posting is already on display.
+    const { milestone } = await personWithBirthday(15);
+    const [target] = (await core.reminders.targets()).plans;
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: setPromptItem(
+        target.offers,
+        target.offers.findIndex((offer) => offer.action === "get:gift"),
+        true,
+      ),
+    });
+    const [post] = (await core.reminders.targets()).deliveries;
+    expect(post.action).toBe("send:gift");
+
+    await core.milestones.answerInPerson(milestone.id, {
+      year: post.occurrenceYear,
+      action: post.action,
+    });
+
+    const shown = (await core.reminders.listInWindow()).filter(
+      (r) => r.source === "system" && onboardingRouteOf(r.id) === null,
+    );
+    expect(
+      shown.map((r) => [
+        reminderLabel(r),
+        daysUntil(todayCivil(), civilFromDueMs(r.dueDate!)),
+      ]),
+    ).toEqual([
+      ["🎁 Get @Violet Bick a gift", 3],
+      ["🎉 Wish @Violet Bick a happy birthday", 15],
+      ["🎁 Give @Violet Bick a gift", 15],
+    ]);
+    expect(
+      await core.milestones.reminderSchedule(milestone.id, "birthday"),
+    ).toEqual(resolveReminderSchedule("birthday", []).rules);
   });
 
   // “Don’t ask again… → Ever”: the occasion keeps its schedule and stops asking.

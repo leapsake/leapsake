@@ -54,6 +54,7 @@ export const API_CHANNELS = [
   "milestones.create",
   "milestones.update",
   "milestones.answerPlan",
+  "milestones.answerInPerson",
   "milestones.linkPartner",
   "milestones.softDelete",
 

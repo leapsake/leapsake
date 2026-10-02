@@ -7,6 +7,7 @@ import {
   type MilestoneKind,
   type Relationship,
   type Reminder,
+  type ReminderAction,
   type ReminderRuleInput,
   type ReminderWithTags,
   type ResolvedMention,
@@ -93,9 +94,19 @@ export interface ContactReminderTarget {
 export interface SystemReminderTargets {
   gifts: GiftReminderTarget[];
   plans: PlanReminderTarget[];
+  deliveries: DeliveryReminderTarget[];
   contacts: ContactReminderTarget[];
   partnerships: PartnershipReminderTarget[];
   linkPartners: LinkPartnerReminderTarget[];
+}
+
+/** A milestone's `send:*` reminder, which can be handed over in person
+ *  instead, for the one year it posts for. */
+export interface DeliveryReminderTarget {
+  reminderId: string;
+  milestoneId: string;
+  occurrenceYear: number;
+  action: ReminderAction;
 }
 
 /** A couple's occasion with nobody on the other side yet: it knows the date
@@ -654,6 +665,21 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         }),
       );
 
+      const deliveries: DeliveryReminderTarget[] = targets.flatMap((t) =>
+        verbOf(t.action) === "send" &&
+        t.milestone !== undefined &&
+        t.occurrenceDate != null
+          ? [
+              {
+                reminderId: t.id,
+                milestoneId: t.milestone.id,
+                occurrenceYear: civilFromDueMs(t.occurrenceDate).year,
+                action: t.action,
+              },
+            ]
+          : [],
+      );
+
       // ⚠️ `wish` only: an errand wants no call buttons. A couple's wish has
       // one entry per partner, in the relationship's own order.
       const contacts: ContactReminderTarget[] = [];
@@ -701,7 +727,14 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           : [];
       });
 
-      return { gifts, plans, contacts, partnerships, linkPartners };
+      return {
+        gifts,
+        plans,
+        deliveries,
+        contacts,
+        partnerships,
+        linkPartners,
+      };
     },
   };
 }

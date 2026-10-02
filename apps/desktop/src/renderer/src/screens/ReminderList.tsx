@@ -4,6 +4,7 @@ import type {
   LinkPartnerReminderTarget,
   PartnershipReminderTarget,
   PlanReminderTarget,
+  DeliveryReminderTarget,
   ReminderInWindow,
   SystemReminderTargets,
 } from "@leapsake/core";
@@ -71,6 +72,7 @@ function ReminderRow({
   reminder,
   giftTarget,
   planTarget,
+  deliveryTarget,
   contactTarget,
   partnershipTarget,
   linkPartnerTarget,
@@ -84,6 +86,8 @@ function ReminderRow({
   giftTarget?: GiftReminderTarget;
   /** Set when this is a `🗓 plan` prompt: its question and offers. */
   planTarget?: PlanReminderTarget;
+  /** Set when this is a milestone's posting, which may be handed over. */
+  deliveryTarget?: DeliveryReminderTarget;
   /**
    * Set when this is a `🎉 wish` about a person; a CTA only when they have no
    * way to be reached. Contact actions are built for a phone, so none here.
@@ -109,6 +113,7 @@ function ReminderRow({
     giftTarget,
     isDuplicatesNudge,
     planTarget,
+    deliveryTarget,
     partnershipTarget,
     linkPartnerTarget,
     contactTarget:
@@ -171,6 +176,16 @@ function ReminderRow({
                 />
                 <button type="submit">{affordance.label}</button>
               </answerFetcher.Form>
+            ) : affordance.kind === "in-person" ? (
+              <answerFetcher.Form
+                method="post"
+                action={affordance.to}
+                style={{ display: "inline" }}
+              >
+                <input type="hidden" name="year" value={affordance.year} />
+                <input type="hidden" name="action" value={affordance.action} />
+                <button type="submit">{affordance.label}</button>
+              </answerFetcher.Form>
             ) : affordance.kind === "snooze" ? (
               // A fetcher post, so the row leaves the list in place.
               <snoozeFetcher.Form
@@ -216,6 +231,9 @@ export function ReminderList() {
   };
   const giftTargetById = new Map(targets.gifts.map((t) => [t.reminderId, t]));
   const planTargetById = new Map(targets.plans.map((t) => [t.reminderId, t]));
+  const deliveryTargetById = new Map(
+    targets.deliveries.map((t) => [t.reminderId, t]),
+  );
   const contactTargetById = new Map(
     targets.contacts.map((t) => [t.reminderId, t]),
   );
@@ -239,6 +257,7 @@ export function ReminderList() {
       section={section}
       giftTarget={giftTargetById.get(reminder.id)}
       planTarget={planTargetById.get(reminder.id)}
+      deliveryTarget={deliveryTargetById.get(reminder.id)}
       contactTarget={contactTargetById.get(reminder.id)}
       partnershipTarget={partnershipTargetById.get(reminder.id)}
       linkPartnerTarget={linkPartnerTargetById.get(reminder.id)}

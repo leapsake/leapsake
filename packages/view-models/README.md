@@ -100,6 +100,9 @@ birthday.
 - **Just the day**: a `plan` prompt's one-tap answer, the commonest, which writes the **full**
   offer set with only `wish` enabled, so it counts as answered. A client that renders the prompt
   as only a link to a settings screen has lost the trade the prompt makes.
+- **Giving it in person**: on a milestone's posting (`send:*`), the answer the prompt no longer
+  asks up front _(owner, 2026-10-01)_. It swaps that year's posting for a `give:*` on the day,
+  and leaves next year to be asked again.
 - **Remind me in…**: one per `SNOOZE_PRESET_DAYS` preset (tomorrow, three days, a week; _owner,
   2026-09-11_) that `snoozeTargetOf` allows, on any row. Never on a row due today or belated,
   never past the due date, never on a row not yet on display.

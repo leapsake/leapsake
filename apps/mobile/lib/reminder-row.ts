@@ -1,5 +1,5 @@
 import type { OnboardingRoute } from "@leapsake/core";
-import type { ReminderRuleInput } from "@leapsake/schema";
+import type { ReminderAction, ReminderRuleInput } from "@leapsake/schema";
 import {
   type ReminderCta,
   type ReminderOfferLabel,
@@ -36,6 +36,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
   stopAsking: "Don’t ask again…",
+  giveInPerson: "Giving it in person",
 };
 
 /** The words on a “Remind me in…” button, for any whole number of days. */
@@ -83,7 +84,14 @@ export type RowOffer =
     }
   | { kind: "snooze"; days: number; label: string }
   | { kind: "dismiss"; label: string }
-  | { kind: "stop-asking"; milestoneId: string; label: string };
+  | { kind: "stop-asking"; milestoneId: string; label: string }
+  | {
+      kind: "give-in-person";
+      milestoneId: string;
+      year: number;
+      action: ReminderAction;
+      label: string;
+    };
 
 /** Where a call to action leads; null for a prompt, answered in place. */
 function ctaPathFor(cta: ReminderCta): string | null {
@@ -136,6 +144,8 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return { kind: "dismiss", label };
     case "stop-asking":
       return { kind: "stop-asking", milestoneId: action.milestoneId, label };
+    case "give-in-person":
+      return { ...action, label };
   }
 }
 

@@ -28,13 +28,14 @@ export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
     rules: ReminderRuleInput[],
   ): Promise<void>;
 
-  /** Replace a bearer's answer for one occurrence year, validated as a set.
-   *  Transaction-free. */
+  /** Replace a bearer's answer for one occurrence year, validated as a set,
+   *  as given at `writtenAt` (default now). Transaction-free. */
   replaceAnswer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
     occurrenceYear: number,
     rules: ReminderRuleInput[],
+    writtenAt?: number,
   ): Promise<void>;
 
   /** Soft-delete every rule of a bearer. Transaction-free. */
@@ -64,6 +65,7 @@ export function createReminderRulesRepo(
     bearerId: string,
     occurrenceYear: number | null,
     rules: ReminderRuleInput[],
+    writtenAt?: number,
   ): Promise<void> {
     const now = Date.now();
     for (const rule of rules) {
@@ -76,7 +78,7 @@ export function createReminderRulesRepo(
         offsetDays: rule.offsetDays,
         enabled: rule.enabled,
         occurrenceYear,
-        createdAt: now,
+        createdAt: writtenAt ?? now,
         updatedAt: now,
         deletedAt: null,
       });
@@ -106,7 +108,13 @@ export function createReminderRulesRepo(
       await insertAll(bearerType, bearerId, null, parsed);
     },
 
-    async replaceAnswer(bearerType, bearerId, occurrenceYear, rules) {
+    async replaceAnswer(
+      bearerType,
+      bearerId,
+      occurrenceYear,
+      rules,
+      writtenAt,
+    ) {
       const parsed = reminderScheduleInputSchema.parse(rules);
       await softDeleteWhere(
         driver,
@@ -114,7 +122,7 @@ export function createReminderRulesRepo(
         "bearer_type = ? AND bearer_id = ? AND occurrence_year = ?",
         [bearerType, bearerId, occurrenceYear],
       );
-      await insertAll(bearerType, bearerId, occurrenceYear, parsed);
+      await insertAll(bearerType, bearerId, occurrenceYear, parsed, writtenAt);
     },
 
     removeAllForBearer: (bearerType, bearerId) =>

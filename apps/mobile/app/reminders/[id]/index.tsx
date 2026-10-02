@@ -9,7 +9,11 @@ import {
   kindDefs,
   reminderLabel,
 } from "@leapsake/schema";
-import { type PlanAnswer, onboardingRouteOf } from "@leapsake/core";
+import {
+  type InPersonAnswer,
+  type PlanAnswer,
+  onboardingRouteOf,
+} from "@leapsake/core";
 import type { PartyChoice } from "@leapsake/ui/headless";
 import {
   reminderActionKey,
@@ -128,6 +132,7 @@ export default function ReminderDetailScreen() {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
     isDuplicatesNudge,
     planTarget,
+    deliveryTarget: targets.deliveries.find((t) => t.reminderId === id),
     // Knows a partner, not the date: "When is your anniversary?"
     partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
     // Knows the date, not the other party of the wedding.
@@ -181,6 +186,15 @@ export default function ReminderDetailScreen() {
           })
         : core.milestones.answerPlan(milestoneId, answer);
     write.then(
+      () => router.back(),
+      (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
+    );
+  }
+
+  /** Hand this year's posting over on the day instead; then go back, since
+   *  this reminder has gone. */
+  function giveInPerson(milestoneId: string, answer: InPersonAnswer) {
+    core.milestones.answerInPerson(milestoneId, answer).then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
     );
@@ -358,6 +372,11 @@ export default function ReminderDetailScreen() {
                   else if (offer.kind === "dismiss") confirmDelete();
                   else if (offer.kind === "stop-asking")
                     setStopAsking(offer.milestoneId);
+                  else if (offer.kind === "give-in-person")
+                    giveInPerson(offer.milestoneId, {
+                      year: offer.year,
+                      action: offer.action,
+                    });
                   // `answer-prompt` never gets here: `offered` dropped it.
                 }}
               />

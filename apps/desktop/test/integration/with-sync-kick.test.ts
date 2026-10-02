@@ -181,6 +181,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "milestones.update": "write",
   "milestones.linkPartner": "write",
   "milestones.answerPlan": "write",
+  "milestones.answerInPerson": "write",
   "notificationSettings.get": "read",
   "notificationSettings.list": "read",
   "notificationSettings.setPermissionState": "write",

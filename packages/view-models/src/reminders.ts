@@ -6,6 +6,7 @@ import {
 import {
   type GiftPartyType,
   type MilestoneKind,
+  type ReminderAction,
   type ReminderRuleInput,
   civilFromDueMs,
   compareReminderDue,
@@ -197,6 +198,13 @@ export interface PlanReminderSubject {
   offers: ReminderRuleInput[];
 }
 
+/** A milestone's posting, which can be handed over in person instead. */
+export interface DeliveryReminderSubject {
+  milestoneId: string;
+  occurrenceYear: number;
+  action: ReminderAction;
+}
+
 /** A partnership question's relationship and missing date, whose kind opens
  *  the milestone form already on it. */
 export interface PartnershipReminderSubject {
@@ -285,7 +293,13 @@ export type ReminderRowAction =
     }
   | { kind: "snooze"; days: number }
   | { kind: "dismiss" }
-  | { kind: "stop-asking"; milestoneId: string };
+  | { kind: "stop-asking"; milestoneId: string }
+  | {
+      kind: "give-in-person";
+      milestoneId: string;
+      year: number;
+      action: ReminderAction;
+    };
 
 /** The “Remind me in…” presets, in days; `snoozeTargetOf` takes any. */
 export const SNOOZE_PRESET_DAYS: readonly number[] = [1, 3, 7];
@@ -319,6 +333,8 @@ export function reminderActionsOf(
     isDuplicatesNudge?: boolean;
     /** Set when this is a `🗓 plan` prompt: what it is asking about. */
     planTarget?: PlanReminderSubject;
+    /** Set when this is a milestone's posting. */
+    deliveryTarget?: DeliveryReminderSubject;
     /** Set when this is a `🎉 wish` about a person. */
     contactTarget?: ContactReminderSubject;
     /** Set when this row is a partnership question. */
@@ -342,6 +358,15 @@ export function reminderActionsOf(
         ...offer,
         enabled: offer.action === "wish",
       })),
+    });
+
+  // The year's posting can still become handing it over on the day.
+  if (context.deliveryTarget !== undefined)
+    actions.push({
+      kind: "give-in-person",
+      milestoneId: context.deliveryTarget.milestoneId,
+      year: context.deliveryTarget.occurrenceYear,
+      action: context.deliveryTarget.action,
     });
 
   // A second CTA beside the first, as it completes a record rather than the

@@ -335,6 +335,27 @@ describe("reminderActionsOf", () => {
     ]);
   });
 
+  it("offers a posting the chance to be handed over in person instead", () => {
+    const deliveryTarget = {
+      milestoneId: "m1",
+      occurrenceYear: 2026,
+      action: "send:gift" as const,
+    };
+    expect(
+      reminderActionsOf(reminder("post", {}), { deliveryTarget })[0],
+    ).toEqual({
+      kind: "give-in-person",
+      milestoneId: "m1",
+      year: 2026,
+      action: "send:gift",
+    });
+    expect(
+      reminderActionsOf(reminder("post", { completedAt: 1 }), {
+        deliveryTarget,
+      }),
+    ).toEqual([]);
+  });
+
   // Not a tombstone alone: this year, or never again for this occasion.
   it("asks a prompt's “don't ask again” about its own milestone", () => {
     expect(

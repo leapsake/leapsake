@@ -539,3 +539,19 @@ export function promptAnswerOf(
       : { ...rule, enabled: false };
   });
 }
+
+/** A schedule that hands over on the day, in person, what `send` would post. */
+export function handedOverInPerson(
+  rules: readonly ReminderRuleInput[],
+  send: ReminderAction,
+): ReminderRuleInput[] {
+  const give = formatAction("give", parseAction(send).qualifier);
+  return [
+    ...rules
+      .filter((rule) => rule.action !== give)
+      .map((rule) =>
+        rule.action === send ? { ...rule, enabled: false } : rule,
+      ),
+    { action: give, label: null, offsetDays: 0, enabled: true },
+  ];
+}

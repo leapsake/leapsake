@@ -162,6 +162,7 @@ export {
   setPromptItem,
   promptDraftOf,
   promptAnswerOf,
+  handedOverInPerson,
   MAX_ACTIVE_DAYS,
   reminderRuleBearerTypeSchema,
   reminderRuleSchema,

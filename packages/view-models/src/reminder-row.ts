@@ -22,7 +22,8 @@ export type ReminderOfferLabel =
   | "justTheDay"
   | "remindMe"
   | "dismiss"
-  | "stopAsking";
+  | "stopAsking"
+  | "giveInPerson";
 
 const ONBOARDING_LABEL = {
   import: "import",
@@ -39,6 +40,7 @@ export function reminderOfferLabelOf(
   if (action.kind === "snooze") return "remindMe";
   if (action.kind === "dismiss") return "dismiss";
   if (action.kind === "stop-asking") return "stopAsking";
+  if (action.kind === "give-in-person") return "giveInPerson";
   const { cta } = action;
   switch (cta.kind) {
     case "onboarding":
