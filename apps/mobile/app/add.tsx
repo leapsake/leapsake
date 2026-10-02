@@ -31,7 +31,6 @@ const TEXT = {
     "The name, gender and tags come with you. Everything added below them will be cleared.",
   switchConfirmAction: "Switch",
   cancel: "Cancel",
-  importLink: "Or import from contacts",
 } as const;
 
 const OTHER_TYPE: Record<EntityType, EntityType> = {
@@ -173,15 +172,6 @@ function AddEntityForm({
         </Pressable>
 
         <EntityFormSections type={type} value={value} onChange={setValue} />
-
-        {/* Pushed, not replaced: backing out of the importer returns here with
-            whatever is already typed in. */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push("/import")}
-        >
-          <Text style={styles.link}>{TEXT.importLink}</Text>
-        </Pressable>
       </ScrollView>
     </>
   );
