@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { Link, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import Constants from "expo-constants";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
+import { LinkButton } from "../components/LinkButton";
 import { useCore, useAccount } from "../lib/core-context";
 import { exportAndShare } from "../lib/export-share";
 import { showFormProblem } from "../lib/form-problem";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
 
 /**
  * Data in and out. Export leads, above the destructive actions and inside
@@ -28,12 +29,10 @@ export default function DataScreen() {
       <ScrollView contentContainerStyle={styles.screen}>
         <ExportSection />
 
-        <Text style={[styles.title, { marginTop: 24 }]}>Import</Text>
-        <Link href="/import" style={styles.row}>
-          <Text style={[styles.rowText, { color: colors.accent }]}>
-            📇 Import from contacts
-          </Text>
-        </Link>
+        <View style={{ marginTop: 24, gap: 8 }}>
+          <Text style={styles.title}>Import</Text>
+          <LinkButton href="/import" label="Import your contacts" glyph="📇" />
+        </View>
 
         {/* One way to be rid of this device's data per custody state: both
             land in the same place. */}
