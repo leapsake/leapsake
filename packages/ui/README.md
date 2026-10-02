@@ -113,11 +113,11 @@ Three rules every form keeps:
   (`aria-disabled` on web, `accessibilityState.busy` on mobile) and ignores the repeat
   press.
 
-The reminder prompt asks **one delivery question for the whole occasion**, not one
-per item _(owner, 2026-09-06)_: nobody has two answers. The schedule rules stay
+The reminder prompt asks **no delivery question at all** _(owner, 2026-10-01)_. One
+tick, “Give a gift”, means getting it and posting it; handing it over instead is said
+later, on the posting reminder, when the user actually knows. The schedule rules stay
 independent, so `ReminderScheduleFields` can still post one item and hand over
-another. “In person” is a named choice rather than an unticked box, because not
-posting is a real answer.
+another.
 
 Rows staged on mobile's create form (a person's contacts, milestones, relationships)
 call the shaping functions directly rather than through hooks, since they live in one

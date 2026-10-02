@@ -20,6 +20,7 @@ import {
   parseHashtags,
   parseMentions,
   planOffers,
+  promptDraftOf,
   resolveObservanceReminderSchedule,
   resolveReminderSchedule,
   todayCivil,
@@ -641,13 +642,15 @@ export function createRemindersApi(deps: RemindersApiDeps) {
               );
               // Without an occasion there is no distance, so offer the whole
               // set.
-              return t.occurrenceDate == null
-                ? planOffers(kind, rules, Number.POSITIVE_INFINITY)
-                : planOffers(
-                    kind,
-                    rules,
-                    daysUntil(todayCivil(), civilFromDueMs(t.occurrenceDate)),
-                  );
+              return promptDraftOf(
+                t.occurrenceDate == null
+                  ? planOffers(kind, rules, Number.POSITIVE_INFINITY)
+                  : planOffers(
+                      kind,
+                      rules,
+                      daysUntil(todayCivil(), civilFromDueMs(t.occurrenceDate)),
+                    ),
+              );
             })(),
           })),
       );

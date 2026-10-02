@@ -7,6 +7,7 @@ import {
   isReminderEditable,
   isoFromDueMs,
   kindDefs,
+  promptAnswerOf,
   reminderLabel,
 } from "@leapsake/schema";
 import { onboardingRouteOf } from "@leapsake/core";
@@ -166,7 +167,8 @@ export default function ReminderDetailScreen() {
 
   /** Write the milestone's whole rule set, disabled rows included, which
    *  retires the prompt; then go back. */
-  function answer(milestoneId: string, schedule: ReminderRuleInput[]) {
+  function answer(milestoneId: string, draft: ReminderRuleInput[]) {
+    const schedule = promptAnswerOf(draft);
     const write =
       partner != null && linkPartnerTarget !== undefined
         ? core.milestones.linkPartner({

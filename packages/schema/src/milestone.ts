@@ -114,9 +114,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 12, enabledByDefault: false },
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
-      // One offset for both, because the prompt asks "by mail?" only once.
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "send:gift", offsetDays: 7, enabledByDefault: false },
+      { action: "give:card", offsetDays: 0, enabledByDefault: false },
+      { action: "give:gift", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: true },
     ],
   },
@@ -146,6 +147,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     defaultReminderSchedule: [
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
+      { action: "give:card", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -164,12 +166,13 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     },
     coupled: true,
     prompt: { occasion: "anniversary" },
-    // One offset for each pair, because the prompt asks "by mail?" only once.
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 12, enabledByDefault: false },
       { action: "get:card", offsetDays: 12, enabledByDefault: false },
       { action: "send:card", offsetDays: 7, enabledByDefault: false },
       { action: "send:gift", offsetDays: 7, enabledByDefault: false },
+      { action: "give:card", offsetDays: 0, enabledByDefault: false },
+      { action: "give:gift", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
   },
@@ -376,6 +379,11 @@ export function planOffers(
         },
     )
     .filter((r) => fitsAt(r.action, r.offsetDays, daysUntilOccurrence))
+    .filter((r, _, offered) => {
+      // A delivery goes with what it delivers: nothing to hand over unbought.
+      const parent = actionDefOf(r.action).deliveryOf;
+      return parent === undefined || offered.some((o) => o.action === parent);
+    })
     .sort((a, b) => b.offsetDays - a.offsetDays);
 }
 

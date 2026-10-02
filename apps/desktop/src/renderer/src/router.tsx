@@ -21,6 +21,7 @@ import {
   personInputOf,
   petInputOf,
   preferredBearerType,
+  promptAnswerOf,
   relationshipDraftOf,
   relationshipInputOf,
   relationshipRoleSchema,
@@ -142,7 +143,7 @@ function readMilestoneDraft(formData: FormData): MilestoneDraft {
     day: text("day"),
     year: text("year"),
     note: text("note"),
-    reminderSchedule: readReminderSchedule(formData) ?? [],
+    reminderSchedule: promptAnswerOf(readReminderSchedule(formData) ?? []),
     scheduleCustomized: formData.has("reminderSchedule"),
   };
 }
@@ -903,7 +904,7 @@ async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
 async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   await window.api.milestones.update(params.milestoneId as string, {
-    reminderSchedule: readReminderSchedule(formData) ?? [],
+    reminderSchedule: promptAnswerOf(readReminderSchedule(formData) ?? []),
   });
   return redirect("/reminders");
 }

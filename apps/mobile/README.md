@@ -527,10 +527,6 @@ All three sheet and inline filters wear the Search tab's own field, since they t
 under them. Nothing commits until a row is tapped, so leaving by the backdrop or Cancel leaves
 the value alone.
 
-[`SegmentedControl`](./components/SegmentedControl.tsx) is the fifth, and not a picker: it is
-for a question whose answer reshapes the form beneath it, where seeing every answer side by
-side is the point (a reminder’s delivery question).
-
 Prefer a native element over novel custom UI for any of these.
 
 ## Debugging a native module

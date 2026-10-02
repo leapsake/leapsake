@@ -3,15 +3,14 @@ import {
   actionDefOf,
   leadTimeLabel,
   offerLabel,
-  promptGroupsOf,
-  setPromptDelivery,
+  promptItemsOf,
   setPromptItem,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 
 /**
- * The prompt's answer form: a checkbox per offer with its lead time, and one
- * delivery choice. Hands back the whole set, so “chose nothing” stays visible.
+ * The prompt's answer form: a checkbox per offer with its lead time. Hands back
+ * the whole set, so “chose nothing” stays visible.
  */
 export function ReminderPromptFields({
   value,
@@ -24,14 +23,13 @@ export function ReminderPromptFields({
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
   const m = useMessages();
-  const { items, delivery } = promptGroupsOf(value);
 
   return (
     // Labelled, not captioned: the surrounding heading already asks it.
     <fieldset aria-label={m.reminderPrompt.legend}>
       <p>{m.reminderPrompt.caption}</p>
       <ul>
-        {items.map(({ index, rule }) => {
+        {promptItemsOf(value).map(({ index, rule }) => {
           const def = actionDefOf(rule.action);
           const label = offerLabel(rule.action, greeting);
           return (
@@ -52,40 +50,6 @@ export function ReminderPromptFields({
           );
         })}
       </ul>
-      {delivery?.visible === true && (
-        // A radio group, since handing it over is a real answer.
-        <fieldset>
-          <legend>{m.reminderPrompt.deliveryLegend}</legend>
-          <label>
-            <input
-              type="radio"
-              name="prompt-delivery"
-              checked={!delivery.mailed}
-              onChange={() => onChange(setPromptDelivery(value, false))}
-            />{" "}
-            {m.reminderPrompt.deliveryHand}
-          </label>{" "}
-          <label>
-            <input
-              type="radio"
-              name="prompt-delivery"
-              checked={delivery.mailed}
-              onChange={() => onChange(setPromptDelivery(value, true))}
-            />{" "}
-            {m.reminderPrompt.deliveryMail}
-          </label>
-          {/* Only when posting, and the deliveries it governs share a date. */}
-          {delivery.mailed && delivery.offsetDays !== null && (
-            <p>
-              <small>
-                {m.reminderPrompt.deliveryNote(
-                  leadTimeLabel(delivery.offsetDays),
-                )}
-              </small>
-            </p>
-          )}
-        </fieldset>
-      )}
     </fieldset>
   );
 }

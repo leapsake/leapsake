@@ -74,6 +74,8 @@ describe("planOffers", () => {
       "get:card",
       "send:card",
       "send:gift",
+      "give:card",
+      "give:gift",
       "wish",
     ]);
   });
@@ -82,11 +84,14 @@ describe("planOffers", () => {
     expect(actionsOf(planOffers("birthday", [], 5))).toEqual([
       "get:gift",
       "get:card",
+      "give:card",
+      "give:gift",
       "wish",
     ]);
   });
 
   it("offers only the wish the day before", () => {
+    // Handing over is still possible, but there is nothing bought to hand over.
     expect(actionsOf(planOffers("birthday", [], 1))).toEqual(["wish"]);
   });
 
@@ -234,7 +239,7 @@ describe("the authored defaults agree with the delivery edges", () => {
         if (parent === undefined) continue;
         const parentOffset = offsets.get(parent);
         // A delivery whose parent this schedule does not offer stands on its
-        // own — legal, and `promptGroupsOf` already treats it as an item.
+        // own — legal, and `promptItemsOf` already treats it as an item.
         if (parentOffset === undefined) continue;
         if (parentOffset < r.offsetDays)
           wrong.push(

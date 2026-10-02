@@ -267,12 +267,6 @@ export const en: Messages = {
     save: "Save",
     editFull: "Set exact timings",
     caption: "We’ll remind you in time for each one.",
-    // One delivery question for the whole occasion, not one per item.
-    deliveryLegend: "Giving it",
-    // A named choice, since not posting is a real answer.
-    deliveryHand: "In person",
-    deliveryMail: "By mail",
-    deliveryNote: (leadTime) => `We’ll remind you to post it ${leadTime}.`,
   },
 
   reminderSchedule: {

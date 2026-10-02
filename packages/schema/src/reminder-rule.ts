@@ -7,6 +7,7 @@ import { z } from "zod";
 export const reminderVerbSchema = z.enum([
   "get",
   "send",
+  "give",
   "visit",
   "call",
   "message",
@@ -189,6 +190,8 @@ export const actionDefs = {
   },
   "get:gift": {
     label: "Get a gift",
+    // The prompt's one tick for getting it and handing it over.
+    offer: () => "Give a gift",
     icon: "🎁",
     activeDays: 30,
     latestOffsetDays: 1,
@@ -196,6 +199,7 @@ export const actionDefs = {
   },
   "get:card": {
     label: "Get a card",
+    offer: () => "Give a card",
     icon: "🛒",
     activeDays: 30,
     latestOffsetDays: 1,
@@ -214,6 +218,20 @@ export const actionDefs = {
     deliveryOf: "get:gift",
     activeDays: 10,
     template: ({ subject }) => `Post ${subject}'s gift`,
+  },
+  "give:card": {
+    label: "Give a card in person",
+    icon: "✉️",
+    deliveryOf: "get:card",
+    activeDays: 0,
+    template: ({ subject }) => `Give ${subject} a card`,
+  },
+  "give:gift": {
+    label: "Give a gift in person",
+    icon: "🎁",
+    deliveryOf: "get:gift",
+    activeDays: 0,
+    template: ({ subject }) => `Give ${subject} a gift`,
   },
   // Registered but not offered (see UNOFFERED_ACTIONS): stored rules still
   // render real copy.
@@ -453,33 +471,6 @@ export interface PromptItem {
 }
 
 /**
- * The prompt's one "in person, or by mail?" question for the whole occasion.
- */
-export interface PromptDelivery {
-  /** Whether the user has chosen *by mail*. */
-  mailed: boolean;
-  /**
-   * Shown once something it could deliver is on, or while any delivery rule is
-   * on.
-   */
-  visible: boolean;
-  /** The lead time the live deliveries share, or null when they differ. */
-  offsetDays: number | null;
-}
-
-/**
- * The prompt's rules as it draws them: the items, and one delivery question
- * under them.
- */
-export interface PromptGroups {
-  items: PromptItem[];
-  /**
-   * Null when the offer set holds no delivery rules at all — nothing to ask.
-   */
-  delivery: PromptDelivery | null;
-}
-
-/**
  * The item a delivery belongs to, or null; a delivery whose item is absent is
  * an item itself.
  */
@@ -491,79 +482,58 @@ function deliveryParentOf(
   return parent !== undefined && present.has(parent) ? parent : null;
 }
 
-/** Split an offer set into the prompt's two groups, never dropping a rule. */
-export function promptGroupsOf(
+/** The ticks the prompt draws: every rule but the deliveries, which follow. */
+export function promptItemsOf(
   rules: readonly ReminderRuleInput[],
-): PromptGroups {
+): PromptItem[] {
   const present = new Set(rules.map((r) => r.action));
-  const items: PromptItem[] = [];
-  const deliveries: PromptItem[] = [];
-  rules.forEach((rule, index) => {
-    (deliveryParentOf(rule, present) === null ? items : deliveries).push({
-      index,
-      rule,
-    });
-  });
-  if (deliveries.length === 0) return { items, delivery: null };
-
-  const on = new Set(
-    items.filter((i) => i.rule.enabled).map((i) => i.rule.action),
+  return rules.flatMap((rule, index) =>
+    deliveryParentOf(rule, present) === null ? [{ index, rule }] : [],
   );
-  // Only deliveries whose item is on decide the caption's lead time.
-  const live = deliveries.filter((d) =>
-    on.has(deliveryParentOf(d.rule, present) as ReminderAction),
-  );
-  const mailed = deliveries.some((d) => d.rule.enabled);
-  const offsets = new Set(live.map((d) => d.rule.offsetDays));
-
-  return {
-    items,
-    delivery: {
-      mailed,
-      visible: live.length > 0 || mailed,
-      offsetDays: offsets.size === 1 ? [...offsets][0]! : null,
-    },
-  };
 }
 
-/** A delivery is on exactly when *by mail* is chosen and its item is on. */
-function reconcileDelivery(
-  rules: readonly ReminderRuleInput[],
-  mailed: boolean,
-): ReminderRuleInput[] {
-  const present = new Set(rules.map((r) => r.action));
-  const on = new Set(
-    rules
-      .filter((r) => r.enabled && deliveryParentOf(r, present) === null)
-      .map((r) => r.action),
-  );
-  return rules.map((rule) => {
-    const parent = deliveryParentOf(rule, present);
-    if (parent === null) return rule;
-    return { ...rule, enabled: mailed && on.has(parent) };
-  });
-}
-
-/**
- * Turn one prompt item on or off, carrying its delivery with it. `index` is a
- * {@link PromptItem}'s.
- */
+/** Tick or untick one prompt item. `index` is a {@link PromptItem}'s. */
 export function setPromptItem(
   rules: readonly ReminderRuleInput[],
   index: number,
   enabled: boolean,
 ): ReminderRuleInput[] {
-  const mailed = promptGroupsOf(rules).delivery?.mailed ?? false;
-  return reconcileDelivery(
-    rules.map((rule, i) => (i === index ? { ...rule, enabled } : rule)),
-    mailed,
-  );
+  return rules.map((rule, i) => (i === index ? { ...rule, enabled } : rule));
 }
 
-/** Answer the delivery question for the whole occasion. */
-export function setPromptDelivery(
-  rules: readonly ReminderRuleInput[],
-  mailed: boolean,
+/** The prompt's starting answer: an unticked item will be posted once ticked,
+ *  or handed over in person where posting is not on offer. */
+export function promptDraftOf(
+  offers: readonly ReminderRuleInput[],
 ): ReminderRuleInput[] {
-  return reconcileDelivery(rules, mailed);
+  const present = new Set(offers.map((r) => r.action));
+  const ticked = new Set(offers.filter((r) => r.enabled).map((r) => r.action));
+  const posted = new Set(
+    offers
+      .filter((r) => verbOf(r.action) === "send")
+      .map((r) => deliveryParentOf(r, present)),
+  );
+  return offers.map((rule) => {
+    const parent = deliveryParentOf(rule, present);
+    if (parent === null || ticked.has(parent)) return rule;
+    const mailed = posted.has(parent);
+    return {
+      ...rule,
+      enabled: verbOf(rule.action) === "send" ? mailed : !mailed,
+    };
+  });
+}
+
+/** The prompt's answer as it is written: a delivery only for a ticked item. */
+export function promptAnswerOf(
+  rules: readonly ReminderRuleInput[],
+): ReminderRuleInput[] {
+  const present = new Set(rules.map((r) => r.action));
+  const ticked = new Set(rules.filter((r) => r.enabled).map((r) => r.action));
+  return rules.map((rule) => {
+    const parent = deliveryParentOf(rule, present);
+    return parent === null || ticked.has(parent)
+      ? rule
+      : { ...rule, enabled: false };
+  });
 }

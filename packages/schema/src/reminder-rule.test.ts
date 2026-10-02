@@ -20,9 +20,11 @@ import {
   promptOffsetDays,
   leadTimeLabel,
   offerLabel,
-  promptGroupsOf,
+  planOffers,
+  promptAnswerOf,
+  promptDraftOf,
+  promptItemsOf,
   setPromptItem,
-  setPromptDelivery,
 } from "./index.js";
 
 /** Assemble a stored rule row from the parts a test cares about. */
@@ -67,6 +69,8 @@ describe("reminderActionSchema / actionDefs", () => {
       "get:card",
       "send:card",
       "send:gift",
+      "give:card",
+      "give:gift",
       "visit",
       "remember",
       "other",
@@ -282,21 +286,19 @@ describe("reminderRuleLabel", () => {
 describe("resolveReminderSchedule", () => {
   it("falls back to the kind defaults when there are no stored rules", () => {
     const { rules, source } = resolveReminderSchedule("birthday", []);
-    // Furthest-out first: the two shop trips a dozen days out, posting the card
-    // a week out, then the day-of group. `offsetDays` is when a thing is *due*; how long it then
-    // sits on the list is the action's own `activeDays`.
+    // Furthest-out first: the two shop trips a dozen days out, posting a week
+    // out, then the day-of group. `offsetDays` is when a thing is *due*; how
+    // long it then sits on the list is the action's own `activeDays`.
     expect(rules.map((r) => r.action)).toEqual([
       "get:gift",
       "get:card",
       "send:card",
       "send:gift",
+      "give:card",
+      "give:gift",
       "wish",
     ]);
-    // The two deliveries share an offset deliberately: the prompt asks *in
-    // person or by mail?* once for the whole occasion, so a caption that had to
-    // say "7 days, or 9 for the gift" would describe a distinction the control
-    // does not offer.
-    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 7, 0]);
+    expect(rules.map((r) => r.offsetDays)).toEqual([12, 12, 7, 7, 0, 0, 0]);
     // ⚠️ No `call`, no `message:sms`. They sat in this list until 2026-09-05 and
     // folded into the one `wish` row: a channel is a button on the
     // acknowledgment, not a second errand to tick.
@@ -431,8 +433,8 @@ describe("offerLabel", () => {
     expect(offerLabel("wish", kindDefs.birthday.greeting)).toBe(
       "Wish them a happy birthday",
     );
-    expect(offerLabel("get:gift", kindDefs.birthday.greeting)).toBe(
-      "Get a gift",
+    expect(offerLabel("send:gift", kindDefs.birthday.greeting)).toBe(
+      "Send a gift",
     );
   });
 });
@@ -449,105 +451,87 @@ describe("leadTimeLabel", () => {
   });
 });
 
-describe("promptGroupsOf / setPromptItem / setPromptDelivery", () => {
+describe("the prompt's draft and answer", () => {
   /** A birthday's offer set as the prompt is handed it: kind defaults, wish on. */
-  const offers = () => resolveReminderSchedule("birthday", []).rules;
-  const enabledIn = (rules: readonly ReminderRuleInput[]) =>
-    rules.filter((r) => r.enabled).map((r) => r.action);
+  const offers = () =>
+    promptDraftOf(resolveReminderSchedule("birthday", []).rules);
+  const tick = (rules: ReminderRuleInput[], action: string) =>
+    setPromptItem(
+      rules,
+      rules.findIndex((r) => r.action === action),
+      true,
+    );
+  const writtenOf = (rules: ReminderRuleInput[]) =>
+    promptAnswerOf(rules)
+      .filter((r) => r.enabled)
+      .map((r) => r.action)
+      .sort();
 
-  it("lifts the deliveries out of the items", () => {
-    const { items, delivery } = promptGroupsOf(offers());
-
-    // Posting is not a peer of buying: offered side by side, the prompt let you
-    // schedule a posting for a card you were never getting.
-    expect(items.map((i) => i.rule.action)).toEqual([
+  it("draws one tick per thing to do, the deliveries folded in", () => {
+    expect(promptItemsOf(offers()).map((i) => i.rule.action)).toEqual([
       "get:gift",
       "get:card",
       "wish",
     ]);
-    // Nothing it could deliver is on, so it has nothing to ask about yet.
-    expect(delivery).toEqual({
-      mailed: false,
-      visible: false,
-      offsetDays: null,
-    });
   });
 
-  it("asks the delivery question only once something needs delivering", () => {
-    const card = offers().findIndex((r) => r.action === "get:card");
-
-    expect(
-      promptGroupsOf(setPromptItem(offers(), card, true)).delivery,
-    ).toEqual({ mailed: false, visible: true, offsetDays: 7 });
+  it("labels the ticks for giving, not for buying", () => {
+    expect(offerLabel("get:gift", "a happy birthday")).toBe("Give a gift");
+    expect(offerLabel("get:card", "a happy birthday")).toBe("Give a card");
   });
 
-  it("is one answer for the occasion, not one per item", () => {
-    const rules = offers();
-    const card = rules.findIndex((r) => r.action === "get:card");
-    const gift = rules.findIndex((r) => r.action === "get:gift");
-
-    let next = setPromptItem(rules, card, true);
-    next = setPromptItem(next, gift, true);
-    next = setPromptDelivery(next, true);
-
-    // ⚠️ Both postings, from the one choice. Asking under the gift and again
-    // under the card is two questions where nobody has two answers.
-    expect(enabledIn(next).sort()).toEqual([
-      "get:card",
+  it("posts what is ticked, unless told otherwise", () => {
+    expect(writtenOf(tick(offers(), "get:gift"))).toEqual([
       "get:gift",
-      "send:card",
       "send:gift",
       "wish",
     ]);
   });
 
-  it("never posts a thing that is no longer being got", () => {
-    const rules = offers();
-    const card = rules.findIndex((r) => r.action === "get:card");
+  it("never delivers a thing that is not being got", () => {
+    expect(writtenOf(offers())).toEqual(["wish"]);
+  });
 
-    const mailing = setPromptDelivery(setPromptItem(rules, card, true), true);
-    expect(enabledIn(mailing)).toContain("send:card");
+  it("hands it over in person when posting is no longer on offer", () => {
+    const late = promptDraftOf(planOffers("birthday", [], 5));
+    expect(writtenOf(tick(late, "get:card"))).toEqual([
+      "get:card",
+      "give:card",
+      "wish",
+    ]);
+  });
 
-    // Turning the item off has to take its delivery with it — otherwise the
-    // write schedules a posting for a card nobody is buying.
-    const off = setPromptItem(mailing, card, false);
-    expect(enabledIn(off)).toEqual(["wish"]);
+  it("keeps how a schedule already gives what it already ticks", () => {
+    const inPerson = resolveReminderSchedule("birthday", []).rules.map((r) =>
+      r.action === "get:gift" || r.action === "give:gift"
+        ? { ...r, enabled: true }
+        : r,
+    );
+    expect(writtenOf(promptDraftOf(inPerson))).toEqual([
+      "get:gift",
+      "give:gift",
+      "wish",
+    ]);
   });
 
   it("writes the whole set, disabled rows included", () => {
     const rules = offers();
-    const gift = rules.findIndex((r) => r.action === "get:gift");
-
-    // Rows existing is what makes "asked, and chose nothing" distinguishable
-    // from "never asked", so no edit may drop one — a partial write would have
-    // the question return next year.
-    for (const next of [
-      setPromptItem(rules, gift, true),
-      setPromptDelivery(rules, true),
-      setPromptItem(setPromptDelivery(rules, true), gift, false),
-    ]) {
-      expect(next.map((r) => r.action)).toEqual(rules.map((r) => r.action));
-    }
+    expect(
+      promptAnswerOf(tick(rules, "get:gift")).map((r) => r.action),
+    ).toEqual(rules.map((r) => r.action));
   });
 
   it("keeps an orphaned delivery visible as an item of its own", () => {
-    // A schedule may hold a `send:card` with no `get:card` beside it — the full
-    // editor writes flat, and a peer on an older build synced sets like this.
-    // Grouped under an absent parent it would only ever show when that parent
-    // was on, i.e. never; orphaned, it is simply an item again.
+    // A schedule may hold a `send:card` with no `get:card` beside it, since the
+    // full editor writes flat; grouped under an absent parent it would never show.
     const orphan: ReminderRuleInput[] = [
       { action: "send:card", label: null, offsetDays: 7, enabled: true },
       { action: "wish", label: null, offsetDays: 0, enabled: true },
     ];
-    const { items, delivery } = promptGroupsOf(orphan);
-
-    expect(items.map((i) => i.rule.action)).toEqual(["send:card", "wish"]);
-    expect(delivery).toBeNull();
-  });
-
-  it("reports no delivery question when the set holds none", () => {
-    expect(
-      promptGroupsOf(resolveReminderSchedule("moved", []).rules).delivery,
-    ).toBeNull();
+    expect(promptItemsOf(orphan).map((i) => i.rule.action)).toEqual([
+      "send:card",
+      "wish",
+    ]);
+    expect(writtenOf(orphan)).toEqual(["send:card", "wish"]);
   });
 });
