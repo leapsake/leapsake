@@ -25,7 +25,7 @@ export function EmptyState({
           <LinkButton
             key={action.label}
             {...action}
-            primary={index === 0}
+            tone={index === 0 ? "primary" : "secondary"}
             style={styles.emptyStateButton}
           />
         ))}

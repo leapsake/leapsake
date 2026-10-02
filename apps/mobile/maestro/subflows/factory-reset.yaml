@@ -62,9 +62,9 @@ appId: com.leapsake.app
 
 # Open whichever confirmation this device offers. Every step here is conditional, because
 # `openLink` does not remount a route that is already mounted: a previous run that died
-# mid-confirm leaves this screen already armed and the opening button gone. The ellipsis
-# separates each button from the section heading above it, which is the plain word and is
-# not tappable.
+# mid-confirm leaves this screen already armed and the opening button gone. Factory reset is
+# reached by its id, since its button and the section heading above it share the words;
+# Forget account's ellipsis does the same job.
 # **The whole opening is retried.** A tap on either button is sometimes swallowed on a slow
 # host, leaving this screen exactly as it was — measured twice on hosted runners, and not
 # fixed by tapping a point inside the element. Each attempt re-reads the screen, so a tap
@@ -74,19 +74,21 @@ appId: com.leapsake.app
     commands:
       - runFlow:
           when:
-            visible: "Factory reset…"
+            visible:
+              id: "factory-reset-start"
           commands:
             # A point inside the element, not the element: Maestro's plain tap does not always
             # fire an RN Pressable, and a swallowed tap here leaves this screen exactly as it was.
+            # It opens the confirmation as its own screen.
             - tapOn:
-                text: "Factory reset…"
+                id: "factory-reset-start"
                 point: "50%,50%"
             # **Wait for the field, exactly as the Forget branch below does.** Without this the
             # `when: visible: factory-reset-confirm` gate underneath is evaluated a few
             # milliseconds after the tap, before the confirmation has rendered — so it reads
             # false, the fill-and-fire block is SKIPPED, and **the flow erases nothing while
             # every step still reports COMPLETED**. Seen on Android 2026-08-31: `Tap on
-            # "Factory reset…" COMPLETED` followed immediately by `Run flow when id:
+            # "Factory reset…" COMPLETED` (its inline confirmation, then) followed immediately by `Run flow when id:
             # factory-reset-confirm is visible... SKIPPED`, and Flow 1 then asserting a first
             # run against the previous arc's store. It is the same silent class as the keyboard
             # trap below, and worse, because it can leave the whole suite green on stale state.
@@ -99,7 +101,7 @@ appId: com.leapsake.app
             # would need dismissing, and a teardown that stalls leaves the next flow
             # asserting against the previous arc's store — the same silent class as
             # the two traps above.
-            - assertVisible: "Export my data first…"
+            - assertVisible: "Export data first"
       - runFlow:
           when:
             visible: "Forget account…"
@@ -117,7 +119,7 @@ appId: com.leapsake.app
                 timeout: 20000
             # As in the factory-reset branch above: asserted, never tapped. The arc
             # never reaches this branch; it runs only when a flow is re-run after 04.
-            - assertVisible: "Export my data first…"
+            - assertVisible: "Export data first"
 
 # Fill and fire whichever is now open. `eraseText` first, because a field still holding the
 # word from a dead run would otherwise become ERASEERASE, which arms nothing — and the flow
@@ -134,7 +136,7 @@ appId: com.leapsake.app
       - runFlow:
           file: dismiss-keyboard.yaml
           env:
-            ANCHOR: "Factory reset"
+            ANCHOR: "Type ERASE to confirm"
       - tapOn: "Erase everything"
 - runFlow:
     when:

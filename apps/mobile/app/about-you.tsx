@@ -27,7 +27,7 @@ const TEXT = {
   addWithList: "Or add yourself",
   addAlone: "Add yourself",
   /** Offered only to a store with nobody in it: a list to pick from. */
-  importFirst: "Import your contacts",
+  importFirst: "Import contacts",
   save: "Save",
   saving: "Saving…",
   nameRequired: "Enter a first, middle or last name before saving.",

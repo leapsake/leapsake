@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
-import Constants from "expo-constants";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import type { SyncStatus } from "@leapsake/core";
+import {
+  ExportFirstOffer,
+  useExportShare,
+} from "../components/ExportFirstOffer";
 import { LinkButton } from "../components/LinkButton";
-import { useCore, useAccount } from "../lib/core-context";
-import { exportAndShare } from "../lib/export-share";
+import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 
@@ -31,7 +31,7 @@ export default function DataScreen() {
 
         <View style={{ marginTop: 24, gap: 8 }}>
           <Text style={styles.title}>Import</Text>
-          <LinkButton href="/import" label="Import your contacts" glyph="📇" />
+          <LinkButton href="/import" label="Import contacts" glyph="📇" />
         </View>
 
         {/* One way to be rid of this device's data per custody state: both
@@ -217,46 +217,8 @@ function ForgetAccountSection() {
   );
 }
 
-/** The word a user must type to arm the (irreversible) factory reset. */
-const FACTORY_RESET_PHRASE = "ERASE";
-
-/**
- * Erase everything and boot as a fresh install, for an Unauthenticated device.
- * On success the provider rebuilds in place, so there is no done state.
- */
+/** The way into the accountless wipe, which confirms on its own screen. */
 function FactoryResetSection() {
-  const account = useAccount();
-  const [confirming, setConfirming] = useState(false);
-  const [typed, setTyped] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [working, setWorking] = useState(false);
-
-  const armed = typed.trim().toUpperCase() === FACTORY_RESET_PHRASE;
-
-  async function reset() {
-    if (working) return;
-    if (!armed)
-      return showFormProblem(
-        typeToConfirm(FACTORY_RESET_PHRASE),
-        NOT_CONFIRMED,
-      );
-    setError(null);
-    setWorking(true);
-    try {
-      await account.factoryReset();
-      // The provider rebuilds in place; this screen unmounts to the fresh app.
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't reset.");
-      setWorking(false);
-    }
-  }
-
-  function cancel() {
-    setConfirming(false);
-    setTyped("");
-    setError(null);
-  }
-
   return (
     <View style={{ marginTop: 24, gap: 8 }}>
       <Text style={styles.title}>Factory reset</Text>
@@ -264,125 +226,15 @@ function FactoryResetSection() {
         Erase everything on this device and start over — all people, pets,
         reminders, and settings.
       </Text>
-      {!confirming ? (
-        <Pressable
-          style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-          onPress={() => setConfirming(true)}
-        >
-          <Text style={styles.buttonText}>Factory reset…</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.muted}>
-            This permanently erases all data on this device. There is no account
-            holding a copy, so this data cannot be recovered afterward.
-          </Text>
-          {/* The accountless wipe always destroys the only copy. */}
-          <ExportFirstOffer busy={working} />
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>
-              Type {FACTORY_RESET_PHRASE} to confirm
-            </Text>
-            {/* An empty field gives an E2E driver nothing else to select. */}
-            <TextInput
-              testID="factory-reset-confirm"
-              style={styles.input}
-              value={typed}
-              onChangeText={setTyped}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
-          </View>
-          <Pressable
-            style={[
-              styles.button,
-              styles.buttonDestructive,
-              styles.buttonBlock,
-              (!armed || working) && { opacity: 0.5 },
-            ]}
-            accessibilityState={{ busy: working }}
-            onPress={reset}
-          >
-            <Text style={styles.buttonText}>
-              {working ? "Erasing…" : "Erase everything"}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.buttonSecondary, styles.buttonBlock]}
-            accessibilityState={{ busy: working }}
-            onPress={() => {
-              if (!working) cancel();
-            }}
-          >
-            <Text style={styles.buttonSecondaryText}>Cancel</Text>
-          </Pressable>
-          {error !== null && (
-            <Text style={styles.danger} accessibilityRole="alert">
-              {error}
-            </Text>
-          )}
-        </View>
-      )}
+      <LinkButton
+        href="/factory-reset"
+        label="Factory reset"
+        glyph="⚠️"
+        tone="destructive"
+        testID="factory-reset-start"
+      />
     </View>
   );
-}
-
-/** The release version stamped into the archive, else the core version. */
-const APP_VERSION =
-  Constants.expoConfig?.extra?.release ??
-  Constants.expoConfig?.version ??
-  "unknown";
-
-/**
- * The expo wiring for `exportAndShare`. ⚠️ Never iCloud, and no
- * `expo-sharing` plugin: `@leapsake/export` → It must never use iCloud.
- */
-function useExportShare() {
-  const core = useCore();
-  const [working, setWorking] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function run() {
-    if (working) return;
-    setError(null);
-    setResult(null);
-    setWorking(true);
-    try {
-      setResult(
-        await exportAndShare({
-          archive: () => core.export.archive({ appVersion: APP_VERSION }),
-          // Caches, not documents: see `export-share.ts`.
-          write: (filename, bytes) => {
-            const file = new File(Paths.cache, filename);
-            if (file.exists) file.delete(); // a second export the same day
-            file.write(bytes);
-            return {
-              uri: file.uri,
-              remove: () => {
-                if (file.exists) file.delete();
-              },
-            };
-          },
-          canShare: () => Sharing.isAvailableAsync(),
-          share: (uri) =>
-            Sharing.shareAsync(uri, {
-              mimeType: "application/zip",
-              UTI: "public.zip-archive",
-              dialogTitle: "Save your Leapsake export",
-            }),
-        }),
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn't export your data.",
-      );
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  return { working, result, error, run: () => void run() };
 }
 
 /** The whole store as one `.zip`, via the share sheet; needs no account. */
@@ -405,7 +257,7 @@ function ExportSection() {
         onPress={run}
       >
         <Text style={styles.buttonText}>
-          {working ? "Preparing…" : "Export my data…"}
+          {working ? "Preparing…" : "Export data"}
         </Text>
       </Pressable>
       {result !== null && (
@@ -420,44 +272,5 @@ function ExportSection() {
         </Text>
       )}
     </View>
-  );
-}
-
-/**
- * The export, offered inside a destructive confirmation, above its typed
- * field. `busy` means the destruction is already running.
- */
-function ExportFirstOffer({ busy = false }: { busy?: boolean }) {
-  const { working, result, error, run } = useExportShare();
-
-  return (
-    <>
-      <Pressable
-        testID="export-first-start"
-        style={[
-          styles.button,
-          styles.buttonBlock,
-          (working || busy) && { opacity: 0.5 },
-        ]}
-        accessibilityState={{ busy: working || busy }}
-        onPress={() => {
-          if (!busy) run();
-        }}
-      >
-        <Text style={styles.buttonText}>
-          {working ? "Preparing…" : "Export my data first…"}
-        </Text>
-      </Pressable>
-      {result !== null && (
-        <Text testID="export-first-result" style={styles.muted}>
-          {result}
-        </Text>
-      )}
-      {error !== null && (
-        <Text style={styles.danger} accessibilityRole="alert">
-          {error}
-        </Text>
-      )}
-    </>
   );
 }
