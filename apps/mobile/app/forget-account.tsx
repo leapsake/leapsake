@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Redirect, Stack, useRouter } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { ExportFirstOffer } from "../components/ExportFirstOffer";
 import { useAccount } from "../lib/core-context";
@@ -34,7 +34,6 @@ const TEXT = {
   deleteAll: "Delete all data",
   forget: "Forget account",
   removing: "Removing…",
-  cancel: "Cancel",
   checkFailed: "Couldn't check this account.",
   failed: "Couldn't remove it.",
 } as const;
@@ -45,7 +44,6 @@ const TEXT = {
  */
 export default function ForgetAccountScreen() {
   const account = useAccount();
-  const router = useRouter();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [info, setInfo] = useState<{
     username?: string;
@@ -142,16 +140,6 @@ export default function ForgetAccountScreen() {
             </Pressable>
           </>
         )}
-        <Pressable
-          style={[styles.buttonSecondary, styles.buttonBlock]}
-          accessibilityRole="button"
-          accessibilityState={{ busy: working }}
-          onPress={() => {
-            if (!working) router.back();
-          }}
-        >
-          <Text style={styles.buttonSecondaryText}>{TEXT.cancel}</Text>
-        </Pressable>
         {error !== null && (
           <Text style={styles.danger} accessibilityRole="alert">
             {error}
