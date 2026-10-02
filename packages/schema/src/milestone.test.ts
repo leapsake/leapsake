@@ -353,6 +353,28 @@ describe("a milestone draft", () => {
     }
   });
 
+  it("says when two reminders do the same thing", () => {
+    const gift = {
+      action: "get:gift",
+      label: null,
+      offsetDays: 7,
+      enabled: true,
+    } as const;
+    expect(
+      milestoneInputOf(milestoneDraftWithSchedule(blank, [gift, gift])),
+    ).toEqual({ ok: false, errors: { reminderSchedule: "duplicate" } });
+    const flowers = { ...other, label: "Send flowers" };
+    expect(
+      milestoneInputOf(
+        milestoneDraftWithSchedule(blank, [
+          flowers,
+          { ...other, label: " " },
+          flowers,
+        ]),
+      ),
+    ).toEqual({ ok: false, errors: { reminderSchedule: "labelRequired" } });
+  });
+
   it("needs a label for an `other` milestone and for an `other` reminder", () => {
     const draft = milestoneDraftWithSchedule(
       milestoneDraftWithKind(blank, "other"),

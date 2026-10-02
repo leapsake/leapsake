@@ -5,7 +5,7 @@ import {
   type ReminderRule,
   type ReminderRuleInput,
   actionDefOf,
-  reminderRuleInputSchema,
+  reminderScheduleInputSchema,
   verbOf,
 } from "./reminder-rule.js";
 
@@ -552,7 +552,7 @@ function dayImpliesMonth(d: { month?: number | null; day?: number | null }) {
  * when absent, leaves them alone.
  */
 const reminderScheduleShape = {
-  reminderSchedule: z.array(reminderRuleInputSchema).optional(),
+  reminderSchedule: reminderScheduleInputSchema.optional(),
 };
 
 const dayImpliesMonthIssue = {
@@ -619,7 +619,7 @@ export interface MilestoneDraft {
 export interface MilestoneDraftErrors {
   date?: "dayWithoutMonth" | "outOfRange";
   note?: "required";
-  reminderSchedule?: "labelRequired";
+  reminderSchedule?: "labelRequired" | "duplicate";
   kind?: "invalid";
 }
 
@@ -691,6 +691,9 @@ export function milestoneDraftWithSchedule(
   return { ...draft, reminderSchedule, scheduleCustomized: true };
 }
 
+const unlabelledOther = (rule: ReminderRuleInput) =>
+  verbOf(rule.action) === "other" && (rule.label ?? "").trim() === "";
+
 const numberOrNull = (raw: string) =>
   raw.trim() === "" ? null : Number(raw.trim());
 
@@ -718,9 +721,12 @@ export function milestoneInputOf(draft: MilestoneDraft): MilestoneDraftResult {
     const field = issue.path[0];
     if (field === "kind") errors.kind = "invalid";
     else if (field === "note") errors.note = "required";
-    else if (field === "reminderSchedule")
-      errors.reminderSchedule = "labelRequired";
-    else if (issue.code === "custom") errors.date = "dayWithoutMonth";
+    else if (field === "reminderSchedule") {
+      const rule = input.reminderSchedule?.[Number(issue.path[1])];
+      if (rule !== undefined && unlabelledOther(rule))
+        errors.reminderSchedule = "labelRequired";
+      else errors.reminderSchedule ??= "duplicate";
+    } else if (issue.code === "custom") errors.date = "dayWithoutMonth";
     else errors.date ??= "outOfRange";
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors };

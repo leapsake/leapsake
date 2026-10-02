@@ -33,6 +33,8 @@ const TEXT = {
   labelRequired: "Give this milestone a label before saving.",
   reminderLabelRequired:
     "Give each “Other” reminder a label before saving, or remove it.",
+  reminderDuplicate:
+    "Two reminders do the same thing. Change or remove one before saving.",
 } as const;
 
 /** Why Save can't write the milestone yet, or undefined when it can. */
@@ -43,6 +45,7 @@ export function milestoneProblem(
   if (errors.note === "required") return TEXT.labelRequired;
   if (errors.reminderSchedule === "labelRequired")
     return TEXT.reminderLabelRequired;
+  if (errors.reminderSchedule === "duplicate") return TEXT.reminderDuplicate;
   return undefined;
 }
 
