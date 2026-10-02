@@ -1,4 +1,5 @@
-import { Pressable, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type ReminderAction,
   type ReminderRuleInput,
@@ -9,10 +10,27 @@ import {
   verbOf,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
-import { RowMenu, rowMenuItem } from "./RowMenu";
 import { SelectField } from "./SelectField";
+import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
 import { Button } from "./Button";
+
+const TEXT = {
+  heading: "Reminders",
+  none: "No reminders for this milestone.",
+  action: "Action",
+  customAction: "Custom action (e.g. Send flowers)",
+  daysBefore: "Days before",
+  add: "Add reminder",
+  remove: "Remove reminder",
+  timing: (days: number) =>
+    days === 0
+      ? "On the day"
+      : days === 1
+        ? "1 day before"
+        : `${days} days before`,
+  editRule: (label: string, timing: string) => `${label}, ${timing}. Edit`,
+} as const;
 
 /** The schedulable actions, in registry order (`SCHEDULABLE_ACTIONS`). */
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
@@ -22,8 +40,8 @@ const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
   }));
 
 /**
- * A milestone's reminder rules, each an action some days before it, on or off;
- * `other` reveals a free-text label.
+ * A milestone's reminder rules, one line each: the box turns a rule on or off,
+ * and the rest of the line opens a sheet editing its action and timing.
  */
 export function ReminderScheduleFields({
   value,
@@ -32,88 +50,126 @@ export function ReminderScheduleFields({
   value: ReminderRuleInput[];
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
+  const [editing, setEditing] = useState<number | null>(null);
+
   const update = (index: number, patch: Partial<ReminderRuleInput>) =>
     onChange(
       value.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)),
     );
-  const remove = (index: number) =>
+  const remove = (index: number) => {
+    setEditing(null);
     onChange(value.filter((_, i) => i !== index));
+  };
   // The schema picks what Add appends, so the two editors cannot drift.
-  const add = () => onChange([...value, nextSchedulableRule(value)]);
+  const add = () => {
+    onChange([...value, nextSchedulableRule(value)]);
+    setEditing(value.length);
+  };
+
+  const open = editing === null ? undefined : value[editing];
 
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Reminders</Text>
+      <Text style={styles.fieldLabel}>{TEXT.heading}</Text>
       {value.length === 0 ? (
-        <Text style={styles.muted}>No reminders for this milestone.</Text>
+        <Text style={styles.muted}>{TEXT.none}</Text>
       ) : null}
-      {value.map((rule, i) => (
-        // Rows have no id until saved, so the index is the key.
-        <View key={i} style={{ marginBottom: 16 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
+      {value.map((rule, i) => {
+        const label = reminderRuleLabel(rule);
+        const timing = TEXT.timing(rule.offsetDays);
+        return (
+          // Rows have no id until saved, so the index is the key.
+          <View key={i} style={[styles.row, local.line]}>
             <Pressable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: rule.enabled }}
-              accessibilityLabel={reminderRuleLabel(rule)}
+              accessibilityLabel={label}
               onPress={() => update(i, { enabled: !rule.enabled })}
-              style={styles.rowWithLead}
+              hitSlop={12}
             >
               <CheckboxBox checked={rule.enabled} />
-              <Text style={styles.fieldValue}>Remind me</Text>
             </Pressable>
-            <RowMenu
-              subject={reminderRuleLabel(rule)}
-              items={[rowMenuItem.remove(() => remove(i))]}
-            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={TEXT.editRule(label, timing)}
+              onPress={() => setEditing(i)}
+              style={local.body}
+            >
+              <View style={styles.rowBody}>
+                <Text style={styles.fieldValue}>{label}</Text>
+                <Text style={styles.muted}>{timing}</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
           </View>
-          <SelectField
-            label="Action"
-            value={rule.action}
-            options={ACTION_OPTIONS}
-            onChange={(action) =>
-              // `other` needs a label; leaving it clears one.
-              update(i, {
-                action,
-                label: verbOf(action) === "other" ? (rule.label ?? "") : null,
-              })
-            }
-          />
-          {verbOf(rule.action) === "other" ? (
+        );
+      })}
+      <Button
+        label={TEXT.add}
+        tone="secondary"
+        onPress={add}
+        style={{ alignSelf: "flex-start", marginTop: 8 }}
+      />
+
+      <Sheet
+        visible={open !== undefined}
+        onClose={() => setEditing(null)}
+        close="done"
+        title={open === undefined ? undefined : reminderRuleLabel(open)}
+        avoidKeyboard
+      >
+        {open !== undefined && editing !== null ? (
+          <View style={local.sheetBody}>
+            <SelectField
+              label={TEXT.action}
+              value={open.action}
+              options={ACTION_OPTIONS}
+              onChange={(action) =>
+                // `other` needs a label; leaving it clears one.
+                update(editing, {
+                  action,
+                  label: verbOf(action) === "other" ? (open.label ?? "") : null,
+                })
+              }
+            />
+            {verbOf(open.action) === "other" ? (
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>{TEXT.customAction}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={open.label ?? ""}
+                  onChangeText={(text) => update(editing, { label: text })}
+                />
+              </View>
+            ) : null}
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>
-                Custom action (e.g. Send flowers)
-              </Text>
+              <Text style={styles.fieldLabel}>{TEXT.daysBefore}</Text>
               <TextInput
                 style={styles.input}
-                value={rule.label ?? ""}
-                onChangeText={(text) => update(i, { label: text })}
+                value={String(open.offsetDays)}
+                onChangeText={(text) =>
+                  update(editing, {
+                    offsetDays: Math.max(0, Math.trunc(Number(text) || 0)),
+                  })
+                }
+                keyboardType="number-pad"
               />
             </View>
-          ) : null}
-          <Text style={styles.fieldLabel}>Days before</Text>
-          <TextInput
-            style={styles.input}
-            value={String(rule.offsetDays)}
-            onChangeText={(text) =>
-              update(i, {
-                offsetDays: Math.max(0, Math.trunc(Number(text) || 0)),
-              })
-            }
-            keyboardType="number-pad"
-          />
-        </View>
-      ))}
-      <Button
-        label="Add reminder"
-        onPress={add}
-        style={{ alignSelf: "flex-start" }}
-      />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => remove(editing)}
+            >
+              <Text style={[styles.link, styles.danger]}>{TEXT.remove}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </Sheet>
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  line: { flexDirection: "row", alignItems: "center", gap: 12 },
+  body: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetBody: { gap: 16, padding: 16 },
+});
