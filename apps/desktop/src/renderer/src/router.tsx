@@ -143,7 +143,7 @@ function readMilestoneDraft(formData: FormData): MilestoneDraft {
     year: text("year"),
     note: text("note"),
     reminderSchedule: readReminderSchedule(formData) ?? [],
-    scheduleCustomized: false,
+    scheduleCustomized: formData.has("reminderSchedule"),
   };
 }
 

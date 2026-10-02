@@ -21,7 +21,6 @@ describe("useMilestoneForm", () => {
         month: null,
         day: null,
         note: null,
-        reminderSchedule: resolveReminderSchedule("death", []).rules,
       },
     });
   });

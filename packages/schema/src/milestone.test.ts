@@ -312,8 +312,19 @@ describe("a milestone draft", () => {
         month: 12,
         day: 24,
         note: null,
-        reminderSchedule: [],
       },
+    });
+  });
+
+  it("leaves an untouched schedule out, so the kind's prompt still asks", () => {
+    expect(milestoneInputOf(blank)).toMatchObject({ ok: true });
+    expect(milestoneInputOf(blank)).not.toHaveProperty(
+      "input.reminderSchedule",
+    );
+    const edited = milestoneDraftWithSchedule(blank, []);
+    expect(milestoneInputOf(edited)).toMatchObject({
+      ok: true,
+      input: { reminderSchedule: [] },
     });
   });
 

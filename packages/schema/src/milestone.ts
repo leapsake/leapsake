@@ -632,7 +632,7 @@ export type MilestoneDraftResult =
         month: number | null;
         day: number | null;
         note: string | null;
-        reminderSchedule: ReminderRuleInput[];
+        reminderSchedule?: ReminderRuleInput[];
       };
     }
   | { ok: false; errors: MilestoneDraftErrors };
@@ -706,7 +706,10 @@ export function milestoneInputOf(draft: MilestoneDraft): MilestoneDraftResult {
     month: numberOrNull(draft.month),
     day: numberOrNull(draft.day),
     note: note === "" ? null : note,
-    reminderSchedule: draft.reminderSchedule,
+    // Left out untouched, so a save keeps what is stored.
+    ...(draft.scheduleCustomized
+      ? { reminderSchedule: draft.reminderSchedule }
+      : {}),
   };
   const errors: MilestoneDraftErrors = {};
   if (input.kind === "other" && input.note === null) errors.note = "required";
