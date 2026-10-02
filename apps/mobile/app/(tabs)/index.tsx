@@ -103,7 +103,9 @@ export default function RemindersScreen() {
         ListEmptyComponent={
           <EmptyState
             message="No reminders yet."
-            actions={[{ href: "/reminders/new", label: "+ Add a reminder" }]}
+            actions={[
+              { href: "/reminders/new", label: "Add a reminder", glyph: "🔔" },
+            ]}
           />
         }
         renderItem={({ item }) => {
