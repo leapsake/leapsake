@@ -1,9 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { ContactMethod } from "@leapsake/schema";
 import { actionLabel, offeredActions } from "../lib/contact-actions";
 import { resolveActions } from "@leapsake/contact-links";
 import { useContactReach } from "../lib/use-contact-reach";
 import { styles } from "../lib/styles";
+import { Button } from "./Button";
 
 /**
  * The ways to reach someone, on the reminder that asks you to: the likeliest
@@ -41,17 +42,13 @@ export function ContactReachButtons({
   const strip = (
     <View style={local.strip}>
       {offers.map(({ entry, action }) => (
-        <Pressable
+        <Button
           key={entry.method.id}
-          accessibilityRole="button"
+          label={`${actionLabel(action)} · ${entry.method.label}`}
+          tone="secondary"
           accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
           onPress={() => perform(action, entry)}
-          style={[styles.buttonSecondary, local.button]}
-        >
-          <Text style={styles.buttonSecondaryText}>
-            {actionLabel(action)} · {entry.method.label}
-          </Text>
-        </Pressable>
+        />
       ))}
     </View>
   );
@@ -72,11 +69,5 @@ const local = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
     marginTop: 8,
-  },
-  /** Not full-width, unlike a reminder's other buttons: a strip of like
-   *  things. `minHeight` matches `buttonBlock`. */
-  button: {
-    minHeight: 44,
-    justifyContent: "center",
   },
 });

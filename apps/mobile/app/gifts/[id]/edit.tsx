@@ -1,12 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { tagLabel } from "@leapsake/schema";
 import { GiftIdeaForm } from "../../../components/GiftIdeaForm";
@@ -18,6 +11,7 @@ import {
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
 
 /**
  * A gift idea's page: the idea, editable, and who it is for. Removing it
@@ -116,13 +110,11 @@ export default function GiftIdeaEditScreen() {
         onChanged={reload}
       />
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Remove gift idea"
+        tone="destructive"
         onPress={confirmDelete}
-        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-      >
-        <Text style={styles.buttonText}>Remove gift idea</Text>
-      </Pressable>
+      />
     </ScrollView>
   );
 }

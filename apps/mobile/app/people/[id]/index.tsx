@@ -23,6 +23,7 @@ import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { personTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
 
 // A person's page; each part carries its own Edit, beside what it changes.
 export default function PersonDetailScreen() {
@@ -176,13 +177,11 @@ export default function PersonDetailScreen() {
       )}
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Delete person"
+        tone="destructive"
         onPress={confirmDelete}
-        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-      >
-        <Text style={styles.buttonText}>Delete person</Text>
-      </Pressable>
+      />
 
       <RecordTimestamps
         createdAt={person.createdAt}

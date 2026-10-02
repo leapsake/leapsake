@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { ExportFirstOffer } from "../components/ExportFirstOffer";
 import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /** The word a user must type to arm the (irreversible) factory reset. */
 const FACTORY_RESET_PHRASE = "ERASE";
@@ -76,21 +77,13 @@ export default function FactoryResetScreen() {
             autoCorrect={false}
           />
         </View>
-        <Pressable
-          style={[
-            styles.button,
-            styles.buttonDestructive,
-            styles.buttonBlock,
-            (!armed || working) && { opacity: 0.5 },
-          ]}
-          accessibilityRole="button"
-          accessibilityState={{ busy: working }}
-          onPress={reset}
-        >
-          <Text style={styles.buttonText}>
-            {working ? TEXT.erasing : TEXT.erase}
-          </Text>
-        </Pressable>
+        <Button
+          label={working ? TEXT.erasing : TEXT.erase}
+          tone="destructive"
+          busy={working}
+          faded={!armed}
+          onPress={() => void reset()}
+        />
         {error !== null && (
           <Text style={styles.danger} accessibilityRole="alert">
             {error}

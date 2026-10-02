@@ -17,6 +17,7 @@ import { useCore, useDeviceId } from "../lib/core-context";
 import { requestNotificationPermissionOnThisDevice } from "../lib/notification-permission";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /** The label on this phone's own checkbox. */
 const THIS_PHONE_LABEL = "Notify me on this phone";
@@ -191,13 +192,10 @@ export default function NotificationsScreen() {
                   so these won't be delivered here.
                 </Text>
                 {!permissionNotice.canAskAgain && (
-                  <Pressable
-                    accessibilityRole="button"
-                    style={styles.button}
+                  <Button
+                    label="Open Settings"
                     onPress={() => void Linking.openSettings()}
-                  >
-                    <Text style={styles.buttonText}>Open Settings</Text>
-                  </Pressable>
+                  />
                 )}
               </View>
             )}

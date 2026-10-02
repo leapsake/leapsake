@@ -1,14 +1,6 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   type ReminderRuleInput,
   formatDueIn,
@@ -40,6 +32,8 @@ import {
   remindInLabel,
 } from "../../../lib/reminder-row";
 import { colors, styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
+import { LinkButton } from "../../../components/LinkButton";
 
 /** The title on the alert a failed write raises, naming which write failed. */
 const FAILURE_TITLES = {
@@ -274,19 +268,11 @@ export default function ReminderDetailScreen() {
       )}
       {/* The engine owns an automatic reminder's text: no Edit. */}
       {canEdit && (
-        // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which
-        // throws on a `style` array rather than merging it.
-        <Link href={`/reminders/${id}/edit`} asChild>
-          <Pressable
-            accessibilityRole="button"
-            style={StyleSheet.flatten([
-              styles.buttonSecondary,
-              styles.buttonBlock,
-            ])}
-          >
-            <Text style={styles.buttonSecondaryText}>Edit</Text>
-          </Pressable>
-        </Link>
+        <LinkButton
+          href={`/reminders/${id}/edit`}
+          label="Edit"
+          tone="secondary"
+        />
       )}
       {/* The prompt is answered here; Save untouched is "just the day". */}
       {planTarget !== undefined && (
@@ -309,15 +295,12 @@ export default function ReminderDetailScreen() {
             greeting={kindDefs[planTarget.milestoneKind].greeting}
             onChange={setDraft}
           />
-          <Pressable
-            accessibilityRole="button"
-            style={[styles.button, styles.buttonBlock]}
+          <Button
+            label="Save"
             onPress={() =>
               answer(planTarget.milestoneId, draft ?? planTarget.offers)
             }
-          >
-            <Text style={styles.buttonText}>Save</Text>
-          </Pressable>
+          />
         </View>
       )}
       {(isErrand || offered.length > 0) && (
@@ -326,52 +309,38 @@ export default function ReminderDetailScreen() {
           {/* ⚠️ Errands only: `setCompleted` would stamp a nudge whose
               condition is unmet, leaving it in Completed for good. */}
           {isErrand && (
-            <Pressable
-              accessibilityRole="button"
-              style={[
-                hasCta ? styles.buttonSecondary : styles.button,
-                styles.buttonBlock,
-              ]}
+            <Button
+              label={done ? COMPLETION.undo : COMPLETION.do}
+              tone={hasCta ? "secondary" : "primary"}
               onPress={toggle}
-            >
-              <Text
-                style={hasCta ? styles.buttonSecondaryText : styles.buttonText}
-              >
-                {done ? COMPLETION.undo : COMPLETION.do}
-              </Text>
-            </Pressable>
+            />
           )}
           {foldSnoozes(offered).map((action) => {
             if (action.kind === "remind-me")
               return (
-                <Pressable
+                <Button
                   key="remind-me"
-                  accessibilityRole="button"
-                  style={[styles.buttonSecondary, styles.buttonBlock]}
+                  label={REMIND_ME_IN.button}
+                  tone="secondary"
                   onPress={() => setRemindMeOpen(true)}
-                >
-                  <Text style={styles.buttonSecondaryText}>
-                    {REMIND_ME_IN.button}
-                  </Text>
-                </Pressable>
+                />
               );
             const offer = offerFor(action);
             // The CTA is filled, the ways out quiet. A prompt's CTA was
             // dropped, so its Save is the one filled button.
             const isCta = offer.kind === "navigate";
             return (
-              <Pressable
+              <Button
                 key={reminderActionKey(action)}
-                accessibilityRole="button"
-                style={[
+                label={offer.label}
+                tone={
                   // "Don't ask again" is a tombstone, red like Delete.
                   offer.kind === "dismiss"
-                    ? [styles.button, styles.buttonDestructive]
+                    ? "destructive"
                     : isCta
-                      ? styles.button
-                      : styles.buttonSecondary,
-                  styles.buttonBlock,
-                ]}
+                      ? "primary"
+                      : "secondary"
+                }
                 onPress={() => {
                   if (offer.kind === "navigate") router.push(offer.path);
                   else if (offer.kind === "answer-plan")
@@ -380,17 +349,7 @@ export default function ReminderDetailScreen() {
                   else if (offer.kind === "dismiss") confirmDelete();
                   // `answer-prompt` never gets here: `offered` dropped it.
                 }}
-              >
-                <Text
-                  style={
-                    isCta || offer.kind === "dismiss"
-                      ? styles.buttonText
-                      : styles.buttonSecondaryText
-                  }
-                >
-                  {offer.label}
-                </Text>
-              </Pressable>
+              />
             );
           })}
         </View>
@@ -413,13 +372,7 @@ export default function ReminderDetailScreen() {
       />
       {/* Last on the screen; a nudge offers its own "don't ask again". */}
       {canDelete && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={confirmDelete}
-          style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-        >
-          <Text style={styles.buttonText}>Delete</Text>
-        </Pressable>
+        <Button label="Delete" tone="destructive" onPress={confirmDelete} />
       )}
     </ScrollView>
   );

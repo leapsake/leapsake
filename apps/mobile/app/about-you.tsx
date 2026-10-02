@@ -1,11 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
 import { Typeahead } from "../components/Typeahead";
@@ -16,6 +10,7 @@ import { showFormProblem } from "../lib/form-problem";
 import { entityHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -109,13 +104,10 @@ export default function AboutYouScreen() {
           testID="about-you-pick"
         />
       ) : (
-        <Pressable
-          accessibilityRole="button"
-          style={styles.button}
+        <Button
+          label={TEXT.importFirst}
           onPress={() => router.push("/import")}
-        >
-          <Text style={styles.buttonText}>{TEXT.importFirst}</Text>
-        </Pressable>
+        />
       )}
 
       <Text style={styles.sectionTitle}>
@@ -125,16 +117,12 @@ export default function AboutYouScreen() {
         draft={form.fields}
         onChange={(draft) => form.update(() => draft)}
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ busy: saving }}
-        style={[styles.button, !form.canSubmit && { opacity: 0.4 }]}
+      <Button
+        label={saving ? TEXT.saving : TEXT.save}
+        busy={saving}
+        faded={!form.canSubmit}
         onPress={() => void save()}
-      >
-        <Text style={styles.buttonText}>
-          {saving ? TEXT.saving : TEXT.save}
-        </Text>
-      </Pressable>
+      />
     </ScrollView>
   );
 }

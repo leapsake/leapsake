@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import { personFacts } from "../lib/duplicate-pair";
 import { personHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /** Human-friendly tier copy; falls back to the raw tier if ever extended. */
 const TIER_LABEL: Record<string, string> = {
@@ -181,13 +181,10 @@ export default function DuplicatesScreen() {
             {focus !== null ? TEXT.scopedNone : TEXT.none}
           </Text>
           {focus !== null && (
-            <Pressable
-              accessibilityRole="button"
-              style={[styles.button, styles.buttonBlock]}
+            <Button
+              label={TEXT.continue}
               onPress={() => router.replace(personHref(focus))}
-            >
-              <Text style={styles.buttonText}>{TEXT.continue}</Text>
-            </Pressable>
+            />
           )}
         </View>
       ) : (
@@ -200,48 +197,36 @@ export default function DuplicatesScreen() {
             position={TEXT.progress(data.index + 1, data.candidates.length)}
           />
           <View style={styles.rowOffers}>
-            <Pressable
-              accessibilityRole="button"
-              style={[
-                styles.button,
-                styles.buttonDestructive,
-                styles.buttonBlock,
-              ]}
+            <Button
+              label={TEXT.merge}
+              tone="destructive"
               onPress={() => {
                 if (data.pair !== null) confirmMerge(data.pair);
               }}
-            >
-              <Text style={styles.buttonText}>{TEXT.merge}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={[styles.buttonSecondary, styles.buttonBlock]}
+            />
+            <Button
+              label={TEXT.notTheSame}
+              tone="secondary"
               onPress={() => {
                 if (data.pair !== null) reject(data.pair.candidate);
               }}
-            >
-              <Text style={styles.buttonSecondaryText}>{TEXT.notTheSame}</Text>
-            </Pressable>
+            />
             {/* Scoped, "Not now" is the one way past, skipping them all. */}
             {focus === null && data.candidates.length > 1 && (
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.buttonSecondary, styles.buttonBlock]}
+              <Button
+                label={TEXT.skip}
+                tone="secondary"
                 onPress={() => setSkipped((n) => n + 1)}
-              >
-                <Text style={styles.buttonSecondaryText}>{TEXT.skip}</Text>
-              </Pressable>
+              />
             )}
             {/* Never a dead end: skipping leaves the pairs outstanding, and
                 they stay linked from three other surfaces until resolved. */}
             {focus !== null && (
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.buttonSecondary, styles.buttonBlock]}
+              <Button
+                label={TEXT.notNow}
+                tone="secondary"
                 onPress={() => router.replace(personHref(focus))}
-              >
-                <Text style={styles.buttonSecondaryText}>{TEXT.notNow}</Text>
-              </Pressable>
+              />
             )}
           </View>
         </ScrollView>

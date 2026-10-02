@@ -1,18 +1,12 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { MilestoneTimelineEntry } from "@leapsake/schema";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
 
 /** The route base for a partner entity's pages, branching on its type. */
 function entityPath(type: "person" | "pet", id: string): string {
@@ -93,13 +87,11 @@ export default function RelationshipDetailScreen() {
         onChanged={reload}
       />
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Delete relationship"
+        tone="destructive"
         onPress={confirmDelete}
-        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-      >
-        <Text style={styles.buttonText}>Delete relationship</Text>
-      </Pressable>
+      />
     </ScrollView>
   );
 }

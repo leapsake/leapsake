@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { useExportShare } from "../components/ExportFirstOffer";
 import { LinkButton } from "../components/LinkButton";
 import { useAccount } from "../lib/core-context";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /**
  * Data in and out. Export leads, above the destructive actions and inside
@@ -96,16 +97,12 @@ function ExportSection() {
         your reminders, gift ideas and holiday choices. Leapsake doesn't upload
         it anywhere.
       </Text>
-      <Pressable
+      <Button
         testID="export-start"
-        style={[styles.button, styles.buttonBlock, working && { opacity: 0.5 }]}
-        accessibilityState={{ busy: working }}
+        label={working ? "Preparing…" : "Export data"}
+        busy={working}
         onPress={run}
-      >
-        <Text style={styles.buttonText}>
-          {working ? "Preparing…" : "Export data"}
-        </Text>
-      </Pressable>
+      />
       {result !== null && (
         // What left the device, which the E2E flow asserts on.
         <Text testID="export-result" style={styles.muted}>

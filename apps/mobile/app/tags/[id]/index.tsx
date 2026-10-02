@@ -1,12 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel } from "@leapsake/schema";
@@ -14,6 +7,7 @@ import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { personHref, petHref, tagTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
 
 // Everything wearing a tag, grouped by type. A gift idea has no read-only
 // view, so its row opens the idea's edit screen.
@@ -161,13 +155,7 @@ export default function TagDetailScreen() {
         </View>
       )}
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={confirmDelete}
-        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-      >
-        <Text style={styles.buttonText}>Delete tag</Text>
-      </Pressable>
+      <Button label="Delete tag" tone="destructive" onPress={confirmDelete} />
     </ScrollView>
   );
 }

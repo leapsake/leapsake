@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import Constants from "expo-constants";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useCore } from "../lib/core-context";
 import { exportAndShare } from "../lib/export-share";
 import { styles } from "../lib/styles";
+import { Button } from "./Button";
 
 /** The release version stamped into the archive, else the core version. */
 const APP_VERSION =
@@ -74,22 +75,12 @@ export function ExportFirstOffer({ busy = false }: { busy?: boolean }) {
 
   return (
     <>
-      <Pressable
+      <Button
         testID="export-first-start"
-        style={[
-          styles.button,
-          styles.buttonBlock,
-          (working || busy) && { opacity: 0.5 },
-        ]}
-        accessibilityState={{ busy: working || busy }}
-        onPress={() => {
-          if (!busy) run();
-        }}
-      >
-        <Text style={styles.buttonText}>
-          {working ? "Preparing…" : "Export data first"}
-        </Text>
-      </Pressable>
+        label={working ? "Preparing…" : "Export data first"}
+        busy={working || busy}
+        onPress={run}
+      />
       {result !== null && (
         <Text testID="export-first-result" style={styles.muted}>
           {result}

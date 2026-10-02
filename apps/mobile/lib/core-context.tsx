@@ -65,6 +65,7 @@ import {
   PLATFORM_NOTIFICATION_BUDGET,
   type MobileNotificationScheduler,
 } from "./notification-scheduler";
+import { Button } from "../components/Button";
 
 /** The account surface: custody acts, which are not transactional core ops. */
 export interface AccountApi {
@@ -609,9 +610,11 @@ function CustodyBanner({
             and if you used the phrase, use your password.
           </Text>
           <Text style={styles.bannerDetail}>{detail}</Text>
-          <Pressable style={styles.button} onPress={signOut}>
-            <Text>Sign out and unlock</Text>
-          </Pressable>
+          <Button
+            label="Sign out and unlock"
+            tone="secondary"
+            onPress={signOut}
+          />
           {signOutError !== null && (
             <Text style={styles.error}>{signOutError}</Text>
           )}
@@ -685,16 +688,12 @@ function RecoveryGate({
         {shownError !== undefined && (
           <Text style={styles.error}>{shownError}</Text>
         )}
-        <Pressable
+        <Button
           testID="recovery-submit"
-          style={[styles.gateButton, submitting && { opacity: 0.5 }]}
-          disabled={submitting}
+          label={submitting ? "Checking…" : "Unlock"}
+          busy={submitting}
           onPress={submit}
-        >
-          <Text style={styles.gateButtonText}>
-            {submitting ? "Checking…" : "Unlock"}
-          </Text>
-        </Pressable>
+        />
         {door === "password" && doors.phrase && (
           <Pressable onPress={() => switchTo("phrase")}>
             <Text style={styles.gateLink}>
@@ -754,16 +753,6 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     textAlignVertical: "top",
   },
-  gateButton: {
-    backgroundColor: "#2563eb",
-    borderRadius: 6,
-    padding: 14,
-    alignItems: "center",
-  },
-  gateButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
   gateLink: {
     marginTop: 16,
     textAlign: "center",
@@ -799,12 +788,5 @@ const styles = StyleSheet.create({
   bannerLink: {
     fontSize: 13,
     textDecorationLine: "underline",
-  },
-  button: {
-    borderWidth: 1,
-    borderColor: "#999",
-    borderRadius: 6,
-    padding: 10,
-    alignItems: "center",
   },
 });

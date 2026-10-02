@@ -1,12 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
@@ -21,6 +14,7 @@ import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { petTitle } from "../../../lib/record-title";
 import { styles } from "../../../lib/styles";
+import { Button } from "../../../components/Button";
 
 // A pet's page; each part carries its own Edit, as on a person's.
 export default function PetDetailScreen() {
@@ -137,13 +131,7 @@ export default function PetDetailScreen() {
       <MentionedInSection reminders={mentionedIn} />
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
-      <Pressable
-        accessibilityRole="button"
-        onPress={confirmDelete}
-        style={[styles.button, styles.buttonDestructive, styles.buttonBlock]}
-      >
-        <Text style={styles.buttonText}>Delete pet</Text>
-      </Pressable>
+      <Button label="Delete pet" tone="destructive" onPress={confirmDelete} />
 
       <RecordTimestamps createdAt={pet.createdAt} updatedAt={pet.updatedAt} />
     </ScrollView>

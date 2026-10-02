@@ -7,6 +7,7 @@ import { PasswordInput } from "./PasswordInput";
 import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { colors, styles } from "../lib/styles";
+import { Button } from "./Button";
 
 const NOT_SAVED_YET = "Save your phrase first";
 const SAVE_PHRASE_FIRST =
@@ -124,16 +125,12 @@ export function CreateAccountForm({
           {error}
         </Text>
       )}
-      <Pressable
+      <Button
         testID="account-submit"
-        style={[styles.button, busy && { opacity: 0.5 }]}
-        accessibilityState={{ busy }}
+        label={busy ? "Encrypting your data…" : "Encrypt my data"}
+        busy={busy}
         onPress={() => void onSubmit()}
-      >
-        <Text style={styles.buttonText}>
-          {busy ? "Encrypting your data…" : "Encrypt my data"}
-        </Text>
-      </Pressable>
+      />
     </View>
   );
 }
@@ -172,19 +169,15 @@ export function RecoveryKeyReveal({
         <CheckboxBox checked={acknowledged} />
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
       </Pressable>
-      <Pressable
-        style={[
-          styles.button,
-          !acknowledged && { backgroundColor: colors.border },
-        ]}
+      <Button
+        label="Done"
+        faded={!acknowledged}
         onPress={() =>
           acknowledged
             ? onDone()
             : showFormProblem(SAVE_PHRASE_FIRST, NOT_SAVED_YET)
         }
-      >
-        <Text style={styles.buttonText}>Done</Text>
-      </Pressable>
+      />
     </ScrollView>
   );
 }
@@ -217,9 +210,7 @@ function RecoveryPhraseWords({ phrase }: { phrase: string }) {
           </Text>
         ))}
       </View>
-      <Pressable style={styles.button} onPress={copy}>
-        <Text style={styles.buttonText}>{copied ? "Copied" : "Copy"}</Text>
-      </Pressable>
+      <Button label={copied ? "Copied" : "Copy"} onPress={() => void copy()} />
     </>
   );
 }

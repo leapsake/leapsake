@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { useAccount } from "../lib/core-context";
@@ -9,7 +9,8 @@ import {
   RecoveryKeyReveal,
 } from "../components/ProtectData";
 import { showFormProblem } from "../lib/form-problem";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 const NOT_CONFIRMED = "Not confirmed yet";
 const PASSWORD_FIRST = "Enter your password to confirm.";
@@ -108,9 +109,7 @@ function SignOutSection() {
         Your data stays on this device, encrypted. You’ll need your password to
         get back in.
       </Text>
-      <Pressable style={styles.button} onPress={signOut}>
-        <Text style={styles.buttonText}>Sign out</Text>
-      </Pressable>
+      <Button label="Sign out" onPress={signOut} />
       {error !== null && (
         <Text style={styles.danger} accessibilityRole="alert">
           {error}
@@ -167,9 +166,10 @@ function RecoveryPhraseSection({
         with a new one. Your old phrase stops working.
       </Text>
       {!confirming ? (
-        <Pressable style={styles.button} onPress={() => setConfirming(true)}>
-          <Text style={styles.buttonText}>Replace recovery phrase…</Text>
-        </Pressable>
+        <Button
+          label="Replace recovery phrase…"
+          onPress={() => setConfirming(true)}
+        />
       ) : (
         <>
           <Text style={styles.muted}>
@@ -183,32 +183,22 @@ function RecoveryPhraseSection({
             onChangeText={setPassword}
             autoComplete="current-password"
           />
-          <Pressable
-            style={[
-              styles.button,
-              (password === "" || working) && {
-                backgroundColor: colors.border,
-              },
-            ]}
-            accessibilityState={{ busy: working }}
+          <Button
+            label={working ? "Replacing…" : "Replace phrase"}
+            busy={working}
+            faded={password === ""}
             onPress={() => void rotate()}
-          >
-            <Text style={styles.buttonText}>
-              {working ? "Replacing…" : "Replace phrase"}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={styles.buttonSecondary}
-            accessibilityState={{ busy: working }}
+          />
+          <Button
+            label="Cancel"
+            tone="secondary"
+            busy={working}
             onPress={() => {
-              if (working) return;
               setConfirming(false);
               setPassword("");
               setError(null);
             }}
-          >
-            <Text style={styles.buttonSecondaryText}>Cancel</Text>
-          </Pressable>
+          />
         </>
       )}
       {error !== null && (

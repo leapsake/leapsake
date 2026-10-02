@@ -12,6 +12,7 @@ import { CheckboxBox } from "./Checkbox";
 import { RowMenu, rowMenuItem } from "./RowMenu";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
+import { Button } from "./Button";
 
 /** The schedulable actions, in registry order (`SCHEDULABLE_ACTIONS`). */
 const ACTION_OPTIONS: { value: ReminderAction; label: string }[] =
@@ -108,13 +109,11 @@ export function ReminderScheduleFields({
           />
         </View>
       ))}
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Add reminder"
         onPress={add}
-        style={[styles.button, { alignSelf: "flex-start" }]}
-      >
-        <Text style={styles.buttonText}>Add reminder</Text>
-      </Pressable>
+        style={{ alignSelf: "flex-start" }}
+      />
     </View>
   );
 }

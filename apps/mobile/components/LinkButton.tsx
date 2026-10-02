@@ -8,16 +8,10 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Link } from "expo-router";
-import { styles } from "../lib/styles";
+import { BUTTON_BOX, BUTTON_LABEL, type ButtonTone } from "./Button";
 
 /** Where a {@link LinkButton} leads — `Link`'s own href type. */
 export type Href = ComponentProps<typeof Link>["href"];
-
-const BOX = {
-  primary: styles.button,
-  secondary: styles.buttonSecondary,
-  destructive: [styles.button, styles.buttonDestructive],
-};
 
 /** A full-width button that navigates, its label led by an optional glyph
  *  that screen readers skip. */
@@ -32,7 +26,7 @@ export function LinkButton({
   href: Href;
   label: string;
   glyph?: string;
-  tone?: keyof typeof BOX;
+  tone?: ButtonTone;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
@@ -44,7 +38,7 @@ export function LinkButton({
         accessibilityRole="button"
         accessibilityLabel={label}
         testID={testID}
-        style={StyleSheet.flatten([BOX[tone], styles.buttonBlock, style])}
+        style={StyleSheet.flatten([BUTTON_BOX[tone], style])}
       >
         <View style={local.content}>
           {glyph !== undefined && (
@@ -56,15 +50,7 @@ export function LinkButton({
               {glyph}
             </Text>
           )}
-          <Text
-            style={
-              tone === "secondary"
-                ? styles.buttonSecondaryText
-                : styles.buttonText
-            }
-          >
-            {label}
-          </Text>
+          <Text style={BUTTON_LABEL[tone]}>{label}</Text>
         </View>
       </Pressable>
     </Link>

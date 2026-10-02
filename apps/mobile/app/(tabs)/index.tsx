@@ -29,6 +29,7 @@ import {
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
+import { Button } from "../../components/Button";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -186,14 +187,13 @@ function SectionButton({
   onToggle: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Button
+      label={label}
+      tone="secondary"
       accessibilityState={{ expanded: !collapsed }}
       onPress={onToggle}
-      style={[styles.buttonSecondary, styles.buttonBlock, styles.sectionButton]}
-    >
-      <Text style={styles.buttonSecondaryText}>{label}</Text>
-    </Pressable>
+      style={styles.sectionButton}
+    />
   );
 }
 

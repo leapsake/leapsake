@@ -25,6 +25,7 @@ import {
   RecoveryKeyReveal,
 } from "../components/ProtectData";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 // Import from Contacts, which switches the sync on; with no account it first
 // offers one (the app's README → Keeping People in step).
@@ -167,25 +168,18 @@ export default function ImportScreen() {
           from Settings instead, but the contacts imported before then will have
           been written unencrypted.
         </Text>
-        <Pressable
+        <Button
           testID="import-protect-first"
-          accessibilityRole="button"
-          style={[styles.button, styles.buttonBlock]}
+          label="Encrypt my data first"
           onPress={() => setState({ phase: "protecting" })}
-        >
-          <Text style={styles.buttonText}>Encrypt my data first</Text>
-        </Pressable>
+        />
         {/* Named for its consequence, not softened into "skip". */}
-        <Pressable
+        <Button
           testID="import-without-protecting"
-          accessibilityRole="button"
-          style={[styles.buttonSecondary, styles.buttonBlock]}
+          label="Import without encrypting"
+          tone="secondary"
           onPress={startImport}
-        >
-          <Text style={styles.buttonSecondaryText}>
-            Import without encrypting
-          </Text>
-        </Pressable>
+        />
       </Screen>
     );
   }
@@ -220,13 +214,10 @@ export default function ImportScreen() {
         <Text style={styles.rowText}>
           Leapsake needs permission to read your contacts to import them.
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          style={styles.button}
+        <Button
+          label="Open Settings"
           onPress={() => void Linking.openSettings()}
-        >
-          <Text style={styles.buttonText}>Open Settings</Text>
-        </Pressable>
+        />
         {/* A refusal must not end the first-run path: adding by hand. */}
         <Pressable
           accessibilityRole="button"
@@ -283,32 +274,20 @@ export default function ImportScreen() {
           <Text style={styles.rowText}>Which of these is you?</Text>
           {/* `replace`: /about-you is a root-stack screen, standing in for
               this one. */}
-          <Pressable
-            accessibilityRole="button"
-            style={styles.button}
+          <Button
+            label="Pick yourself"
             onPress={() => router.replace("/about-you")}
-          >
-            <Text style={styles.buttonText}>Pick yourself</Text>
-          </Pressable>
+          />
         </View>
       )}
       {/* The one way off, Back being withheld: Back would skip the
           duplicates review. */}
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label="Done"
         // Secondary once the self prompt is up, so "Pick yourself" leads.
-        style={[
-          promptSelf ? styles.buttonSecondary : styles.button,
-          styles.buttonBlock,
-        ]}
+        tone={promptSelf ? "secondary" : "primary"}
         onPress={() => void finish(result)}
-      >
-        <Text
-          style={promptSelf ? styles.buttonSecondaryText : styles.buttonText}
-        >
-          Done
-        </Text>
-      </Pressable>
+      />
     </Screen>
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -13,6 +12,7 @@ import { ExportFirstOffer } from "../components/ExportFirstOffer";
 import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
+import { Button } from "../components/Button";
 
 /** The word a user must type to arm the (irreversible) account deletion. */
 const FORGET_ACCOUNT_PHRASE = "DELETE";
@@ -119,25 +119,19 @@ export default function ForgetAccountScreen() {
                 />
               </View>
             )}
-            <Pressable
-              style={[
-                styles.button,
-                styles.buttonDestructive,
-                styles.buttonBlock,
-                (!armed || working) && { opacity: 0.5 },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ busy: working }}
-              onPress={forget}
-            >
-              <Text style={styles.buttonText}>
-                {working
+            <Button
+              label={
+                working
                   ? TEXT.removing
                   : lastCopy
                     ? TEXT.deleteAll
-                    : TEXT.forget}
-              </Text>
-            </Pressable>
+                    : TEXT.forget
+              }
+              tone="destructive"
+              busy={working}
+              faded={!armed}
+              onPress={() => void forget()}
+            />
           </>
         )}
         {error !== null && (
