@@ -119,13 +119,17 @@ describe("MilestoneForm", () => {
     expect(kinds).not.toContain("wedding");
   });
 
-  it("serialises the reminder schedule into the field the write path reads", () => {
+  it("serialises an edited reminder schedule into the field the write path reads", () => {
     const { container } = renderMilestone();
-    const hidden = container.querySelector(
-      "input[name=reminderSchedule]",
-    ) as HTMLInputElement;
+    const hidden = () =>
+      container.querySelector(
+        "input[name=reminderSchedule]",
+      ) as HTMLInputElement | null;
+    // Untouched, it leaves what is stored alone: this year's answer included.
+    expect(hidden()).toBeNull();
 
-    expect(JSON.parse(hidden.value)).toBeInstanceOf(Array);
+    fireEvent.click(container.querySelector("input[type=checkbox]")!);
+    expect(JSON.parse(hidden()!.value)).toBeInstanceOf(Array);
   });
 
   it("pre-fills every part when editing", () => {

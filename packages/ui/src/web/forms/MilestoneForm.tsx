@@ -116,8 +116,8 @@ function milestoneProblem(
   return undefined;
 }
 
-/** A milestone's fields; the reminder schedule posts as JSON on a hidden
- *  input. */
+/** A milestone's fields; an edited reminder schedule posts as JSON on a
+ *  hidden input. */
 export function MilestoneFields({
   bearerType,
   fields,
@@ -224,11 +224,14 @@ export function MilestoneFields({
         value={fields.reminderSchedule}
         onChange={setSchedule}
       />
-      <input
-        type="hidden"
-        name="reminderSchedule"
-        value={JSON.stringify(fields.reminderSchedule)}
-      />
+      {/* Only once edited: a saved schedule replaces this year's answer. */}
+      {fields.scheduleCustomized && (
+        <input
+          type="hidden"
+          name="reminderSchedule"
+          value={JSON.stringify(fields.reminderSchedule)}
+        />
+      )}
     </>
   );
 }
