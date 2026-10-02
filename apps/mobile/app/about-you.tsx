@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text } from "react-native";
+import { Alert, ScrollView, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
 import { Typeahead } from "../components/Typeahead";
@@ -11,6 +11,7 @@ import { entityHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { LoadState } from "../components/LoadState";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -66,21 +67,8 @@ export default function AboutYouScreen() {
     }
   }
 
-  if (error !== null) {
-    return (
-      <ScrollView contentContainerStyle={styles.screen}>
-        <Stack.Screen options={{ title: TEXT.title }} />
-        <Text style={styles.danger}>{error}</Text>
-      </ScrollView>
-    );
-  }
-  if (entities === null) {
-    return (
-      <ScrollView contentContainerStyle={styles.screen}>
-        <Stack.Screen options={{ title: TEXT.title }} />
-        <ActivityIndicator />
-      </ScrollView>
-    );
+  if (error !== null || entities === null) {
+    return <LoadState error={error} header={{ title: TEXT.title }} />;
   }
 
   // Only a person can be you, so a store of only pets counts as empty.

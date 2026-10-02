@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { HolidayListItem } from "@leapsake/core";
 import { useCore } from "../../lib/core-context";
@@ -7,6 +7,7 @@ import { holidayHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
+import { LoadState } from "../../components/LoadState";
 
 // The holiday catalog. Hidden holidays stay listed, last and marked, since
 // this is the only screen that can unhide one.
@@ -17,14 +18,8 @@ export default function HolidaysScreen() {
 
   return (
     <>
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : data === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
+      {error !== null || data === null ? (
+        <LoadState error={error} />
       ) : (
         <FlatList<HolidayListItem>
           contentContainerStyle={styles.screen}

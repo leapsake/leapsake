@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import type { ReminderRuleInput } from "@leapsake/schema";
@@ -8,6 +8,7 @@ import { ReminderScheduleFields } from "../../../../../components/ReminderSchedu
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
+import { LoadState } from "../../../../../components/LoadState";
 
 // One observer's reminder schedule for one holiday. Every action starts off,
 // so nothing is reminded until a rule is switched on here.
@@ -35,21 +36,7 @@ export default function ObservanceScheduleScreen() {
   const [rules, setRules] = useState<ReminderRuleInput[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const [holiday, candidates, stored]: [
     HolidayDetail | undefined,

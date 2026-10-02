@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { GiftIdeaOverview } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
@@ -10,6 +10,7 @@ import { GiftLink } from "../../components/GiftsSection";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
+import { LoadState } from "../../components/LoadState";
 
 /** Every gift idea, with its tags, notes and everyone it is for. */
 export default function GiftsScreen() {
@@ -22,14 +23,8 @@ export default function GiftsScreen() {
 
   return (
     <>
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : ordered === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
+      {error !== null || ordered === null ? (
+        <LoadState error={error} />
       ) : (
         <FlatList<GiftIdeaOverview>
           contentContainerStyle={styles.screen}

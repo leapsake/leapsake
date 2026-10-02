@@ -1,18 +1,12 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type Person, fullName } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
 import { personHref } from "../../../lib/record-title";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
+import { LoadState } from "../../../components/LoadState";
 
 /**
  * Merge a duplicate into the person viewed: everything of its moves onto
@@ -56,14 +50,8 @@ export default function PersonMergeScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Merge duplicate" }} />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : data === null || data.person === undefined ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
+      {error !== null || data === null || data.person === undefined ? (
+        <LoadState error={error} />
       ) : (
         (() => {
           const survivor = data.person;

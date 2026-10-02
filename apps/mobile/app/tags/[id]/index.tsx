@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { GiftIdea, Person, Pet, Reminder, Tag } from "@leapsake/schema";
 import { fullName, reminderLabel } from "@leapsake/schema";
@@ -8,6 +8,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { personHref, petHref, tagTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
+import { LoadState } from "../../../components/LoadState";
 
 // Everything wearing a tag, grouped by type. A gift idea has no read-only
 // view, so its row opens the idea's edit screen.
@@ -29,21 +30,7 @@ export default function TagDetailScreen() {
   );
   const { data, error } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const [tag, people, pets, reminders, giftIdeas]: [
     Tag | undefined,

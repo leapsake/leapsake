@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
@@ -15,6 +15,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { petTitle } from "../../../lib/record-title";
 import { styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
+import { LoadState } from "../../../components/LoadState";
 
 // A pet's page; each part carries its own Edit, as on a person's.
 export default function PetDetailScreen() {
@@ -33,30 +34,10 @@ export default function PetDetailScreen() {
   );
   const { data, error, reload } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const [view, mentionedIn, holidays, gifts] = data;
-  if (view === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (view === null) return <LoadState error={null} />;
 
   const { pet, gender, tags, timeline, relationships } = view;
 

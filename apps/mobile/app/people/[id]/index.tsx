@@ -1,12 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { ContactsSection } from "../../../components/ContactsSection";
@@ -24,6 +17,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { personTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
+import { LoadState } from "../../../components/LoadState";
 
 // A person's page; each part carries its own Edit, beside what it changes.
 export default function PersonDetailScreen() {
@@ -45,30 +39,10 @@ export default function PersonDetailScreen() {
   );
   const { data, error, reload } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const [view, mentionedIn, holidays, gifts, duplicateCandidates] = data;
-  if (view === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (view === null) return <LoadState error={null} />;
 
   const { person, gender, tags, timeline, relationships, contactMethods } =
     view;

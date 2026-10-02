@@ -1,11 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { ReminderInWindow } from "@leapsake/core";
 import {
@@ -30,6 +24,7 @@ import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 import { Button } from "../../components/Button";
+import { LoadState } from "../../components/LoadState";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -70,20 +65,7 @@ export default function RemindersScreen() {
     () => new Set<ReminderSection>(["next7", "later", "done"]),
   );
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-  if (reminders === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || reminders === null) return <LoadState error={error} />;
 
   const items = reminderListItems(reminders, { collapsed });
   const toggleSection = (section: ReminderSection) =>

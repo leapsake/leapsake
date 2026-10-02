@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { TagListItem } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
@@ -7,6 +7,7 @@ import { useCore } from "../../lib/core-context";
 import { tagHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
+import { LoadState } from "../../components/LoadState";
 
 // Every tag in use, alphabetically. None is created here: a tag exists only
 // while something wears it.
@@ -17,14 +18,8 @@ export default function TagsScreen() {
 
   return (
     <>
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : data === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
+      {error !== null || data === null ? (
+        <LoadState error={error} />
       ) : (
         <FlatList<TagListItem>
           contentContainerStyle={styles.screen}

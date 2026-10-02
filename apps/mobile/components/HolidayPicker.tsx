@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text } from "react-native";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
 import { useCore } from "../lib/core-context";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
+import { LoadState } from "./LoadState";
 
 /**
  * Add holidays for one bearer, each tap writing at once with no Save. What
@@ -38,21 +39,7 @@ export function HolidayPicker({
       );
   }
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const { addable } = splitBearerHolidays(data);
 

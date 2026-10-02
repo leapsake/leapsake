@@ -1,11 +1,12 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { isReminderEditable } from "@leapsake/schema";
 import { ReminderForm } from "../../../components/ReminderForm";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
+import { LoadState } from "../../../components/LoadState";
 
 export default function ReminderEditScreen() {
   const core = useCore();
@@ -14,20 +15,7 @@ export default function ReminderEditScreen() {
   const load = useCallback(() => core.reminders.get(id), [core, id]);
   const { data: reminder, error } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-  if (reminder === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || reminder === null) return <LoadState error={error} />;
   if (reminder === undefined) {
     return (
       <View style={styles.screen}>

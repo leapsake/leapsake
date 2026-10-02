@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   type ReminderRuleInput,
@@ -34,6 +34,7 @@ import {
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LinkButton } from "../../../components/LinkButton";
+import { LoadState } from "../../../components/LoadState";
 
 /** The title on the alert a failed write raises, naming which write failed. */
 const FAILURE_TITLES = {
@@ -82,21 +83,8 @@ export default function ReminderDetailScreen() {
 
   // Every branch mounts the header: options come from the mounted
   // `<Stack.Screen>`, so a branch without one leaves the screen unnamed.
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Stack.Screen options={HEADER} />
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <Stack.Screen options={HEADER} />
-        <ActivityIndicator />
-      </View>
-    );
+  if (error !== null || data === null) {
+    return <LoadState error={error} header={HEADER} />;
   }
 
   const [reminder, targets, duplicatesNudgeId] = data;

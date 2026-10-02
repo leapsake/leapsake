@@ -1,12 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { DuplicateCandidate, PersonView } from "@leapsake/core";
 import { type Person, fullName } from "@leapsake/schema";
@@ -19,6 +12,7 @@ import { personHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { LoadState } from "../components/LoadState";
 
 /** Human-friendly tier copy; falls back to the raw tier if ever extended. */
 const TIER_LABEL: Record<string, string> = {
@@ -167,14 +161,8 @@ export default function DuplicatesScreen() {
             : undefined,
         }}
       />
-      {error !== null ? (
-        <View style={styles.screen}>
-          <Text style={styles.danger}>{error}</Text>
-        </View>
-      ) : data === null ? (
-        <View style={styles.screen}>
-          <ActivityIndicator />
-        </View>
+      {error !== null || data === null ? (
+        <LoadState error={error} />
       ) : data.pair === null ? (
         <View style={styles.screen}>
           <Text style={styles.muted}>

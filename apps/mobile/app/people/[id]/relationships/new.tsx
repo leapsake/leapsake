@@ -1,6 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   type EntityType,
   type RelationshipRole,
@@ -10,7 +9,7 @@ import { RelationshipForm } from "../../../../components/RelationshipForm";
 import { useCore } from "../../../../lib/core-context";
 import { relationshipWrites } from "../../../../lib/relationship-writes";
 import { useFocusedData } from "../../../../lib/useFocusedData";
-import { styles } from "../../../../lib/styles";
+import { LoadState } from "../../../../components/LoadState";
 
 const TITLE = "Add relationship";
 
@@ -41,18 +40,7 @@ export default function PersonRelationshipNewScreen() {
 
   // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || view === null) {
-    return (
-      <>
-        <Stack.Screen options={{ title: TITLE }} />
-        <View style={styles.screen}>
-          {error !== null ? (
-            <Text style={styles.danger}>{error}</Text>
-          ) : (
-            <ActivityIndicator />
-          )}
-        </View>
-      </>
-    );
+    return <LoadState error={error} header={{ title: TITLE }} />;
   }
 
   return (

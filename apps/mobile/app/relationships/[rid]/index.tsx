@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { MilestoneTimelineEntry } from "@leapsake/schema";
 import { MilestonesSection } from "../../../components/MilestonesSection";
@@ -7,6 +7,7 @@ import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
+import { LoadState } from "../../../components/LoadState";
 
 /** The route base for a partner entity's pages, branching on its type. */
 function entityPath(type: "person" | "pet", id: string): string {
@@ -22,21 +23,7 @@ export default function RelationshipDetailScreen() {
   const load = useCallback(() => core.views.relationship(rid), [core, rid]);
   const { data: view, error, reload } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (view === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || view === null) return <LoadState error={error} />;
 
   const { title, partners, milestones } = view;
 

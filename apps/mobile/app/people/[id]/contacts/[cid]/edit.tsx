@@ -1,12 +1,11 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ContactMethod } from "@leapsake/schema";
 import { ContactMethodForm } from "../../../../../components/ContactMethodForm";
 import { updateContact } from "../../../../../lib/contact-writes";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
-import { styles } from "../../../../../lib/styles";
+import { LoadState } from "../../../../../components/LoadState";
 
 const TITLE = "Edit contact";
 
@@ -25,18 +24,12 @@ export default function ContactEditScreen() {
   // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || methods === null || entry === undefined) {
     return (
-      <>
-        <Stack.Screen options={{ title: TITLE }} />
-        <View style={styles.screen}>
-          {error !== null ? (
-            <Text style={styles.danger}>{error}</Text>
-          ) : methods === null ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.danger}>Contact not found.</Text>
-          )}
-        </View>
-      </>
+      <LoadState
+        error={error}
+        loading={methods === null}
+        missing="Contact not found."
+        header={{ title: TITLE }}
+      />
     );
   }
 

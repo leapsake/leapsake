@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { PersonView } from "@leapsake/core";
 import { usePersonForm } from "@leapsake/ui/headless";
@@ -9,6 +9,7 @@ import { tagsRawOf } from "../../../components/TagsInput";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
+import { LoadState } from "../../../components/LoadState";
 
 const TITLE = "Edit details";
 
@@ -31,18 +32,12 @@ export default function PersonEditScreen() {
   // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || data === null || data.view === null) {
     return (
-      <>
-        <Stack.Screen options={{ title: TITLE }} />
-        <View style={styles.screen}>
-          {error !== null ? (
-            <Text style={styles.danger}>{error}</Text>
-          ) : data === null ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.danger}>Person not found.</Text>
-          )}
-        </View>
-      </>
+      <LoadState
+        error={error}
+        loading={data === null}
+        missing="Person not found."
+        header={{ title: TITLE }}
+      />
     );
   }
 

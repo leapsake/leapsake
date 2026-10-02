@@ -1,11 +1,12 @@
 import { useCallback } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { ScrollView, Text } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { type PartyOption, partyKey } from "@leapsake/ui/headless";
 import { GiftCaptureForm } from "../../components/GiftCaptureForm";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { styles } from "../../lib/styles";
+import { LoadState } from "../../components/LoadState";
 
 /**
  * Add a gift. `?recipient=` fixes who it is for, and saving goes back there;
@@ -27,18 +28,7 @@ export default function GiftCreateScreen() {
 
   // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || data === null) {
-    return (
-      <>
-        <Stack.Screen options={{ title: "Add a gift" }} />
-        <View style={styles.screen}>
-          {error !== null ? (
-            <Text style={styles.danger}>{error}</Text>
-          ) : (
-            <ActivityIndicator />
-          )}
-        </View>
-      </>
-    );
+    return <LoadState error={error} header={{ title: "Add a gift" }} />;
   }
 
   const [ideas, entities] = data;

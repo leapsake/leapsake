@@ -1,12 +1,5 @@
 import { useCallback } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { CheckboxBox } from "../../../components/Checkbox";
@@ -18,6 +11,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { holidayTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
+import { LoadState } from "../../../components/LoadState";
 
 // A holiday's dates and observers. No edit: catalog rows are read-only
 // (`@leapsake/holidays` README).
@@ -32,21 +26,7 @@ export default function HolidayDetailScreen() {
   );
   const { data, error, reload } = useFocusedData(load);
 
-  if (error !== null) {
-    return (
-      <View style={styles.screen}>
-        <Text style={styles.danger}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (data === null) {
-    return (
-      <View style={styles.screen}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  if (error !== null || data === null) return <LoadState error={error} />;
 
   const [holiday, candidates]: [
     HolidayDetail | undefined,

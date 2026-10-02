@@ -1,10 +1,9 @@
 import { useCallback } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { MilestoneForm } from "../../../../../components/MilestoneForm";
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
-import { styles } from "../../../../../lib/styles";
+import { LoadState } from "../../../../../components/LoadState";
 
 export default function PetMilestoneEditScreen() {
   const core = useCore();
@@ -21,18 +20,12 @@ export default function PetMilestoneEditScreen() {
   // The form declares the header itself; two `Stack.Screen`s would race.
   if (error !== null || milestones === null || milestone === undefined) {
     return (
-      <>
-        <Stack.Screen options={{ title: "Edit milestone" }} />
-        <View style={styles.screen}>
-          {error !== null ? (
-            <Text style={styles.danger}>{error}</Text>
-          ) : milestones === null ? (
-            <ActivityIndicator />
-          ) : (
-            <Text style={styles.danger}>Milestone not found.</Text>
-          )}
-        </View>
-      </>
+      <LoadState
+        error={error}
+        loading={milestones === null}
+        missing="Milestone not found."
+        header={{ title: "Edit milestone" }}
+      />
     );
   }
 
