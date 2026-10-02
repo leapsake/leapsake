@@ -143,7 +143,7 @@ function readMilestoneDraft(formData: FormData): MilestoneDraft {
     day: text("day"),
     year: text("year"),
     note: text("note"),
-    reminderSchedule: promptAnswerOf(readReminderSchedule(formData) ?? []),
+    reminderSchedule: readReminderSchedule(formData) ?? [],
     scheduleCustomized: formData.has("reminderSchedule"),
   };
 }
