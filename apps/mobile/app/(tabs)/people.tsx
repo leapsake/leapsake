@@ -57,7 +57,7 @@ export default function PeoplePetsScreen() {
               actions={[
                 {
                   href: "/import",
-                  label: "Import from your contacts",
+                  label: "Import your contacts",
                   glyph: "📇",
                 },
                 { href: "/add", label: "Add a person", glyph: "👤" },

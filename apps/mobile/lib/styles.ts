@@ -109,9 +109,7 @@ export const styles = StyleSheet.create({
   emptyStateMessage: {
     textAlign: "center",
   },
-  /** Sized to its label, not the screen; `minWidth` makes two of them even. */
   emptyStateButton: {
-    minWidth: 240,
     paddingHorizontal: 24,
   },
   /** Grows a list's content container so an empty state can centre in it. */

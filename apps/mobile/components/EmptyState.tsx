@@ -21,50 +21,55 @@ export function EmptyState({
   return (
     <View style={styles.emptyState}>
       <Text style={[styles.muted, styles.emptyStateMessage]}>{message}</Text>
-      {actions.map((action, index) => {
-        // The first, ordinary path is filled; the rest are quiet.
-        const isPrimary = index === 0;
-        return (
-          // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which throws
-          // on a `style` array rather than merging it.
-          <Link key={action.label} href={action.href} asChild>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={action.label}
-              style={StyleSheet.flatten([
-                isPrimary ? styles.button : styles.buttonSecondary,
-                styles.buttonBlock,
-                styles.emptyStateButton,
-              ])}
-            >
-              <View style={local.content}>
-                {action.glyph !== undefined && (
-                  // Decoration: the label alone names the button.
+      {/* Centred by its parent, so as wide as its widest button; each
+          button stretches to that width. */}
+      <View style={local.actions}>
+        {actions.map((action, index) => {
+          // The first, ordinary path is filled; the rest are quiet.
+          const isPrimary = index === 0;
+          return (
+            // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which
+            // throws on a `style` array rather than merging it.
+            <Link key={action.label} href={action.href} asChild>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+                style={StyleSheet.flatten([
+                  isPrimary ? styles.button : styles.buttonSecondary,
+                  styles.buttonBlock,
+                  styles.emptyStateButton,
+                ])}
+              >
+                <View style={local.content}>
+                  {action.glyph !== undefined && (
+                    // Decoration: the label alone names the button.
+                    <Text
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
+                      style={local.glyph}
+                    >
+                      {action.glyph}
+                    </Text>
+                  )}
                   <Text
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                    style={local.glyph}
+                    style={
+                      isPrimary ? styles.buttonText : styles.buttonSecondaryText
+                    }
                   >
-                    {action.glyph}
+                    {action.label}
                   </Text>
-                )}
-                <Text
-                  style={
-                    isPrimary ? styles.buttonText : styles.buttonSecondaryText
-                  }
-                >
-                  {action.label}
-                </Text>
-              </View>
-            </Pressable>
-          </Link>
-        );
-      })}
+                </View>
+              </Pressable>
+            </Link>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const local = StyleSheet.create({
+  actions: { gap: 12, minWidth: 240 },
   content: { flexDirection: "row", alignItems: "center", gap: 8 },
   glyph: { fontSize: 18 },
 });
