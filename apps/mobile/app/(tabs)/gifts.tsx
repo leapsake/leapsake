@@ -5,6 +5,7 @@ import type { GiftIdeaOverview } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
 import { isGiven, sortIdeasGivenLast } from "@leapsake/view-models";
 import { EmptyState } from "../../components/EmptyState";
+import { GiftThumbnail } from "../../components/GiftImage";
 import { GiftLink } from "../../components/GiftsSection";
 import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -43,28 +44,31 @@ export default function GiftsScreen() {
             />
           }
           renderItem={({ item: { idea, tags, recipients } }) => (
-            <View style={styles.row}>
-              <Link href={`/gifts/${idea.id}/edit`}>
-                <Text style={[styles.rowText, { color: colors.accent }]}>
-                  {idea.title}
-                </Text>
-              </Link>
+            <View style={[styles.row, styles.rowWithLead]}>
+              <GiftThumbnail uri={idea.imageUrl} />
+              <View style={{ flex: 1 }}>
+                <Link href={`/gifts/${idea.id}/edit`}>
+                  <Text style={[styles.rowText, { color: colors.accent }]}>
+                    {idea.title}
+                  </Text>
+                </Link>
 
-              {tags.length > 0 && (
-                <Text style={styles.fieldLabel}>
-                  {tags.map((tag) => tagLabel(tag.name)).join(" ")}
-                </Text>
-              )}
-              {idea.notes !== null && (
-                <Text style={styles.muted}>{idea.notes}</Text>
-              )}
-              {idea.url !== null && <GiftLink url={idea.url} />}
+                {tags.length > 0 && (
+                  <Text style={styles.fieldLabel}>
+                    {tags.map((tag) => tagLabel(tag.name)).join(" ")}
+                  </Text>
+                )}
+                {idea.notes !== null && (
+                  <Text style={styles.muted}>{idea.notes}</Text>
+                )}
+                {idea.url !== null && <GiftLink url={idea.url} />}
 
-              {recipients.map((row) => (
-                <Text key={row.id} style={styles.muted}>
-                  {isGiven(row) ? "✓ Given to" : "For"} {row.recipientLabel}
-                </Text>
-              ))}
+                {recipients.map((row) => (
+                  <Text key={row.id} style={styles.muted}>
+                    {isGiven(row) ? "✓ Given to" : "For"} {row.recipientLabel}
+                  </Text>
+                ))}
+              </View>
             </View>
           )}
         />

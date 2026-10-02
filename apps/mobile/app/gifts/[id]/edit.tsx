@@ -10,6 +10,7 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { tagLabel } from "@leapsake/schema";
 import { GiftIdeaForm } from "../../../components/GiftIdeaForm";
+import { GiftImage } from "../../../components/GiftImage";
 import {
   GiftIdeaRecipientsSection,
   type RecipientCandidate,
@@ -94,6 +95,8 @@ export default function GiftIdeaEditScreen() {
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
+      {idea.imageUrl !== null && <GiftImage uri={idea.imageUrl} />}
+
       {/* The form declares the header; two `Stack.Screen`s would race. */}
       <GiftIdeaForm
         title="Edit gift idea"
