@@ -70,7 +70,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
     table: "milestones",
     schema: milestoneSchema,
     orderBy: "year, month, day",
-    booleans: ["imported"],
+    booleans: ["imported", "asksEachYear"],
   });
 
   return {
@@ -90,6 +90,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         day: parsed.day ?? null,
         note: parsed.note ?? null,
         imported: opts?.imported ?? false,
+        asksEachYear: parsed.asksEachYear ?? true,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -119,9 +120,10 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         day: number | null;
         created_at: number;
         imported: number;
+        asks_each_year: number;
       }>(
         `SELECT id, kind, bearer_type, bearer_id, year, month, day, created_at,
-                imported
+                imported, asks_each_year
            FROM milestones
           WHERE deleted_at IS NULL AND month IS NOT NULL AND day IS NOT NULL`,
       );
@@ -135,6 +137,7 @@ export function createMilestonesRepo(driver: SqliteDriver): MilestonesRepo {
         day: r.day,
         createdAt: r.created_at,
         imported: r.imported === 1,
+        asksEachYear: r.asks_each_year === 1,
       }));
     },
 

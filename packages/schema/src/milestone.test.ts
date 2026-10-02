@@ -25,6 +25,7 @@ const validMilestone = {
   day: 9,
   note: null,
   imported: false,
+  asksEachYear: true,
   createdAt: Date.now(),
   updatedAt: Date.now(),
   deletedAt: null,

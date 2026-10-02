@@ -76,6 +76,7 @@ import { ReminderCreate } from "./screens/ReminderCreate";
 import { ReminderDelete } from "./screens/ReminderDelete";
 import { ReminderEdit } from "./screens/ReminderEdit";
 import { MilestonePlanPrompt } from "./screens/MilestonePlanPrompt";
+import { MilestoneStopAsking } from "./screens/MilestoneStopAsking";
 import { ReminderList } from "./screens/ReminderList";
 import { Settings } from "./screens/Settings";
 import { TagDelete } from "./screens/TagDelete";
@@ -906,6 +907,23 @@ async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   return redirect("/reminders");
 }
 
+/** This year retires the prompt's own row; ever stops the milestone asking. */
+async function milestoneStopAskingAction({
+  request,
+  params,
+}: ActionFunctionArgs) {
+  const formData = await request.formData();
+  if (formData.get("scope") === "ever")
+    await window.api.milestones.update(params.milestoneId as string, {
+      asksEachYear: false,
+    });
+  else {
+    const reminderId = new URL(request.url).searchParams.get("reminder");
+    if (reminderId !== null) await window.api.reminders.softDelete(reminderId);
+  }
+  return redirect("/reminders");
+}
+
 /** A blank title is a no-op; the tags field always carries the whole set. */
 async function giftIdeaEditAction({ request, params }: ActionFunctionArgs) {
   const shaped = giftIdeaInputOf(readGiftIdeaDraft(await request.formData()));
@@ -1026,6 +1044,11 @@ const routes: RouteObject[] = [
         loader: milestonePlanLoader,
         element: <MilestonePlanPrompt />,
         action: milestonePlanAction,
+      },
+      {
+        path: "milestones/:milestoneId/stop-asking",
+        element: <MilestoneStopAsking />,
+        action: milestoneStopAskingAction,
       },
       {
         // The whole gift graph, keyed by idea.

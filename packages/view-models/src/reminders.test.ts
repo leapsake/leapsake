@@ -331,8 +331,15 @@ describe("reminderActionsOf", () => {
       "snooze",
       "snooze",
       "snooze",
-      "dismiss",
+      "stop-asking",
     ]);
+  });
+
+  // Not a tombstone alone: this year, or never again for this occasion.
+  it("asks a prompt's “don't ask again” about its own milestone", () => {
+    expect(
+      reminderActionsOf(reminder("prompt", {}), { planTarget }).at(-1),
+    ).toEqual({ kind: "stop-asking", milestoneId: "m1" });
   });
 
   // It writes the **full** offer set with only `wish` on — not just the tick.

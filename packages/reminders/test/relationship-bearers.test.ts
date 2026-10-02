@@ -120,6 +120,7 @@ function milestone(
     day: occ.day,
     createdAt: 0,
     imported: false,
+    asksEachYear: true,
   };
 }
 

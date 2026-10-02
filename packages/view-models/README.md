@@ -106,7 +106,9 @@ birthday.
 - **Don't ask again**: offered from the first encounter _(owner, 2026-09-11)_, and only on rows
   Leapsake asked unbidden (nudges, `plan` prompts, partnership questions), since an ordinary
   reminder's Remove is already a permanent tombstone. With nothing retiring by being put off, it
-  is the one way a question goes for good.
+  is the one way a question goes for good. A `plan` prompt's is **Don't ask again…**
+  (`stop-asking`) _(owner, 2026-10-01)_: _this year_ retires only this year's question, and
+  _ever_ stops its milestone asking at all.
 
 A completed reminder offers its CTA and nothing else.
 

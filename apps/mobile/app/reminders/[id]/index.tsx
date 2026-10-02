@@ -26,6 +26,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import {
   REMIND_ME_IN,
   REMOVAL_COPY,
+  STOP_ASKING,
   foldSnoozes,
   isAnsweredInline,
   offerFor,
@@ -42,6 +43,7 @@ const FAILURE_TITLES = {
   snooze: "Couldn’t put this off",
   answerPrompt: "Couldn’t save your choice",
   remove: "Couldn’t delete",
+  stopAsking: "Couldn’t stop asking",
 } as const;
 
 /** The completion control's two words; see {@link toggle}. */
@@ -66,6 +68,8 @@ export default function ReminderDetailScreen() {
     undefined,
   );
   const [remindMeOpen, setRemindMeOpen] = useState(false);
+  // The milestone a prompt's “Don’t ask again…” would stop asking about.
+  const [stopAsking, setStopAsking] = useState<string | null>(null);
   const load = useCallback(
     () =>
       Promise.all([
@@ -179,6 +183,17 @@ export default function ReminderDetailScreen() {
     write.then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
+    );
+  }
+
+  /** Stop asking about the occasion this year, or ever; then go back. */
+  function stopAskingFor(milestoneId: string, ever: boolean) {
+    const write = ever
+      ? core.milestones.update(milestoneId, { asksEachYear: false })
+      : core.reminders.softDelete(id);
+    write.then(
+      () => router.back(),
+      (e: unknown) => Alert.alert(FAILURE_TITLES.stopAsking, String(e)),
     );
   }
 
@@ -326,7 +341,7 @@ export default function ReminderDetailScreen() {
                 label={offer.label}
                 tone={
                   // "Don't ask again" is a tombstone, red like Delete.
-                  offer.kind === "dismiss"
+                  offer.kind === "dismiss" || offer.kind === "stop-asking"
                     ? "destructive"
                     : isCta
                       ? "primary"
@@ -341,6 +356,8 @@ export default function ReminderDetailScreen() {
                     });
                   else if (offer.kind === "snooze") snooze(offer.days);
                   else if (offer.kind === "dismiss") confirmDelete();
+                  else if (offer.kind === "stop-asking")
+                    setStopAsking(offer.milestoneId);
                   // `answer-prompt` never gets here: `offered` dropped it.
                 }}
               />
@@ -363,6 +380,28 @@ export default function ReminderDetailScreen() {
             : [],
         )}
         onClose={() => setRemindMeOpen(false)}
+      />
+      <ActionSheet
+        visible={stopAsking !== null}
+        title={STOP_ASKING.sheet}
+        items={
+          stopAsking === null
+            ? []
+            : [
+                {
+                  key: "this-year",
+                  label: STOP_ASKING.thisYear,
+                  onPress: () => stopAskingFor(stopAsking, false),
+                },
+                {
+                  key: "ever",
+                  label: STOP_ASKING.ever,
+                  danger: true,
+                  onPress: () => stopAskingFor(stopAsking, true),
+                },
+              ]
+        }
+        onClose={() => setStopAsking(null)}
       />
       {/* Last on the screen; a nudge offers its own "don't ask again". */}
       {canDelete && (

@@ -21,7 +21,8 @@ export type ReminderOfferLabel =
   | "linkOwnPartner"
   | "justTheDay"
   | "remindMe"
-  | "dismiss";
+  | "dismiss"
+  | "stopAsking";
 
 const ONBOARDING_LABEL = {
   import: "import",
@@ -37,6 +38,7 @@ export function reminderOfferLabelOf(
   if (action.kind === "answer-plan") return "justTheDay";
   if (action.kind === "snooze") return "remindMe";
   if (action.kind === "dismiss") return "dismiss";
+  if (action.kind === "stop-asking") return "stopAsking";
   const { cta } = action;
   switch (cta.kind) {
     case "onboarding":

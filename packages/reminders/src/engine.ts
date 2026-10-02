@@ -738,7 +738,7 @@ async function computeDesired(
       resolved.writtenAt === null ? learned : todayCivil(resolved.writtenAt);
     // An occasion that asks gets a `plan` question every year it is not
     // answered, made a rule so it shares the window, id, copy and prune paths.
-    const asks = kindDefs[m.kind].prompt !== undefined;
+    const asks = kindDefs[m.kind].prompt !== undefined && m.asksEachYear;
     let subject: string | undefined;
     let bearerIsSelf = false;
     let isOwnCouple = false;

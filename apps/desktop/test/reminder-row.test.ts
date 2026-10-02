@@ -147,8 +147,8 @@ describe("rowAffordanceFor", () => {
       ...remindMe("prompt"),
       {
         kind: "link",
-        to: "/reminders/prompt/delete",
-        label: "Don’t ask again",
+        to: "/milestones/m1/stop-asking?reminder=prompt",
+        label: "Don’t ask again…",
       },
     ]);
   });

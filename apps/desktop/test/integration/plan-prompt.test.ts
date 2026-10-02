@@ -234,6 +234,19 @@ describe("the plan prompt, end to end through core", () => {
     ]);
   });
 
+  // “Don’t ask again… → Ever”: the occasion keeps its schedule and stops asking.
+  it("stops asking about an occasion told never to ask again", async () => {
+    const { milestone } = await personWithBirthday(APPEARS_DAYS);
+    expect((await core.reminders.targets()).plans).toHaveLength(1);
+
+    await core.milestones.update(milestone.id, { asksEachYear: false });
+
+    expect((await core.reminders.targets()).plans).toEqual([]);
+    expect(
+      (await core.milestones.listForBearer("person", milestone.bearerId))[0],
+    ).toMatchObject({ asksEachYear: false });
+  });
+
   // ⚠️ Ticking *nothing* has to be distinguishable from never being asked, or
   // the question comes straight back.
   it("counts an answer of `nothing` as answered", async () => {

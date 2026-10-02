@@ -509,6 +509,7 @@ export const milestoneSchema = z
     day: z.number().int().min(1).max(31).nullable(),
     note: z.string().min(1).nullable(), // free text; also the `other`-kind label
     imported: z.boolean(), // arrived through a contacts import, not by hand
+    asksEachYear: z.boolean(), // its kind's prompt comes back every year
     createdAt: z.number().int(), // epoch ms, UTC
     updatedAt: z.number().int(),
     deletedAt: z.number().int().nullable(),
@@ -543,6 +544,8 @@ export interface RemindEligibleMilestone {
   createdAt: number;
   /** Whether it arrived through a contacts import rather than by hand. */
   imported: boolean;
+  /** Whether its kind's prompt comes back every year it is not answered. */
+  asksEachYear: boolean;
 }
 
 /**
@@ -572,11 +575,12 @@ function dayImpliesMonth(d: { month?: number | null; day?: number | null }) {
 }
 
 /**
- * When present, replaces the milestone's stored rules (empty clears them);
- * when absent, leaves them alone.
+ * When present, replaces the milestone's stored rules (empty clears them) or
+ * whether it asks each year; when absent, leaves them alone.
  */
 const reminderScheduleShape = {
   reminderSchedule: reminderScheduleInputSchema.optional(),
+  asksEachYear: z.boolean().optional(),
 };
 
 const dayImpliesMonthIssue = {

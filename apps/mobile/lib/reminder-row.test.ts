@@ -54,6 +54,7 @@ const planContext = {
   planTarget: {
     milestoneId: "m1",
     milestoneKind: "birthday" as const,
+    occurrenceYear: 2026,
     offers: [
       {
         action: "get:gift" as const,
@@ -183,6 +184,7 @@ describe("offerFor", () => {
       {
         kind: "answer-plan",
         milestoneId: "m1",
+        year: 2026,
         // The **whole** offer set, wish alone enabled — not just the tick.
         schedule: [
           { action: "get:gift", label: null, offsetDays: 12, enabled: false },
@@ -191,7 +193,7 @@ describe("offerFor", () => {
         label: "Just the day",
       },
       ...REMIND_ME,
-      { kind: "dismiss", label: "Don’t ask again" },
+      { kind: "stop-asking", milestoneId: "m1", label: "Don’t ask again…" },
     ]);
   });
 
@@ -245,7 +247,7 @@ describe("isAnsweredInline", () => {
     // needs to draw beside Save.
     expect(
       actions.filter((a) => !isAnsweredInline(a)).map((a) => a.kind),
-    ).toEqual(["snooze", "snooze", "snooze", "dismiss"]);
+    ).toEqual(["snooze", "snooze", "snooze", "stop-asking"]);
   });
 
   it("leaves an ordinary nudge's offers alone", () => {

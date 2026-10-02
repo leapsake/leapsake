@@ -35,6 +35,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   linkOwnPartner: "Who is your partner? ›",
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
+  stopAsking: "Don’t ask again…",
 };
 
 /** The words on a “Remind me in…” button, for any whole number of days. */
@@ -46,6 +47,13 @@ function remindMeLabel(days: number): string {
 
 /** The control that opens the “Remind me in…” sheet, and the sheet's title. */
 export const REMIND_ME_IN = { button: "Remind me in…", sheet: "Remind me" };
+
+/** The “Don’t ask again…” sheet: its title and its two lengths. */
+export const STOP_ASKING = {
+  sheet: "Don’t ask again",
+  thisYear: "This year",
+  ever: "Ever",
+};
 
 /** One length in the “Remind me in…” sheet, which already says “remind me”. */
 export function remindInLabel(days: number): string {
@@ -74,7 +82,8 @@ export type RowOffer =
       label: string;
     }
   | { kind: "snooze"; days: number; label: string }
-  | { kind: "dismiss"; label: string };
+  | { kind: "dismiss"; label: string }
+  | { kind: "stop-asking"; milestoneId: string; label: string };
 
 /** Where a call to action leads; null for a prompt, answered in place. */
 function ctaPathFor(cta: ReminderCta): string | null {
@@ -125,6 +134,8 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return { kind: "snooze", days: action.days, label };
     case "dismiss":
       return { kind: "dismiss", label };
+    case "stop-asking":
+      return { kind: "stop-asking", milestoneId: action.milestoneId, label };
   }
 }
 

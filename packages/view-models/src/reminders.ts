@@ -284,7 +284,8 @@ export type ReminderRowAction =
       schedule: ReminderRuleInput[];
     }
   | { kind: "snooze"; days: number }
-  | { kind: "dismiss" };
+  | { kind: "dismiss" }
+  | { kind: "stop-asking"; milestoneId: string };
 
 /** The “Remind me in…” presets, in days; `snoozeTargetOf` takes any. */
 export const SNOOZE_PRESET_DAYS: readonly number[] = [1, 3, 7];
@@ -363,12 +364,10 @@ export function reminderActionsOf(
     for (const days of SNOOZE_PRESET_DAYS)
       if (snoozeTargetOf(reminder, days, now) !== null)
         actions.push({ kind: "snooze", days });
-  // A prompt earns `dismiss` as a nudge does: its only permanent out.
-  if (
-    cta?.kind === "onboarding" ||
-    cta?.kind === "plan" ||
-    cta?.kind === "partnership"
-  )
+  // A nudge's only out is permanent; a prompt's is this year's, or for good.
+  if (cta?.kind === "plan")
+    actions.push({ kind: "stop-asking", milestoneId: cta.milestoneId });
+  if (cta?.kind === "onboarding" || cta?.kind === "partnership")
     actions.push({ kind: "dismiss" });
   return actions;
 }

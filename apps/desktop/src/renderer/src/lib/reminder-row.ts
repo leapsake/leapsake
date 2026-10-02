@@ -34,6 +34,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   linkOwnPartner: "Who is your partner? →",
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
+  stopAsking: "Don’t ask again…",
 };
 
 /** A “Remind me in…” button's words for a day count, matching mobile's. */
@@ -118,5 +119,11 @@ export function rowAffordanceFor(
       };
     case "dismiss":
       return { kind: "link", to: `/reminders/${reminderId}/delete`, label };
+    case "stop-asking":
+      return {
+        kind: "link",
+        to: `/milestones/${action.milestoneId}/stop-asking?reminder=${reminderId}`,
+        label,
+      };
   }
 }

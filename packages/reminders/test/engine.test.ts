@@ -144,6 +144,7 @@ function birthday(
     day: occ.day,
     createdAt: 0,
     imported: false,
+    asksEachYear: true,
   };
 }
 
@@ -163,6 +164,7 @@ function death(
     day: occ.day,
     createdAt: 0,
     imported: false,
+    asksEachYear: true,
   };
 }
 

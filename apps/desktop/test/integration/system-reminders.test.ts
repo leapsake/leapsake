@@ -372,6 +372,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
           note: null,
           createdAt: Date.now(),
           imported: false,
+          asksEachYear: true,
           updatedAt: Date.now(),
           deletedAt: null,
         };

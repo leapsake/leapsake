@@ -172,6 +172,7 @@ function milestone(
     day: occ.day,
     createdAt: 0,
     imported: false,
+    asksEachYear: true,
   };
 }
 
@@ -258,6 +259,19 @@ describe("the plan prompt", () => {
 
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()).toHaveLength(1);
+  });
+
+  // “Don’t ask again… → Ever”, or the Person screen's own switch.
+  it("is never minted for an occasion told not to ask", async () => {
+    h.setMilestones([
+      {
+        ...birthday("m1", "p1", daysOut(APPEARS_DAYS)),
+        asksEachYear: false,
+      },
+    ]);
+
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(0);
   });
 
   // ⚠️ Ticking nothing has to be distinguishable from never being asked, or the

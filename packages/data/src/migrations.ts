@@ -768,6 +768,15 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 43,
+    async up(driver) {
+      // Whether a milestone's prompt comes back every year.
+      await driver.exec(
+        `ALTER TABLE milestones ADD COLUMN asks_each_year INTEGER NOT NULL DEFAULT 1`,
+      );
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

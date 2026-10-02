@@ -201,6 +201,7 @@ function milestone(
     note,
     createdAt: 1_700_000_000_000,
     imported: false,
+    asksEachYear: true,
     updatedAt: 1_700_000_000_000,
     deletedAt: null,
   };
@@ -694,6 +695,7 @@ function birthday(
     note: null,
     createdAt: 1_700_000_000_000,
     imported: false,
+    asksEachYear: true,
     updatedAt: 1_700_000_000_000,
     deletedAt: null,
   };
