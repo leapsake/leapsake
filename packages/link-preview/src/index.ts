@@ -34,11 +34,11 @@ const BOT_WALL_TITLES = new Set([
 const SITE_TITLE_TIDIES: Record<string, (title: string) => string> = {
   // "…Space Gray : Electronics": the department follows a spaced colon.
   amazon: (title) => {
-    // A book's: "Dune: 9780441172719: Herbert, Frank: Books".
-    const isbn = /:\s*(?:\d{13}|\d{9}[\dX])\s*:/.exec(title);
-    return isbn === null
-      ? title.replace(/\s+:\s+[^:]+$/, "")
-      : title.slice(0, isbn.index);
+    // A book's, "Dune: 9780441172719: Herbert, Frank: Books", keeps its author.
+    const isbn = /:\s*(?:\d{13}|\d{9}[\dX])\s*(?=:)/;
+    return isbn.test(title)
+      ? title.replace(isbn, "").replace(/\s*:\s*[^:]+$/, "")
+      : title.replace(/\s+:\s+[^:]+$/, "");
   },
   apple: (title) => title.replace(/^buy\s+/i, ""),
 };

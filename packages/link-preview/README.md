@@ -27,7 +27,7 @@ The list will miss walls it has not seen; `test/link-preview.test.ts` is where t
 The site's name comes off whichever title is used, `og:title` included, whether a page
 writes it as its domain (`Walmart.com`) or its label (`eBay`). Beyond that, a shop gets its
 own rule in `SITE_TITLE_TIDIES` only where its titles need one: Amazon's trailing department
-(and a book's ISBN, author and `Books`), and Apple's leading “Buy”. The test names a product
+(and a book's ISBN and `Books`, keeping its author), and Apple's leading “Buy”. The test names a product
 on each of the five biggest US online shops (Amazon, Walmart, Apple, eBay, Target) from the
 markup each served.
 

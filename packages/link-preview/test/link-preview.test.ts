@@ -76,7 +76,7 @@ describe("linkPreviewOf", () => {
       "an Amazon book",
       "https://www.amazon.com/dp/0441172717",
       "<title>Amazon.com: Dune: 9780441172719: Herbert, Frank: Books</title>",
-      "Dune",
+      "Dune: Herbert, Frank",
     ],
     [
       "Amazon UK",
