@@ -23,10 +23,15 @@ const NAMED_ENTITIES: Record<string, string> = {
 /** A page’s Open Graph tags (`og:*`), what its share card is drawn from. */
 export interface LinkPreview {
   title: string | null;
+  /** An absolute http(s) address, however the page wrote it. */
+  image: string | null;
 }
 
-/** The `og:` tags in a page's HTML; a tag that is absent or blank is `null`. */
-export function linkPreviewOf(html: string): LinkPreview {
+/**
+ * The `og:` tags in the HTML of the page at `pageUrl`; a tag that is absent
+ * or blank is `null`.
+ */
+export function linkPreviewOf(html: string, pageUrl: string): LinkPreview {
   const tags = new Map<string, string>();
   for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
     const attributes = attributesOf(tag);
@@ -40,7 +45,10 @@ export function linkPreviewOf(html: string): LinkPreview {
       tags.set(key, content);
     }
   }
-  return { title: cleanText(tags.get("og:title")) };
+  return {
+    title: cleanText(tags.get("og:title")),
+    image: absoluteWebUrl(cleanText(tags.get("og:image")), pageUrl),
+  };
 }
 
 /**
@@ -62,7 +70,7 @@ export async function fetchLinkPreview(
     });
     const type = response.headers.get("content-type") ?? "";
     if (!response.ok || !/html/i.test(type)) return null;
-    return linkPreviewOf(await response.text());
+    return linkPreviewOf(await response.text(), response.url || url);
   } catch {
     return null;
   } finally {
@@ -78,6 +86,18 @@ function attributesOf(tag: string): Map<string, string> {
     attributes.set(name.toLowerCase(), double ?? single ?? bare ?? "");
   }
   return attributes;
+}
+
+function absoluteWebUrl(href: string | null, base: string): string | null {
+  if (href === null) return null;
+  try {
+    const url = new URL(href, base);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Entities decoded and whitespace collapsed; blank is `null`. */

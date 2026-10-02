@@ -9,6 +9,8 @@ export const giftIdeaSchema = z.object({
   id: z.uuid(),
   title: z.string().min(1),
   url: z.string().min(1).nullable(), // optional; null when absent
+  /** The link's share-card picture; an export from before it reads as null. */
+  imageUrl: z.string().min(1).nullable().default(null),
   notes: z.string().min(1).nullable(),
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(),
@@ -20,6 +22,7 @@ export type GiftIdea = z.infer<typeof giftIdeaSchema>;
 /** The optional fields shared by create/update inputs. */
 const optionalFields = {
   url: z.string().min(1).nullable().optional(),
+  imageUrl: z.string().min(1).nullable().optional(),
   notes: z.string().min(1).nullable().optional(),
 };
 

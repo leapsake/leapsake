@@ -752,6 +752,13 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 41,
+    async up(driver) {
+      // The picture a gift's link shares itself with (its `og:image`).
+      await driver.exec(`ALTER TABLE gift_ideas ADD COLUMN image_url TEXT`);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

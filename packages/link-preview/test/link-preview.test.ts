@@ -1,41 +1,73 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchLinkPreview, linkPreviewOf } from "../src/index.js";
 
+const PAGE = "https://shop.example.com/p/train-set";
+
 describe("linkPreviewOf", () => {
   it("reads og:title whatever order its attributes come in", () => {
     expect(
-      linkPreviewOf('<meta property="og:title" content="Train set">').title,
+      linkPreviewOf('<meta property="og:title" content="Train set">', PAGE)
+        .title,
     ).toBe("Train set");
     expect(
-      linkPreviewOf("<META CONTENT='Train set' Property='og:title' />").title,
+      linkPreviewOf("<META CONTENT='Train set' Property='og:title' />", PAGE)
+        .title,
     ).toBe("Train set");
   });
 
   it("decodes entities and collapses whitespace", () => {
     const html =
       '<meta content="A&amp;W Women&#x27;s\n  shirt &rsquo;&#8217;" property="og:title"/>';
-    expect(linkPreviewOf(html).title).toBe("A&W Women's shirt ’’");
+    expect(linkPreviewOf(html, PAGE).title).toBe("A&W Women's shirt ’’");
   });
 
   it("leaves an unknown entity as written", () => {
     expect(
-      linkPreviewOf('<meta property="og:title" content="Fish &chips;">').title,
+      linkPreviewOf('<meta property="og:title" content="Fish &chips;">', PAGE)
+        .title,
     ).toBe("Fish &chips;");
   });
 
   it("takes the first og:title when a page repeats it", () => {
     const html =
       '<meta property="og:title" content="First"><meta property="og:title" content="Second">';
-    expect(linkPreviewOf(html).title).toBe("First");
+    expect(linkPreviewOf(html, PAGE).title).toBe("First");
   });
 
   it("ignores the page <title>, which bot walls fill with their own", () => {
-    expect(linkPreviewOf("<title>Just a moment...</title>").title).toBeNull();
+    expect(
+      linkPreviewOf("<title>Just a moment...</title>", PAGE).title,
+    ).toBeNull();
+  });
+
+  it("reads og:image as an absolute address", () => {
+    const image = (content: string) =>
+      linkPreviewOf(`<meta property="og:image" content="${content}">`, PAGE)
+        .image;
+    expect(image("https://cdn.example.com/train.jpg")).toBe(
+      "https://cdn.example.com/train.jpg",
+    );
+    expect(image("/img/train.jpg?w=600&amp;h=600")).toBe(
+      "https://shop.example.com/img/train.jpg?w=600&h=600",
+    );
+    expect(image("//cdn.example.com/train.jpg")).toBe(
+      "https://cdn.example.com/train.jpg",
+    );
+  });
+
+  it("has no image that is not a web address", () => {
+    expect(
+      linkPreviewOf(
+        '<meta property="og:image" content="data:image/png;base64,AA">',
+        PAGE,
+      ).image,
+    ).toBeNull();
+    expect(linkPreviewOf("<title>Train set</title>", PAGE).image).toBeNull();
   });
 
   it("has no title when og:title is blank", () => {
     expect(
-      linkPreviewOf('<meta property="og:title" content="  ">').title,
+      linkPreviewOf('<meta property="og:title" content="  ">', PAGE).title,
     ).toBeNull();
   });
 });
@@ -52,12 +84,14 @@ describe("fetchLinkPreview", () => {
     vi.unstubAllGlobals();
   });
 
-  const page = '<meta property="og:title" content="Bedford Falls mug">';
+  const page =
+    '<meta property="og:title" content="Bedford Falls mug"><meta property="og:image" content="mug.jpg">';
 
   it("reads the og: tags of an HTML page", async () => {
     serve(page, { headers: { "content-type": "text/html; charset=utf-8" } });
     expect(await fetchLinkPreview("https://example.com/mug")).toEqual({
       title: "Bedford Falls mug",
+      image: "https://example.com/mug.jpg",
     });
   });
 

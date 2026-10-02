@@ -2,8 +2,8 @@
 
 What a link's share card would say, read from the page's Open Graph tags (`og:*`).
 `fetchLinkPreview(url)` fetches the page from the device itself — no server of ours sits in
-between — and `linkPreviewOf(html)` reads the tags out of HTML already in hand. Only the
-title is read today; `og:image` would be the next tag.
+between — and `linkPreviewOf(html, pageUrl)` reads the tags out of HTML already in hand: `og:title`, and
+`og:image` as an absolute address (pages often write it relative to themselves).
 
 It returns `null` rather than a guess: offline, after an 8-second timeout, for a non-2xx
 answer, or for something that is not HTML. A caller then does what it would with no preview

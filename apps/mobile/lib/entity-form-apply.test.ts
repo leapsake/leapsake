@@ -37,7 +37,7 @@ function saveWithGifts(...gifts: { title: string; given?: boolean }[]) {
     ...emptyEntityForm(),
     gifts: gifts.map(({ title, given = false }, i) => ({
       key: `gift-${i}`,
-      draft: { title, url: "", given },
+      draft: { title, url: "", imageUrl: "", given },
     })),
   });
 }

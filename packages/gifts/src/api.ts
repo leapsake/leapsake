@@ -164,6 +164,7 @@ export function createGiftsApi(deps: GiftsApiDeps) {
           idea = await giftIdeas.create({
             title: input.giftIdea.title,
             url: input.giftIdea.url ?? null,
+            imageUrl: input.giftIdea.imageUrl ?? null,
           });
         }
 

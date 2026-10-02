@@ -11,6 +11,7 @@ const validIdea = {
   id: crypto.randomUUID(),
   title: "The Adventures of Tom Sawyer",
   url: null,
+  imageUrl: null,
   notes: null,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -29,6 +30,11 @@ describe("giftIdeaSchema", () => {
       notes: "the 200-shot model",
     };
     expect(giftIdeaSchema.parse(full)).toEqual(full);
+  });
+
+  it("reads an idea saved before it had a picture as having none", () => {
+    const { imageUrl: _, ...older } = validIdea;
+    expect(giftIdeaSchema.parse(older).imageUrl).toBeNull();
   });
 
   it("rejects an empty title", () => {

@@ -732,6 +732,7 @@ describe("buildArchive — data.json", () => {
       id: uuid(),
       title: "Socks",
       url: null,
+      imageUrl: null,
       notes: null,
       ...stamps,
     };
@@ -905,6 +906,7 @@ describe("buildArchive — data.json", () => {
       id: uuid(),
       title: "Socks",
       url: null,
+      imageUrl: null,
       notes: null,
       ...stamps,
     };

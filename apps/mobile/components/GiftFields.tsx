@@ -18,12 +18,14 @@ export interface GiftDraft {
   title: string;
   /** The link, once the title field recognises one; see {@link giftUrlOf}. */
   url: string;
+  /** The link's share-card picture, found by looking the link up. */
+  imageUrl: string;
   /** Whether they already have it. */
   given: boolean;
 }
 
 export function emptyGiftDraft(given = false): GiftDraft {
-  return { title: "", url: "", given };
+  return { title: "", url: "", imageUrl: "", given };
 }
 
 /**
@@ -40,35 +42,38 @@ export function giftDraftValid(draft: GiftDraft): boolean {
 }
 
 /**
- * Name a nameless gift after its link's share card, unless a name is typed
- * first. Whether a lookup is under way.
+ * Look a new link up and take its picture, and its name if the gift has none
+ * yet. Whether a lookup is under way.
  */
-function useNameFromLink(
+function useLinkPreview(
   draft: GiftDraft,
   onChange: (draft: GiftDraft) => void,
 ): boolean {
   const latest = useRef({ draft, onChange });
   latest.current = { draft, onChange };
   const [looking, setLooking] = useState(false);
-  const nameless = draft.title.trim() === "";
+  const { url } = draft;
 
   useEffect(() => {
-    if (draft.url === "" || !nameless) return;
+    if (url === "") return;
     const lookup = new AbortController();
     setLooking(true);
-    void fetchLinkPreview(draft.url, lookup.signal).then((preview) => {
+    void fetchLinkPreview(url, lookup.signal).then((preview) => {
       if (lookup.signal.aborted) return;
       setLooking(false);
       const now = latest.current.draft;
-      if (preview?.title && now.url === draft.url && now.title.trim() === "") {
-        latest.current.onChange({ ...now, title: preview.title });
-      }
+      if (preview === null || now.url !== url) return;
+      latest.current.onChange({
+        ...now,
+        title: now.title.trim() === "" ? (preview.title ?? "") : now.title,
+        imageUrl: preview.image ?? "",
+      });
     });
     return () => {
       lookup.abort();
       setLooking(false);
     };
-  }, [draft.url, nameless]);
+  }, [url]);
 
   return looking;
 }
@@ -87,7 +92,7 @@ export function GiftIdentityFields({
   ideaPool: readonly GiftIdea[];
 }) {
   const trimmedTitle = draft.title.trim();
-  const lookingUpName = useNameFromLink(draft, onChange);
+  const lookingUp = useLinkPreview(draft, onChange);
 
   // An exact match is what submitting does, so it is not offered.
   const suggestions =
@@ -104,13 +109,17 @@ export function GiftIdentityFields({
   /** File a recognised link and leave the name alone; else it is the name. */
   function typed(next: string) {
     const url = pastedIntoField(draft.title, next) ? giftUrlOf(next) : null;
-    onChange(url === null ? { ...draft, title: next } : { ...draft, url });
+    onChange(
+      url === null
+        ? { ...draft, title: next }
+        : { ...draft, url, imageUrl: "" },
+    );
   }
 
   /** The backstop for a link typed out by hand rather than pasted. */
   function settle() {
     const url = giftUrlOf(draft.title);
-    if (url !== null) onChange({ ...draft, title: "", url });
+    if (url !== null) onChange({ ...draft, title: "", url, imageUrl: "" });
   }
 
   return (
@@ -121,7 +130,7 @@ export function GiftIdentityFields({
         testID="gift-title"
         style={styles.input}
         placeholder={
-          lookingUpName ? "Looking up its name…" : "Name it, or paste a link"
+          lookingUp ? "Looking up its name…" : "Name it, or paste a link"
         }
         value={draft.title}
         onChangeText={typed}
@@ -134,7 +143,7 @@ export function GiftIdentityFields({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Remove link"
-            onPress={() => onChange({ ...draft, url: "" })}
+            onPress={() => onChange({ ...draft, url: "", imageUrl: "" })}
           >
             <Text style={[styles.link, styles.danger]}>Remove link</Text>
           </Pressable>

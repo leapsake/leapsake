@@ -31,7 +31,7 @@ export interface IdeaRecipientRow {
 
 /** What one submit of the capture form writes, in one transaction. */
 export interface GiftCaptureInput {
-  giftIdea: { id: string } | { title: string; url?: string };
+  giftIdea: { id: string } | { title: string; url?: string; imageUrl?: string };
   recipients: {
     party: { type: GiftPartyType; id: string };
     given?: boolean;

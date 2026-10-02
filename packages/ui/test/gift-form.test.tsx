@@ -37,6 +37,19 @@ describe("giftIdeaOf", () => {
     ).toEqual({ title: "Sled", url: "https://sleds.example" });
   });
 
+  it("carries the link's picture with the link, and never without it", () => {
+    const image = "https://sleds.example/sled.jpg";
+    expect(
+      giftIdeaOf(
+        { title: "Sled", url: "https://sleds.example", imageUrl: image },
+        pool,
+      ),
+    ).toEqual({ title: "Sled", url: "https://sleds.example", imageUrl: image });
+    expect(
+      giftIdeaOf({ title: "Sled", url: "", imageUrl: image }, pool),
+    ).toEqual({ title: "Sled" });
+  });
+
   it("omits an empty link rather than minting a blank one", () => {
     expect(giftIdeaOf({ title: "Sled", url: "   " }, pool)).toEqual({
       title: "Sled",

@@ -22,6 +22,7 @@ export const giftIdeaRefSchema = z.union([
   z.object({
     title: z.string().min(1),
     url: z.string().min(1).nullable().optional(),
+    imageUrl: z.string().min(1).nullable().optional(),
   }),
 ]);
 

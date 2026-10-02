@@ -73,6 +73,7 @@ describe("useGiftCaptureForm", () => {
     expect(result.current.fields).toEqual({
       title: "",
       url: "",
+      imageUrl: "",
       given: true,
       recipients: [],
     });

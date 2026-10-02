@@ -29,14 +29,16 @@ export function captureRecipientOf(
 /** The pool's idea with this exact title, ignoring case, or a new one. The
  *  only dedup a capture gets: `core.gifts.capture` mints on every title. */
 export function giftIdeaOf(
-  draft: { title: string; url: string },
+  draft: { title: string; url: string; imageUrl?: string },
   pool: readonly { id: string; title: string }[],
-): { id: string } | { title: string; url?: string } {
+): { id: string } | { title: string; url?: string; imageUrl?: string } {
   const title = draft.title.trim();
   const found = pool.find((i) => i.title.toLowerCase() === title.toLowerCase());
   if (found !== undefined) return { id: found.id };
   const url = draft.url.trim();
-  return { title, ...(url === "" ? {} : { url }) };
+  if (url === "") return { title };
+  const imageUrl = draft.imageUrl?.trim() ?? "";
+  return { title, url, ...(imageUrl === "" ? {} : { imageUrl }) };
 }
 
 /** Replace one recipient's fields, addressed by {@link partyKey}. */
@@ -62,6 +64,8 @@ export function removeRecipient(
 export interface GiftCaptureDraft {
   title: string;
   url: string;
+  /** The link's share-card picture, found by looking the link up. */
+  imageUrl: string;
   given: boolean;
   recipients: RecipientEntry[];
 }
@@ -69,6 +73,7 @@ export interface GiftCaptureDraft {
 export const giftCaptureDraftOf = (startGiven = false): GiftCaptureDraft => ({
   title: "",
   url: "",
+  imageUrl: "",
   given: startGiven,
   recipients: [],
 });

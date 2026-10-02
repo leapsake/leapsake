@@ -252,6 +252,20 @@ describe("core.gifts.capture (the consolidated create)", () => {
     expect(await core.gifts.recipients.listForIdea(idea.id)).toEqual([]);
   });
 
+  it("keeps the picture of a new idea's link", async () => {
+    const idea = await core.gifts.capture({
+      giftIdea: {
+        title: "Kite",
+        url: "https://example.com/kite",
+        imageUrl: "https://example.com/kite.jpg",
+      },
+      recipients: [],
+    });
+    expect((await core.gifts.ideas.get(idea.id))?.imageUrl).toBe(
+      "https://example.com/kite.jpg",
+    );
+  });
+
   it("mints the idea once, however many recipients it has", async () => {
     const violet = await makePerson("Violet");
     const harry = await makePerson("Harry");

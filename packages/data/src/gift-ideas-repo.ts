@@ -30,6 +30,7 @@ export function createGiftIdeasRepo(driver: SqliteDriver): GiftIdeasRepo {
       const {
         title,
         url = null,
+        imageUrl = null,
         notes = null,
       } = createGiftIdeaInputSchema.parse(input);
       const now = Date.now();
@@ -37,6 +38,7 @@ export function createGiftIdeasRepo(driver: SqliteDriver): GiftIdeasRepo {
         id: crypto.randomUUID(),
         title,
         url,
+        imageUrl,
         notes,
         createdAt: now,
         updatedAt: now,
@@ -44,7 +46,16 @@ export function createGiftIdeasRepo(driver: SqliteDriver): GiftIdeasRepo {
       });
     },
 
-    update: async (id, input) =>
-      base.update(id, updateGiftIdeaInputSchema.parse(input)),
+    // A new link drops the old link's picture unless one comes with it.
+    async update(id, input) {
+      const parsed = updateGiftIdeaInputSchema.parse(input);
+      if (parsed.url !== undefined && parsed.imageUrl === undefined) {
+        const current = await base.get(id);
+        if (current !== undefined && current.url !== parsed.url) {
+          parsed.imageUrl = null;
+        }
+      }
+      return base.update(id, parsed);
+    },
   };
 }

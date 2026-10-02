@@ -79,6 +79,7 @@ export function GiftCaptureForm({
             ...f,
             title: d.title,
             url: d.url,
+            imageUrl: d.imageUrl,
             given: d.given,
           }))
         }
@@ -112,7 +113,7 @@ export function GiftCaptureFields({
 }: {
   fields: GiftCaptureDraft;
   onIdentityChange: (
-    draft: Pick<GiftCaptureDraft, "title" | "url" | "given">,
+    draft: Pick<GiftCaptureDraft, "title" | "url" | "imageUrl" | "given">,
   ) => void;
   ideaPool: GiftIdea[];
   fixedRecipient?: PartyOption;

@@ -81,6 +81,34 @@ describe("giftIdeasRepo", () => {
     expect(updated?.notes).toBeNull();
   });
 
+  it("keeps a link's picture until the link changes", async () => {
+    const idea = await repo.create({
+      title: "Kite",
+      url: "https://example.com/kite",
+      imageUrl: "https://example.com/kite.jpg",
+    });
+    expect((await repo.get(idea.id))?.imageUrl).toBe(
+      "https://example.com/kite.jpg",
+    );
+
+    await repo.update(idea.id, { title: "Red kite", url: idea.url });
+    expect((await repo.get(idea.id))?.imageUrl).toBe(
+      "https://example.com/kite.jpg",
+    );
+
+    await repo.update(idea.id, { url: "https://example.com/other-kite" });
+    expect((await repo.get(idea.id))?.imageUrl).toBeNull();
+  });
+
+  it("takes a new link's picture when one comes with it", async () => {
+    const idea = await repo.create({ title: "Kite" });
+    const updated = await repo.update(idea.id, {
+      url: "https://example.com/kite",
+      imageUrl: "https://example.com/kite.jpg",
+    });
+    expect(updated?.imageUrl).toBe("https://example.com/kite.jpg");
+  });
+
   it("hides a soft-deleted idea from get", async () => {
     const idea = await repo.create({ title: "Scarf" });
     await repo.softDelete(idea.id);
