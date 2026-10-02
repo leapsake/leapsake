@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { getLocales } from "expo-localization";
 import { fetchLinkPreview } from "@leapsake/link-preview";
 import type { GiftIdea } from "@leapsake/schema";
 import {
@@ -58,17 +59,20 @@ function useLinkPreview(
     if (url === "") return;
     const lookup = new AbortController();
     setLooking(true);
-    void fetchLinkPreview(url, lookup.signal).then((preview) => {
-      if (lookup.signal.aborted) return;
-      setLooking(false);
-      const now = latest.current.draft;
-      if (preview === null || now.url !== url) return;
-      latest.current.onChange({
-        ...now,
-        title: now.title.trim() === "" ? (preview.title ?? "") : now.title,
-        imageUrl: preview.image ?? "",
-      });
-    });
+    const languages = getLocales().map((locale) => locale.languageTag);
+    void fetchLinkPreview(url, { signal: lookup.signal, languages }).then(
+      (preview) => {
+        if (lookup.signal.aborted) return;
+        setLooking(false);
+        const now = latest.current.draft;
+        if (preview === null || now.url !== url) return;
+        latest.current.onChange({
+          ...now,
+          title: now.title.trim() === "" ? (preview.title ?? "") : now.title,
+          imageUrl: preview.image ?? "",
+        });
+      },
+    );
     return () => {
       lookup.abort();
       setLooking(false);

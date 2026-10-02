@@ -30,6 +30,19 @@ const BOT_WALL_TITLES = new Set([
   "hang tight! routing to checkout...",
 ]);
 
+/** Tidying a shop's titles need beyond losing its name, by its domain label. */
+const SITE_TITLE_TIDIES: Record<string, (title: string) => string> = {
+  // "…Space Gray : Electronics": the department follows a spaced colon.
+  amazon: (title) => {
+    // A book's: "Dune: 9780441172719: Herbert, Frank: Books".
+    const isbn = /:\s*(?:\d{13}|\d{9}[\dX])\s*:/.exec(title);
+    return isbn === null
+      ? title.replace(/\s+:\s+[^:]+$/, "")
+      : title.slice(0, isbn.index);
+  },
+  apple: (title) => title.replace(/^buy\s+/i, ""),
+};
+
 /** What a link's share card would say, mostly from its `og:` tags. */
 export interface LinkPreview {
   title: string | null;
@@ -56,18 +69,24 @@ export function linkPreviewOf(html: string, pageUrl: string): LinkPreview {
     }
   }
   return {
-    title: cleanText(tags.get("og:title")) ?? documentTitleOf(html, pageUrl),
+    title: productTitleOf(
+      cleanText(tags.get("og:title")) ?? documentTitleOf(html),
+      pageUrl,
+    ),
     image: absoluteWebUrl(cleanText(tags.get("og:image")), pageUrl),
   };
 }
 
 /**
- * Fetch a link and read its `og:` tags. Anything that keeps them from being
- * read — offline, a timeout, a non-2xx answer, a non-HTML page — is `null`.
+ * A link's preview, the page asked for in `languages` (BCP 47, best first).
+ * Offline, a timeout, a non-2xx answer or a non-HTML page is `null`.
  */
 export async function fetchLinkPreview(
   url: string,
-  signal?: AbortSignal,
+  {
+    signal,
+    languages = [],
+  }: { signal?: AbortSignal; languages?: readonly string[] } = {},
 ): Promise<LinkPreview | null> {
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), FETCH_TIMEOUT_MS);
@@ -76,7 +95,11 @@ export async function fetchLinkPreview(
   try {
     const response = await fetch(url, {
       signal: timeout.signal,
-      headers: { Accept: "text/html" },
+      headers: {
+        Accept: "text/html",
+        // Amazon answers a request without one with a CAPTCHA.
+        "Accept-Language": languages.length > 0 ? languages.join(", ") : "en",
+      },
     });
     const type = response.headers.get("content-type") ?? "";
     if (!response.ok || !/html/i.test(type)) return null;
@@ -89,32 +112,45 @@ export async function fetchLinkPreview(
   }
 }
 
-/**
- * The `<title>` in the page's `<head>`, without a leading or trailing site
- * name ("Amazon.com: …"). A bot wall's, or the bare site name, is `null`.
- */
-function documentTitleOf(html: string, pageUrl: string): string | null {
+/** The `<title>` in the page's `<head>`, not an SVG's in its body. */
+function documentTitleOf(html: string): string | null {
   const head = html.split(/<\/head>/i)[0];
-  const title = cleanText(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(head)?.[1]);
-  if (title === null || BOT_WALL_TITLES.has(title.toLowerCase())) return null;
+  return cleanText(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(head)?.[1]);
+}
 
-  const site = hostOf(pageUrl);
-  if (site === "") return title;
-  const name = site.replaceAll(".", String.raw`\.`);
-  const separator = String.raw`\s*[:|\-–—]\s*`;
+/**
+ * A page title without the shop's name at either end ("Amazon.com: …",
+ * "… | eBay"); a bot wall's, or the shop's name alone, is `null`.
+ */
+function productTitleOf(title: string | null, pageUrl: string): string | null {
+  if (title === null || BOT_WALL_TITLES.has(title.toLowerCase())) return null;
+  const site = siteOf(pageUrl);
+  if (site === null) return title;
+
+  const name = String.raw`(?:[a-z0-9-]+\.)*${site.label}(?:${site.suffix.replaceAll(".", String.raw`\.`)})?`;
+  const separator = String.raw`(?:\s*:\s+|\s+[|\-–—·]\s+)`;
   const trimmed = title
     .replace(new RegExp(`^${name}${separator}`, "i"), "")
     .replace(new RegExp(`${separator}${name}$`, "i"), "");
-  return trimmed === "" || trimmed.toLowerCase() === site ? null : trimmed;
+  const tidied = (SITE_TITLE_TIDIES[site.label]?.(trimmed) ?? trimmed).trim();
+  return tidied === "" || new RegExp(`^${name}$`, "i").test(tidied)
+    ? null
+    : tidied;
 }
 
-/** The page's host, lowercase and without `www.`. */
-function hostOf(pageUrl: string): string {
+/**
+ * A shop's domain split at its name: `amazon` and `.co.uk` for
+ * `www.amazon.co.uk`. The name is the label left of a short final suffix.
+ */
+function siteOf(pageUrl: string): { label: string; suffix: string } | null {
+  let host: string;
   try {
-    return new URL(pageUrl).hostname.toLowerCase().replace(/^www\./, "");
+    host = new URL(pageUrl).hostname.toLowerCase().replace(/^www\./, "");
   } catch {
-    return "";
+    return null;
   }
+  const match = /([a-z0-9-]+)((?:\.[a-z]{2,3})?\.[a-z]{2,})$/.exec(host);
+  return match === null ? null : { label: match[1], suffix: match[2] };
 }
 
 function attributesOf(tag: string): Map<string, string> {

@@ -46,15 +46,70 @@ describe("linkPreviewOf", () => {
     expect(linkPreviewOf(html, PAGE).title).toBe("Train set");
   });
 
-  it("drops the site's own name from either end of a <title>", () => {
-    const amazon = "https://www.amazon.com/dp/B0BSHF7WHW";
-    expect(
-      linkPreviewOf("<title>Amazon.com: Spooky Village Puzzle</title>", amazon)
-        .title,
-    ).toBe("Spooky Village Puzzle");
+  it("drops the site's own name from either end of a title", () => {
     expect(
       linkPreviewOf("<title>Train set | shop.example.com</title>", PAGE).title,
     ).toBe("Train set");
+    expect(
+      linkPreviewOf(
+        '<meta property="og:title" content="Example: Train set">',
+        PAGE,
+      ).title,
+    ).toBe("Train set");
+  });
+
+  it("keeps a site's name that is part of the product's", () => {
+    const ebay = "https://www.ebay.com/itm/1";
+    expect(
+      linkPreviewOf("<title>eBay gift card | eBay</title>", ebay).title,
+    ).toBe("eBay gift card");
+  });
+
+  it.each([
+    [
+      "Amazon",
+      "https://www.amazon.com/dp/B0BSHF7WHW",
+      "<title>Amazon.com: Apple 2023 MacBook Pro Laptop with Apple M2 Pro chip with 12‑core CPU and 19‑core GPU: 16.2-inch Liquid Retina XDR Display; Space Gray : Electronics</title>",
+      "Apple 2023 MacBook Pro Laptop with Apple M2 Pro chip with 12‑core CPU and 19‑core GPU: 16.2-inch Liquid Retina XDR Display; Space Gray",
+    ],
+    [
+      "an Amazon book",
+      "https://www.amazon.com/dp/0441172717",
+      "<title>Amazon.com: Dune: 9780441172719: Herbert, Frank: Books</title>",
+      "Dune",
+    ],
+    [
+      "Amazon UK",
+      "https://www.amazon.co.uk/dp/B0BSHF7WHW",
+      "<title>Amazon.co.uk: Spooky Village Puzzle : Toys &amp; Games</title>",
+      "Spooky Village Puzzle",
+    ],
+    [
+      "Walmart",
+      "https://www.walmart.com/ip/x/2627335972",
+      '<meta property="og:title" content="LEGO Harry Potter Hogwarts Castle and Grounds 76419 Building Set - Walmart.com">',
+      "LEGO Harry Potter Hogwarts Castle and Grounds 76419 Building Set",
+    ],
+    [
+      "Apple",
+      "https://www.apple.com/shop/product/MX2D3AM/A/apple-pencil-pro",
+      '<title>Buy Apple Pencil Pro - Apple</title><meta property="og:title" content="Buy Apple Pencil Pro">',
+      "Apple Pencil Pro",
+    ],
+    [
+      "eBay",
+      "https://www.ebay.com/itm/206339597097",
+      '<meta property="og:title" content="LEGO Disney Princess Ariel&#39;s Crystal Cavern and Treasure Chest 43254 | eBay">',
+      "LEGO Disney Princess Ariel's Crystal Cavern and Treasure Chest 43254",
+    ],
+    [
+      "Target",
+      "https://www.target.com/p/-/A-87450736",
+      '<title>A&amp;W Logo Women&#x27;s Black Long Sleeve Shirt-XL : Target</title><meta content="A&amp;W Logo Women&#x27;s Black Long Sleeve Shirt-XL" property="og:title"/>',
+      "A&W Logo Women's Black Long Sleeve Shirt-XL",
+    ],
+  ])("names a product on %s", (_shop, url, html, title) => {
+    expect(linkPreviewOf(html, url).title).toBe(title);
   });
 
   it("has no title when the <title> is only the site's name", () => {
@@ -133,6 +188,17 @@ describe("fetchLinkPreview", () => {
     });
   });
 
+  it("asks for the page in the person's languages", async () => {
+    serve(page, { headers: { "content-type": "text/html" } });
+    await fetchLinkPreview("https://example.com/mug", {
+      languages: ["en-GB", "fr-FR"],
+    });
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(new Headers(init?.headers).get("accept-language")).toBe(
+      "en-GB, fr-FR",
+    );
+  });
+
   it("is null for a page that refused the request", async () => {
     serve(page, { status: 403, headers: { "content-type": "text/html" } });
     expect(await fetchLinkPreview("https://example.com/mug")).toBeNull();
@@ -166,7 +232,9 @@ describe("fetchLinkPreview", () => {
       ),
     );
     const caller = new AbortController();
-    const preview = fetchLinkPreview("https://example.com/mug", caller.signal);
+    const preview = fetchLinkPreview("https://example.com/mug", {
+      signal: caller.signal,
+    });
     caller.abort();
     expect(await preview).toBeNull();
   });

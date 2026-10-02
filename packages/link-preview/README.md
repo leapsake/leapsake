@@ -22,6 +22,18 @@ from.
 
 The list will miss walls it has not seen; `test/link-preview.test.ts` is where to add one.
 
+## The big shops
+
+The site's name comes off whichever title is used, `og:title` included, whether a page
+writes it as its domain (`Walmart.com`) or its label (`eBay`). Beyond that, a shop gets its
+own rule in `SITE_TITLE_TIDIES` only where its titles need one: Amazon's trailing department
+(and a book's ISBN, author and `Books`), and Apple's leading “Buy”. The test names a product
+on each of the five biggest US online shops (Amazon, Walmart, Apple, eBay, Target) from the
+markup each served.
+
+Every request carries an `Accept-Language`, the caller's languages or `en`: without one,
+Amazon answers with a CAPTCHA page every time.
+
 A full browser engine gets past these walls by running their JavaScript, which is how
 Messages builds its previews (Apple's LinkPresentation). That would mean a native module
 per platform, and it hands back image data rather than an address.
