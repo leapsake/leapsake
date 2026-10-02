@@ -24,6 +24,7 @@ const reminder = (id: string, completedAt: number | null = null) => ({
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
+  occurrenceYear: 2026,
   offers: [
     {
       action: "get:gift" as const,
@@ -133,6 +134,7 @@ describe("rowAffordanceFor", () => {
       {
         kind: "answer-plan",
         to: "/milestones/m1/plan",
+        year: 2026,
         // The **whole** offer set, wish alone enabled — not just the tick. Rows
         // existing is what makes "asked, and chose nothing" distinguishable
         // from "never asked".

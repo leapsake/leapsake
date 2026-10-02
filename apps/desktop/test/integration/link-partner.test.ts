@@ -128,14 +128,16 @@ describe("core.milestones.linkPartner", () => {
   it("marries someone already in People, and stores the answer with it", async () => {
     const { george, milestone } = await georgesAnniversary();
     const mary = await person("Mary", "Hatch");
+    const [prompt] = (await core.reminders.targets()).plans;
 
     await core.milestones.linkPartner({
       milestoneId: milestone.id,
       personId: george.id,
       partner: { personId: mary.id },
-      reminderSchedule: [
-        { action: "wish", label: null, offsetDays: 0, enabled: true },
-      ],
+      answer: {
+        year: prompt.occurrenceYear,
+        rules: [{ action: "wish", label: null, offsetDays: 0, enabled: true }],
+      },
     });
 
     const [marriage] = await core.relationships.listForEntity(
@@ -356,11 +358,11 @@ describe("removing a couple's relationship", () => {
 
   async function marriage(partner: { personId: string } | { name: string }) {
     const { george, milestone } = await georgesAnniversary();
+    await core.milestones.update(milestone.id, { reminderSchedule: schedule });
     await core.milestones.linkPartner({
       milestoneId: milestone.id,
       personId: george.id,
       partner,
-      reminderSchedule: schedule,
     });
     const [rel] = await core.relationships.listForEntity("person", george.id);
     return { george, rel, milestone };

@@ -82,6 +82,7 @@ import {
   isRomanticRole,
   kindAllowsBearer,
   kindDefs,
+  promptAnswerOf,
   resolveReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
@@ -283,12 +284,18 @@ export type CoreApi = ReturnType<typeof createCore>;
  * Wire the repositories over a {@link SqliteDriver} into a {@link CoreApi}; run
  * {@link runMigrations} on it first. Trust boundaries parse before calling in.
  */
+/** The prompt's answer, for the one occurrence year it covers. */
+export interface PlanAnswer {
+  year: number;
+  rules: ReminderRuleInput[];
+}
+
 /** Who a person's milestone is with, for `milestones.linkPartner`. */
 export interface PartnerLink {
   milestoneId: string;
   personId: string;
   partner: { personId: string } | { name: string };
-  reminderSchedule?: ReminderRuleInput[];
+  answer?: PlanAnswer;
 }
 
 /** The role a new partner is recorded in, by the occasion that named them. */
@@ -429,7 +436,7 @@ export function createCore(
   /** Moves a milestone held by one person onto their relationship with a
    *  partner, absorbing same-day copies there or on the partner. */
   async function moveOntoPartnership(input: PartnerLink): Promise<void> {
-    const { milestoneId, personId, partner, reminderSchedule } = input;
+    const { milestoneId, personId, partner, answer } = input;
     const linked = (await milestones.listForBearer("person", personId)).find(
       (m) => m.id === milestoneId,
     );
@@ -470,13 +477,21 @@ export function createCore(
         await milestones.softDelete(copy.id);
         await reminderRules.removeAllForBearer("milestone", copy.id);
       }
-      if (reminderSchedule !== undefined)
-        await reminderRules.replaceForBearer(
-          "milestone",
-          milestoneId,
-          reminderSchedule,
-        );
+      if (answer !== undefined) await writePlanAnswer(milestoneId, answer);
     });
+  }
+
+  /** Answer a milestone's prompt for one year. Transaction-free. */
+  function writePlanAnswer(
+    milestoneId: string,
+    answer: PlanAnswer,
+  ): Promise<void> {
+    return reminderRules.replaceAnswer(
+      "milestone",
+      milestoneId,
+      answer.year,
+      promptAnswerOf(answer.rules),
+    );
   }
 
   /** Links every couple's occasion held by the user's romantic partner to
@@ -514,7 +529,9 @@ export function createCore(
   ): Promise<void> {
     const copy = await milestones.copyToBearer(milestone, bearerType, bearerId);
     if (!copy.created) return;
-    const rules = await reminderRules.listForBearer("milestone", milestone.id);
+    const rules = (
+      await reminderRules.listForBearer("milestone", milestone.id)
+    ).filter((rule) => rule.occurrenceYear === null);
     if (rules.length > 0)
       await reminderRules.replaceForBearer(
         "milestone",
@@ -930,6 +947,14 @@ export function createCore(
         });
         await regenerateSystem();
         return milestone;
+      },
+      // The whole offer set, so “chose nothing” still answers the year.
+      answerPlan: async (
+        milestoneId: string,
+        answer: PlanAnswer,
+      ): Promise<void> => {
+        await driver.transaction(() => writePlanAnswer(milestoneId, answer));
+        await regenerateSystem();
       },
       // Move a person's milestone onto their relationship with a partner.
       linkPartner: async (input: PartnerLink): Promise<void> => {

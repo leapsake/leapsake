@@ -163,6 +163,7 @@ function ReminderRow({
                 action={affordance.to}
                 style={{ display: "inline" }}
               >
+                <input type="hidden" name="year" value={affordance.year} />
                 <input
                   type="hidden"
                   name="reminderSchedule"

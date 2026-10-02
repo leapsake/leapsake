@@ -2,6 +2,7 @@ import { deterministicUuid } from "@leapsake/bytes";
 import {
   type CivilDate,
   type MilestoneKind,
+  type PromptAnswer,
   type RemindEligibleMilestone,
   type Reminder,
   type ReminderRuleInput,
@@ -67,20 +68,22 @@ function makeHarness() {
   const labels = new Map<string, string>([["p1", "Violet"]]);
   const schedules = new Map<string, ReminderRuleInput[]>();
   const writtenAts = new Map<string, number>();
+  const answers = new Map<string, Map<number, PromptAnswer>>();
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
-    // A set schedule stands in for stored rule rows, so it reads as `stored` and
-    // must suppress the prompt exactly as real rows do.
+    // A set schedule stands in for stored rule rows, so it reads as `stored`.
     resolveSchedule: async (m) => {
       const custom = schedules.get(m.id);
-      return custom === undefined
-        ? resolveReminderSchedule(m.kind, [])
-        : {
-            rules: custom,
-            source: "stored" as const,
-            writtenAt: writtenAts.get(m.id) ?? null,
-          };
+      const standing =
+        custom === undefined
+          ? resolveReminderSchedule(m.kind, [])
+          : {
+              rules: custom,
+              source: "stored" as const,
+              writtenAt: writtenAts.get(m.id) ?? null,
+            };
+      return { ...standing, answers: answers.get(m.id) ?? new Map() };
     },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
@@ -124,6 +127,17 @@ function makeHarness() {
     ) => {
       schedules.set(milestoneId, rules);
       if (writtenAt !== undefined) writtenAts.set(milestoneId, writtenAt);
+    },
+    /** Stand in for the prompt's answer for one occurrence year. */
+    setAnswer: (
+      milestoneId: string,
+      year: number,
+      rules: ReminderRuleInput[],
+      writtenAt: number = 0,
+    ) => {
+      const byYear = answers.get(milestoneId) ?? new Map();
+      byYear.set(year, { rules, writtenAt });
+      answers.set(milestoneId, byYear);
     },
     setSelf: (personId: string | null) => {
       selfPersonId = personId;
@@ -222,27 +236,69 @@ describe("the plan prompt", () => {
     );
   });
 
-  // Rows existing is the "answered" marker — no new column.
-  it("is not minted once the occasion has rules of its own", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
-    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+  it("is not minted once this year's occasion is answered", async () => {
+    const occ = daysOut(APPEARS_DAYS);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setAnswer("m1", occ.year, [
+      { action: "wish", offsetDays: 0, enabled: true },
+    ]);
 
     await regenerateSystemReminders(h.deps);
     expect(h.prompts()).toHaveLength(0);
   });
 
-  // ⚠️ Ticking nothing has to be distinguishable from never being asked, or the
-  // question returns every year. The answer writes the *full* offer set,
-  // disabled rows included, so an all-off set still counts as answered.
-  it("is not minted for an answer of `nothing`", async () => {
+  // Some years a gift is handed over, some years it is posted, some years
+  // nothing: a schedule set on the Person screen is what an unanswered year gets.
+  it("is still asked when the occasion has a schedule of its own", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
     h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+      { action: "wish", offsetDays: 0, enabled: true },
+    ]);
+
+    await regenerateSystemReminders(h.deps);
+    expect(h.prompts()).toHaveLength(1);
+  });
+
+  // ⚠️ Ticking nothing has to be distinguishable from never being asked, or the
+  // question returns that same year. The answer writes the *full* offer set,
+  // disabled rows included, so an all-off set still counts as answered.
+  it("is not minted for an answer of `nothing`", async () => {
+    const occ = daysOut(APPEARS_DAYS);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setAnswer("m1", occ.year, [
       { action: "get:gift", offsetDays: 12, enabled: false },
       { action: "wish", offsetDays: 0, enabled: false },
     ]);
 
     await regenerateSystemReminders(h.deps);
     expect(h.activeSystem()).toHaveLength(0);
+  });
+
+  it("replaces the schedule for the year it answers, and only that year", async () => {
+    const occ = daysOut(20);
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setSchedule("m1", [
+      { action: "get:gift", offsetDays: 12, enabled: true },
+      { action: "wish", offsetDays: 0, enabled: true },
+    ]);
+    h.setAnswer("m1", occ.year + 1, [
+      { action: "wish", offsetDays: 0, enabled: false },
+    ]);
+    await regenerateSystemReminders(h.deps);
+    // Unanswered, this year is still asked about, on the standing schedule.
+    expect(h.activeSystem().map((r) => r.title)).toEqual([
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s birthday?`,
+      `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
+    ]);
+
+    h.setAnswer("m1", occ.year, [
+      { action: "get:card", offsetDays: 12, enabled: true },
+    ]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem().map((r) => r.title)).toEqual([
+      `🛒 Get a card for ${mentionToken("Violet", "person", "p1")}`,
+    ]);
   });
 
   // A checkbox list of ways to recognise a death anniversary is exactly the
@@ -483,7 +539,7 @@ describe("an answer given late", () => {
   it("slides a last-minute gift to the day before", async () => {
     const occ = daysOut(5);
     h.setMilestones([birthday("m1", "p1", occ)]);
-    h.setSchedule("m1", giftAndWish, at(TODAY));
+    h.setAnswer("m1", occ.year, giftAndWish, at(TODAY));
     await regenerateSystemReminders(h.deps);
 
     expect(giftOf().dueDate).toBe(dueDateMs(occ) - IN_PERSON! * DAY_MS);
@@ -492,7 +548,7 @@ describe("an answer given late", () => {
   it("keeps the deadline of a gift chosen in time", async () => {
     const occ = daysOut(20);
     h.setMilestones([birthday("m1", "p1", occ)]);
-    h.setSchedule("m1", giftAndWish, at(TODAY));
+    h.setAnswer("m1", occ.year, giftAndWish, at(TODAY));
     await regenerateSystemReminders(h.deps);
 
     expect(giftOf().dueDate).toBe(dueDateMs(occ) - 12 * DAY_MS);
@@ -514,7 +570,7 @@ describe("an answer given late", () => {
   it("does not slide a card past the posting that delivers it", async () => {
     const occ = daysOut(SHOP);
     h.setMilestones([birthday("m1", "p1", occ)]);
-    h.setSchedule("m1", cardAndPost, at(TODAY));
+    h.setAnswer("m1", occ.year, cardAndPost, at(TODAY));
     await regenerateSystemReminders(h.deps);
 
     const card = withIcon(actionDefs["get:card"].icon);
@@ -524,35 +580,26 @@ describe("an answer given late", () => {
     expect(card.dueDate!).toBeLessThan(post.dueDate!);
   });
 
-  // Offered only what still fitted, a late answer covers its own year; the
-  // question comes back for the next, eight weeks ahead, with everything on
-  // offer.
-  it("asks again the next year when it could not offer everything", async () => {
-    const occ = daysOut(5);
-    h.setMilestones([birthday("m1", "p1", occ)]);
-    h.setSchedule("m1", giftAndWish, at(TODAY));
-    await regenerateSystemReminders(h.deps);
-    expect(h.prompts()).toHaveLength(0);
+  // An answer covers its own year; the question comes back for the next, eight
+  // weeks ahead, with everything on offer.
+  it("asks again the next year, however it was answered", async () => {
+    for (const days of [5, APPEARS_DAYS]) {
+      h = makeHarness();
+      const occ = daysOut(days);
+      h.setMilestones([birthday("m1", "p1", occ)]);
+      h.setAnswer("m1", occ.year, giftAndWish, at(TODAY));
+      await regenerateSystemReminders(h.deps);
+      expect(h.prompts()).toHaveLength(0);
 
-    const next: CivilDate = { ...occ, year: occ.year + 1 };
-    h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
-    await regenerateSystemReminders(h.deps);
-    expect(h.prompts().map((p) => p.id)).toEqual([
-      deterministicUuid(
-        SYSTEM_REMINDER_NAMESPACE,
-        `milestone:m1:${next.year}:plan`,
-      ),
-    ]);
-  });
-
-  it("does not ask again after an answer given in time", async () => {
-    const occ = daysOut(APPEARS_DAYS);
-    h.setMilestones([birthday("m1", "p1", occ)]);
-    h.setSchedule("m1", giftAndWish, at(TODAY));
-
-    const next: CivilDate = { ...occ, year: occ.year + 1 };
-    h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
-    await regenerateSystemReminders(h.deps);
-    expect(h.prompts()).toHaveLength(0);
+      const next: CivilDate = { ...occ, year: occ.year + 1 };
+      h.setToday(civilFromDueMs(dueDateMs(next) - APPEARS_DAYS * DAY_MS));
+      await regenerateSystemReminders(h.deps);
+      expect(h.prompts().map((p) => p.id)).toEqual([
+        deterministicUuid(
+          SYSTEM_REMINDER_NAMESPACE,
+          `milestone:m1:${next.year}:plan`,
+        ),
+      ]);
+    }
   });
 });

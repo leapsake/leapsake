@@ -371,6 +371,8 @@ export const reminderRuleSchema = z.object({
   /** Lead days before the occurrence; 0 = day-of. */
   offsetDays: z.number().int().min(0),
   enabled: z.boolean(),
+  /** The one occurrence a prompt's answer covers; null for a standing rule. */
+  occurrenceYear: z.number().int().nullable(),
   createdAt: z.number().int(), // epoch ms, UTC
   updatedAt: z.number().int(),
   deletedAt: z.number().int().nullable(),

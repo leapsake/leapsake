@@ -35,6 +35,13 @@ function daysOut(days: number): CivilDate {
  * around a mutable milestone list and label map — the whole point of the separate
  * package: exercise the reconcile with no native sqlite driver.
  */
+/** Answers every year with `rules`, as for an occasion that is never asked. */
+function answeredEveryYear(rules: ReminderRuleInput[], writtenAt: number) {
+  return new Map(
+    Array.from({ length: 201 }, (_, i) => [1950 + i, { rules, writtenAt }]),
+  );
+}
+
 function makeHarness() {
   const rows = new Map<string, Reminder>();
   // Mutable so a test can advance the clock past an occurrence — the only way to
@@ -53,15 +60,18 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
-    // A custom set is itself the resolved schedule, and reads as `stored` — it
-    // stands in for rule rows, so it must suppress the prompt exactly as real
-    // rows do. An un-set milestone rides its kind defaults (what the real
-    // `resolveReminderSchedule` returns over no rows), prompt and all.
+    // A custom set stands in for every year's answer, so it suppresses the
+    // prompt. An un-set milestone rides its kind defaults, prompt and all.
     resolveSchedule: async (m) => {
       const custom = schedules.get(m.id);
       return custom === undefined
         ? resolveReminderSchedule(m.kind, [])
-        : { rules: custom, source: "stored" as const, writtenAt: null };
+        : {
+            rules: custom,
+            source: "stored" as const,
+            writtenAt: null,
+            answers: answeredEveryYear(custom, m.createdAt),
+          };
     },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),

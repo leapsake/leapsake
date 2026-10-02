@@ -10,6 +10,7 @@ import {
   type CivilDate,
   type Milestone,
   type ReminderRuleInput,
+  actionDefs,
   civilFromDueMs,
   daysUntil,
   mentionToken,
@@ -66,8 +67,14 @@ const WISH_ONLY: ReminderRuleInput[] = [
  *  birthday-engine tests aren't about. See onboarding-reminders.test.ts. */
 async function systemReminders() {
   return (await core.reminders.list()).filter(
-    (r) => r.source === "system" && onboardingRouteOf(r.id) === null,
+    (r) =>
+      r.source === "system" && onboardingRouteOf(r.id) === null && !isPrompt(r),
   );
+}
+
+/** A birthday asks every year; these tests are about what it reminds of. */
+function isPrompt(r: { title: string | null }): boolean {
+  return r.title?.startsWith(actionDefs.plan.icon) === true;
 }
 
 describe("core.reminders.regenerateSystem (birthday engine)", () => {
@@ -149,12 +156,10 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     const card = byTitle.get("💌 Send @Zuzu Bailey a card")!;
     expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(8);
     expect(daysUntil(todayCivil(), civilFromDueMs(card.dueDate!))).toBe(13);
-    // Both link back to Zuzu's page.
+    // Both link back to Zuzu's page, beside this year's question.
     expect(
-      (await core.reminders.mentioning("person", bea.id))
-        .map((r) => r.id)
-        .sort(),
-    ).toEqual([gift.id, card.id].sort());
+      (await core.reminders.mentioning("person", bea.id)).map((r) => r.id),
+    ).toEqual(expect.arrayContaining([gift.id, card.id]));
   });
 
   it("relabels the birthday mention live when the person is renamed", async () => {
@@ -728,7 +733,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
   /** The windowed rows this suite is about, minus the onboarding nudge family. */
   async function windowed() {
     return (await core.reminders.listInWindow()).filter(
-      (r) => onboardingRouteOf(r.id) === null,
+      (r) => onboardingRouteOf(r.id) === null && !isPrompt(r),
     );
   }
 

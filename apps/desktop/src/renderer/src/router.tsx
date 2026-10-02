@@ -21,7 +21,6 @@ import {
   personInputOf,
   petInputOf,
   preferredBearerType,
-  promptAnswerOf,
   relationshipDraftOf,
   relationshipInputOf,
   relationshipRoleSchema,
@@ -896,15 +895,13 @@ async function milestonePlanLoader({ params }: LoaderFunctionArgs) {
   return { target };
 }
 
-/**
- * Answer the prompt, from the screen or the list row's *Just the day*. The
- * update replaces the rule set, which retires the prompt in the same call.
- */
-
+/** Answer the prompt for its year, from the screen or the list row's *Just the
+ *  day*, which retires the prompt in the same call. */
 async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
-  await window.api.milestones.update(params.milestoneId as string, {
-    reminderSchedule: promptAnswerOf(readReminderSchedule(formData) ?? []),
+  await window.api.milestones.answerPlan(params.milestoneId as string, {
+    year: Number(formData.get("year")),
+    rules: readReminderSchedule(formData) ?? [],
   });
   return redirect("/reminders");
 }

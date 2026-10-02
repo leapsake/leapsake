@@ -12,6 +12,7 @@ import {
   daysUntil,
   promptAnswerOf,
   promptOffsetDays,
+  setPromptItem,
   reminderLabel,
   todayCivil,
 } from "@leapsake/schema";
@@ -148,19 +149,28 @@ describe("the plan prompt, end to end through core", () => {
     expect(target).toBeDefined();
 
     // Answering writes the **whole** offer set, the unticked ones disabled.
-    await core.milestones.update(milestone.id, {
-      reminderSchedule: target.offers.map((offer) => ({
-        ...offer,
-        enabled: offer.action === "wish" || offer.action === "send:card",
-      })),
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: setPromptItem(
+        target.offers,
+        target.offers.findIndex((offer) => offer.action === "get:card"),
+        true,
+      ),
     });
 
-    // The prompt retires, and the card takes its place at its own due date — a
-    // week before the birthday, which is thirteen days out. The engine took over.
+    // The prompt retires, and the card takes its place: bought twelve days
+    // before the birthday and posted a week before. The engine took over.
     expect((await core.reminders.targets()).plans).toEqual([]);
     const rows = await systemReminders();
-    expect(rows.map(reminderLabel)).toEqual(["💌 Send @Violet Bick a card"]);
-    expect(daysUntil(todayCivil(), civilFromDueMs(rows[0].dueDate!))).toBe(13);
+    expect(
+      rows.map((r) => [
+        reminderLabel(r),
+        daysUntil(todayCivil(), civilFromDueMs(r.dueDate!)),
+      ]),
+    ).toEqual([
+      ["🛒 Get a card for @Violet Bick", 8],
+      ["💌 Send @Violet Bick a card", 13],
+    ]);
   });
 
   // The one-tap answer: the same write, with only the wish left on.
@@ -168,40 +178,71 @@ describe("the plan prompt, end to end through core", () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
     const [target] = (await core.reminders.targets()).plans;
 
-    await core.milestones.update(milestone.id, {
-      reminderSchedule: target.offers.map((offer) => ({
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: target.offers.map((offer) => ({
         ...offer,
         enabled: offer.action === "wish",
       })),
     });
 
     expect(await systemReminders()).toHaveLength(0);
-    const schedule = await core.milestones.reminderSchedule(
+    expect((await core.reminders.targets()).plans).toEqual([]);
+  });
+
+  // The answer is this year's alone: the Person screen's schedule is untouched.
+  it("leaves the standing schedule as it was", async () => {
+    const { milestone } = await personWithBirthday(APPEARS_DAYS);
+    const before = await core.milestones.reminderSchedule(
       milestone.id,
       "birthday",
     );
-    // The full set is stored, not just the tick — that is what makes "asked" a
-    // fact rather than an inference, so next year's occurrence asks nothing.
-    // Measured against what was *offered* rather than against a written-down
-    // count, so narrowing the offer set (as 2026-09-05 did, by two) moves this
-    // with it instead of breaking it.
-    expect(schedule).toHaveLength(target.offers.length);
-    expect(schedule.filter((r) => r.enabled).map((r) => r.action)).toEqual([
-      "wish",
+    const [target] = (await core.reminders.targets()).plans;
+
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: target.offers.map((offer) => ({ ...offer, enabled: true })),
+    });
+
+    expect(
+      await core.milestones.reminderSchedule(milestone.id, "birthday"),
+    ).toEqual(before);
+  });
+
+  // A save on the Person screen is the user's last word, this year included.
+  it("gives way to a schedule saved afterwards", async () => {
+    const { milestone } = await personWithBirthday(20);
+    const [target] = (await core.reminders.targets()).plans;
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: target.offers.map((offer) => ({
+        ...offer,
+        enabled: offer.action === "get:gift",
+      })),
+    });
+    expect((await systemReminders()).map(reminderLabel)).toEqual([
+      "🎁 Get @Violet Bick a gift",
+    ]);
+
+    await core.milestones.update(milestone.id, {
+      reminderSchedule: [
+        { action: "get:card", label: null, offsetDays: 12, enabled: true },
+      ],
+    });
+    expect((await systemReminders()).map(reminderLabel)).toEqual([
+      "🛒 Get a card for @Violet Bick",
     ]);
   });
 
   // ⚠️ Ticking *nothing* has to be distinguishable from never being asked, or
-  // the question comes back every year.
+  // the question comes straight back.
   it("counts an answer of `nothing` as answered", async () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
     const [target] = (await core.reminders.targets()).plans;
 
-    await core.milestones.update(milestone.id, {
-      reminderSchedule: target.offers.map((offer) => ({
-        ...offer,
-        enabled: false,
-      })),
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: target.offers.map((offer) => ({ ...offer, enabled: false })),
     });
 
     expect(await systemReminders()).toHaveLength(0);

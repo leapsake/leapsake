@@ -85,7 +85,7 @@ describe("withSyncKick — kick after mutations", () => {
 // Mirror of the predicate in sync-scheduler.ts; kept here so this test fails
 // loudly if the source predicate and the real surface ever diverge.
 const isMutating = (name: string) =>
-  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|link(?=[A-Z]))/.test(
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|answer|link(?=[A-Z]))/.test(
     name,
   );
 
@@ -180,6 +180,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "milestones.timelineFor": "read",
   "milestones.update": "write",
   "milestones.linkPartner": "write",
+  "milestones.answerPlan": "write",
   "notificationSettings.get": "read",
   "notificationSettings.list": "read",
   "notificationSettings.setPermissionState": "write",

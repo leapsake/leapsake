@@ -268,8 +268,16 @@ export function kindsForBearerType(
  */
 export type ReminderScheduleSource = "stored" | "kind-default";
 
+/** The prompt's answer for one occurrence, which stands in for the schedule. */
+export interface PromptAnswer {
+  rules: ReminderRuleInput[];
+  /** When it was given (epoch ms, UTC). */
+  writtenAt: number;
+}
+
 /** A milestone's effective schedule, and which level supplied it. */
 export interface ResolvedReminderSchedule {
+  /** The standing schedule: what any year the prompt was not answered gets. */
   rules: ReminderRuleInput[];
   source: ReminderScheduleSource;
   /**
@@ -277,38 +285,62 @@ export interface ResolvedReminderSchedule {
    * default. Every save replaces the whole set, so the newest row says when.
    */
   writtenAt: number | null;
+  /** The prompt's answers, by the occurrence year each covers. */
+  answers: ReadonlyMap<number, PromptAnswer>;
 }
 
+const ruleInputOf = (r: ReminderRule): ReminderRuleInput => ({
+  action: r.action,
+  label: r.label,
+  offsetDays: r.offsetDays,
+  enabled: r.enabled,
+});
+
+const furthestFirst = (rules: ReminderRuleInput[]) =>
+  [...rules].sort((a, b) => b.offsetDays - a.offsetDays);
+
 /**
- * A milestone's stored rules, or its kind's defaults when it has none, furthest
- * lead first. A stored `plan` row is ignored; nothing valid writes one.
+ * A milestone's standing rules, or its kind's defaults when it has none, and
+ * its answers by year, furthest lead first. A stored `plan` row is ignored.
  */
 export function resolveReminderSchedule(
   kind: MilestoneKind,
   storedRules: ReminderRule[],
 ): ResolvedReminderSchedule {
-  const stored = storedRules.filter((r) => verbOf(r.action) !== "plan");
+  const valid = storedRules.filter((r) => verbOf(r.action) !== "plan");
+  const stored = valid.filter((r) => r.occurrenceYear === null);
   const source: ReminderScheduleSource =
     stored.length > 0 ? "stored" : "kind-default";
   const rules: ReminderRuleInput[] =
     source === "stored"
-      ? stored.map((r) => ({
-          action: r.action,
-          label: r.label,
-          offsetDays: r.offsetDays,
-          enabled: r.enabled,
-        }))
+      ? stored.map(ruleInputOf)
       : kindDefs[kind].defaultReminderSchedule.map((d) => ({
           action: d.action,
           label: null,
           offsetDays: d.offsetDays,
           enabled: d.enabledByDefault,
         }));
+
+  const byYear = new Map<number, ReminderRule[]>();
+  for (const r of valid)
+    if (r.occurrenceYear !== null)
+      byYear.set(r.occurrenceYear, [
+        ...(byYear.get(r.occurrenceYear) ?? []),
+        r,
+      ]);
+  const answers = new Map<number, PromptAnswer>();
+  for (const [year, rows] of byYear)
+    answers.set(year, {
+      rules: furthestFirst(rows.map(ruleInputOf)),
+      writtenAt: Math.max(...rows.map((r) => r.createdAt)),
+    });
+
   return {
-    rules: [...rules].sort((a, b) => b.offsetDays - a.offsetDays),
+    rules: furthestFirst(rules),
     source,
     writtenAt:
       stored.length > 0 ? Math.max(...stored.map((r) => r.createdAt)) : null,
+    answers,
   };
 }
 
@@ -416,22 +448,6 @@ export function planTiming(
     .map((latest) => latest + OFFER_NOTICE_DAYS)
     .filter((lastDay) => lastDay < learnedDaysOut);
   return { dueOffsetDays: Math.max(0, ...lastDays), late: true };
-}
-
-/**
- * Whether an answer written `writtenDaysOut` days ahead missed some offers.
- * Such an answer covers that year only, so the question comes back next year.
- */
-export function isPartialAnswer(
-  kind: MilestoneKind,
-  storedRules: readonly ReminderRuleInput[],
-  writtenDaysOut: number,
-): boolean {
-  if (kindDefs[kind].prompt === undefined) return false;
-  return (
-    planOffers(kind, storedRules, writtenDaysOut).length <
-    kindDefs[kind].defaultReminderSchedule.length
-  );
 }
 
 /**

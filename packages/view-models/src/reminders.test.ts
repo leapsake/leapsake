@@ -133,6 +133,7 @@ describe("partitionReminders", () => {
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
+  occurrenceYear: 2026,
   offers: [
     {
       action: "get:gift" as const,
@@ -347,6 +348,7 @@ describe("reminderActionsOf", () => {
     expect(answer).toEqual({
       kind: "answer-plan",
       milestoneId: "m1",
+      year: 2026,
       schedule: [
         { action: "get:gift", label: null, offsetDays: 12, enabled: false },
         { action: "wish", label: null, offsetDays: 0, enabled: true },

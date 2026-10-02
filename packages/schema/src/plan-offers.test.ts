@@ -6,7 +6,6 @@ import {
   effectiveOffsetDays,
   effectiveOffsets,
   fitsAt,
-  isPartialAnswer,
   kindDefs,
   latestOffsetDays,
   milestoneKindSchema,
@@ -248,19 +247,5 @@ describe("the authored defaults agree with the delivery edges", () => {
       }
     }
     expect(wrong).toEqual([]);
-  });
-});
-
-describe("isPartialAnswer", () => {
-  it("is a full answer when everything was on offer", () => {
-    expect(isPartialAnswer("birthday", [], 60)).toBe(false);
-  });
-
-  it("is partial when the post date had already gone", () => {
-    expect(isPartialAnswer("birthday", [], 5)).toBe(true);
-  });
-
-  it("is never partial for a kind that does not ask", () => {
-    expect(isPartialAnswer("death", [], 0)).toBe(false);
   });
 });

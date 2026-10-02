@@ -15,7 +15,6 @@ import {
   kindDefs,
   mentionToken,
   effectiveOffsets,
-  isPartialAnswer,
   planOffers,
   planQuestion,
   planTiming,
@@ -68,8 +67,8 @@ export interface ReminderEngineDeps {
   /** The system-reminder store (see {@link SystemReminderStore}). */
   reminders: SystemReminderStore;
   /**
-   * The milestone's effective schedule; one reminder per enabled entry. A
-   * `kind-default` source means no rules of its own: it mints a `plan` prompt.
+   * The milestone's schedule and its yearly answers; one reminder per enabled
+   * entry. A year with no answer mints a `plan` prompt for a kind that asks.
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
@@ -735,33 +734,11 @@ async function computeDesired(
     // Deadlines run from when the app learned of the occasion and its answer:
     // you can't be late for something it has only just learned.
     const learned = todayCivil(m.createdAt);
-    const answered =
+    const standingAnswered =
       resolved.writtenAt === null ? learned : todayCivil(resolved.writtenAt);
-    // An occasion with no rules of its own gets a `plan` question, made a rule
-    // so it shares the window, id, copy and prune paths below.
-    const prompt = kindDefs[m.kind].prompt;
-    // Which occurrences may be asked about: every one while the occasion is
-    // unanswered, only those after the one a partial answer covered, else none.
-    let asksAfter: CivilDate | "always" | null = null;
-    if (prompt !== undefined) {
-      if (resolved.source === "kind-default") asksAfter = "always";
-      else {
-        const answeredFor = nextOccurrence(m.kind, m, answered);
-        if (
-          answeredFor !== null &&
-          isPartialAnswer(
-            m.kind,
-            resolved.rules,
-            daysUntil(answered, answeredFor),
-          )
-        )
-          asksAfter = answeredFor;
-      }
-    }
-    const asksAbout = (occ: CivilDate) =>
-      asksAfter === "always" ||
-      (asksAfter !== null && daysUntil(asksAfter, occ) > 0);
-    const mayAsk = occurrences.some(asksAbout);
+    // An occasion that asks gets a `plan` question every year it is not
+    // answered, made a rule so it shares the window, id, copy and prune paths.
+    const asks = kindDefs[m.kind].prompt !== undefined;
     let subject: string | undefined;
     let bearerIsSelf = false;
     let isOwnCouple = false;
@@ -772,6 +749,9 @@ async function computeDesired(
       // birthday the day before an import — was never the user's to act on.
       if (learnedDaysOut < 0) continue;
       const days = daysUntil(deps.today, occ);
+      const answer = resolved.answers.get(occ.year);
+      const answered =
+        answer === undefined ? standingAnswered : todayCivil(answer.writtenAt);
 
       // Each enabled rule, with the deadline and run-up it actually has for
       // this occurrence — not always the ones it was written with.
@@ -780,8 +760,8 @@ async function computeDesired(
       // Asked only while it still offers a choice; the day-of wish it leaves
       // behind is already on the schedule. An import asks only in time.
       if (
-        mayAsk &&
-        asksAbout(occ) &&
+        asks &&
+        answer === undefined &&
         !(timing.late && m.imported) &&
         planOffers(m.kind, resolved.rules, days).length >= 2
       ) {
@@ -806,7 +786,7 @@ async function computeDesired(
       // The enabled set at once: a late answer slides deadlines, and
       // `effectiveOffsets` keeps the order the offsets encode.
       for (const { rule, offsetDays } of effectiveOffsets(
-        resolved.rules.filter((r) => r.enabled),
+        (answer?.rules ?? resolved.rules).filter((r) => r.enabled),
         daysUntil(answered, occ),
       ))
         timed.push({ rule, offsetDays, runUp: ownActiveDays(rule.action) });

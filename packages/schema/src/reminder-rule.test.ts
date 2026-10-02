@@ -37,6 +37,7 @@ function rule(over: Partial<ReminderRule>): ReminderRule {
     label: null,
     offsetDays: 0,
     enabled: true,
+    occurrenceYear: null,
     createdAt: 1,
     updatedAt: 1,
     deletedAt: null,
@@ -141,6 +142,7 @@ describe("reminderActionSchema / actionDefs", () => {
       label: null,
       offsetDays: 0,
       enabled: true,
+      occurrenceYear: null,
       createdAt: 1,
       updatedAt: 1,
       deletedAt: null,
@@ -340,15 +342,42 @@ describe("resolveReminderSchedule", () => {
     expect(rules.map((r) => r.action)).toEqual(["get:gift", "other"]);
     expect(rules[0]).toMatchObject({ offsetDays: 14, enabled: false });
     expect(rules[1]).toMatchObject({ label: "Bake a cake", offsetDays: 0 });
-    // Rows existing is the "answered" marker the prompt reads.
     expect(source).toBe("stored");
   });
 
-  // An all-disabled set is an *answer* — "ask me about nothing" — and has to be
-  // distinguishable from never having been asked, or the prompt returns every
-  // year. Rows existing is what carries that, so a set with nothing enabled
-  // still reads as `stored`.
-  it("treats an all-disabled stored set as answered", () => {
+  it("keeps the prompt's answers apart, by the year each covers", () => {
+    const stored = [
+      rule({ action: "wish", offsetDays: 0, enabled: true }),
+      rule({
+        action: "get:gift",
+        offsetDays: 12,
+        enabled: true,
+        occurrenceYear: 2026,
+        createdAt: 5,
+      }),
+      rule({
+        action: "wish",
+        offsetDays: 0,
+        enabled: false,
+        occurrenceYear: 2026,
+        createdAt: 5,
+      }),
+    ];
+    const { rules, answers } = resolveReminderSchedule("birthday", stored);
+    expect(rules.map((r) => r.action)).toEqual(["wish"]);
+    expect(answers.get(2026)).toEqual({
+      rules: [
+        { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+        { action: "wish", label: null, offsetDays: 0, enabled: false },
+      ],
+      writtenAt: 5,
+    });
+    expect(answers.get(2027)).toBeUndefined();
+  });
+
+  // An all-disabled set is a schedule — "remind me of nothing" — and has to be
+  // distinguishable from never having set one, or the kind defaults return.
+  it("treats an all-disabled stored set as a schedule", () => {
     const stored = [
       rule({ action: "wish", offsetDays: 0, enabled: false }),
       rule({ action: "get:gift", offsetDays: 12, enabled: false }),

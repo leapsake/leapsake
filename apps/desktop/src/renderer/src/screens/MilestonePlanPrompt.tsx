@@ -28,19 +28,18 @@ export function MilestonePlanPrompt() {
       <h1>{planQuestion({ ...target, occasion })}</h1>
       {/* The row counted down to the prompt's deadline, weeks early, so the
           occasion's real date is said here. */}
-      {target.occurrenceDate !== null && (
-        <p>
-          {target.subjectIsSelf || target.shared ? "Your" : "Their"} {occasion}{" "}
-          is on {isoFromDueMs(target.occurrenceDate)} (
-          {formatDueIn(target.occurrenceDate)}).
-        </p>
-      )}
+      <p>
+        {target.subjectIsSelf || target.shared ? "Your" : "Their"} {occasion} is
+        on {isoFromDueMs(target.occurrenceDate)} (
+        {formatDueIn(target.occurrenceDate)}).
+      </p>
       <Form method="post">
         <ReminderPromptFields
           value={schedule}
           greeting={kindDefs[target.milestoneKind].greeting}
           onChange={setSchedule}
         />
+        <input type="hidden" name="year" value={target.occurrenceYear} />
         <input
           type="hidden"
           name="reminderSchedule"

@@ -763,6 +763,7 @@ describe("buildArchive — data.json", () => {
                 label: null,
                 offsetDays: 21,
                 enabled: true,
+                occurrenceYear: null,
                 ...stamps,
               },
             ],

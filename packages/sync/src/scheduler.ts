@@ -129,7 +129,7 @@ export function createSyncScheduler(opts: {
 /** The names of {@link CoreApi} writes, which must grow by hand; see the
  *  README's _Which calls kick a push_. */
 const MUTATING_METHOD =
-  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|link(?=[A-Z]))/;
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|answer|link(?=[A-Z]))/;
 
 /** Wraps a {@link CoreApi}-shaped object so every write, nested ones too,
  *  kicks once it resolves; a rejection kicks nothing. */

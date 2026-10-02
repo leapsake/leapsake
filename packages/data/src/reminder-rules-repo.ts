@@ -13,17 +13,27 @@ import {
 } from "./entity-repo.js";
 
 export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
-  /** A bearer's active rules, furthest lead first, stable within a lead. */
+  /** A bearer's active rules, standing and one-year alike, furthest lead
+   *  first, stable within a lead. */
   listForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
   ): Promise<ReminderRule[]>;
 
-  /** Replace a bearer's whole schedule, validated as a set so two rules cannot
-   *  share an identity. Empty means kind defaults. Transaction-free. */
+  /** Replace a bearer's standing schedule, dropping every one-year answer too.
+   *  Validated as a set; empty means kind defaults. Transaction-free. */
   replaceForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
+    rules: ReminderRuleInput[],
+  ): Promise<void>;
+
+  /** Replace a bearer's answer for one occurrence year, validated as a set.
+   *  Transaction-free. */
+  replaceAnswer(
+    bearerType: ReminderRuleBearerType,
+    bearerId: string,
+    occurrenceYear: number,
     rules: ReminderRuleInput[],
   ): Promise<void>;
 
@@ -49,6 +59,30 @@ export function createReminderRulesRepo(
     booleans: ["enabled"],
   });
 
+  async function insertAll(
+    bearerType: ReminderRuleBearerType,
+    bearerId: string,
+    occurrenceYear: number | null,
+    rules: ReminderRuleInput[],
+  ): Promise<void> {
+    const now = Date.now();
+    for (const rule of rules) {
+      await base.insert({
+        id: crypto.randomUUID(),
+        bearerType,
+        bearerId,
+        action: rule.action,
+        label: rule.label ?? null,
+        offsetDays: rule.offsetDays,
+        enabled: rule.enabled,
+        occurrenceYear,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+    }
+  }
+
   return {
     ...base,
 
@@ -69,21 +103,18 @@ export function createReminderRulesRepo(
         "bearer_type = ? AND bearer_id = ?",
         [bearerType, bearerId],
       );
-      const now = Date.now();
-      for (const rule of parsed) {
-        await base.insert({
-          id: crypto.randomUUID(),
-          bearerType,
-          bearerId,
-          action: rule.action,
-          label: rule.label ?? null,
-          offsetDays: rule.offsetDays,
-          enabled: rule.enabled,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: null,
-        });
-      }
+      await insertAll(bearerType, bearerId, null, parsed);
+    },
+
+    async replaceAnswer(bearerType, bearerId, occurrenceYear, rules) {
+      const parsed = reminderScheduleInputSchema.parse(rules);
+      await softDeleteWhere(
+        driver,
+        "reminder_rules",
+        "bearer_type = ? AND bearer_id = ? AND occurrence_year = ?",
+        [bearerType, bearerId, occurrenceYear],
+      );
+      await insertAll(bearerType, bearerId, occurrenceYear, parsed);
     },
 
     removeAllForBearer: (bearerType, bearerId) =>

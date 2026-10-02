@@ -191,6 +191,8 @@ export interface PlanReminderSubject {
   milestoneId: string;
   /** Not `kind`, which {@link ReminderCta} discriminates on. */
   milestoneKind: MilestoneKind;
+  /** The year of the occasion asked about: the one year an answer covers. */
+  occurrenceYear: number;
   /** Every action offered, `enabled` carrying which arrive pre-ticked. */
   offers: ReminderRuleInput[];
 }
@@ -275,7 +277,12 @@ export function reminderCtaOf(
  *  days, turned into a date by the same rule that offered it. */
 export type ReminderRowAction =
   | { kind: "cta"; cta: ReminderCta }
-  | { kind: "answer-plan"; milestoneId: string; schedule: ReminderRuleInput[] }
+  | {
+      kind: "answer-plan";
+      milestoneId: string;
+      year: number;
+      schedule: ReminderRuleInput[];
+    }
   | { kind: "snooze"; days: number }
   | { kind: "dismiss" };
 
@@ -329,6 +336,7 @@ export function reminderActionsOf(
     actions.push({
       kind: "answer-plan",
       milestoneId: cta.milestoneId,
+      year: cta.occurrenceYear,
       schedule: cta.offers.map((offer) => ({
         ...offer,
         enabled: offer.action === "wish",

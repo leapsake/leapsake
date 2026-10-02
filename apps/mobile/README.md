@@ -86,9 +86,9 @@ share one design and screens still just declare `title` and `headerRight`.
   the count inside the label; Belated, Today and Completed are headings over rows. A tappable
   heading gives no sign that it opens anything.
 - **A `🗓 plan` prompt is answered on its detail screen**, inline. Its offers arrive with the wish
-  already ticked, so Save untouched is "just the day". Save writes the milestone's whole rule set,
-  disabled rows included, because rows existing is what tells "asked, and chose nothing" from
-  "never asked".
+  already ticked, so Save untouched is "just the day". Save writes this year's answer as the
+  whole offer set, disabled rows included, because rows existing is what tells "asked, and chose
+  nothing" from "never asked".
 - **Only an errand can be completed.** A prompt retires by being answered, and a first-run nudge
   when its condition is met. Completing a nudge would leave it in Completed with the condition
   still unmet, so the control is withheld rather than the write refused.

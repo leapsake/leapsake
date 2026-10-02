@@ -7,10 +7,9 @@ import {
   isReminderEditable,
   isoFromDueMs,
   kindDefs,
-  promptAnswerOf,
   reminderLabel,
 } from "@leapsake/schema";
-import { onboardingRouteOf } from "@leapsake/core";
+import { type PlanAnswer, onboardingRouteOf } from "@leapsake/core";
 import type { PartyChoice } from "@leapsake/ui/headless";
 import {
   reminderActionKey,
@@ -165,19 +164,18 @@ export default function ReminderDetailScreen() {
     );
   }
 
-  /** Write the milestone's whole rule set, disabled rows included, which
-   *  retires the prompt; then go back. */
-  function answer(milestoneId: string, draft: ReminderRuleInput[]) {
-    const schedule = promptAnswerOf(draft);
+  /** Answer this year's question with the whole offer set, disabled rows
+   *  included, which retires the prompt; then go back. */
+  function answer(milestoneId: string, answer: PlanAnswer) {
     const write =
       partner != null && linkPartnerTarget !== undefined
         ? core.milestones.linkPartner({
             milestoneId,
             personId: linkPartnerTarget.personId,
             partner: linkedPartner(partner),
-            reminderSchedule: schedule,
+            answer,
           })
-        : core.milestones.update(milestoneId, { reminderSchedule: schedule });
+        : core.milestones.answerPlan(milestoneId, answer);
     write.then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
@@ -288,7 +286,10 @@ export default function ReminderDetailScreen() {
           <Button
             label="Save"
             onPress={() =>
-              answer(planTarget.milestoneId, draft ?? planTarget.offers)
+              answer(planTarget.milestoneId, {
+                year: planTarget.occurrenceYear,
+                rules: draft ?? planTarget.offers,
+              })
             }
           />
         </View>
@@ -334,7 +335,10 @@ export default function ReminderDetailScreen() {
                 onPress={() => {
                   if (offer.kind === "navigate") router.push(offer.path);
                   else if (offer.kind === "answer-plan")
-                    answer(offer.milestoneId, offer.schedule);
+                    answer(offer.milestoneId, {
+                      year: offer.year,
+                      rules: offer.schedule,
+                    });
                   else if (offer.kind === "snooze") snooze(offer.days);
                   else if (offer.kind === "dismiss") confirmDelete();
                   // `answer-prompt` never gets here: `offered` dropped it.

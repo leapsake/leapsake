@@ -48,7 +48,7 @@ tombstone guard and prune unchanged.
 | Why a not-yet-active reminder can still be ticked                     | `materializeReminder` in `src/engine.ts`                                                |
 | The onboarding nudge definitions and their copy                       | `ONBOARDING_STEPS` in `src/engine.ts`                                                   |
 | Which rows may be put off, and how far                                | `snoozeTargetOf` in `src/engine.ts`, and _Putting a step off never retires it_ below    |
-| Why an unconfigured occasion gets a question instead of errands       | the `plan` synthesis in `computeDesired`, and _The prompt_ below                        |
+| Why an occasion gets a question every year instead of errands         | the `plan` synthesis in `computeDesired`, and _The prompt_ below                        |
 | When that question is asked                                           | `promptOffsetDays` in `@leapsake/schema`, derived from what it offers                   |
 | What a question can still offer, and when a late one is due           | `planOffers` and `planTiming` in `@leapsake/schema`, and _You can't be late…_ below     |
 | Why a couple's question says "yours with them"                        | `kindDefs.coupled` and `isOwnPartnership`, and _Who gets asked_ below                   |
@@ -131,8 +131,8 @@ is that reminder's entire content, and the reason the derived cases must stay ou
 
 A per-row schema cannot see one, and there is no unique constraint on `reminder_rules`. So
 `reminderScheduleInputSchema` validates the whole set, on the one write path everything goes
-through — `reminderRulesRepo.replaceForBearer`, which both schedule editors and the prompt's
-answer reach.
+through — `reminderRulesRepo.replaceForBearer`, which both schedule editors reach, and its
+one-year twin `replaceAnswer`, which the prompt's answer reaches.
 
 ### Five name-spaces, each keyed on what makes a reminder new
 
@@ -315,8 +315,14 @@ people you will post a card to in November; the engine certainly does not. Every
 mints is a row you have to learn to ignore, and a list you have learned to ignore is broken however
 well it is bucketed.
 
-So an occasion with no rules of its own mints exactly one reminder, and that reminder is a
-**question**. Answering it writes ordinary `reminder_rules`, and the engine takes it from there.
+So an occasion mints exactly one reminder a year, and that reminder is a **question**. Answering
+it writes `reminder_rules` stamped with the occurrence year (`occurrence_year`), and for that
+occurrence they stand in for the schedule; the engine takes it from there.
+
+⚠️ **It is asked every year** _(owner, 2026-10-01)_. Some years a gift is handed over, some years
+posted, some years nothing — so no answer is carried forward. What the Person screen saves is the
+**standing** schedule: what a year nobody answered gets, and what next year's question arrives
+pre-ticked with. Saving it also drops every year's answer, since it is the user's last word.
 
 A kind asks only if its `kindDefs` entry has a `prompt`, and `death` must never have one: a
 checklist of ways to mark a death anniversary is the wrong object, and its one quiet `remember` is
@@ -385,9 +391,6 @@ So every deadline is measured from the day the app **learned** of the occasion �
   app asked for a card to be in the post six days before it was bought. The slide is applied to the
   enabled set as a whole, and an errand something else waits on keeps its own deadline rather than
   crossing it.
-- **An answer that could not be offered everything covers its own year only** (`isPartialAnswer`).
-  The question returns for the next occurrence, on its usual timing, with everything on offer and
-  last year's choice pre-ticked.
 - **An occasion that had already passed when it was added is not reminded at all** — not even with
   a belated wish.
 

@@ -69,6 +69,7 @@ export type RowOffer =
   | {
       kind: "answer-plan";
       milestoneId: string;
+      year: number;
       schedule: ReminderRuleInput[];
       label: string;
     }
@@ -116,6 +117,7 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return {
         kind: "answer-plan",
         milestoneId: action.milestoneId,
+        year: action.year,
         schedule: action.schedule,
         label,
       };

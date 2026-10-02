@@ -146,7 +146,9 @@ export interface PlanReminderTarget {
   shared: boolean;
   /** The occasion itself, not the row's decide-by `dueDate`, so the screen can
    *  say when the occasion is. */
-  occurrenceDate: number | null;
+  occurrenceDate: number;
+  /** The year of the occasion asked about: the one year an answer covers. */
+  occurrenceYear: number;
   /** Every action offered, `enabled` carrying which arrive pre-ticked. */
   offers: ReminderRuleInput[];
 }
@@ -617,42 +619,39 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       // Offers are what the question can still offer today (`planOffers`), the
       // same function the engine asks with, so the row and screen agree.
       const plans: PlanReminderTarget[] = await Promise.all(
-        targets
-          .filter((t) => t.action === "plan" && t.milestone !== undefined)
-          .map(async (t) => ({
-            reminderId: t.id,
-            milestoneId: t.milestone!.id,
-            milestoneKind: t.milestone!.kind,
-            bearerType: t.bearerType,
-            bearerId: t.bearerId,
-            subject:
-              (await milestoneBearerLabel(t.bearerType, t.bearerId)) ?? "",
-            // The same two facts the engine's copy layer branches on.
-            ...(await planPhrasing(
-              t.bearerType,
-              t.bearerId,
-              t.milestone!.kind,
-            )),
-            occurrenceDate: t.occurrenceDate ?? null,
-            offers: await (async () => {
-              const kind = t.milestone!.kind;
+        targets.flatMap((t) => {
+          const { bearerType, bearerId, milestone, occurrenceDate } = t;
+          if (t.action !== "plan" || milestone === undefined) return [];
+          if (occurrenceDate == null) return [];
+          return [
+            (async (): Promise<PlanReminderTarget> => {
               const { rules } = resolveReminderSchedule(
-                kind,
-                await reminderRules.listForBearer("milestone", t.milestone!.id),
+                milestone.kind,
+                await reminderRules.listForBearer("milestone", milestone.id),
               );
-              // Without an occasion there is no distance, so offer the whole
-              // set.
-              return promptDraftOf(
-                t.occurrenceDate == null
-                  ? planOffers(kind, rules, Number.POSITIVE_INFINITY)
-                  : planOffers(
-                      kind,
-                      rules,
-                      daysUntil(todayCivil(), civilFromDueMs(t.occurrenceDate)),
-                    ),
+              const daysOut = daysUntil(
+                todayCivil(),
+                civilFromDueMs(occurrenceDate),
               );
+              return {
+                reminderId: t.id,
+                milestoneId: milestone.id,
+                milestoneKind: milestone.kind,
+                bearerType,
+                bearerId,
+                subject:
+                  (await milestoneBearerLabel(bearerType, bearerId)) ?? "",
+                // The same two facts the engine's copy layer branches on.
+                ...(await planPhrasing(bearerType, bearerId, milestone.kind)),
+                occurrenceDate,
+                occurrenceYear: civilFromDueMs(occurrenceDate).year,
+                offers: promptDraftOf(
+                  planOffers(milestone.kind, rules, daysOut),
+                ),
+              };
             })(),
-          })),
+          ];
+        }),
       );
 
       // ⚠️ `wish` only: an errand wants no call buttons. A couple's wish has

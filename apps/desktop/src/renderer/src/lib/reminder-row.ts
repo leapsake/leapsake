@@ -82,6 +82,7 @@ export type RowAffordance =
   | {
       kind: "answer-plan";
       to: string;
+      year: number;
       schedule: ReminderRuleInput[];
       label: string;
     };
@@ -104,6 +105,7 @@ export function rowAffordanceFor(
       return {
         kind: "answer-plan",
         to: `/milestones/${action.milestoneId}/plan`,
+        year: action.year,
         schedule: action.schedule,
         label,
       };

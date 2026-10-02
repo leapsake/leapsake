@@ -759,6 +759,15 @@ export const migrations: Migration[] = [
       await driver.exec(`ALTER TABLE gift_ideas ADD COLUMN image_url TEXT`);
     },
   },
+  {
+    version: 42,
+    async up(driver) {
+      // The one occurrence a prompt's answer covers; null for a standing rule.
+      await driver.exec(
+        `ALTER TABLE reminder_rules ADD COLUMN occurrence_year INTEGER`,
+      );
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,
