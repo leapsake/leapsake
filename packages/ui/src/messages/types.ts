@@ -304,6 +304,8 @@ export interface Messages {
     reminderLabelRequired: string;
     /** Shown when Save is pressed before the “with whom?” person is chosen. */
     withWhomRequired: string;
+    /** The switch that brings back “what do you want to do?” every year. */
+    asksEachYear: string;
   };
 
   giftIdeaForm: {

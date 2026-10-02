@@ -313,8 +313,20 @@ describe("a milestone draft", () => {
         month: 12,
         day: 24,
         note: null,
+        asksEachYear: true,
       },
     });
+  });
+
+  it("carries whether the occasion asks each year, on by default", () => {
+    expect(milestoneDraftOf({ bearerType: "person" }).asksEachYear).toBe(true);
+    const shaped = milestoneInputOf({
+      ...blank,
+      month: "12",
+      day: "24",
+      asksEachYear: false,
+    });
+    expect(shaped.ok && shaped.input.asksEachYear).toBe(false);
   });
 
   it("leaves an untouched schedule out, so the kind's prompt still asks", () => {

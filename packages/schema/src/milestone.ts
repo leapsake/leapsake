@@ -641,6 +641,8 @@ export interface MilestoneDraft {
    * kind change then leaves alone. Never written.
    */
   scheduleCustomized: boolean;
+  /** Whether its kind's prompt comes back every year. */
+  asksEachYear: boolean;
 }
 
 /** Why a milestone draft cannot be saved; the catalog owns each sentence. */
@@ -661,6 +663,7 @@ export type MilestoneDraftResult =
         day: number | null;
         note: string | null;
         reminderSchedule?: ReminderRuleInput[];
+        asksEachYear: boolean;
       };
     }
   | { ok: false; errors: MilestoneDraftErrors };
@@ -676,7 +679,8 @@ export function milestoneDraftOf({
   reminderSchedule,
 }: {
   bearerType: MilestoneBearerType;
-  milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note">;
+  milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note"> &
+    Partial<Pick<Milestone, "asksEachYear">>;
   kind?: MilestoneKind;
   reminderSchedule?: ReminderRuleInput[];
 }): MilestoneDraft {
@@ -694,6 +698,7 @@ export function milestoneDraftOf({
     reminderSchedule:
       reminderSchedule ?? resolveReminderSchedule(kind, []).rules,
     scheduleCustomized: false,
+    asksEachYear: milestone?.asksEachYear ?? true,
   };
 }
 
@@ -741,6 +746,7 @@ export function milestoneInputOf(draft: MilestoneDraft): MilestoneDraftResult {
     ...(draft.scheduleCustomized
       ? { reminderSchedule: draft.reminderSchedule }
       : {}),
+    asksEachYear: draft.asksEachYear,
   };
   const errors: MilestoneDraftErrors = {};
   if (input.kind === "other" && input.note === null) errors.note = "required";

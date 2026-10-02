@@ -13,7 +13,8 @@ import { useDraftForm } from "./use-draft-form.js";
 /** The milestone form's state, from the milestone being edited or blanks. */
 export function useMilestoneForm(start: {
   bearerType: MilestoneBearerType;
-  milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note">;
+  milestone?: Pick<Milestone, "kind" | "year" | "month" | "day" | "note"> &
+    Partial<Pick<Milestone, "asksEachYear">>;
   kind?: MilestoneKind;
   reminderSchedule?: ReminderRuleInput[];
 }) {

@@ -9,6 +9,7 @@ import {
   milestoneDraftWithKind,
   milestoneDraftWithSchedule,
 } from "@leapsake/schema";
+import { CheckboxBox } from "./Checkbox";
 import { DatePartsFields } from "./DatePartsFields";
 import { DetailField } from "./DetailField";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
@@ -35,6 +36,7 @@ const TEXT = {
     "Give each “Other” reminder a label before saving, or remove it.",
   reminderDuplicate:
     "Two reminders do the same thing. Change or remove one before saving.",
+  asksEachYear: "Ask me each year what to do",
 } as const;
 
 /** Why Save can't write the milestone yet, or undefined when it can. */
@@ -90,10 +92,28 @@ export function MilestoneFields({
   const on = draft.reminderSchedule.filter((rule) => rule.enabled).length;
 
   const schedule = (
-    <ReminderScheduleFields
-      value={draft.reminderSchedule}
-      onChange={(rules) => onChange(milestoneDraftWithSchedule(draft, rules))}
-    />
+    <>
+      {def.prompt !== undefined && (
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: draft.asksEachYear }}
+          accessibilityLabel={TEXT.asksEachYear}
+          onPress={() =>
+            onChange({ ...draft, asksEachYear: !draft.asksEachYear })
+          }
+          style={[styles.row, styles.rowWithLead]}
+        >
+          <CheckboxBox checked={draft.asksEachYear} />
+          <Text style={[styles.rowText, styles.rowBody]}>
+            {TEXT.asksEachYear}
+          </Text>
+        </Pressable>
+      )}
+      <ReminderScheduleFields
+        value={draft.reminderSchedule}
+        onChange={(rules) => onChange(milestoneDraftWithSchedule(draft, rules))}
+      />
+    </>
   );
 
   const fields = (

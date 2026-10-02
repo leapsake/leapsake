@@ -220,6 +220,22 @@ export function MilestoneFields({
         {def.icon ? `${def.icon} ` : ""}
         {def.label}
       </p>
+      {def.prompt !== undefined && (
+        <label>
+          <input
+            type="checkbox"
+            checked={fields.asksEachYear}
+            onChange={(event) => set("asksEachYear", event.target.checked)}
+          />{" "}
+          {m.milestoneForm.asksEachYear}
+        </label>
+      )}
+      {/* Posted whatever the kind, so a kind that never asks keeps it. */}
+      <input
+        type="hidden"
+        name="asksEachYear"
+        value={String(fields.asksEachYear)}
+      />
       <ReminderScheduleFields
         value={fields.reminderSchedule}
         onChange={setSchedule}

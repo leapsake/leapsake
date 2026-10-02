@@ -307,6 +307,7 @@ export const en: Messages = {
     reminderLabelRequired:
       "Give each “Other” reminder a label before saving, or remove it.",
     withWhomRequired: "Choose who this milestone is with before saving.",
+    asksEachYear: "Ask me each year what to do",
   },
 
   giftIdeaForm: {

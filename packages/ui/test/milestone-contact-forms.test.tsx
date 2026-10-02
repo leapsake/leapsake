@@ -128,8 +128,19 @@ describe("MilestoneForm", () => {
     // Untouched, it leaves what is stored alone: this year's answer included.
     expect(hidden()).toBeNull();
 
-    fireEvent.click(container.querySelector("input[type=checkbox]")!);
+    fireEvent.click(screen.getAllByLabelText("On")[0]);
     expect(JSON.parse(hidden()!.value)).toBeInstanceOf(Array);
+  });
+
+  it("asks each year unless switched off, and posts the switch", () => {
+    const { container } = renderMilestone();
+    const posted = () =>
+      (container.querySelector("input[name=asksEachYear]") as HTMLInputElement)
+        .value;
+    expect(posted()).toBe("true");
+
+    fireEvent.click(screen.getByLabelText("Ask me each year what to do"));
+    expect(posted()).toBe("false");
   });
 
   it("pre-fills every part when editing", () => {

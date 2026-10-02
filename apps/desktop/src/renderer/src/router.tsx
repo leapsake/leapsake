@@ -146,6 +146,7 @@ function readMilestoneDraft(formData: FormData): MilestoneDraft {
     note: text("note"),
     reminderSchedule: readReminderSchedule(formData) ?? [],
     scheduleCustomized: formData.has("reminderSchedule"),
+    asksEachYear: text("asksEachYear") !== "false",
   };
 }
 
