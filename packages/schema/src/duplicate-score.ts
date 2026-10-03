@@ -88,3 +88,43 @@ export function scoreDuplicate(
 
   return { tier, reasons };
 }
+
+/** Every key {@link scoreDuplicate} can match a person on, tagged by kind. */
+function matchKeys(input: DuplicateInput): string[] {
+  const keys = [
+    ...input.emails.map((email) => `email\u0000${email}`),
+    ...input.phones.map((phone) => `phone\u0000${phone}`),
+    ...input.handles.map((handle) => `handle\u0000${handleKey(handle)}`),
+  ];
+  if (input.foldedName !== "") keys.push(`name\u0000${input.foldedName}`);
+  return keys;
+}
+
+/**
+ * The index pairs `[i, j]` (`i < j`, in nested-loop order) sharing a match key:
+ * a superset of the pairs {@link scoreDuplicate} rates above `none`.
+ */
+export function pairsSharingAKey(
+  inputs: readonly DuplicateInput[],
+): [number, number][] {
+  const bins = new Map<string, number[]>();
+  inputs.forEach((input, i) => {
+    for (const key of matchKeys(input)) {
+      const bin = bins.get(key) ?? [];
+      if (bin.at(-1) !== i) bin.push(i);
+      bins.set(key, bin);
+    }
+  });
+
+  const pairs = new Set<number>();
+  for (const bin of bins.values()) {
+    for (let x = 0; x < bin.length; x++) {
+      for (let y = x + 1; y < bin.length; y++) {
+        pairs.add(bin[x] * inputs.length + bin[y]);
+      }
+    }
+  }
+  return [...pairs]
+    .sort((p, q) => p - q)
+    .map((p) => [Math.floor(p / inputs.length), p % inputs.length]);
+}

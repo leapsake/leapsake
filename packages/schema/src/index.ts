@@ -385,7 +385,11 @@ export {
 export type { HighlightMode } from "./search-fold.js";
 export { resolveMerge } from "./merge.js";
 export type { SyncRow, HasHistory } from "./merge.js";
-export { scoreDuplicate, TIER_RANK } from "./duplicate-score.js";
+export {
+  pairsSharingAKey,
+  scoreDuplicate,
+  TIER_RANK,
+} from "./duplicate-score.js";
 export type {
   DuplicateInput,
   DuplicateTier,

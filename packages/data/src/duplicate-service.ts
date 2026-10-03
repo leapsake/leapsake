@@ -8,6 +8,7 @@ import {
   normalizeEmail,
   normalizeHandle,
   normalizePhone,
+  pairsSharingAKey,
   scoreDuplicate,
 } from "@leapsake/schema";
 import { phoneE164 } from "@leapsake/phone";
@@ -188,14 +189,11 @@ export function createDuplicateService(
   ): Promise<DuplicateCandidate[]> {
     const inputs = await loadInputs();
 
-    // Pairwise. O(n²) is fine at personal-CRM scale; if it ever matters, block
-    // on shared-contact / folded-name first — note it, don't pre-optimize.
+    // Only pairs sharing a name or contact can score, so only those are scored.
     const candidates: DuplicateCandidate[] = [];
-    for (let i = 0; i < inputs.length; i++) {
-      for (let j = i + 1; j < inputs.length; j++) {
-        const candidate = scorePair(inputs[i], inputs[j], excludePairs);
-        if (candidate) candidates.push(candidate);
-      }
+    for (const [i, j] of pairsSharingAKey(inputs.map((p) => p.input))) {
+      const candidate = scorePair(inputs[i], inputs[j], excludePairs);
+      if (candidate) candidates.push(candidate);
     }
     return candidates.sort(byTierThenName);
   }

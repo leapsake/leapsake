@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type DuplicateInput, scoreDuplicate } from "./duplicate-score.js";
+import {
+  type DuplicateInput,
+  pairsSharingAKey,
+  scoreDuplicate,
+} from "./duplicate-score.js";
 
 const person = (over: Partial<DuplicateInput> = {}): DuplicateInput => ({
   name: "Jane Wainwright",
@@ -125,5 +129,70 @@ describe("scoreDuplicate", () => {
     const { reasons } = scoreDuplicate(a, b);
     expect(reasons).toContain("Shared email jane@x.com");
     expect(reasons).toContain("Shared phone +1555");
+  });
+});
+
+/** A seeded generator, so each randomized fixture is the same every run. */
+function seededRandom(seed: number) {
+  return () => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31;
+    return seed / 2 ** 31;
+  };
+}
+
+/** Up to `max` draws from `pool`, repeats allowed. */
+function some<T>(random: () => number, pool: readonly T[], max: number): T[] {
+  return Array.from(
+    { length: Math.floor(random() * (max + 1)) },
+    () => pool[Math.floor(random() * pool.length)],
+  );
+}
+
+function randomPeople(seed: number, count: number): DuplicateInput[] {
+  const random = seededRandom(seed);
+  const names = ["George Bailey", "Mary Hatch", "Violet Bick", ""];
+  return Array.from({ length: count }, () => {
+    const name = names[Math.floor(random() * names.length)];
+    return person({
+      name,
+      foldedName: name.toLowerCase(),
+      emails: some(random, ["george@example.com", "mary@example.com"], 2),
+      phones: some(random, ["+15550100", "+15550101"], 2),
+      handles: some(
+        random,
+        [
+          { platform: "instagram", handle: "georgebailey" },
+          { platform: "x", handle: "georgebailey" },
+        ],
+        2,
+      ),
+    });
+  });
+}
+
+describe("pairsSharingAKey", () => {
+  it("leaves out a pair that shares nothing", () => {
+    const people = [
+      person(),
+      person({ name: "Harry Bailey", foldedName: "harry bailey" }),
+      person(),
+    ];
+    expect(pairsSharingAKey(people)).toEqual([[0, 2]]);
+  });
+
+  it("finds every pair the scorer rates, in nested-loop order", () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const people = randomPeople(seed, 12);
+      const rated = (i: number, j: number) =>
+        scoreDuplicate(people[i], people[j]).tier !== "none";
+
+      const everyPair: [number, number][] = [];
+      for (let i = 0; i < people.length; i++) {
+        for (let j = i + 1; j < people.length; j++) everyPair.push([i, j]);
+      }
+      expect(pairsSharingAKey(people).filter(([i, j]) => rated(i, j))).toEqual(
+        everyPair.filter(([i, j]) => rated(i, j)),
+      );
+    }
   });
 });
