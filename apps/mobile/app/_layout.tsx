@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { MessagesProvider, en } from "@leapsake/ui/messages";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -18,39 +19,41 @@ const ConsoleErrorMarker: ComponentType | null =
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <CoreProvider>
-        <Stack
-          screenOptions={{
-            header: ({ options, route, back, navigation }) => (
-              <AppHeader
-                // Until a screen's data names it, the name its link sent.
-                title={headerTitle(options, route)}
-                left={options.headerLeft?.({
-                  canGoBack: back !== undefined,
-                  tintColor: colors.accent,
-                })}
-                right={options.headerRight?.({
-                  canGoBack: back !== undefined,
-                  tintColor: colors.accent,
-                })}
-                // No `back` at a stack's root; a screen with its own single way
-                // on also opts out with `headerBackVisible: false`.
-                onBack={
-                  back === undefined || options.headerBackVisible === false
-                    ? undefined
-                    : () => navigation.goBack()
-                }
-              />
-            ),
-            // What shows when a ScrollView bounces past its own content.
-            contentStyle: { backgroundColor: colors.surface },
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-        {/* Dark, not "auto": the app is light whatever the OS theme. */}
-        <StatusBar style="dark" />
-      </CoreProvider>
+      <MessagesProvider messages={en}>
+        <CoreProvider>
+          <Stack
+            screenOptions={{
+              header: ({ options, route, back, navigation }) => (
+                <AppHeader
+                  // Until a screen's data names it, the name its link sent.
+                  title={headerTitle(options, route)}
+                  left={options.headerLeft?.({
+                    canGoBack: back !== undefined,
+                    tintColor: colors.accent,
+                  })}
+                  right={options.headerRight?.({
+                    canGoBack: back !== undefined,
+                    tintColor: colors.accent,
+                  })}
+                  // No `back` at a stack's root; a screen with its own single
+                  // way on also opts out with `headerBackVisible: false`.
+                  onBack={
+                    back === undefined || options.headerBackVisible === false
+                      ? undefined
+                      : () => navigation.goBack()
+                  }
+                />
+              ),
+              // What shows when a ScrollView bounces past its own content.
+              contentStyle: { backgroundColor: colors.surface },
+            }}
+          >
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+          {/* Dark, not "auto": the app is light whatever the OS theme. */}
+          <StatusBar style="dark" />
+        </CoreProvider>
+      </MessagesProvider>
       {ConsoleErrorMarker && <ConsoleErrorMarker />}
     </SafeAreaProvider>
   );
