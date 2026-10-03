@@ -47,14 +47,14 @@ const TEXT = {
         : `${days} days before`,
   giveTiming: (getDays: number, how: Handover, postDays: number) =>
     how === "mail"
-      ? `Get it ${daysBefore(getDays)}, post it ${daysBefore(postDays)}`
+      ? `Get it ${daysBefore(getDays)}, send it ${daysBefore(postDays)}`
       : `Get it ${daysBefore(getDays)}, give it in person`,
   editRule: (label: string, timing: string) => `${label}, ${timing}. Edit`,
   how: "How you’ll give it",
   mail: "By mail",
   inPerson: "In person",
   getDays: "Days before, to get it",
-  postDays: "Days before, to post it",
+  postDays: "Days before, to send it",
 } as const;
 
 const HANDOVER_OPTIONS: { value: Handover; label: string }[] = [
