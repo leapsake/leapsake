@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Alert, ScrollView, Text } from "react-native";
+import { Alert, Text } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
 import { Typeahead } from "../components/Typeahead";
@@ -12,6 +12,7 @@ import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
 import { LoadState } from "../components/LoadState";
+import { FormScrollView } from "../components/FormScrollView";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -75,7 +76,7 @@ export default function AboutYouScreen() {
   const people = entities.filter((entity) => entity.type === "person");
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
+    <FormScrollView contentContainerStyle={styles.screen}>
       <Stack.Screen options={{ title: TEXT.title }} />
       <Text style={styles.rowText}>{TEXT.lede}</Text>
 
@@ -111,6 +112,6 @@ export default function AboutYouScreen() {
         faded={!form.canSubmit}
         onPress={() => void save()}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }

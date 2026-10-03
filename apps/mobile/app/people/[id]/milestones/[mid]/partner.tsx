@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, ScrollView } from "react-native";
+import { Alert } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { kindDefs } from "@leapsake/schema";
 import type { PartyChoice } from "@leapsake/ui/headless";
@@ -11,6 +11,7 @@ import {
 import { useCore } from "../../../../../lib/core-context";
 import { useFocusedData } from "../../../../../lib/useFocusedData";
 import { styles } from "../../../../../lib/styles";
+import { FormScrollView } from "../../../../../components/FormScrollView";
 
 const COPY = {
   failed: "Couldn’t save",
@@ -63,10 +64,7 @@ export default function MilestonePartnerScreen() {
   return (
     <>
       <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <PartnerField
           kind={kind}
           personId={id}
@@ -74,7 +72,7 @@ export default function MilestonePartnerScreen() {
           value={partner}
           onChange={setPartner}
         />
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

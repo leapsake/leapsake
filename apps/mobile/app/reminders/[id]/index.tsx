@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   type ReminderRuleInput,
@@ -40,6 +40,7 @@ import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LinkButton } from "../../../components/LinkButton";
 import { LoadState } from "../../../components/LoadState";
+import { FormScrollView } from "../../../components/FormScrollView";
 
 /** The title on the alert a failed write raises, naming which write failed. */
 const FAILURE_TITLES = {
@@ -228,10 +229,9 @@ export default function ReminderDetailScreen() {
   }
 
   return (
-    <ScrollView
+    <FormScrollView
       contentContainerStyle={styles.screen}
       // One tap picks a suggestion under "Who's it with?", keyboard up or not.
-      keyboardShouldPersistTaps="handled"
     >
       <Stack.Screen options={HEADER} />
 
@@ -426,6 +426,6 @@ export default function ReminderDetailScreen() {
       {canDelete && (
         <Button label="Delete" tone="destructive" onPress={confirmDelete} />
       )}
-    </ScrollView>
+    </FormScrollView>
   );
 }

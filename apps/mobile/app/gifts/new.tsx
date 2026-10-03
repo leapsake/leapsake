@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ScrollView, Text } from "react-native";
+import { Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { type PartyOption, partyKey } from "@leapsake/ui/headless";
 import { GiftCaptureForm } from "../../components/GiftCaptureForm";
@@ -7,6 +7,7 @@ import { useCore } from "../../lib/core-context";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { styles } from "../../lib/styles";
 import { LoadState } from "../../components/LoadState";
+import { FormScrollView } from "../../components/FormScrollView";
 
 /**
  * Add a gift. `?recipient=` fixes who it is for, and saving goes back there;
@@ -43,10 +44,7 @@ export default function GiftCreateScreen() {
       : candidates.find((c) => partyKey(c) === recipient);
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       {fixedRecipient !== undefined && (
         // The only mention of the recipient, the picker being hidden.
         <Text style={styles.muted}>A gift for {fixedRecipient.label}.</Text>
@@ -66,6 +64,6 @@ export default function GiftCreateScreen() {
             : router.back()
         }
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }

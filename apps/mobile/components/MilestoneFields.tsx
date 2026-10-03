@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import {
   type MilestoneBearerType,
   type MilestoneDraft,
@@ -16,6 +16,7 @@ import { DetailField } from "./DetailField";
 import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
+import { FormScrollView } from "./FormScrollView";
 
 const TEXT = {
   kind: "Kind",
@@ -185,11 +186,8 @@ export function MilestoneFields({
 
   if (!scroll) return fields;
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       {fields}
-    </ScrollView>
+    </FormScrollView>
   );
 }

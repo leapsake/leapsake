@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { ActivityIndicator, Text, TextInput, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { ExportFirstOffer } from "../components/ExportFirstOffer";
@@ -13,6 +7,7 @@ import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { FormScrollView } from "../components/FormScrollView";
 
 /** The word a user must type to arm the (irreversible) account deletion. */
 const FORGET_ACCOUNT_PHRASE = "DELETE";
@@ -89,10 +84,7 @@ export default function ForgetAccountScreen() {
       <Stack.Screen
         options={{ title: lastCopy ? TEXT.lastCopyTitle : TEXT.title }}
       />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         {info === null ? (
           error === null && <ActivityIndicator />
         ) : (
@@ -139,7 +131,7 @@ export default function ForgetAccountScreen() {
             {error}
           </Text>
         )}
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, ScrollView } from "react-native";
+import { Alert } from "react-native";
 import { Stack } from "expo-router";
 import type {
   ContactMethodDraftErrors,
@@ -10,6 +10,7 @@ import { useContactMethodForm } from "@leapsake/ui/headless";
 import { ContactMethodFields } from "./ContactMethodFields";
 import { useHeaderSave } from "./HeaderSave";
 import { styles } from "../lib/styles";
+import { FormScrollView } from "./FormScrollView";
 
 const TEXT = {
   saveFailed: "Couldn’t save",
@@ -60,17 +61,14 @@ export function ContactMethodForm({
   return (
     <>
       <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <ContactMethodFields
           canChangeKind={canChangeKind}
           draft={form.fields}
           onChange={(draft) => form.update(() => draft)}
           setKind={form.setKind}
         />
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

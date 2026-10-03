@@ -1,4 +1,4 @@
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import type { RelationshipCandidate } from "@leapsake/core";
 import type {
   EntityType,
@@ -13,6 +13,7 @@ import {
 import { PartyField } from "./PartyField";
 import { PickerField } from "./PickerField";
 import { styles } from "../lib/styles";
+import { FormScrollView } from "./FormScrollView";
 
 const TEXT = {
   role: "Role",
@@ -133,11 +134,8 @@ export function RelationshipFields({
 
   if (!scroll) return fields;
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       {fields}
-    </ScrollView>
+    </FormScrollView>
   );
 }

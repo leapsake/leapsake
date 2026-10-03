@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Alert, ScrollView, Text } from "react-native";
+import { Alert, Text } from "react-native";
 import type { ObservanceBearerType } from "@leapsake/schema";
 import { splitBearerHolidays } from "@leapsake/view-models";
 import { HolidayBrowser } from "./HolidayBrowser";
@@ -7,6 +7,7 @@ import { useCore } from "../lib/core-context";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 import { LoadState } from "./LoadState";
+import { FormScrollView } from "./FormScrollView";
 
 /**
  * Add holidays for one bearer, each tap writing at once with no Save. What
@@ -44,10 +45,7 @@ export function HolidayPicker({
   const { addable } = splitBearerHolidays(data);
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       {added.length > 0 && (
         <Text style={styles.muted} accessibilityRole="summary">
           Added {added.join(", ")}.
@@ -58,6 +56,6 @@ export function HolidayPicker({
         addable={addable}
         onAdd={(holiday) => add(holiday.id, holiday.name)}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }

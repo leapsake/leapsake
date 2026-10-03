@@ -11,7 +11,6 @@ import {
   AppState,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -66,6 +65,7 @@ import {
   type MobileNotificationScheduler,
 } from "./notification-scheduler";
 import { Button } from "../components/Button";
+import { FormScrollView } from "../components/FormScrollView";
 
 /** The account surface: custody acts, which are not transactional core ops. */
 export interface AccountApi {
@@ -644,10 +644,7 @@ function RecoveryGate({
     <View testID="recovery-gate" style={styles.gate}>
       {/* A multiline field's return key cannot dismiss the keyboard, so a tap
           on the copy must, or the keyboard covers Unlock on a phone. */}
-      <ScrollView
-        contentContainerStyle={styles.gateContent}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.gateContent}>
         <Text style={styles.gateTitle}>Unlock your data</Text>
         <Text style={styles.gateBody}>
           Your data on this device is encrypted and locked — either because you
@@ -706,7 +703,7 @@ function RecoveryGate({
             <Text style={styles.gateLink}>Use your password instead</Text>
           </Pressable>
         )}
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

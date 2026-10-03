@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type EntityType, personInputOf, petInputOf } from "@leapsake/schema";
 import { EntityFormSections } from "../components/EntityFormSections";
+import { FormScrollView } from "../components/FormScrollView";
 import { useHeaderSave } from "../components/HeaderSave";
 import { useCore } from "../lib/core-context";
 import {
@@ -158,10 +159,7 @@ function AddEntityForm({
   return (
     <>
       <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <Pressable
           accessibilityRole="button"
           testID="add-switch-type"
@@ -172,7 +170,7 @@ function AddEntityForm({
         </Pressable>
 
         <EntityFormSections type={type} value={value} onChange={setValue} />
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

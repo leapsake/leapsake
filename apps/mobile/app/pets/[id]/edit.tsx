@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, ScrollView } from "react-native";
+import { Alert } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { PetView } from "@leapsake/core";
 import { usePetForm } from "@leapsake/ui/headless";
@@ -10,6 +10,7 @@ import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 import { LoadState } from "../../../components/LoadState";
+import { FormScrollView } from "../../../components/FormScrollView";
 
 const TITLE = "Edit details";
 
@@ -72,15 +73,12 @@ function PetEditForm({ id, view }: { id: string; view: PetView }) {
   return (
     <>
       <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <PetFields
           draft={form.fields}
           onChange={(draft) => form.update(() => draft)}
         />
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { tagLabel } from "@leapsake/schema";
 import { GiftIdeaForm } from "../../../components/GiftIdeaForm";
@@ -13,6 +13,7 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LoadState } from "../../../components/LoadState";
+import { FormScrollView } from "../../../components/FormScrollView";
 
 /**
  * A gift idea's page: the idea, editable, and who it is for. Removing it
@@ -72,10 +73,7 @@ export default function GiftIdeaEditScreen() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       {idea.imageUrl !== null && <GiftImage uri={idea.imageUrl} />}
 
       {/* The form declares the header; two `Stack.Screen`s would race. */}
@@ -102,6 +100,6 @@ export default function GiftIdeaEditScreen() {
         tone="destructive"
         onPress={confirmDelete}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }

@@ -902,6 +902,3 @@ confirmation needs: an `id` on the confirm field, and `dismiss-keyboard.yaml` an
 plain `Text` _above_ the reflow — the section title, not the button.
 `subflows/factory-reset.yaml` drives it, which is what makes the arc re-runnable: Flow 4
 leaves an account behind, and this is the only in-app way back.
-
-The screen would still be better with a `KeyboardAvoidingView`; that is now a UX preference
-rather than a harness blocker.

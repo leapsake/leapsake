@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type {
   Reminder,
@@ -12,6 +12,7 @@ import { styles } from "../lib/styles";
 import { DatePartsFields } from "./DatePartsFields";
 import { useHeaderSave } from "./HeaderSave";
 import { ChipTextField } from "./ChipTextField";
+import { FormScrollView } from "./FormScrollView";
 
 type ReminderSubmit = Extract<ReminderDraftResult, { ok: true }>;
 type ReminderErrors = Partial<
@@ -106,10 +107,7 @@ export function ReminderFields({
   onDueChange: (parts: ReminderDraft["due"]) => void;
 }) {
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScrollView contentContainerStyle={styles.screen}>
       <View style={styles.field}>
         <Text style={styles.fieldLabel}>{TEXT.title}</Text>
         <ChipTextField
@@ -139,6 +137,6 @@ export function ReminderFields({
         testIDPrefix="reminder-due"
         error={errors.due === undefined ? null : TEXT.due[errors.due]}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }

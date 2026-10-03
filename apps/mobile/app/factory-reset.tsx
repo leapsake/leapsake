@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { ExportFirstOffer } from "../components/ExportFirstOffer";
@@ -7,6 +7,7 @@ import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { FormScrollView } from "../components/FormScrollView";
 
 /** The word a user must type to arm the (irreversible) factory reset. */
 const FACTORY_RESET_PHRASE = "ERASE";
@@ -58,10 +59,7 @@ export default function FactoryResetScreen() {
   return (
     <>
       <Stack.Screen options={{ title: TEXT.title }} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <Text style={styles.muted}>{TEXT.body}</Text>
         {/* The accountless wipe always destroys the only copy. */}
         <ExportFirstOffer busy={working} />
@@ -89,7 +87,7 @@ export default function FactoryResetScreen() {
             {error}
           </Text>
         )}
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

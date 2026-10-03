@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { Alert, ScrollView } from "react-native";
+import { Alert } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { type EntityType, type Tag, parseTagNames } from "@leapsake/schema";
 import { useHeaderSave } from "./HeaderSave";
 import { TagsInput, tagsRawOf } from "./TagsInput";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
+import { FormScrollView } from "./FormScrollView";
 
 /** The title before the record has loaded. */
 export const TAGS_TITLE = "Tags";
@@ -61,12 +62,9 @@ export function TagsEditForm({
   return (
     <>
       <Stack.Screen options={options} />
-      <ScrollView
-        contentContainerStyle={styles.screen}
-        keyboardShouldPersistTaps="handled"
-      >
+      <FormScrollView contentContainerStyle={styles.screen}>
         <TagsInput label="Tags" value={raw} onChange={setRaw} />
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

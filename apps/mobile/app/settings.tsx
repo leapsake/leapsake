@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
 import { useAccount } from "../lib/core-context";
@@ -11,6 +11,7 @@ import {
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { FormScrollView } from "../components/FormScrollView";
 
 const NOT_CONFIRMED = "Not confirmed yet";
 const PASSWORD_FIRST = "Enter your password to confirm.";
@@ -50,7 +51,7 @@ export default function SettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Account" }} />
-      <ScrollView contentContainerStyle={styles.screen}>
+      <FormScrollView contentContainerStyle={styles.screen}>
         {status === null ? (
           <Text style={styles.muted}>Loading…</Text>
         ) : status.hasAccount ? (
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
             <SignOutSection />
           </>
         )}
-      </ScrollView>
+      </FormScrollView>
     </>
   );
 }

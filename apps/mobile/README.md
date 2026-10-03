@@ -529,6 +529,13 @@ the value alone.
 
 Prefer a native element over novel custom UI for any of these.
 
+**A screen with a text field scrolls in a [`FormScrollView`](./components/FormScrollView.tsx)**,
+never a bare `ScrollView`, or the keyboard covers its lower fields and buttons. The platforms need
+different fixes: iOS insets the scroller (`automaticallyAdjustKeyboardInsets`), while Android,
+being edge-to-edge, does not resize the window for the keyboard despite `adjustResize`, so the
+scroller sits in a `KeyboardAvoidingView` there. Two scrollers are left bare on purpose: the
+Search tab's list and `PickerField`'s sheet, whose fields sit at the top.
+
 ## Debugging a native module
 
 ### Adding one: regenerate, don't pod-install into a stale project

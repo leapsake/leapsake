@@ -4,7 +4,6 @@ import {
   Linking,
   Platform,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from "react-native";
@@ -26,6 +25,7 @@ import {
 } from "../components/ProtectData";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { FormScrollView } from "../components/FormScrollView";
 
 // Import from Contacts, which switches the sync on; with no account it first
 // offers one (the app's README → Keeping People in step).
@@ -188,11 +188,11 @@ export default function ImportScreen() {
     return (
       <>
         <Stack.Screen options={{ title: "Encrypt your data" }} />
-        <ScrollView contentContainerStyle={styles.screen}>
+        <FormScrollView contentContainerStyle={styles.screen}>
           <CreateAccountForm
             onCreated={(phrase) => setState({ phase: "revealing", phrase })}
           />
-        </ScrollView>
+        </FormScrollView>
       </>
     );
   }
