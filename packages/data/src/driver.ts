@@ -15,3 +15,27 @@ export interface SqliteDriver {
    *  refuses to unlink an open one). Optional: most drivers stay open. */
   close?(): Promise<void>;
 }
+
+/** A driver's `transaction` over one connection, via `exec`. A transaction
+ *  started while another is open waits for it to commit or roll back. */
+export function serialTransaction(
+  exec: (sql: string) => unknown,
+): SqliteDriver["transaction"] {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = async () => {
+      await exec("BEGIN");
+      try {
+        const result = await fn();
+        await exec("COMMIT");
+        return result;
+      } catch (error) {
+        await exec("ROLLBACK");
+        throw error;
+      }
+    };
+    const turn = tail.then(run, run);
+    tail = turn.catch(() => undefined);
+    return turn;
+  };
+}

@@ -19,6 +19,11 @@ Two adapters implement it:
   resolved promises ([`apps/desktop/src/main/db/encrypted-sqlite-driver.ts`](../../apps/desktop/src/main/db/encrypted-sqlite-driver.ts))
 - **mobile** — expo-sqlite/SQLCipher ([`apps/mobile/db/expo-sqlite-driver.ts`](../../apps/mobile/db/expo-sqlite-driver.ts))
 
+Both build `transaction` from the same `serialTransaction`, because a connection holds one
+transaction at a time and the app does start them concurrently: mobile's boot and foreground
+both regenerate reminders, and the second `BEGIN` used to fail. A transaction now waits its turn.
+A transaction started _inside_ another's body would wait forever, so never nest one.
+
 They are pinned to **identical observable behavior** by one shared contract suite
 (`@leapsake/data/testing` → `runDriverContract`): desktop runs it under Vitest, mobile via
 the in-app self-test driven by `pnpm test:native`. That equivalence is what lets the shared

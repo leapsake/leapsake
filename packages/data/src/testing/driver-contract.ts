@@ -167,6 +167,27 @@ export function runDriverContract(t: TestApi, makeDriver: DriverFactory): void {
         expect(rows).toEqual([]);
       }));
 
+    it("runs overlapping transactions one at a time, each committing or rolling back alone", () =>
+      withDriver(async (driver) => {
+        await driver.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+        const boom = new Error("boom");
+
+        const failing = driver.transaction(async () => {
+          await driver.run("INSERT INTO t (id) VALUES (?)", [1]);
+          await driver.run("INSERT INTO t (id) VALUES (?)", [2]);
+          throw boom;
+        });
+        const committing = driver.transaction(async () => {
+          await driver.run("INSERT INTO t (id) VALUES (?)", [3]);
+          await driver.run("INSERT INTO t (id) VALUES (?)", [4]);
+        });
+
+        await expect(failing).rejects.toThrow(boom);
+        await committing;
+        const rows = await driver.all("SELECT id FROM t ORDER BY id");
+        expect(rows).toEqual([{ id: 3 }, { id: 4 }]);
+      }));
+
     it("returns the transaction body's resolved value", () =>
       withDriver(async (driver) => {
         await driver.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");

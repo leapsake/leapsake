@@ -1,5 +1,5 @@
 import type { SQLiteBindParams, SQLiteDatabase } from "expo-sqlite";
-import type { SqliteDriver } from "@leapsake/data";
+import { type SqliteDriver, serialTransaction } from "@leapsake/data";
 
 /** What a call started after `close()` rejects with. */
 export const STORE_CLOSED = "the store is closed";
@@ -11,6 +11,7 @@ export function expoSqliteDriver(db: SQLiteDatabase): SqliteDriver {
   let closed = false;
   let inFlight = 0;
   let drained: (() => void) | null = null;
+  const transaction = serialTransaction((sql) => db.execAsync(sql));
 
   // A closing driver still admits in-flight work: a running `transaction`'s
   // own calls, which refusing would roll back.
@@ -54,19 +55,7 @@ export function expoSqliteDriver(db: SQLiteDatabase): SqliteDriver {
       );
     },
 
-    async transaction<T>(fn: () => Promise<T>) {
-      return whileOpen(async () => {
-        await db.execAsync("BEGIN");
-        try {
-          const result = await fn();
-          await db.execAsync("COMMIT");
-          return result;
-        } catch (error) {
-          await db.execAsync("ROLLBACK");
-          throw error;
-        }
-      });
-    },
+    transaction: (fn) => whileOpen(() => transaction(fn)),
 
     close() {
       // Idempotent, and it waits: every caller of close() gets the same drain.

@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3-multiple-ciphers";
 import type { SqliteDriver } from "@leapsake/core";
+import { serialTransaction } from "@leapsake/data";
 
 /** A driver over desktop's engine, for Vitest tiers that need real SQLite. */
 export function sqliteDriver(db: Database.Database): SqliteDriver {
@@ -10,17 +11,7 @@ export function sqliteDriver(db: Database.Database): SqliteDriver {
       db.prepare(sql).all(...params) as T[],
     get: async <T>(sql: string, params: unknown[] = []) =>
       db.prepare(sql).get(...params) as T | undefined,
-    async transaction<T>(fn: () => Promise<T>) {
-      db.exec("BEGIN");
-      try {
-        const result = await fn();
-        db.exec("COMMIT");
-        return result;
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
-      }
-    },
+    transaction: serialTransaction((sql) => db.exec(sql)),
     close: async () => void db.close(),
   };
 }

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3-multiple-ciphers";
 import { rawKeyLiteral } from "@leapsake/crypto";
-import type { SqliteDriver } from "@leapsake/data";
+import { type SqliteDriver, serialTransaction } from "@leapsake/data";
 
 /** An opened handle from this engine, keyed or not. */
 export type EncryptedDatabase = Database.Database;
@@ -55,17 +55,7 @@ export function encryptedSqliteDriver(db: EncryptedDatabase): SqliteDriver {
       return db.prepare(sql).get(...params) as T | undefined;
     },
 
-    async transaction<T>(fn: () => Promise<T>) {
-      db.exec("BEGIN");
-      try {
-        const result = await fn();
-        db.exec("COMMIT");
-        return result;
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
-      }
-    },
+    transaction: serialTransaction((sql) => db.exec(sql)),
 
     async close() {
       db.close();
