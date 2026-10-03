@@ -114,6 +114,7 @@ export function MilestoneFields({
       )}
       <ReminderScheduleFields
         value={draft.reminderSchedule}
+        greeting={def.greeting}
         onChange={(rules) => onChange(milestoneDraftWithSchedule(draft, rules))}
       />
     </>

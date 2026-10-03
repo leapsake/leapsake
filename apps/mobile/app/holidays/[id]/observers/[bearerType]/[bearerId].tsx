@@ -89,7 +89,11 @@ export default function ObservanceScheduleScreen() {
         </Text>
       )}
 
-      <ReminderScheduleFields value={schedule} onChange={setRules} />
+      <ReminderScheduleFields
+        value={schedule}
+        greeting={holiday.greeting}
+        onChange={setRules}
+      />
     </ScrollView>
   );
 }
