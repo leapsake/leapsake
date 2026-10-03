@@ -130,7 +130,8 @@ the client.
 
 `reminder-row.ts` takes the row the rest of the way. `reminderOfferLabelOf` names which words
 an offer wears, as a key (`"linkSpouse"`, `"remindMe"`), and `reminderRowOf` says whether a row
-shows Remove and whether removing it is a delete or a “don’t ask again”. An open nudge or
+can be completed (only an errand: a nudge or prompt retires itself), whether it shows Remove,
+and whether removing it is a delete or a “don’t ask again”. An open nudge or
 `🗓 plan` prompt shows no Remove, since its own dismiss is the same tombstone. Each client keeps
 a table from those keys to its own words (desktop's links end `→`, mobile's `›`), and its own
 path per call to action.

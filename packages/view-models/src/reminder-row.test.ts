@@ -120,6 +120,7 @@ describe("reminderRowOf", () => {
 
     expect(actions.map((a) => a.kind)).toContain("dismiss");
     expect(reminderRowOf(actions, false)).toEqual({
+      completable: false,
       showsRemove: false,
       removal: "dismiss",
     });
@@ -130,6 +131,7 @@ describe("reminderRowOf", () => {
 
     expect(actions.map((a) => a.kind)).toEqual(["cta"]);
     expect(reminderRowOf(actions, true)).toEqual({
+      completable: false,
       showsRemove: true,
       removal: "dismiss",
     });
@@ -138,7 +140,7 @@ describe("reminderRowOf", () => {
   it("treats a prompt like a nudge", () => {
     expect(
       reminderRowOf(actionsFor("prompt", null, planContext), false),
-    ).toEqual({ showsRemove: false, removal: "dismiss" });
+    ).toEqual({ completable: false, showsRemove: false, removal: "dismiss" });
   });
 
   it("keeps an ordinary, gift or duplicates reminder's Remove and plain wording", () => {
@@ -147,10 +149,23 @@ describe("reminderRowOf", () => {
       actionsFor("gift", null, giftContext),
       actionsFor("dupes", null, { isDuplicatesNudge: true }),
     ]) {
-      expect(reminderRowOf(actions, false)).toEqual({
+      expect(reminderRowOf(actions, false)).toMatchObject({
         showsRemove: true,
         removal: "remove",
       });
     }
+  });
+
+  it("lets only an errand be completed, not a nudge, prompt or the duplicates review", () => {
+    const completable = (actions: ReturnType<typeof actionsFor>) =>
+      reminderRowOf(actions, false).completable;
+
+    expect(completable(actionsFor("user-written"))).toBe(true);
+    expect(completable(actionsFor("gift", null, giftContext))).toBe(true);
+    expect(completable(actionsFor(idFor("import")))).toBe(false);
+    expect(completable(actionsFor("prompt", null, planContext))).toBe(false);
+    expect(
+      completable(actionsFor("dupes", null, { isDuplicatesNudge: true })),
+    ).toBe(false);
   });
 });

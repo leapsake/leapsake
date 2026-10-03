@@ -65,17 +65,20 @@ export function reminderOfferLabelOf(
 export type ReminderRemoval = "dismiss" | "remove";
 
 /**
- * What a row offers besides its actions. An open nudge or `🗓 plan` prompt shows
- * no Remove, because its own "don't ask again" is the same tombstone.
+ * What a row offers besides its actions. Only an errand completes; a nudge or
+ * prompt retires itself, and when open shows no Remove beside its own dismiss.
  */
 export function reminderRowOf(
   actions: readonly ReminderRowAction[],
   done: boolean,
-): { showsRemove: boolean; removal: ReminderRemoval } {
-  const nudge = actions.some(
-    (a) =>
-      a.kind === "cta" &&
-      (a.cta.kind === "onboarding" || a.cta.kind === "plan"),
+): { completable: boolean; showsRemove: boolean; removal: ReminderRemoval } {
+  const ctaKinds = actions.flatMap((a) =>
+    a.kind === "cta" ? [a.cta.kind] : [],
   );
-  return { showsRemove: done || !nudge, removal: nudge ? "dismiss" : "remove" };
+  const nudge = ctaKinds.includes("onboarding") || ctaKinds.includes("plan");
+  return {
+    completable: !nudge && !ctaKinds.includes("duplicates"),
+    showsRemove: done || !nudge,
+    removal: nudge ? "dismiss" : "remove",
+  };
 }

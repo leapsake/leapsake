@@ -125,16 +125,26 @@ function ReminderRow({
           },
   });
 
+  const row = reminderRowOf(actions, done);
+
   return (
     <li>
-      <completeFetcher.Form
-        method="post"
-        action={`/reminders/${reminder.id}/complete`}
-        style={{ display: "inline" }}
-      >
-        <input type="hidden" name="completed" value={done ? "false" : "true"} />
-        <button type="submit">{done ? "Reopen" : "Done"}</button>
-      </completeFetcher.Form>{" "}
+      {row.completable && (
+        <>
+          <completeFetcher.Form
+            method="post"
+            action={`/reminders/${reminder.id}/complete`}
+            style={{ display: "inline" }}
+          >
+            <input
+              type="hidden"
+              name="completed"
+              value={done ? "false" : "true"}
+            />
+            <button type="submit">{done ? "Reopen" : "Done"}</button>
+          </completeFetcher.Form>{" "}
+        </>
+      )}
       <span style={strike}>
         <ReminderText
           text={heading}
@@ -202,7 +212,7 @@ function ReminderRow({
           </Fragment>
         );
       })}
-      {reminder.materialized && reminderRowOf(actions, done).showsRemove && (
+      {reminder.materialized && row.showsRemove && (
         <Link to={`/reminders/${reminder.id}/delete`}>Remove</Link>
       )}
       {reminder.title !== null && reminder.body !== null && (

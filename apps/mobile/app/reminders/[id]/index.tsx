@@ -9,11 +9,7 @@ import {
   kindDefs,
   reminderLabel,
 } from "@leapsake/schema";
-import {
-  type InPersonAnswer,
-  type PlanAnswer,
-  onboardingRouteOf,
-} from "@leapsake/core";
+import { type InPersonAnswer, type PlanAnswer } from "@leapsake/core";
 import type { PartyChoice } from "@leapsake/ui/headless";
 import {
   reminderActionKey,
@@ -118,10 +114,6 @@ export default function ReminderDetailScreen() {
   // A `🗓 plan` prompt is drawn as a question, with its answer form inline.
   const isPrompt = planTarget !== undefined;
   const isDuplicatesNudge = id === duplicatesNudgeId;
-  const isNudge = onboardingRouteOf(id) !== null || isDuplicatesNudge;
-  // Only an errand can be completed: a prompt retires by being answered, a
-  // nudge when its condition is met.
-  const isErrand = !isPrompt && !isNudge;
   // Only on a `wish` about a person (one per partner for a couple); with no
   // contact methods the view-model offers the collect prompt instead.
   const contactTargets = targets.contacts.filter((t) => t.reminderId === id);
@@ -323,12 +315,12 @@ export default function ReminderDetailScreen() {
           />
         </View>
       )}
-      {(isErrand || offered.length > 0) && (
+      {(row.completable || offered.length > 0) && (
         // The offers, in offer order, snoozes folded into one sheet.
         <View style={styles.rowOffers}>
           {/* ⚠️ Errands only: `setCompleted` would stamp a nudge whose
               condition is unmet, leaving it in Completed for good. */}
-          {isErrand && (
+          {row.completable && (
             <Button
               label={done ? COMPLETION.undo : COMPLETION.do}
               tone={hasCta ? "secondary" : "primary"}
