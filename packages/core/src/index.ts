@@ -1167,14 +1167,9 @@ export function createCore(
     // is `people.merge`.
     duplicates: {
       findCandidates: duplicates.unresolvedCandidates,
-      /**
-       * The candidates involving one person. A filter over the full scan, so
-       * the `not_a_duplicate` memory and tier/sort rules stay in one place.
-       */
-      findFor: async (personId: string): Promise<DuplicateCandidate[]> =>
-        (await duplicates.unresolvedCandidates()).filter(
-          (c) => c.a.id === personId || c.b.id === personId,
-        ),
+      /** The candidates involving one person. */
+      findFor: (personId: string): Promise<DuplicateCandidate[]> =>
+        duplicates.candidatesFor(personId),
       /** How many pairs are outstanding — the count the clients gate their
        *  "N possible duplicates" links on, without shipping the whole list. */
       count: async (): Promise<number> =>

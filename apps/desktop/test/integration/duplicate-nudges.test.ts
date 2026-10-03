@@ -96,6 +96,64 @@ describe("duplicate detection readers", () => {
   });
 });
 
+/** A seeded generator, so the randomized fixture is the same every run. */
+function seededRandom(seed: number) {
+  return () => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31;
+    return seed / 2 ** 31;
+  };
+}
+
+describe("findFor against the full scan", () => {
+  it("returns exactly the full scan's pairs for each person", async () => {
+    const random = seededRandom(1946);
+    const pick = <T>(list: readonly T[]) =>
+      list[Math.floor(random() * list.length)];
+    const names = [
+      ["George", "Bailey"],
+      ["Mary", "Hatch"],
+      ["Clarence", "Odbody"],
+      ["Violet", "Bick"],
+    ] as const;
+    const emails = ["george@example.com", "mary@example.com"];
+
+    const ids: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const [firstName, lastName] = pick(names);
+      const { id } = await addPerson(firstName, lastName);
+      ids.push(id);
+      if (random() < 0.3) {
+        await core.contactMethods.emails.create({
+          ownerType: "person",
+          ownerId: id,
+          label: "home",
+          address: pick(emails),
+        });
+      }
+    }
+    const before = await core.duplicates.findCandidates();
+    for (const { a, b } of before.slice(0, 3)) {
+      await core.duplicates.reject(b.id, a.id);
+    }
+    const deleted = ids.pop()!;
+    await core.people.softDelete(deleted);
+
+    const scan = await core.duplicates.findCandidates();
+    const halves = new Set(scan.flatMap((c) => [`a:${c.a.id}`, `b:${c.b.id}`]));
+    expect(
+      ids.some((id) => halves.has(`a:${id}`) && halves.has(`b:${id}`)),
+    ).toBe(true);
+    expect(scan.length).toBeLessThan(before.length);
+
+    for (const id of [...ids, deleted, "no-such-person"]) {
+      expect(await core.duplicates.findFor(id)).toEqual(
+        scan.filter((c) => c.a.id === id || c.b.id === id),
+      );
+    }
+    expect(await core.duplicates.findFor(deleted)).toEqual([]);
+  });
+});
+
 describe("the duplicates Home nudge", () => {
   it("appears when a duplicate is created, under the id clients match on", async () => {
     await addPerson("Jane", "Wainwright");

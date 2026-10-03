@@ -45,9 +45,11 @@ export interface DuplicateService {
   /** Every pair of active people not in `excludePairs` (`"lower:higher"` keys),
    *  tier `high` first; `none` and `low` are dropped. */
   findCandidates(excludePairs: Set<string>): Promise<DuplicateCandidate[]>;
-  /** {@link findCandidates} minus the remembered "not a duplicate" pairs; the
-   *  one place that exclusion is applied. */
+  /** {@link findCandidates} minus the remembered "not a duplicate" pairs. */
   unresolvedCandidates(): Promise<DuplicateCandidate[]>;
+  /** {@link unresolvedCandidates} involving one person, scoring only them
+   *  against everyone else; `[]` for an unknown, deleted or unpublished id. */
+  candidatesFor(personId: string): Promise<DuplicateCandidate[]>;
   /** The same candidates as `"lower:higher"` keys; names never leave here. */
   unresolvedPairKeys(): Promise<string[]>;
   /** Score one not-yet-stored contact against every active person, normalizing
@@ -155,6 +157,32 @@ export function createDuplicateService(
     });
   }
 
+  type Scored = { id: string; input: DuplicateInput };
+
+  /** The candidate `left`/`right` make, or `null` if it is excluded or below
+   *  `medium`. */
+  function scorePair(
+    left: Scored,
+    right: Scored,
+    excludePairs: Set<string>,
+  ): DuplicateCandidate | null {
+    if (excludePairs.has(pairKey(left.id, right.id))) return null;
+    const { tier, reasons } = scoreDuplicate(left.input, right.input);
+    if (tier === "none" || tier === "low") return null;
+    return {
+      a: { id: left.id, name: left.input.name },
+      b: { id: right.id, name: right.input.name },
+      tier,
+      reasons,
+    };
+  }
+
+  // High first, then a stable name ordering so the list doesn't reshuffle.
+  const byTierThenName = (x: DuplicateCandidate, y: DuplicateCandidate) =>
+    TIER_RANK[x.tier] - TIER_RANK[y.tier] ||
+    x.a.name.localeCompare(y.a.name) ||
+    x.b.name.localeCompare(y.b.name);
+
   async function findCandidates(
     excludePairs: Set<string>,
   ): Promise<DuplicateCandidate[]> {
@@ -165,28 +193,34 @@ export function createDuplicateService(
     const candidates: DuplicateCandidate[] = [];
     for (let i = 0; i < inputs.length; i++) {
       for (let j = i + 1; j < inputs.length; j++) {
-        const left = inputs[i];
-        const right = inputs[j];
-        if (excludePairs.has(pairKey(left.id, right.id))) continue;
-        const { tier, reasons } = scoreDuplicate(left.input, right.input);
-        if (tier === "none" || tier === "low") continue;
-        candidates.push({
-          a: { id: left.id, name: left.input.name },
-          b: { id: right.id, name: right.input.name },
-          tier,
-          reasons,
-        });
+        const candidate = scorePair(inputs[i], inputs[j], excludePairs);
+        if (candidate) candidates.push(candidate);
       }
     }
+    return candidates.sort(byTierThenName);
+  }
 
-    // High first, then a stable name ordering so the list doesn't reshuffle.
-    candidates.sort(
-      (x, y) =>
-        TIER_RANK[x.tier] - TIER_RANK[y.tier] ||
-        x.a.name.localeCompare(y.a.name) ||
-        x.b.name.localeCompare(y.b.name),
-    );
-    return candidates;
+  async function candidatesFor(
+    personId: string,
+  ): Promise<DuplicateCandidate[]> {
+    const [inputs, excludePairs] = await Promise.all([
+      loadInputs(),
+      repos.notADuplicate.listPairs(),
+    ]);
+    const self = inputs.findIndex((p) => p.id === personId);
+    if (self === -1) return [];
+
+    // Whoever loads first is `a`, exactly as in the full scan.
+    const candidates: DuplicateCandidate[] = [];
+    for (let j = 0; j < inputs.length; j++) {
+      if (j === self) continue;
+      const candidate =
+        j < self
+          ? scorePair(inputs[j], inputs[self], excludePairs)
+          : scorePair(inputs[self], inputs[j], excludePairs);
+      if (candidate) candidates.push(candidate);
+    }
+    return candidates.sort(byTierThenName);
   }
 
   async function matchContact(contact: {
@@ -231,6 +265,7 @@ export function createDuplicateService(
 
   return {
     findCandidates,
+    candidatesFor,
     matchContact,
     unresolvedCandidates,
     unresolvedPairKeys: async () =>
