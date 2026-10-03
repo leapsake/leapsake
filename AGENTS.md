@@ -96,7 +96,7 @@ translation time, because they are far cheaper to keep than to retrofit:
    and list separators belong to the language rather than to render code.
 
 Dates and numbers already go through `toLocaleDateString`/`toLocaleString`; keep it that way.
-The full reasoning, and the two known gaps, are in [`packages/ui/README.md`](packages/ui/README.md) → *Text*.
+The full reasoning, and the known gaps, are in [`packages/ui/README.md`](packages/ui/README.md) → *Text*.
 
 ## Two traps specific to working here
 
