@@ -163,6 +163,10 @@ export {
   promptDraftOf,
   promptAnswerOf,
   handedOverInPerson,
+  isGivenItem,
+  handoverOf,
+  setGiving,
+  removeGiving,
   MAX_ACTIVE_DAYS,
   reminderRuleBearerTypeSchema,
   reminderRuleSchema,
@@ -182,6 +186,7 @@ export type {
   ReminderRule,
   ReminderRuleInput,
   PromptItem,
+  Handover,
 } from "./reminder-rule.js";
 export {
   MENTION_NAMESPACE,

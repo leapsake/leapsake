@@ -8,6 +8,7 @@ import {
   kindsForBearerType,
   milestoneDraftWithKind,
   milestoneDraftWithSchedule,
+  promptItemsOf,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
 import { DatePartsFields } from "./DatePartsFields";
@@ -89,7 +90,9 @@ export function MilestoneFields({
 
   const kinds = kindsForBearerType(bearerType);
   const def = kindDefs[draft.kind];
-  const on = draft.reminderSchedule.filter((rule) => rule.enabled).length;
+  // Counted as drawn: a gift and its delivery are one line.
+  const lines = promptItemsOf(draft.reminderSchedule);
+  const on = lines.filter(({ rule }) => rule.enabled).length;
 
   const schedule = (
     <>
@@ -165,7 +168,7 @@ export function MilestoneFields({
             onPress={() => setScheduleOpen((open) => !open)}
           >
             <Text style={styles.fieldLabel}>
-              {TEXT.reminders(on, draft.reminderSchedule.length)}
+              {TEXT.reminders(on, lines.length)}
             </Text>
             <Text style={styles.link}>
               {scheduleOpen ? TEXT.hide : TEXT.show}

@@ -23,6 +23,10 @@ import {
   planOffers,
   promptAnswerOf,
   handedOverInPerson,
+  handoverOf,
+  isGivenItem,
+  removeGiving,
+  setGiving,
   promptDraftOf,
   promptItemsOf,
   setPromptItem,
@@ -581,5 +585,70 @@ describe("handedOverInPerson", () => {
       { action: "send:card", label: null, offsetDays: 7, enabled: true },
       { action: "give:gift", label: null, offsetDays: 0, enabled: true },
     ]);
+  });
+});
+
+describe("giving a gift or card, on the schedule editor", () => {
+  const birthday = () => resolveReminderSchedule("birthday", []).rules;
+  const enabledIn = (rules: ReminderRuleInput[]) =>
+    rules
+      .filter((r) => r.enabled)
+      .map((r) => r.action)
+      .sort();
+
+  it("knows what is given", () => {
+    expect(isGivenItem("get:gift")).toBe(true);
+    expect(isGivenItem("get:card")).toBe(true);
+    expect(isGivenItem("wish")).toBe(false);
+  });
+
+  it("posts by default, and hands over in person when told", () => {
+    expect(handoverOf(birthday(), "get:gift")).toBe("mail");
+    const posted = setGiving(birthday(), "get:gift", true, "mail");
+    expect(enabledIn(posted)).toEqual(["get:gift", "send:gift", "wish"]);
+
+    const handed = setGiving(posted, "get:gift", true, "in-person");
+    expect(enabledIn(handed)).toEqual(["get:gift", "give:gift", "wish"]);
+    expect(handoverOf(handed, "get:gift")).toBe("in-person");
+  });
+
+  it("takes its delivery with it when unticked", () => {
+    const posted = setGiving(birthday(), "get:card", true, "mail");
+    expect(enabledIn(setGiving(posted, "get:card", false, "mail"))).toEqual([
+      "wish",
+    ]);
+  });
+
+  it("adds the delivery a schedule lacks", () => {
+    const graduation = resolveReminderSchedule("graduation", []).rules;
+    expect(
+      setGiving(graduation, "get:gift", true, "mail").find(
+        (r) => r.action === "send:gift",
+      ),
+    ).toEqual({
+      action: "send:gift",
+      label: null,
+      offsetDays: 7,
+      enabled: true,
+    });
+  });
+
+  it("removes a given item with its deliveries", () => {
+    expect(removeGiving(birthday(), "get:gift").map((r) => r.action)).toEqual([
+      "get:card",
+      "send:card",
+      "give:card",
+      "wish",
+    ]);
+  });
+
+  it("never seeds Add with a delivery", () => {
+    expect(
+      nextSchedulableRule([
+        { action: "wish" },
+        { action: "get:gift" },
+        { action: "get:card" },
+      ]).action,
+    ).toBe("visit");
   });
 });

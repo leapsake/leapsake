@@ -326,13 +326,16 @@ export const SCHEDULABLE_ACTIONS: readonly KnownReminderAction[] =
 
 /**
  * The rule an editor's Add button appends: the first offered action not yet in
- * the schedule, else `other`, which a schedule can hold more than once.
+ * the schedule and not a delivery, else `other`, which may repeat.
  */
 export function nextSchedulableRule(
   existing: readonly { action: ReminderAction }[],
 ): ReminderRuleInput {
   const taken = new Set(existing.map((rule) => rule.action));
-  const action = SCHEDULABLE_ACTIONS.find((a) => !taken.has(a)) ?? "other";
+  const action =
+    SCHEDULABLE_ACTIONS.find(
+      (a) => !taken.has(a) && actionDefOf(a).deliveryOf === undefined,
+    ) ?? "other";
   return { action, label: null, offsetDays: 7, enabled: true };
 }
 
@@ -554,4 +557,80 @@ export function handedOverInPerson(
       ),
     { action: give, label: null, offsetDays: 0, enabled: true },
   ];
+}
+
+/** How a gift or card is handed over: posted, or in person on the day. */
+export type Handover = "mail" | "in-person";
+
+/** Days before the occasion a newly chosen posting is due. */
+const POST_OFFSET_DAYS = 7;
+
+/** The action that delivers `item` the given way: `send:gift`, `give:gift`. */
+function deliveryAction(item: ReminderAction, how: Handover): ReminderAction {
+  return formatAction(
+    how === "mail" ? "send" : "give",
+    parseAction(item).qualifier,
+  );
+}
+
+/** Whether `item` is something given, so posted or handed over: a `get:*`. */
+export function isGivenItem(item: ReminderAction): boolean {
+  return KNOWN_ACTIONS.some(
+    (a) => actionDefOf(a).deliveryOf === item && verbOf(a) === "send",
+  );
+}
+
+/** How a schedule gives `item`: by mail while its posting is on, in person
+ *  while its handing over is; else by mail wherever posting is scheduled. */
+export function handoverOf(
+  rules: readonly ReminderRuleInput[],
+  item: ReminderAction,
+): Handover {
+  const has = (how: Handover, on: boolean) =>
+    rules.some(
+      (r) => r.action === deliveryAction(item, how) && (!on || r.enabled),
+    );
+  if (has("mail", true)) return "mail";
+  if (has("in-person", true)) return "in-person";
+  return has("mail", false) ? "mail" : "in-person";
+}
+
+/** Tick or untick a given item, its delivery following the way given. */
+export function setGiving(
+  rules: readonly ReminderRuleInput[],
+  item: ReminderAction,
+  enabled: boolean,
+  how: Handover,
+): ReminderRuleInput[] {
+  const chosen = deliveryAction(item, how);
+  const other = deliveryAction(item, how === "mail" ? "in-person" : "mail");
+  const next = rules.map((r) =>
+    r.action === item
+      ? { ...r, enabled }
+      : r.action === chosen
+        ? { ...r, enabled }
+        : r.action === other
+          ? { ...r, enabled: false }
+          : r,
+  );
+  if (!enabled || next.some((r) => r.action === chosen)) return next;
+  return [
+    ...next,
+    {
+      action: chosen,
+      label: null,
+      offsetDays: how === "mail" ? POST_OFFSET_DAYS : 0,
+      enabled: true,
+    },
+  ];
+}
+
+/** Drop a given item along with every rule that delivers it. */
+export function removeGiving(
+  rules: readonly ReminderRuleInput[],
+  item: ReminderAction,
+): ReminderRuleInput[] {
+  return rules.filter(
+    (r) => r.action !== item && actionDefOf(r.action).deliveryOf !== item,
+  );
 }
