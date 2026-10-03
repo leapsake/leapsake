@@ -42,6 +42,10 @@ export interface Messages {
     title: string;
     edit: string;
     empty: string;
+    /** How many records carry a tag. */
+    usageCount: (count: number) => string;
+    /** A tag list row read aloud: its label and how many records carry it. */
+    rowLabel: (label: string, count: number) => string;
   };
 
   mentionedIn: {
@@ -97,6 +101,12 @@ export interface Messages {
     empty: string;
     /** A holiday that generates no reminders but is still observed. */
     hiddenName: (name: string) => string;
+    /** How many people and pets observe a holiday. */
+    observerCount: (count: number) => string;
+    /** A list row's second line: the next date, if known, and who observes. */
+    rowMeta: (next: string | null, observerCount: number) => string;
+    /** One upcoming date, with its length when it spans several days. */
+    occurrence: (date: string, durationDays: number | null) => string;
   };
 
   gifts: {
@@ -207,6 +217,8 @@ export interface Messages {
     detailLine: (bits: readonly string[]) => string;
     completeHeading: string;
     completeSummary: (created: number, skipped: number) => string;
+    /** How many people an import added. */
+    imported: (count: number) => string;
     failedCount: (count: number) => string;
     failedRow: (name: string, message: string) => string;
     unnamedContact: string;
@@ -345,6 +357,28 @@ export interface Messages {
     /** How many others look like this person. */
     duplicates: (count: number) => string;
     reviewDuplicates: string;
+  };
+
+  people: {
+    /** The People list's link to the duplicates review. */
+    reviewDuplicates: (count: number) => string;
+  };
+
+  addRecord: {
+    /** The record saved but some of its staged rows did not. */
+    partialSaveTitle: string;
+    partialSaveBody: (failed: readonly string[]) => string;
+  };
+
+  dataExport: {
+    /** What left the device, in one line. */
+    summary: (counts: {
+      people: number;
+      pets: number;
+      contactMethods: number;
+      otherRecords: number;
+      bytes: number;
+    }) => string;
   };
 
   pet: {

@@ -3,6 +3,7 @@ import { Text } from "react-native";
 import Constants from "expo-constants";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import { useMessages } from "@leapsake/ui/messages";
 import { useCore } from "../lib/core-context";
 import { exportAndShare } from "../lib/export-share";
 import { styles } from "../lib/styles";
@@ -20,6 +21,7 @@ const APP_VERSION =
  */
 export function useExportShare() {
   const core = useCore();
+  const m = useMessages();
   const [working, setWorking] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,30 +32,29 @@ export function useExportShare() {
     setResult(null);
     setWorking(true);
     try {
-      setResult(
-        await exportAndShare({
-          archive: () => core.export.archive({ appVersion: APP_VERSION }),
-          // Caches, not documents: see `export-share.ts`.
-          write: (filename, bytes) => {
-            const file = new File(Paths.cache, filename);
-            if (file.exists) file.delete(); // a second export the same day
-            file.write(bytes);
-            return {
-              uri: file.uri,
-              remove: () => {
-                if (file.exists) file.delete();
-              },
-            };
-          },
-          canShare: () => Sharing.isAvailableAsync(),
-          share: (uri) =>
-            Sharing.shareAsync(uri, {
-              mimeType: "application/zip",
-              UTI: "public.zip-archive",
-              dialogTitle: "Save your Leapsake export",
-            }),
-        }),
-      );
+      const held = await exportAndShare({
+        archive: () => core.export.archive({ appVersion: APP_VERSION }),
+        // Caches, not documents: see `export-share.ts`.
+        write: (filename, bytes) => {
+          const file = new File(Paths.cache, filename);
+          if (file.exists) file.delete(); // a second export the same day
+          file.write(bytes);
+          return {
+            uri: file.uri,
+            remove: () => {
+              if (file.exists) file.delete();
+            },
+          };
+        },
+        canShare: () => Sharing.isAvailableAsync(),
+        share: (uri) =>
+          Sharing.shareAsync(uri, {
+            mimeType: "application/zip",
+            UTI: "public.zip-archive",
+            dialogTitle: "Save your Leapsake export",
+          }),
+      });
+      setResult(m.dataExport.summary(held));
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Couldn't export your data.",

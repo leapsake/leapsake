@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type EntityType, personInputOf, petInputOf } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { EntityFormSections } from "../components/EntityFormSections";
 import { FormScrollView } from "../components/FormScrollView";
 import { useHeaderSave } from "../components/HeaderSave";
@@ -76,6 +77,7 @@ function AddEntityForm({
   onSwitch: (value: EntityFormValue) => void;
 }) {
   const core = useCore();
+  const m = useMessages();
   const router = useRouter();
 
   const [value, setValue] = useState<EntityFormValue>(initial);
@@ -109,8 +111,8 @@ function AddEntityForm({
       const failed = await applyEntityForm(core, type, id, value);
       if (failed.length > 0) {
         Alert.alert(
-          "Saved, but not everything",
-          `Couldn't save ${failed.join(", ")}. You can add ${failed.length === 1 ? "it" : "them"} again from the page you're about to land on.`,
+          m.addRecord.partialSaveTitle,
+          m.addRecord.partialSaveBody(failed),
         );
       }
 

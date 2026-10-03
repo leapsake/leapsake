@@ -2,7 +2,14 @@ import { genderLabel } from "@leapsake/schema";
 import type { Messages } from "./types.js";
 
 /** Joins a list the way English does. */
-const list = (items: readonly string[]) => items.join(", ");
+const list = (entries: readonly string[]) => entries.join(", ");
+
+/** A count of people, in the singular for one. */
+const people = (count: number) =>
+  count === 1 ? "1 person" : `${count} people`;
+
+/** A count of items, in the singular for one. */
+const items = (count: number) => (count === 1 ? "1 item" : `${count} items`);
 
 /** The English catalog; gender values come from `@leapsake/schema`'s table. */
 export const en: Messages = {
@@ -38,6 +45,8 @@ export const en: Messages = {
   tags: {
     title: "Tags",
     edit: "Edit tags",
+    usageCount: items,
+    rowLabel: (label, count) => `${label}, ${items(count)}`,
     empty: "No tags yet.",
   },
 
@@ -93,6 +102,16 @@ export const en: Messages = {
     reminders: "Reminders",
     empty: "No holidays yet.",
     hiddenName: (name) => `${name} (hidden)`,
+    observerCount: people,
+    rowMeta: (next, observerCount) => {
+      const date = next ?? "No upcoming date";
+      if (observerCount === 0) return date;
+      return `${date} · ${people(observerCount)}`;
+    },
+    occurrence: (date, durationDays) =>
+      durationDays !== null && durationDays > 1
+        ? `${date} (${durationDays} days)`
+        : date,
   },
 
   gifts: {
@@ -197,11 +216,11 @@ export const en: Messages = {
     detailLine: (bits) => bits.join(" · "),
     completeHeading: "Import complete",
     completeSummary: (created, skipped) => {
-      const people = created === 1 ? "1 person" : `${created} people`;
       return skipped > 0
-        ? `Imported ${people}, skipped ${skipped}.`
-        : `Imported ${people}.`;
+        ? `Imported ${people(created)}, skipped ${skipped}.`
+        : `Imported ${people(created)}.`;
     },
+    imported: (count) => `Imported ${people(count)}.`,
     failedCount: (count) =>
       count === 1 ? "Couldn’t import 1:" : `Couldn’t import ${count}:`,
     failedRow: (name, message) => `${name} — ${message}`,
@@ -346,6 +365,37 @@ export const en: Messages = {
         ? "Someone else in your list looks like the same person."
         : `${count} other people in your list look like the same person.`,
     reviewDuplicates: "Review",
+  },
+
+  people: {
+    reviewDuplicates: (count) =>
+      count === 1
+        ? "Review 1 possible duplicate"
+        : `Review ${count} possible duplicates`,
+  },
+
+  addRecord: {
+    partialSaveTitle: "Saved, but not everything",
+    partialSaveBody: (failed) =>
+      failed.length === 1
+        ? `Couldn’t save ${failed[0]}. You can add it again from the page you’re about to land on.`
+        : `Couldn’t save ${list(failed)}. You can add them again from the page you’re about to land on.`,
+  },
+
+  dataExport: {
+    summary: (counts) => {
+      const { pets, contactMethods, otherRecords, bytes } = counts;
+      const kb = Math.max(1, Math.round(bytes / 1024));
+      const parts = [
+        people(counts.people),
+        pets === 1 ? "1 pet" : `${pets} pets`,
+        contactMethods === 1
+          ? "1 contact method"
+          : `${contactMethods} contact methods`,
+        otherRecords === 1 ? "1 other record" : `${otherRecords} other records`,
+      ];
+      return `Exported ${list(parts)} (${kb} KB).`;
+    },
   },
 
   pet: {

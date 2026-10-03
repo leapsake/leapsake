@@ -1,5 +1,6 @@
 import type { HolidayListItem } from "@leapsake/core";
 import { formatOccurrence } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { Link, useLoaderData } from "react-router-dom";
 
 /**
@@ -8,6 +9,7 @@ import { Link, useLoaderData } from "react-router-dom";
  */
 export function HolidayList() {
   const holidays = useLoaderData() as HolidayListItem[];
+  const m = useMessages();
 
   return (
     <main>
@@ -40,10 +42,8 @@ export function HolidayList() {
                 </td>
                 <td>
                   {holiday.observerCount === 0
-                    ? "—"
-                    : `${holiday.observerCount} ${
-                        holiday.observerCount === 1 ? "person" : "people"
-                      }`}
+                    ? m.common.none
+                    : m.holidays.observerCount(holiday.observerCount)}
                 </td>
               </tr>
             ))}

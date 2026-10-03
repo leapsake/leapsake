@@ -11,12 +11,14 @@ import { useFocusedData } from "../../../lib/useFocusedData";
 import { holidayTitle } from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { LoadState } from "../../../components/LoadState";
 
 // A holiday's dates and observers. No edit: catalog rows are read-only
 // (`@leapsake/holidays` README).
 export default function HolidayDetailScreen() {
   const core = useCore();
+  const m = useMessages();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -97,10 +99,10 @@ export default function HolidayDetailScreen() {
         ) : (
           holiday.upcoming.map((iso) => (
             <Text key={iso} style={styles.rowText}>
-              {formatOccurrence(iso)}
-              {holiday.durationDays !== null &&
-                holiday.durationDays > 1 &&
-                ` (${holiday.durationDays} days)`}
+              {m.holidays.occurrence(
+                formatOccurrence(iso),
+                holiday.durationDays,
+              )}
             </Text>
           ))
         )}

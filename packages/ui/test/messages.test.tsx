@@ -79,3 +79,83 @@ describe("the English catalog", () => {
     expect(en.holidays.addLabel("pet")).toBe("Add a holiday this pet observes");
   });
 });
+
+describe("the English counts", () => {
+  it("says one of each thing in the singular", () => {
+    expect(en.people.reviewDuplicates(1)).toBe("Review 1 possible duplicate");
+    expect(en.people.reviewDuplicates(2)).toBe("Review 2 possible duplicates");
+    expect(en.tags.usageCount(1)).toBe("1 item");
+    expect(en.tags.usageCount(0)).toBe("0 items");
+    expect(en.tags.rowLabel("#family", 3)).toBe("#family, 3 items");
+    expect(en.holidays.observerCount(1)).toBe("1 person");
+    expect(en.import.imported(1)).toBe("Imported 1 person.");
+    expect(en.import.imported(5)).toBe("Imported 5 people.");
+  });
+
+  it("gives a holiday row its date and, when anyone observes it, who", () => {
+    expect(en.holidays.rowMeta("Dec 25", 2)).toBe("Dec 25 · 2 people");
+    expect(en.holidays.rowMeta("Dec 25", 0)).toBe("Dec 25");
+    expect(en.holidays.rowMeta(null, 1)).toBe("No upcoming date · 1 person");
+  });
+
+  it("gives a holiday's length only when it spans several days", () => {
+    expect(en.holidays.occurrence("Dec 25", null)).toBe("Dec 25");
+    expect(en.holidays.occurrence("Dec 25", 1)).toBe("Dec 25");
+    expect(en.holidays.occurrence("Dec 14", 8)).toBe("Dec 14 (8 days)");
+  });
+
+  it("names what didn’t save as it, or as them", () => {
+    expect(en.addRecord.partialSaveBody(["Birthday"])).toBe(
+      "Couldn’t save Birthday. You can add it again from the page you’re about to land on.",
+    );
+    expect(en.addRecord.partialSaveBody(["Birthday", "Home"])).toBe(
+      "Couldn’t save Birthday, Home. You can add them again from the page you’re about to land on.",
+    );
+  });
+});
+
+/** An export's counts, overridable per test. */
+const counts = (
+  over: Partial<Parameters<typeof en.dataExport.summary>[0]> = {},
+) => ({
+  people: 12,
+  pets: 2,
+  contactMethods: 30,
+  otherRecords: 11,
+  bytes: 8_192,
+  ...over,
+});
+
+describe("the English export summary", () => {
+  it("counts every part of the archive, plural", () => {
+    expect(en.dataExport.summary(counts())).toBe(
+      "Exported 12 people, 2 pets, 30 contact methods, 11 other records (8 KB).",
+    );
+  });
+
+  it("says each of them in the singular when there is one", () => {
+    expect(
+      en.dataExport.summary(
+        counts({ people: 1, pets: 1, contactMethods: 1, otherRecords: 1 }),
+      ),
+    ).toBe(
+      "Exported 1 person, 1 pet, 1 contact method, 1 other record (8 KB).",
+    );
+  });
+
+  it("says zero rather than omitting a part", () => {
+    expect(
+      en.dataExport.summary(
+        counts({ people: 0, pets: 0, contactMethods: 0, otherRecords: 0 }),
+      ),
+    ).toBe(
+      "Exported 0 people, 0 pets, 0 contact methods, 0 other records (8 KB).",
+    );
+  });
+
+  // A small store rounds to zero, and "0 KB" reads as a file that is not there.
+  it("never reports 0 KB", () => {
+    expect(en.dataExport.summary(counts({ bytes: 12 }))).toContain("(1 KB)");
+    expect(en.dataExport.summary(counts({ bytes: 0 }))).toContain("(1 KB)");
+  });
+});

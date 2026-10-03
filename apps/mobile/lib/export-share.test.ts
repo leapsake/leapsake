@@ -4,7 +4,6 @@ import {
   type ExportShareDeps,
   SharingUnavailable,
   exportAndShare,
-  summarizeExport,
 } from "./export-share";
 
 const counts = (
@@ -53,13 +52,13 @@ describe("exportAndShare", () => {
   it("writes the archive under its own name and shares that file", async () => {
     const { deps: d, shared, written } = deps();
 
-    const line = await exportAndShare(d);
+    const held = await exportAndShare(d);
 
     expect(written).toEqual([
       ["leapsake-export-2026-09-08.zip", new Uint8Array([1, 2, 3])],
     ]);
     expect(shared).toEqual(["file:///Caches/leapsake-export-2026-09-08.zip"]);
-    expect(line).toBe(summarizeExport(counts()));
+    expect(held).toEqual(counts());
   });
 
   it("deletes the file after a successful share", async () => {
@@ -120,48 +119,6 @@ describe("exportAndShare", () => {
       }),
     });
 
-    await expect(exportAndShare(d)).resolves.toBe(summarizeExport(counts()));
-  });
-});
-
-describe("summarizeExport", () => {
-  it("counts every part of the archive, plural", () => {
-    expect(summarizeExport(counts())).toBe(
-      "Exported 12 people, 2 pets, 30 contact methods, 11 other records (8 KB).",
-    );
-  });
-
-  it("says each of them in the singular when there is one", () => {
-    expect(
-      summarizeExport(
-        counts({ people: 1, pets: 1, contactMethods: 1, otherRecords: 1 }),
-      ),
-    ).toBe(
-      "Exported 1 person, 1 pet, 1 contact method, 1 other record (8 KB).",
-    );
-  });
-
-  it("says zero rather than omitting a part", () => {
-    expect(
-      summarizeExport(
-        counts({ people: 0, pets: 0, contactMethods: 0, otherRecords: 0 }),
-      ),
-    ).toBe(
-      "Exported 0 people, 0 pets, 0 contact methods, 0 other records (8 KB).",
-    );
-  });
-
-  // `otherRecords` is the only evidence outside the zip that the half of the
-  // archive which is not contacts travelled at all — `data.json`'s whole point.
-  it("reports the non-contact half of the archive", () => {
-    expect(summarizeExport(counts({ otherRecords: 47 }))).toContain(
-      "47 other records",
-    );
-  });
-
-  // A small store rounds to zero, and "0 KB" reads as a file that is not there.
-  it("never reports 0 KB", () => {
-    expect(summarizeExport(counts({ bytes: 12 }))).toContain("(1 KB)");
-    expect(summarizeExport(counts({ bytes: 0 }))).toContain("(1 KB)");
+    await expect(exportAndShare(d)).resolves.toEqual(counts());
   });
 });

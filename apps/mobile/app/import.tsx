@@ -14,6 +14,7 @@ import {
   requestPermissionsAsync,
 } from "expo-contacts";
 import type { ImportResult } from "@leapsake/core";
+import { useMessages } from "@leapsake/ui/messages";
 import {
   observeDeviceContactSync,
   syncDeviceContacts,
@@ -52,6 +53,7 @@ type State =
 
 export default function ImportScreen() {
   const core = useCore();
+  const m = useMessages();
   const account = useAccount();
   const router = useRouter();
   const [state, setState] = useState<State>({ phase: "checking" });
@@ -242,7 +244,7 @@ export default function ImportScreen() {
     <Screen title="Import complete" hideBack>
       <Text style={styles.rowText}>
         {result.created > 0
-          ? `Imported ${result.created} ${result.created === 1 ? "person" : "people"}.`
+          ? m.import.imported(result.created)
           : "No new contacts to import."}
       </Text>
       {result.skipped > 0 && (

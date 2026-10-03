@@ -170,12 +170,11 @@ A dedicated i18n library will land eventually. Nothing here assumes which one:
 components read a plain typed object, so adopting it replaces `messages/en.ts`
 and `messages/context.tsx` and touches no component.
 
-Three things this does _not_ cover, all tracked as the wider i18n workstream:
+Two things this does _not_ cover, both tracked as the wider i18n workstream:
 `@leapsake/schema`'s label tables (`genderLabel`, `kindDefs`, the role labels),
-which mobile reads directly; the strings still inline in `apps/desktop`
-screens that haven't moved into this package yet; and `apps/mobile`'s plurals,
-built in render code as `count === 1 ? … : …` (the person screen's duplicates
-banner, the People and Tags tabs, import and export results).
+which mobile reads directly; and the strings still inline in `apps/desktop` and
+`apps/mobile` screens that haven't moved into this package yet. Mobile mounts the
+same `MessagesProvider`, so a screen moves by calling `useMessages()`.
 
 ## Chip fields
 

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { ContactsSection } from "../../../components/ContactsSection";
 import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
@@ -22,6 +23,7 @@ import { LoadState } from "../../../components/LoadState";
 // A person's page; each part carries its own Edit, beside what it changes.
 export default function PersonDetailScreen() {
   const core = useCore();
+  const m = useMessages();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(
@@ -78,9 +80,8 @@ export default function PersonDetailScreen() {
           style={styles.row}
         >
           <Text style={[styles.link, { color: colors.accent }]}>
-            {duplicateCandidates.length === 1
-              ? "Someone else in your list looks like the same person. Review"
-              : `${duplicateCandidates.length} other people in your list look like the same person. Review`}
+            {m.person.duplicates(duplicateCandidates.length)}{" "}
+            {m.person.reviewDuplicates}
           </Text>
         </Pressable>
       )}

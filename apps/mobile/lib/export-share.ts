@@ -30,17 +30,19 @@ export class SharingUnavailable extends Error {
 }
 
 /**
- * Runs one export and resolves to the line the caller shows. Resolving means
- * the archive was offered, not that it was kept.
+ * Runs one export and resolves to what it held. Resolving means the archive
+ * was offered, not that it was kept.
  */
-export async function exportAndShare(deps: ExportShareDeps): Promise<string> {
+export async function exportAndShare(
+  deps: ExportShareDeps,
+): Promise<ExportArchive["counts"]> {
   const { bytes, filename, counts } = await deps.archive();
 
   const file = deps.write(filename, bytes);
   try {
     if (!(await deps.canShare())) throw new SharingUnavailable();
     await deps.share(file.uri);
-    return summarizeExport(counts);
+    return counts;
   } finally {
     // The archive is plaintext, so it goes on every path out. iOS resolves
     // `shareAsync` after the chosen activity has its copy, so this is no race.
@@ -51,20 +53,4 @@ export async function exportAndShare(deps: ExportShareDeps): Promise<string> {
       // Caches is reclaimed by the system anyway.
     }
   }
-}
-
-/** What left the device, in one line, for a human and for the E2E flow. */
-export function summarizeExport(counts: ExportArchive["counts"]): string {
-  const kb = Math.max(1, Math.round(counts.bytes / 1024));
-  return (
-    `Exported ${counts.people} ${counts.people === 1 ? "person" : "people"}` +
-    `, ${counts.pets} ${counts.pets === 1 ? "pet" : "pets"}` +
-    `, ${counts.contactMethods} contact ${
-      counts.contactMethods === 1 ? "method" : "methods"
-    }` +
-    // Reminders, gift ideas and the rest, so a backup missing them shows.
-    `, ${counts.otherRecords} other ${
-      counts.otherRecords === 1 ? "record" : "records"
-    } (${kb} KB).`
-  );
 }

@@ -7,12 +7,14 @@ import { holidayHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { colors, styles } from "../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { LoadState } from "../../components/LoadState";
 
 // The holiday catalog. Hidden holidays stay listed, last and marked, since
 // this is the only screen that can unhide one.
 export default function HolidaysScreen() {
   const core = useCore();
+  const m = useMessages();
   const load = useCallback(() => core.holidays.list(), [core]);
   const { data, error } = useFocusedData(load);
 
@@ -46,13 +48,12 @@ export default function HolidaysScreen() {
                   {holiday.hidden ? " (hidden)" : ""}
                 </Text>
                 <Text style={styles.rowMeta}>
-                  {holiday.nextOccurrence === null
-                    ? "No upcoming date"
-                    : formatOccurrence(holiday.nextOccurrence)}
-                  {holiday.observerCount > 0 &&
-                    ` · ${holiday.observerCount} ${
-                      holiday.observerCount === 1 ? "person" : "people"
-                    }`}
+                  {m.holidays.rowMeta(
+                    holiday.nextOccurrence === null
+                      ? null
+                      : formatOccurrence(holiday.nextOccurrence),
+                    holiday.observerCount,
+                  )}
                 </Text>
               </View>
             </Link>

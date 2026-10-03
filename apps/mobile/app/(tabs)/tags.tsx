@@ -3,6 +3,7 @@ import { FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { TagListItem } from "@leapsake/core";
 import { tagLabel } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { useCore } from "../../lib/core-context";
 import { tagHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
@@ -13,6 +14,7 @@ import { LoadState } from "../../components/LoadState";
 // while something wears it.
 export default function TagsScreen() {
   const core = useCore();
+  const m = useMessages();
   const load = useCallback(() => core.tags.list(), [core]);
   const { data, error } = useFocusedData(load);
 
@@ -38,16 +40,17 @@ export default function TagsScreen() {
               href={tagHref(tag)}
               style={styles.row}
               accessible
-              accessibilityLabel={`${tagLabel(tag.name)}, ${
-                tag.usageCount === 1 ? "1 item" : `${tag.usageCount} items`
-              }`}
+              accessibilityLabel={m.tags.rowLabel(
+                tagLabel(tag.name),
+                tag.usageCount,
+              )}
             >
               <View>
                 <Text style={[styles.rowText, { color: colors.accent }]}>
                   {tagLabel(tag.name)}
                 </Text>
                 <Text style={styles.rowMeta}>
-                  {tag.usageCount === 1 ? "1 item" : `${tag.usageCount} items`}
+                  {m.tags.usageCount(tag.usageCount)}
                 </Text>
               </View>
             </Link>

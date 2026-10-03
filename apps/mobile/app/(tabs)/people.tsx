@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { FlatList, Text, View } from "react-native";
 import { Link } from "expo-router";
 import type { EntityRow } from "@leapsake/core";
+import { useMessages } from "@leapsake/ui/messages";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
 import { entityRowHref } from "../../lib/record-title";
@@ -14,6 +15,7 @@ import { LoadState } from "../../components/LoadState";
 // title and header actions are declared with the bar in `(tabs)/_layout.tsx`.
 export default function PeoplePetsScreen() {
   const core = useCore();
+  const m = useMessages();
 
   const load = useCallback(
     () =>
@@ -42,8 +44,7 @@ export default function PeoplePetsScreen() {
         ListHeaderComponent={
           duplicateCount > 0 ? (
             <Link href="/duplicates" style={[styles.row, styles.link]}>
-              Review {duplicateCount} possible{" "}
-              {duplicateCount === 1 ? "duplicate" : "duplicates"}
+              {m.people.reviewDuplicates(duplicateCount)}
             </Link>
           ) : null
         }

@@ -1,5 +1,6 @@
 import type { EntityRow } from "@leapsake/core";
 import { entityBasePath } from "@leapsake/ui/headless";
+import { useMessages } from "@leapsake/ui/messages";
 import {
   Link,
   useFetcher,
@@ -23,6 +24,7 @@ interface EntityListData {
 export function EntityList() {
   const { entities, selfPersonId, duplicateCount } =
     useLoaderData() as EntityListData;
+  const m = useMessages();
   const [params] = useSearchParams();
   const picking = params.get("pick") === "self";
   const fetcher = useFetcher();
@@ -41,8 +43,7 @@ export function EntityList() {
             <>
               {" "}
               <Link to="/duplicates">
-                Review {duplicateCount} possible{" "}
-                {duplicateCount === 1 ? "duplicate" : "duplicates"}
+                {m.people.reviewDuplicates(duplicateCount)}
               </Link>
             </>
           )}

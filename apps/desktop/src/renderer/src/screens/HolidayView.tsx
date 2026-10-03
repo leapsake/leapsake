@@ -87,10 +87,10 @@ export function HolidayView() {
         <ul>
           {holiday.upcoming.map((iso) => (
             <li key={iso}>
-              {formatOccurrence(iso)}
-              {holiday.durationDays !== null &&
-                holiday.durationDays > 1 &&
-                ` (${holiday.durationDays} days)`}
+              {messages.holidays.occurrence(
+                formatOccurrence(iso),
+                holiday.durationDays,
+              )}
             </li>
           ))}
         </ul>
