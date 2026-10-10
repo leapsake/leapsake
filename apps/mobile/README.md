@@ -186,6 +186,11 @@ pnpm release ship --tag=v0.1.0-alpha.4 --here   # or ship from this machine: gat
 > permission and an undeclared one both make `canDrawOverlays()` false. Verify a change here
 > against `app/build/intermediates/merged_manifests/`, never the source manifest, which keeps
 > listing the permission with `tools:node="remove"`.
+>
+> `WRITE_CONTACTS` is blocked the same way: the `expo-contacts` config plugin always declares it,
+> but the app only reads, and `expo-contacts` requests write access only when the manifest holds
+> it. Unblock it the day the app writes to Contacts, and revise the Contacts permission
+> declaration below in the same release.
 
 **Name no platform.** A tag ships every target that is `ready` and reports the rest as ⏳ with
 the reason, so a platform is held back by its own status in `scripts/release/targets/`, never
@@ -359,9 +364,10 @@ rollout morning. Sequence them **with** the release that changes the behaviour, 
 | Advertising ID                  | **No**: no `AD_ID` permission in the release manifest, no `play-services-ads` on the classpath | any ads, attribution or analytics SDK lands. ⚠️ Required since targetSdk 33; the **API refuses the edit commit** without it |
 | Content rating                  | _Everyone_, All Other App Types                                                                | **purchases**, **sharing**, or **multimedia** land                                                                          |
 | Target audience                 | **18 and over** only                                                                           | GA, _if_ teens ever become an audience worth designing for                                                                  |
+| Contacts permission             | `READ_CONTACTS` is core: whole-address-book import (past the Contact Picker's 100-per-pick cap) and the ongoing import of new contacts | `WRITE_CONTACTS` is unblocked, or contacts ever leave the device (the **relay**). ⚠️ Play enforces it from 2027-01-27 on targetSdk 37+, so it must be **approved** before the Expo upgrade that reaches 37 ships |
 | App Store **App Privacy** (iOS) | mirrors Data safety                                                                            | the **relay** ships. ⚠️ Same event, _different store_                                                                       |
 
-⚠️ **The relay is one event that invalidates three declarations across two stores.** Updating
+⚠️ **The relay is one event that invalidates four declarations across two stores.** Updating
 Play alone and shipping a stale iOS declaration is the failure this table exists to prevent. A
 version-parity preflight that refuses a release until each answer has been re-confirmed since the
 behaviour it describes changed is the check that should eventually replace this table
