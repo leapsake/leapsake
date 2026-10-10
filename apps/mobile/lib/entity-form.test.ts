@@ -11,6 +11,7 @@ import {
 vi.mock("react-native", () => ({ StyleSheet: { create: (s: unknown) => s } }));
 vi.mock("@react-native-picker/picker", () => ({ Picker: {} }));
 vi.mock("expo-router", () => ({}));
+vi.mock("expo-localization", () => ({ getLocales: () => [] }));
 vi.mock("./core-context", () => ({ useCore: () => null }));
 
 describe("entityFormProblem", () => {
