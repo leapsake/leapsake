@@ -218,7 +218,9 @@ macOS `1.2.3` are known to work together. New workspaces join at whatever the re
 The stores see the core plus a clock-derived build number, and the app gets the full version
 through `LEAPSAKE_RELEASE`. Moving to the next core is one ordinary commit:
 `node scripts/set-version.mjs patch|minor|major`, which refuses anything but the three cores
-semver allows next.
+semver allows next. Which one to pick follows [Semantic Versioning](https://semver.org/): a
+release with new features is a minor bump, and a patch is only for one that does nothing but
+fix defects in the release before it. Bump only after the current core's final is tagged.
 
 > ⚠️ **The number is a promise, not a mechanism.** What actually makes two separately-installed
 > artifacts compatible is `@leapsake/schema` migrations and `@leapsake/sync`.
