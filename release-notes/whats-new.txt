@@ -1,8 +1,9 @@
-Leapsake is a private address book with a memory: the people and pets in your life, how
-they are related, the dates that matter, and reminders that reach you before them.
+Gifts: paste a shop link and Leapsake fills in the name and picture.
 
-Everything stays on your phone. There is no server to sign in to, and nothing is sent to
-us. Creating an account is optional and happens entirely on the device — it is what turns
-on encryption for everything Leapsake stores.
+Birthdays and anniversaries now ask each year what you’d like to do — a gift, a card, or nothing.
 
-This is the first release.
+Duplicates are reviewed one pair at a time, and you choose which to keep.
+
+Phone numbers work with or without a country code, including for WhatsApp and Signal.
+
+Reminders arrive as one daily digest, and most screens have been tidied throughout.

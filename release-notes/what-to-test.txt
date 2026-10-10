@@ -20,6 +20,17 @@ Please try, in roughly this order:
 6. Optionally: create an account in Settings. It stays on this device — it turns on
    encryption and gives you a recovery phrase. Write the phrase down.
 
+New in this build:
+
+- Gifts: paste a shop link and Leapsake names the gift and shows its picture. It fetches
+  that page directly from your phone, with no server of ours in between.
+- Birthdays and anniversaries now ask each year what you’d like to do, such as give a gift
+  or send a card, and you can tell them not to ask again.
+- Possible duplicates are reviewed one pair at a time, and you choose which one to keep.
+- Phone numbers work with or without a country code, including for WhatsApp and Signal.
+- Notifications arrive as one daily digest, and can be turned on per device.
+- Most screens have been tidied: one style of button, menu and sheet throughout.
+
 Things we know are unfinished: syncing between devices is switched off in this build,
 photos are not in yet, and the typography and icons are placeholders.
 

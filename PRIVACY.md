@@ -11,7 +11,7 @@
 
 # Privacy Policy
 
-_Last updated 28 August 2026._
+_Last updated 10 October 2026._
 
 **We do not collect, store, or transmit any of your information.** Leapsake runs on your
 device, with no server involved and nothing to opt out of.
@@ -19,7 +19,8 @@ device, with no server involved and nothing to opt out of.
 ## What we collect
 
 Nothing. Leapsake contains no analytics, no crash reporting, no advertising, and no
-trackers. It sends nothing to us, and nothing to anyone else.
+trackers. It sends nothing to us. The only time it contacts anyone else is when you paste a
+gift link, below.
 
 ## Where your information lives
 
@@ -47,6 +48,10 @@ copy, there is nothing to ask us to delete.
 Tapping a phone number, an email address, or a website hands it to your phone's own app for
 that thing. What happens next is covered by that app's privacy policy and your carrier's,
 not by this one.
+
+When you paste a link to a gift, Leapsake fetches that page and its picture directly from
+the shop's site, to fill in the gift's name. The request goes from your phone to that site
+alone; nothing passes through us, and the site sees what any browser visit would show it.
 
 ## Contact
 
