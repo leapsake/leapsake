@@ -117,6 +117,18 @@ those bytes from free space. It is an offer, not a wall: _Import without encrypt
 There is no checklist of our own either, since the system's permission prompt already asks who
 to share; duplicates are left to the review after the import, which can merge them.
 
+## Sharing a link in as a gift
+
+A web page shared to Leapsake from another app's share sheet opens _Add a gift_ holding its
+link, and the link preview names it (`components/ShareIntoGift.tsx`). A share with no web link
+is dropped. It waits behind the unlock gate like any other screen.
+
+The share comes in through `expo-share-intent`: on Android a `SEND text/*` filter on the main
+activity, which it also makes `singleTask`. Its iOS half, a Share Extension target and an App
+Group, is switched off (`disableIOS`) until that target is set up for signing and release. In a
+dev build a cold-start share lands on the dev-client launcher first, and arrives once the bundle
+loads.
+
 ## Running
 
 ```sh

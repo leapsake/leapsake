@@ -59,7 +59,8 @@
       "./plugins/with-store-backup-exclusion",
       "./plugins/with-android-release-signing",
       "./plugins/with-android-commit",
-      "./plugins/with-android-asset-statements"
+      "./plugins/with-android-asset-statements",
+      ["expo-share-intent", { "disableIOS": true }]
     ]
   }
 }

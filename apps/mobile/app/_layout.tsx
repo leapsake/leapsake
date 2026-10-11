@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppHeader } from "../components/AppHeader";
+import { ShareIntoGift } from "../components/ShareIntoGift";
 import { CoreProvider } from "../lib/core-context";
 import { headerTitle } from "../lib/record-title";
 import { colors } from "../lib/styles";
@@ -50,6 +51,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           </Stack>
+          <ShareIntoGift />
           {/* Dark, not "auto": the app is light whatever the OS theme. */}
           <StatusBar style="dark" />
         </CoreProvider>
