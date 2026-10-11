@@ -19,8 +19,16 @@ Please try, in roughly this order:
 5. Allow notifications when asked, and see whether the reminder actually arrives.
 6. Optionally: create an account in Settings. It stays on this device — it turns on
    encryption and gives you a recovery phrase. Write the phrase down.
+7. In Safari, open a shop’s page for something you might give, tap Share, and choose
+   Leapsake. If Leapsake is not in the row of apps, tap More and turn it on.
 
 New in this build:
+
+- Share to Leapsake: from Safari or any app’s Share button, a web page opens in Leapsake
+  as a new gift, with its name and picture filled in; shared text without a link becomes
+  the gift’s name. This is brand new, so please tell us where it goes wrong.
+
+New in the previous build:
 
 - Gifts: paste a shop link and Leapsake names the gift and shows its picture. It fetches
   that page directly from your phone, with no server of ours in between.
