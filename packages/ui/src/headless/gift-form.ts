@@ -70,9 +70,12 @@ export interface GiftCaptureDraft {
   recipients: RecipientEntry[];
 }
 
-export const giftCaptureDraftOf = (startGiven = false): GiftCaptureDraft => ({
+export const giftCaptureDraftOf = (
+  startGiven = false,
+  startUrl = "",
+): GiftCaptureDraft => ({
   title: "",
-  url: "",
+  url: startUrl,
   imageUrl: "",
   given: startGiven,
   recipients: [],

@@ -62,6 +62,22 @@ describe("useGiftCaptureForm", () => {
     });
   });
 
+  it("opens holding a shared link, still asking for a name", () => {
+    const url = "https://example.com/kite";
+    const { result } = renderHook(() =>
+      useGiftCaptureForm({ ideaPool: [], startUrl: url }),
+    );
+
+    expect(result.current.fields.url).toBe(url);
+    expect(result.current.errors).toEqual({ title: "required" });
+
+    act(() => result.current.set("title", "Kite"));
+    expect(result.current.submit()).toMatchObject({
+      ok: true,
+      input: { giftIdea: { title: "Kite", url } },
+    });
+  });
+
   it("resets to where it started", () => {
     const { result } = renderHook(() =>
       useGiftCaptureForm({ ideaPool: [], startGiven: true }),
