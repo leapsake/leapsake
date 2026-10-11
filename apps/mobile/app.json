@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leapsake.app",
+      "associatedDomains": ["webcredentials:leapsake.com"],
       "infoPlist": {
         "EXDevMenuShowFloatingActionButton": false,
         "EXDevMenuIsOnboardingFinished": true,
@@ -57,7 +58,8 @@
       ],
       "./plugins/with-store-backup-exclusion",
       "./plugins/with-android-release-signing",
-      "./plugins/with-android-commit"
+      "./plugins/with-android-commit",
+      "./plugins/with-android-asset-statements"
     ]
   }
 }
