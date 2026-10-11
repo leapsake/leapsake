@@ -26,6 +26,11 @@ export const SECRETS = [
     pathVar: "APPLE_IOS_PROVISIONING_PROFILE_PATH",
   },
   {
+    name: "APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE",
+    file: "apple-ios-share-extension.mobileprovision",
+    pathVar: "APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE_PATH",
+  },
+  {
     name: "GOOGLE_PLAY_UPLOAD_KEYSTORE",
     file: "google-play-upload.jks",
     pathVar: "GOOGLE_PLAY_UPLOAD_KEYSTORE",

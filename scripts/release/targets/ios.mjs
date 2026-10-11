@@ -69,6 +69,10 @@ const signing = [
     "APPLE_IOS_PROVISIONING_PROFILE",
     "manual signing needs an explicit App Store distribution profile name",
   ),
+  envSet(
+    "APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE",
+    "the share extension is its own App ID, signed by its own App Store profile",
+  ),
   { name: "runner signing files", check: () => signingFilesProblem() },
 ];
 
@@ -416,8 +420,8 @@ const appleAppStoreListing = {
   },
 };
 
-/** `method: app-store-connect` with an explicit profile: manual signing. */
-function exportOptions({ bundleId, teamId, profile }) {
+/** `method: app-store-connect` with a profile per bundle id: manual signing. */
+function exportOptions({ teamId, profiles }) {
   const entries = [
     ["method", "app-store-connect"],
     ["teamID", teamId],
@@ -432,8 +436,9 @@ function exportOptions({ bundleId, teamId, profile }) {
 ${entries}
   <key>provisioningProfiles</key>
   <dict>
-    <key>${bundleId}</key>
-    <string>${profile}</string>
+${Object.entries(profiles)
+  .map(([id, name]) => `    <key>${id}</key>\n    <string>${name}</string>`)
+  .join("\n")}
   </dict>
   <key>uploadSymbols</key>
   <true/>
@@ -1140,6 +1145,8 @@ export default {
     const buildDir = join(mobile, "build");
     const teamId = process.env.APPLE_TEAM_ID.trim();
     const profile = process.env.APPLE_IOS_PROVISIONING_PROFILE.trim();
+    const extensionProfile =
+      process.env.APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE.trim();
 
     const config = pinnedConfig(mobile);
     const buildNumber = config.ios?.buildNumber;
@@ -1193,15 +1200,18 @@ export default {
         "generic/platform=iOS",
         "-archivePath",
         archivePath,
-        // Signing is supplied here only; the project is regenerated each build.
+        // Each target's profile is set at prebuild (with-ios-release-signing).
         `DEVELOPMENT_TEAM=${teamId}`,
         "CODE_SIGN_STYLE=Manual",
         "CODE_SIGN_IDENTITY=Apple Distribution",
-        `PROVISIONING_PROFILE_SPECIFIER=${profile}`,
         "archive",
       ]);
 
-      writeFileSync(optionsPath, exportOptions({ bundleId, teamId, profile }));
+      const profiles = {
+        [bundleId]: profile,
+        [`${bundleId}.share-extension`]: extensionProfile,
+      };
+      writeFileSync(optionsPath, exportOptions({ teamId, profiles }));
 
       must("xcodebuild -exportArchive", "xcodebuild", [
         "-exportArchive",

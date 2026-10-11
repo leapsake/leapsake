@@ -22,6 +22,7 @@ const SIGNING_FILES = [
   "APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH",
   "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH",
   "APPLE_IOS_PROVISIONING_PROFILE_PATH",
+  "APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE_PATH",
 ];
 
 /** Why the signing files are unusable, or undefined if all or none are set. */
@@ -29,7 +30,7 @@ export function signingFilesProblem(env = process.env) {
   const set = SIGNING_FILES.filter((name) => env[name]?.trim());
   if (set.length === 0) return undefined;
   if (set.length < SIGNING_FILES.length) {
-    return `${SIGNING_FILES.join(", ")} go together — set all three, or none to sign from the login keychain`;
+    return `${SIGNING_FILES.join(", ")} go together — set all four, or none to sign from the login keychain`;
   }
   const missing = set.find((name) => !existsSync(env[name].trim()));
   return missing ? `${missing} names no file` : undefined;
@@ -37,7 +38,7 @@ export function signingFilesProblem(env = process.env) {
 
 const security = (args) => execFileSync("security", args, { encoding: "utf8" });
 
-/** Imports the identity into a throwaway keychain and installs the profile;
+/** Imports the identity into a throwaway keychain and installs the profiles;
  *  returns the teardown, a no-op without a .p12. */
 export function stageSigningIdentity({
   env = process.env,
@@ -47,7 +48,7 @@ export function stageSigningIdentity({
 } = {}) {
   const problem = signingFilesProblem(env);
   if (problem) throw new Error(problem);
-  const [p12, passwordPath, profilePath] = SIGNING_FILES.map((name) =>
+  const [p12, passwordPath, ...profilePaths] = SIGNING_FILES.map((name) =>
     env[name]?.trim(),
   );
   if (!p12) return () => {};
@@ -94,13 +95,15 @@ export function stageSigningIdentity({
     ]);
     run(["list-keychains", "-d", "user", "-s", keychain, ...searchList]);
 
-    const uuid = profileUuid(run(["cms", "-D", "-i", profilePath]));
-    for (const parts of PROFILE_DIRS) {
-      const dir = join(home, ...parts);
-      mkdirSync(dir, { recursive: true });
-      const target = join(dir, `${uuid}.mobileprovision`);
-      copyFileSync(profilePath, target);
-      installed.push(target);
+    for (const profilePath of profilePaths) {
+      const uuid = profileUuid(run(["cms", "-D", "-i", profilePath]));
+      for (const parts of PROFILE_DIRS) {
+        const dir = join(home, ...parts);
+        mkdirSync(dir, { recursive: true });
+        const target = join(dir, `${uuid}.mobileprovision`);
+        copyFileSync(profilePath, target);
+        installed.push(target);
+      }
     }
   } catch (error) {
     teardown();

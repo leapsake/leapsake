@@ -33,13 +33,14 @@ section, and unblocks `ci-and-test-tiers.md` step 4c.
 
 1. **Make the call above.**
 2. **Add the Actions secrets**, under the names in `.env.example` → _On a runner_:
-   - seven files, base64-encoded (`base64 -i <file>`): the App Store Connect `.p8`; the Apple
+   - eight files, base64-encoded (`base64 -i <file>`): the App Store Connect `.p8`; the Apple
      Distribution identity exported from the login keychain as a `.p12`, and a file holding
-     its export password; the App Store profile as a `.mobileprovision`; the Play upload
-     keystore, and a file holding its password; the Play service-account JSON. The `.p12` and
-     the `.mobileprovision` do not exist as files yet.
-   - six plain values: `APPLE_TEAM_ID`, `APPLE_IOS_PROVISIONING_PROFILE` (the profile's
-     name), `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
+     its export password; the app's and the share extension's App Store profiles as
+     `.mobileprovision`s; the Play upload keystore, and a file holding its password; the Play
+     service-account JSON. The `.p12` and the `.mobileprovision`s do not exist as files yet.
+   - seven plain values: `APPLE_TEAM_ID`, `APPLE_IOS_PROVISIONING_PROFILE` and
+     `APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE` (the profiles' names),
+     `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
      `APPLE_APP_STORE_CONNECT_BETA_GROUP`, `GOOGLE_PLAY_UPLOAD_KEY_ALIAS`.
 3. **Once the secrets exist and `0.1.0` is live**, set the repository variable
    `REMOTE_RELEASES=true`. Before that, a pushed tag, including your own `v0.1.0`, starts

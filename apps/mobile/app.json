@@ -60,6 +60,7 @@
       "./plugins/with-android-release-signing",
       "./plugins/with-android-commit",
       "./plugins/with-android-asset-statements",
+      "./plugins/with-ios-release-signing",
       ["expo-share-intent", { "disableIOS": true }]
     ]
   }

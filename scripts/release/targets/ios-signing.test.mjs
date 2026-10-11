@@ -11,9 +11,13 @@ import {
 } from "./ios-signing.mjs";
 
 const UUID = "0F1E2D3C-4B5A-6978-8796-A5B4C3D2E1F0";
-const PROFILE_PLIST = `<plist><dict><key>Name</key><string>Leapsake App Store</string>
+const EXTENSION_UUID = "1A2B3C4D-5E6F-7081-92A3-B4C5D6E7F809";
+const profilePlist = (
+  uuid,
+) => `<plist><dict><key>Name</key><string>Leapsake App Store</string>
 <key>UUID</key>
-<string>${UUID}</string></dict></plist>`;
+<string>${uuid}</string></dict></plist>`;
+const PROFILE_PLIST = profilePlist(UUID);
 const LOGIN = "/Users/george/Library/Keychains/login.keychain-db";
 
 /** A stand-in for `security` that remembers the search list it is told to set. */
@@ -29,7 +33,11 @@ function fakeSecurity({ failOn } = {}) {
     if (args[0] === "list-keychains") {
       return searchList.map((path) => `    "${path}"`).join("\n");
     }
-    if (args[0] === "cms") return PROFILE_PLIST;
+    if (args[0] === "cms") {
+      return profilePlist(
+        args.at(-1).includes("extension") ? EXTENSION_UUID : UUID,
+      );
+    }
     return "";
   };
   return { run, calls, searchList: () => searchList };
@@ -44,6 +52,7 @@ describe("stageSigningIdentity", () => {
       "distribution.p12",
       "password",
       "distribution.mobileprovision",
+      "extension.mobileprovision",
     ]) {
       writeFileSync(join(dir, name), name === "password" ? "hunter2\n" : "x");
     }
@@ -53,6 +62,10 @@ describe("stageSigningIdentity", () => {
       APPLE_IOS_PROVISIONING_PROFILE_PATH: join(
         dir,
         "distribution.mobileprovision",
+      ),
+      APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE_PATH: join(
+        dir,
+        "extension.mobileprovision",
       ),
     };
   });
@@ -93,12 +106,16 @@ describe("stageSigningIdentity", () => {
     expect(imported).toContain("/usr/bin/codesign");
   });
 
-  it("installs the profile under its UUID where Xcode looks, and removes it after", () => {
+  it("installs both profiles under their UUIDs where Xcode looks, and removes them after", () => {
     const security = fakeSecurity();
     const installed = [
       join(dir, "Library/Developer/Xcode/UserData/Provisioning Profiles"),
       join(dir, "Library/MobileDevice/Provisioning Profiles"),
-    ].map((folder) => join(folder, `${UUID}.mobileprovision`));
+    ].flatMap((folder) =>
+      [UUID, EXTENSION_UUID].map((uuid) =>
+        join(folder, `${uuid}.mobileprovision`),
+      ),
+    );
 
     const teardown = stage(security);
     expect(installed.every((path) => existsSync(path))).toBe(true);
@@ -132,6 +149,8 @@ describe("signingFilesProblem", () => {
         APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD_PATH: "/nowhere/password",
         APPLE_IOS_PROVISIONING_PROFILE_PATH:
           "/nowhere/distribution.mobileprovision",
+        APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE_PATH:
+          "/nowhere/extension.mobileprovision",
       }),
     ).toBe("APPLE_DISTRIBUTION_CERTIFICATE_P12_PATH names no file");
   });
