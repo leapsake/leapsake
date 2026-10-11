@@ -123,11 +123,24 @@ A web page shared to Leapsake from another app's share sheet opens _Add a gift_ 
 link, and the link preview names it (`components/ShareIntoGift.tsx`). Shared text with no link
 becomes the gift's name instead. It waits behind the unlock gate like any other screen.
 
-The share comes in through `expo-share-intent`: on Android a `SEND text/*` filter on the main
-activity, which it also makes `singleTask`. Its iOS half, a Share Extension target and an App
-Group, is switched off (`disableIOS`) until that target is set up for signing and release. In a
-dev build a cold-start share lands on the dev-client launcher first, and arrives once the bundle
-loads.
+The share comes in through `expo-share-intent`:
+
+- **Android**: a `SEND text/plain` filter on the main activity, which it also makes
+  `singleTask`. Only `text/plain`, since `text/*` would also offer the app for contact cards
+  and calendar files it cannot yet take.
+- **iOS**: a Share Extension target, `com.leapsake.app.share-extension`, that saves the share
+  to the App Group `group.com.leapsake.app` and opens `leapsake://dataUrl=…`;
+  `app/+native-intent.tsx` keeps the router from treating that as a route. The group holds only
+  the hand-off, never the store. `plugins/with-ios-share-extension-tidy.js` names the extension
+  after the app and drops the group the package re-adds on every prebuild.
+
+**Each iOS target has its own App ID and profile.** Both App IDs need App Groups enabled with
+the group chosen before their profiles are generated (alongside Associated Domains for the
+app's, below). `plugins/with-ios-release-signing.js` sets each target's Release profile from
+`.env`, and the export maps both.
+
+In a dev build a cold-start share on Android lands on the dev-client launcher first, and arrives
+once the bundle loads.
 
 ## Running
 

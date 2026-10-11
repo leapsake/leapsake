@@ -60,8 +60,19 @@
       "./plugins/with-android-release-signing",
       "./plugins/with-android-commit",
       "./plugins/with-android-asset-statements",
+      "./plugins/with-ios-share-extension-tidy",
       "./plugins/with-ios-release-signing",
-      ["expo-share-intent", { "disableIOS": true }]
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/plain"],
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          }
+        }
+      ]
     ]
   }
 }

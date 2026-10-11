@@ -142,9 +142,10 @@ decisions made _before_ it, which is why they are here and not in a runbook.
   **permanent, one-way** constraint, or Apple's transfer criteria disqualify the record forever
   and strand it on the personal account. An iCloud-backed backup is the obvious design and the
   one design that cannot be built ([`@leapsake/export`](../packages/export/README.md)).
-  `apps/mobile/app.json` is clean today (no iCloud, no App Groups, no Sign in with Apple, no
-  Apple Pay) and **must stay that way until the transfer completes**. Its one capability,
-  `webcredentials:leapsake.com`, is not in Apple's criteria; it needs the step below.
+  `apps/mobile/app.json` is clean today (no iCloud, no Sign in with Apple, no Apple Pay) and
+  **must stay that way until the transfer completes**. Its two capabilities,
+  `webcredentials:leapsake.com` and the share extension's App Group, are not in Apple's
+  criteria (which bar App Groups only for sandboxed **Mac** apps); each needs a step below.
 - **At least one version released to the App Store**, the reason Part 1 comes first.
 - **Not available for pre-order**; both accounts out of any pending or changing state; the latest
   paid/free agreements accepted on both sides.
@@ -158,6 +159,12 @@ Nothing fails loudly: AutoFill just stops offering the saved password. Add the c
 beside the old one **before** the transfer, and drop the old one once it completes. Apple's CDN
 caches the file for hours, so allow a day. `assetlinks.json` is unaffected, since a Play
 transfer keeps the app-signing key.
+
+**The transfer leaves the App Group behind.** `group.com.leapsake.app` stays registered to the
+personal account. Once the transfer completes, delete it there, register it in the company's
+account, enable it on both App IDs (`com.leapsake.app` and `.share-extension`), and regenerate
+both profiles before the next build. Apple says the store listing is unaffected. The group holds
+only a share in transit, never the store, so nothing is lost.
 
 **The transfer also renames the publisher, in public.** [`../PRIVACY.md`](../PRIVACY.md) names an
 individual because that is what the Apple account is, and the App Store seller name has to match.
