@@ -1,6 +1,6 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
-// Warm surfaces and warm-grey lines; type and icons are the platform's own.
+// Warm surfaces and warm-grey lines; icons are the platform's own.
 export const colors = {
   text: "#1a1a1a",
   muted: "#6b6b6b",
@@ -20,6 +20,12 @@ export const colors = {
   selectedText: "#ffffff",
   /** Behind a bottom sheet, dimming the screen it covers. */
   scrim: "rgba(0, 0, 0, 0.25)",
+} as const;
+
+/** Typefaces by role. `serif` is the system serif: New York on iOS, Noto
+ *  Serif on Android. Text with no `fontFamily` stays in the system sans. */
+export const fonts = {
+  serif: Platform.select({ ios: "ui-serif", default: "serif" }),
 } as const;
 
 /** Corner rounding. `sm` is a control, `lg` a surface over another. */
@@ -45,6 +51,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
+    fontFamily: fonts.serif,
     fontSize: 24,
     fontWeight: "700",
     color: colors.text,
@@ -94,6 +101,7 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   rowText: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     color: colors.text,
   },
@@ -127,6 +135,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,
@@ -157,6 +166,7 @@ export const styles = StyleSheet.create({
   // A reminder detail's heading: weight marks it, at the field values' size,
   // since the nav bar already carries the large title.
   reminderHeading: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,
@@ -185,6 +195,7 @@ export const styles = StyleSheet.create({
     color: colors.muted,
   },
   fieldValue: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     color: colors.text,
   },
@@ -315,6 +326,7 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   sheetTitle: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,

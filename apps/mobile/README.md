@@ -75,6 +75,19 @@ share one design and screens still just declare `title` and `headerRight`.
 - **The top inset comes from the context**, never a constant, because `DegradedFrame` zeroes it
   under its banner.
 
+## Type: a serif for what you read, the system sans for what you operate
+
+The app should read more like a picture book than a gadget, but accessibility outranks the
+aesthetic. So headings, names and values use `fonts.serif` from `lib/styles.ts`, while inputs,
+buttons, labels and metadata keep the system sans, which holds up better at small sizes.
+
+- **`fonts.serif` is the system serif**: New York on iOS (`ui-serif`, with optical sizes and
+  Dynamic Type) and Noto Serif on Android (`serif`). No font file is bundled.
+- **Swapping in a bundled serif later (Literata, say) changes only that token.** Components
+  never name a family. One trap: on Android, `fontWeight` selects a bundled weight only when
+  expo-font's config plugin registers each file under one family with its weight. Otherwise
+  bold text is synthesised, or falls back to another font.
+
 ## A reminder row is a link; its detail screen acts
 
 - **A Home row is a link and nothing else**, so nothing on the list can complete, delete or

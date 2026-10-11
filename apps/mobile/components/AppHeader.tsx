@@ -2,7 +2,7 @@ import { type ReactNode, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLLAPSE_DISTANCE, headerScroll } from "../lib/use-header-scroll";
-import { colors } from "../lib/styles";
+import { colors, fonts } from "../lib/styles";
 import logo from "../assets/logo.png";
 
 const BACK_LABEL = "‹ Back";
@@ -196,6 +196,7 @@ const local = StyleSheet.create({
   },
   title: {
     // `fontSize` is animated in.
+    fontFamily: fonts.serif,
     fontWeight: "700",
     color: colors.text,
     // Long titles wrap rather than push the row wider than the header.
