@@ -122,7 +122,7 @@ describe("core.reminders", () => {
 
     await expect(
       core.reminders.update(r.id, { title: "mine now" }),
-    ).rejects.toThrow(/can't be edited/);
+    ).rejects.toThrow(/can’t be edited/);
 
     const snoozed = await core.reminders.snooze(r.id, 1);
     expect(snoozed?.snoozedUntil).not.toBeNull();

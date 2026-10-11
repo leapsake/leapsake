@@ -543,7 +543,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         const existing = await reminders.get(id);
         if (existing === undefined) return undefined;
         if (!isReminderEditable(existing)) {
-          throw new Error("Automatic reminders can't be edited.");
+          throw new Error("Automatic reminders can’t be edited.");
         }
         const reminder = await reminders.update(id, input);
         if (reminder) {

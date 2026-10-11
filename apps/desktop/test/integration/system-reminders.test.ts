@@ -496,7 +496,7 @@ describe("milestone writes reconcile birthday reminders at once", () => {
     // Content edits are the engine's to make, not the user's — core rejects them.
     await expect(
       core.reminders.update(reminder.id, { title: "hijacked" }),
-    ).rejects.toThrow(/can't be edited/);
+    ).rejects.toThrow(/can’t be edited/);
     // The stored title is untouched by the rejected edit.
     expect((await core.reminders.get(reminder.id))?.title).toBe(reminder.title);
 
