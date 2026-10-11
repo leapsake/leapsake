@@ -12,6 +12,8 @@ import { Button } from "./Button";
 const NOT_SAVED_YET = "Save your phrase first";
 const SAVE_PHRASE_FIRST =
   "Write your recovery phrase down or copy it somewhere safe, then tick “I’ve saved my recovery phrase”.";
+/** What iOS’s strong-password generator must satisfy. */
+const PASSWORD_RULES = `minlength: ${MIN_PASSWORD_LENGTH};`;
 
 // Account creation and the one-time reveal, always a pair: a caller that
 // skips the reveal has lost the user's only sight of their phrase.
@@ -94,7 +96,9 @@ export function CreateAccountForm({
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
-          autoComplete="username"
+          autoCorrect={false}
+          autoComplete="username-new"
+          textContentType="username"
         />
       </View>
       <View style={styles.field}>
@@ -106,6 +110,7 @@ export function CreateAccountForm({
           onChangeText={setPassword}
           autoComplete="new-password"
           textContentType="newPassword"
+          passwordRules={PASSWORD_RULES}
         />
         {hint !== "" && <Text style={styles.muted}>{hint}</Text>}
       </View>
@@ -118,6 +123,7 @@ export function CreateAccountForm({
           onChangeText={setConfirm}
           autoComplete="new-password"
           textContentType="newPassword"
+          passwordRules={PASSWORD_RULES}
         />
       </View>
       {error !== null && (
