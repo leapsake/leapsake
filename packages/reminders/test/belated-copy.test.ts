@@ -256,7 +256,7 @@ describe("belated copy", () => {
     wishOnly(h, daysOut(-1));
     await regenerateSystemReminders(h.deps);
 
-    expect(h.activeSystem()[0].title).toBe("🎂 It's your birthday!");
+    expect(h.activeSystem()[0].title).toBe("🎂 It’s your birthday!");
     const [row] = await listRemindersInWindow(h.deps, DISPLAY_WINDOW_DAYS);
     expect(row.title).toBe("🎂 It was your birthday!");
   });

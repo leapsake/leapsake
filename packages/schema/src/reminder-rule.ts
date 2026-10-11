@@ -132,7 +132,7 @@ export function planQuestion({
   if (subjectIsSelf) return `What do you want to do for your own ${occasion}?`;
   if (shared)
     return `What do you want to do for your ${occasion} with ${subject}?`;
-  return `What do you want to do for ${subject}'s ${occasion}?`;
+  return `What do you want to do for ${subject}’s ${occasion}?`;
 }
 
 /**
@@ -217,7 +217,7 @@ export const actionDefs = {
     icon: "📦",
     deliveryOf: "get:gift",
     activeDays: 10,
-    template: ({ subject }) => `Post ${subject}'s gift`,
+    template: ({ subject }) => `Post ${subject}’s gift`,
   },
   "give:card": {
     label: "Give a card in person",

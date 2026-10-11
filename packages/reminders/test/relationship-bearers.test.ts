@@ -149,7 +149,7 @@ describe("a milestone borne by a relationship", () => {
 
     expect(result.created).toBeGreaterThan(0);
     expect(h.titles()).toContain(
-      "🗓 What do you want to do for Harry & Tilly's anniversary?",
+      "🗓 What do you want to do for Harry & Tilly’s anniversary?",
     );
   });
 
@@ -232,7 +232,7 @@ describe("a couple's occasion, asked about everyone's", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s first date anniversary?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s first date anniversary?`,
     );
   });
 
@@ -245,7 +245,7 @@ describe("a couple's occasion, asked about everyone's", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s first date anniversary?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s first date anniversary?`,
     );
   });
 
@@ -258,7 +258,7 @@ describe("a couple's occasion, asked about everyone's", () => {
     await regenerateSystemReminders(h.deps);
 
     expect(h.titles()).toContain(
-      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s anniversary?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s anniversary?`,
     );
   });
 

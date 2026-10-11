@@ -227,7 +227,7 @@ describe("regenerateSystemReminders", () => {
     const [reminder] = h.activeSystem();
     // Addressed to you — a celebratory icon and no mention token, not the
     // third-party "🎉 Wish @You a happy birthday".
-    expect(reminder.title).toBe("🎂 It's your birthday!");
+    expect(reminder.title).toBe("🎂 It’s your birthday!");
     expect(reminder.title).not.toContain("@[");
     // Still a real, dated reminder — you are not excluded, just re-worded.
     expect(reminder.dueDate).toBe(dueDateMs(daysOut(0)));
@@ -246,7 +246,7 @@ describe("regenerateSystemReminders", () => {
     await regenerateSystemReminders(h.deps);
 
     const [reminder] = h.activeSystem();
-    expect(reminder.title).toBe("💍 It's your anniversary!");
+    expect(reminder.title).toBe("💍 It’s your anniversary!");
     expect(reminder.title).not.toContain("@[");
   });
 

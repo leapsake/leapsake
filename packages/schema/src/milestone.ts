@@ -106,7 +106,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy birthday",
     belatedGreeting: "a happy belated birthday",
     selfWish: {
-      plain: "🎂 It's your birthday!",
+      plain: "🎂 It’s your birthday!",
       belated: "🎂 It was your birthday!",
     },
     prompt: { occasion: "birthday" },
@@ -139,7 +139,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy first date anniversary",
     belatedGreeting: "a happy belated first date anniversary",
     selfWish: {
-      plain: "\u{1F49E} It's the anniversary of your first date!",
+      plain: "\u{1F49E} It’s the anniversary of your first date!",
       belated: "\u{1F49E} It was the anniversary of your first date",
     },
     coupled: true,
@@ -161,7 +161,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
     selfWish: {
-      plain: "\u{1F48D} It's your anniversary!",
+      plain: "\u{1F48D} It’s your anniversary!",
       belated: "\u{1F48D} It was your anniversary",
     },
     coupled: true,
@@ -196,7 +196,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "congratulations",
     belatedGreeting: "belated congratulations",
     selfWish: {
-      plain: "\u{1F393} It's your graduation!",
+      plain: "\u{1F393} It’s your graduation!",
       belated: "\u{1F393} Congratulations on graduating!",
     },
     defaultReminderSchedule: [
@@ -212,7 +212,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     greeting: "congratulations",
     belatedGreeting: "belated congratulations",
     selfWish: {
-      plain: "\u{1F4BC} It's your first day!",
+      plain: "\u{1F4BC} It’s your first day!",
       belated: "\u{1F4BC} Congratulations on the new job!",
     },
     defaultReminderSchedule: [

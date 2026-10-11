@@ -128,7 +128,7 @@ describe("a milestone borne by a relationship", () => {
     });
 
     expect(await titles()).toContain(
-      "🗓 What do you want to do for Harry & Tilly's anniversary?",
+      "🗓 What do you want to do for Harry & Tilly’s anniversary?",
     );
   });
 });
@@ -464,7 +464,7 @@ describe("your own anniversary, on the day, with no spouse attached", () => {
       ],
     });
 
-    expect(await titles()).toContain("💍 It's your anniversary!");
+    expect(await titles()).toContain("💍 It’s your anniversary!");
 
     const { linkPartners } = await core.reminders.targets();
     const offer = linkPartners.find((l) => l.milestoneId === milestone.id);

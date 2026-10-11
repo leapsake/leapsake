@@ -204,7 +204,7 @@ describe("the plan prompt", () => {
 
     const [prompt] = h.prompts();
     expect(prompt.title).toBe(
-      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s birthday?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s birthday?`,
     );
     // Due six weeks out — the last day on which ticking "get a gift" still
     // leaves the gift its full 30-day run-up.
@@ -302,7 +302,7 @@ describe("the plan prompt", () => {
     await regenerateSystemReminders(h.deps);
     // Unanswered, this year is still asked about, on the standing schedule.
     expect(h.activeSystem().map((r) => r.title)).toEqual([
-      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}'s birthday?`,
+      `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s birthday?`,
       `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
     ]);
 

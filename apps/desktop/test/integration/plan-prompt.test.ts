@@ -84,7 +84,7 @@ describe("the plan prompt, end to end through core", () => {
     const rows = await systemReminders();
     expect(rows).toHaveLength(1);
     expect(reminderLabel(rows[0])).toBe(
-      "🗓 What do you want to do for @Violet Bick's birthday?",
+      "🗓 What do you want to do for @Violet Bick’s birthday?",
     );
   });
 
@@ -133,7 +133,7 @@ describe("the plan prompt, end to end through core", () => {
       (r) => r.source === "system" && !r.materialized,
     );
     expect(reminderLabel(shown)).toBe(
-      "🗓 What do you want to do for @Violet Bick's birthday?",
+      "🗓 What do you want to do for @Violet Bick’s birthday?",
     );
     const [target] = (await core.reminders.targets()).plans;
     expect(target).toMatchObject({

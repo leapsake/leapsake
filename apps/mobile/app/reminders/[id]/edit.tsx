@@ -33,7 +33,7 @@ export default function ReminderEditScreen() {
         <Stack.Screen
           options={{ title: "Edit reminder", headerBackTitle: "Back" }}
         />
-        <Text style={styles.muted}>Automatic reminders can't be edited.</Text>
+        <Text style={styles.muted}>Automatic reminders can’t be edited.</Text>
       </View>
     );
   }
