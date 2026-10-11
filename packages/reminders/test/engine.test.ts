@@ -592,8 +592,8 @@ describe("regenerateSystemReminders", () => {
 /**
  * What a system reminder is *about* — the read that lets a client offer an action
  * on it (a client turns the `gift` one into a link to the
- * recipient's gifts). It shares the reconcile's own walk, and the first test here
- * is the guard on that: the targets must name the very rows reconcile wrote.
+ * recipient's gifts). It shares the list's own walk, and the first tests here
+ * are the guard on that: the targets must name the very rows the list shows.
  */
 describe("listSystemReminderTargets", () => {
   let h: ReturnType<typeof makeHarness>;
@@ -602,7 +602,15 @@ describe("listSystemReminderTargets", () => {
     h.labels.set("p1", "Violet");
   });
 
-  it("names exactly the reminders a reconcile writes", async () => {
+  /** The ids of the `system` rows the list shows, previews included. */
+  async function listedSystemIds(deps: ReminderEngineDeps) {
+    return (await listRemindersInWindow(deps, DISPLAY_WINDOW_DAYS))
+      .filter((r) => r.source === "system")
+      .map((r) => r.id)
+      .sort();
+  }
+
+  it("names exactly the reminders the list shows", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(0))]);
     h.setSchedule("m1", [
       { action: "wish", offsetDays: 0, enabled: true },
@@ -611,20 +619,27 @@ describe("listSystemReminderTargets", () => {
     await regenerateSystemReminders(h.deps);
 
     const targets = await listSystemReminderTargets(h.deps);
-    // Every written row is accounted for, and no target names a row that isn't
-    // there — the drift guard: were the id derivation or the window filter to
-    // fork between the two walks, this fails rather than silently dropping CTAs.
+    // The drift guard: were the id derivation or the window filter to fork
+    // between the two walks, this fails rather than silently dropping CTAs.
     expect(targets.map((t) => t.id).sort()).toEqual(
-      h
-        .activeSystem()
-        .map((r) => r.id)
-        .sort(),
+      await listedSystemIds(h.deps),
     );
     expect(targets.map((t) => t.action).sort()).toEqual(["get:gift", "wish"]);
     for (const target of targets) {
       expect(target.bearerType).toBe("person");
       expect(target.bearerId).toBe("p1");
     }
+  });
+
+  it("names a previewed reminder before its row is written", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+    await regenerateSystemReminders(h.deps);
+    expect(h.activeSystem()).toEqual([]);
+
+    const targets = await listSystemReminderTargets(h.deps);
+    expect(targets.map((t) => t.action)).toEqual(["wish"]);
+    expect(targets.map((t) => t.id)).toEqual(await listedSystemIds(h.deps));
   });
 
   it("keeps naming a gift reminder after it's completed", async () => {
@@ -642,11 +657,11 @@ describe("listSystemReminderTargets", () => {
     expect(targets.map((t) => t.id)).toEqual([row.id]);
   });
 
-  it("omits a disabled action and one outside its window", async () => {
-    h.setMilestones([birthday("m1", "p1", daysOut(20))]);
+  it("omits a disabled action and one beyond the list", async () => {
+    h.setMilestones([birthday("m1", "p1", daysOut(DISPLAY_WINDOW_DAYS + 1))]);
     h.setSchedule("m1", [
-      { action: "get:gift", offsetDays: 12, enabled: false }, // would be in window
-      { action: "wish", offsetDays: 0, enabled: true }, // enabled, not yet due
+      { action: "get:gift", offsetDays: 12, enabled: false }, // would be listed
+      { action: "wish", offsetDays: 0, enabled: true }, // enabled, too far out
     ]);
     expect(await listSystemReminderTargets(h.deps)).toEqual([]);
   });

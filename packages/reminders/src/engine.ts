@@ -529,12 +529,12 @@ export async function regenerateSystemReminders(
   return reconcile(deps, await computeDesired(deps, ownActiveDays));
 }
 
-/** What each `system` reminder that should exist today is about, from the same
- *  walk {@link regenerateSystemReminders} reconciles against. */
+/** What each `system` reminder on the list is about, previews included: the
+ *  same walk as {@link listRemindersInWindow} at `DISPLAY_WINDOW_DAYS`. */
 export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
 ): Promise<SystemReminderTarget[]> {
-  const desired = await computeDesired(deps, ownActiveDays);
+  const desired = await computeDesired(deps, () => DISPLAY_WINDOW_DAYS);
   return [...desired.values()].flatMap((row) =>
     row.target === undefined
       ? []

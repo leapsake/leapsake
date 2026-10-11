@@ -123,6 +123,26 @@ describe("the plan prompt, end to end through core", () => {
     );
   });
 
+  // Looked at a day before it lands on Today, from Next 7 days, the question
+  // still has to be drawn as a question rather than as an errand to tick off.
+  it("names a question still previewed as a prompt too", async () => {
+    const { milestone } = await personWithBirthday(APPEARS_DAYS + 1);
+    expect(await systemReminders()).toEqual([]);
+
+    const [shown] = (await core.reminders.listInWindow()).filter(
+      (r) => r.source === "system" && !r.materialized,
+    );
+    expect(reminderLabel(shown)).toBe(
+      "🗓 What do you want to do for @Violet Bick's birthday?",
+    );
+    const [target] = (await core.reminders.targets()).plans;
+    expect(target).toMatchObject({
+      reminderId: shown.id,
+      milestoneId: milestone.id,
+    });
+    expect(target.offers.map((o) => o.action)).toContain("get:gift");
+  });
+
   // Learned of five days out, the question cannot offer to post anything — the
   // post date is too close — but a gift or a card can still be handed over in
   // person. The screen offers exactly what the engine asked about.
