@@ -598,8 +598,12 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           await materializeReminder(systemReminderDeps(), id);
         return reminders.snooze(id, until);
       }),
+    /** A previewed row is minted first, so its tombstone retires it for the
+     *  year. */
     softDelete: (id: string): Promise<void> =>
       driver.transaction(async () => {
+        if ((await reminders.get(id)) === undefined)
+          await materializeReminder(systemReminderDeps(), id);
         await reminders.softDelete(id);
         await tags.removeAllForEntity("reminder", id);
         await mentions.removeAllForBearer("reminder", id);

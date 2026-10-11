@@ -143,6 +143,20 @@ describe("the plan prompt, end to end through core", () => {
     expect(target.offers.map((o) => o.action)).toContain("get:gift");
   });
 
+  // “Don’t ask again… → This year” on a question not yet on Today: there is no
+  // row to tombstone yet, so the delete has to write one.
+  it("stops asking this year about a question still previewed", async () => {
+    await personWithBirthday(APPEARS_DAYS + 1);
+    const [target] = (await core.reminders.targets()).plans;
+
+    await core.reminders.softDelete(target.reminderId);
+    await core.reminders.regenerateSystem();
+
+    expect(
+      (await core.reminders.listInWindow()).map((r) => r.id),
+    ).not.toContain(target.reminderId);
+  });
+
   // Learned of five days out, the question cannot offer to post anything — the
   // post date is too close — but a gift or a card can still be handed over in
   // person. The screen offers exactly what the engine asked about.
