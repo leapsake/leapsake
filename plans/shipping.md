@@ -143,13 +143,21 @@ decisions made _before_ it, which is why they are here and not in a runbook.
   and strand it on the personal account. An iCloud-backed backup is the obvious design and the
   one design that cannot be built ([`@leapsake/export`](../packages/export/README.md)).
   `apps/mobile/app.json` is clean today (no iCloud, no App Groups, no Sign in with Apple, no
-  Apple Pay, no associated domains; only `ITSAppUsesNonExemptEncryption` and two
-  `LSApplicationQueriesSchemes`) and **must stay that way until the transfer completes**.
+  Apple Pay) and **must stay that way until the transfer completes**. Its one capability,
+  `webcredentials:leapsake.com`, is not in Apple's criteria; it needs the step below.
 - **At least one version released to the App Store**, the reason Part 1 comes first.
 - **Not available for pre-order**; both accounts out of any pending or changing state; the latest
   paid/free agreements accepted on both sides.
 - **No in-app purchase product ID collides** with one in the recipient account. Moot today; re-read
   it when the paid relay exists.
+
+**The transfer also changes the app ID that leapsake.com vouches for.** Saved passwords reach
+the app because `apps/website/public/.well-known/apple-app-site-association` names
+`S83G995TDF.com.leapsake.app`, and the transfer swaps that prefix for the company's Team ID.
+Nothing fails loudly: AutoFill just stops offering the saved password. Add the company's ID
+beside the old one **before** the transfer, and drop the old one once it completes. Apple's CDN
+caches the file for hours, so allow a day. `assetlinks.json` is unaffected, since a Play
+transfer keeps the app-signing key.
 
 **The transfer also renames the publisher, in public.** [`../PRIVACY.md`](../PRIVACY.md) names an
 individual because that is what the Apple account is, and the App Store seller name has to match.

@@ -261,12 +261,33 @@ Three things about this app specifically, all of which cost an evening to learn 
   or `bundletool dump manifest`. ⚠️ Not `aapt2 dump badging`: an AAB has no root binary
   manifest, so it answers "could not identify format of APK".
 
-The three config plugins exist because `ios/` and `android/` are prebuild output. Each is
+The config plugins exist because `ios/` and `android/` are prebuild output. Each is
 idempotent, since prebuild is re-run over an existing project, and each **throws rather than
 skipping** when its anchor is missing: a privacy or provenance control that silently no-ops is
 worse than an absent one. Release signing reads the upload keystore from the environment, and
 with none leaves the release **unsigned, never debug-signed**, because a debug-signed AAB builds,
 installs and fails only at upload.
+
+### Saved passwords: the app and leapsake.com
+
+The account form marks its fields for AutoFill (`components/ProtectData.tsx`), and the app is
+associated with leapsake.com so a password manager files the credential under the site and
+offers to save it there. Each platform has one half in the app and one on the site, which
+`apps/website` serves and its build test checks against `app.json`:
+
+| | In the app | On leapsake.com |
+| --- | --- | --- |
+| iOS | `associatedDomains: webcredentials:leapsake.com` | `.well-known/apple-app-site-association`, naming `<TeamID>.com.leapsake.app` |
+| Android | `asset_statements` (`plugins/with-android-asset-statements.js`) | `.well-known/assetlinks.json`, naming Play's **app-signing** certificate |
+
+- **The App ID must have Associated Domains enabled before its profile is generated**, or the
+  archive refuses the entitlement. A profile made before that has to be regenerated.
+- **The Android fingerprint is Play's, not the upload key's.** Play re-signs every install, so
+  only its certificate matches. Play's API reports it:
+  `GET applications/com.leapsake.app/generatedApks/<versionCode>` → `certificateSha256Hash`.
+- **Never list a debug key.** Anyone who can sign with it would be trusted with leapsake.com
+  credentials.
+- The Team ID changes at the company transfer; `plans/shipping.md` has the step.
 
 ### Android and the Play Console
 

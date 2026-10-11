@@ -163,6 +163,11 @@ copy, and a schema built from one instance is then checked by another.
   **`rel="me"` is load-bearing**: Mastodon verifies a profile by finding a `rel="me"`
   link back to it, which earns the verified mark that makes impersonation dearer. The page
   has no styling of its own, so the visual pass has nothing extra to undo.
+- **`/.well-known/`** holds the mobile app's credential associations, so a password manager
+  can file its login under leapsake.com ([`apps/mobile/README.md`](../mobile/README.md) →
+  _Saved passwords_). `_headers` serves the extensionless AASA as JSON. A missing file would be
+  answered with the home page, so `test/site.test.ts` checks both reach `dist/` and still name
+  the IDs in `app.json`.
 - **`/`** is a placeholder until the marketing page, so the policy URL is not an orphan.
 
 A doc's loader writes `docs-manifest.json` sorted, and only when it changes, since it
