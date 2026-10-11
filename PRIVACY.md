@@ -53,6 +53,17 @@ When you paste a link to a gift, Leapsake fetches that page and its picture dire
 the shop's site, to fill in the gift's name. The request goes from your phone to that site
 alone; nothing passes through us, and the site sees what any browser visit would show it.
 
+## Password managers
+
+If you save your Leapsake password in a password manager, it is filed under leapsake.com. To
+allow that, your phone checks that the app and the website belong together by reading a small
+public file that names the app. It contains nothing about you.
+
+On an iPhone, the file is fetched from Apple's servers when the app is installed or updated,
+not from ours. On Android, your password manager does the check when you use it: Google's
+does it through Google, and others may fetch the file from leapsake.com, which sees what any
+visit to the website would show it.
+
 ## Contact
 
 Questions about this policy: hello@leapsake.com
