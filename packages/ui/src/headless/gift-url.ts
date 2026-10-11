@@ -24,3 +24,17 @@ export function giftUrlLabel(url: string): string {
     return url;
   }
 }
+
+/** What text shared into the app starts a gift with: its first link, or else
+ *  the text itself on one line as the name. `null` for blank text. */
+export function sharedGiftOf(
+  text: string,
+): { url: string } | { title: string } | null {
+  const words = text.trim().split(/\s+/);
+  for (const word of words) {
+    const url = giftUrlOf(word);
+    if (url !== null) return { url };
+  }
+  const title = words.join(" ");
+  return title === "" ? null : { title };
+}

@@ -3,6 +3,7 @@ import {
   giftUrlLabel,
   giftUrlOf,
   pastedIntoField,
+  sharedGiftOf,
 } from "../src/headless/index.js";
 
 describe("giftUrlOf", () => {
@@ -75,5 +76,29 @@ describe("giftUrlLabel", () => {
 
   it("falls back to the whole string rather than showing nothing", () => {
     expect(giftUrlLabel("not a url")).toBe("not a url");
+  });
+});
+
+describe("sharedGiftOf", () => {
+  it("takes a shared link, even inside other words", () => {
+    expect(sharedGiftOf("https://example.com/kite")).toEqual({
+      url: "https://example.com/kite",
+    });
+    expect(sharedGiftOf("Look at this:\nhttps://example.com/kite !")).toEqual({
+      url: "https://example.com/kite",
+    });
+  });
+
+  it("names the gift with text that holds no link, on one line", () => {
+    expect(sharedGiftOf("  Red kite\nwith a  long tail ")).toEqual({
+      title: "Red kite with a long tail",
+    });
+    expect(sharedGiftOf("example.com/kite")).toEqual({
+      title: "example.com/kite",
+    });
+  });
+
+  it("starts nothing from blank text", () => {
+    expect(sharedGiftOf(" \n ")).toBeNull();
   });
 });

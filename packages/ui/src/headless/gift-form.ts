@@ -71,13 +71,12 @@ export interface GiftCaptureDraft {
 }
 
 export const giftCaptureDraftOf = (
-  startGiven = false,
-  startUrl = "",
+  start: Partial<Pick<GiftCaptureDraft, "title" | "url" | "given">> = {},
 ): GiftCaptureDraft => ({
-  title: "",
-  url: startUrl,
+  title: start.title ?? "",
+  url: start.url ?? "",
   imageUrl: "",
-  given: startGiven,
+  given: start.given ?? false,
   recipients: [],
 });
 

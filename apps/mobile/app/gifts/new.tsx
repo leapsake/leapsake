@@ -11,15 +11,16 @@ import { FormScrollView } from "../../components/FormScrollView";
 
 /**
  * Add a gift. `?recipient=` fixes who it is for, and saving goes back there;
- * `?given=1` ticks it as already given; `?url=` opens it holding that link.
+ * `?given=1` ticks it as already given; `?url=` or `?title=` start the gift.
  */
 export default function GiftCreateScreen() {
   const core = useCore();
   const router = useRouter();
-  const { recipient, given, url } = useLocalSearchParams<{
+  const { recipient, given, url, title } = useLocalSearchParams<{
     recipient?: string;
     given?: string;
     url?: string;
+    title?: string;
   }>();
 
   const load = useCallback(
@@ -60,6 +61,7 @@ export default function GiftCreateScreen() {
         }
         startGiven={given === "1"}
         startUrl={url}
+        startTitle={title}
         onSaved={() =>
           fixedRecipient === undefined
             ? router.dismissTo("/gifts")

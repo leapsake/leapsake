@@ -36,6 +36,7 @@ export function GiftCaptureForm({
   recipientCandidates,
   startGiven = false,
   startUrl,
+  startTitle,
   onSaved,
 }: {
   /** The native header title, set here so it's declared in one place. */
@@ -45,8 +46,9 @@ export function GiftCaptureForm({
   recipientCandidates?: PartyOption[];
   /** Open ticked, for the hand-off from a completed gift reminder. */
   startGiven?: boolean;
-  /** Open holding this link, as when one is shared into the app. */
+  /** Open holding this link or name, as when one is shared into the app. */
   startUrl?: string;
+  startTitle?: string;
   /** After a save; the screen decides whether to reload or leave. */
   onSaved?: () => void;
 }) {
@@ -56,6 +58,7 @@ export function GiftCaptureForm({
     fixedRecipient,
     startGiven,
     startUrl,
+    startTitle,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

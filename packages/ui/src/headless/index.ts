@@ -22,7 +22,12 @@ export {
   patchRecipient,
   removeRecipient,
 } from "./gift-form.js";
-export { giftUrlLabel, giftUrlOf, pastedIntoField } from "./gift-url.js";
+export {
+  giftUrlLabel,
+  giftUrlOf,
+  pastedIntoField,
+  sharedGiftOf,
+} from "./gift-url.js";
 export {
   GiftsPortsProvider,
   useGiftsPorts,

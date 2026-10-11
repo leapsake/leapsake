@@ -16,15 +16,22 @@ export function useGiftCaptureForm({
   fixedRecipient,
   startGiven = false,
   startUrl,
+  startTitle,
 }: {
   ideaPool: readonly GiftIdea[];
   fixedRecipient?: PartyOption;
   startGiven?: boolean;
-  /** A link the gift opens with, as when one is shared into the app. */
+  /** A link or name the gift opens with, as when one is shared into the app. */
   startUrl?: string;
+  startTitle?: string;
 }) {
   const form = useDraftForm(
-    () => giftCaptureDraftOf(startGiven, startUrl),
+    () =>
+      giftCaptureDraftOf({
+        given: startGiven,
+        url: startUrl,
+        title: startTitle,
+      }),
     (draft) => giftCaptureInputOf(draft, ideaPool, fixedRecipient),
   );
   const { update } = form;

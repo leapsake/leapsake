@@ -120,8 +120,8 @@ to share; duplicates are left to the review after the import, which can merge th
 ## Sharing a link in as a gift
 
 A web page shared to Leapsake from another app's share sheet opens _Add a gift_ holding its
-link, and the link preview names it (`components/ShareIntoGift.tsx`). A share with no web link
-is dropped. It waits behind the unlock gate like any other screen.
+link, and the link preview names it (`components/ShareIntoGift.tsx`). Shared text with no link
+becomes the gift's name instead. It waits behind the unlock gate like any other screen.
 
 The share comes in through `expo-share-intent`: on Android a `SEND text/*` filter on the main
 activity, which it also makes `singleTask`. Its iOS half, a Share Extension target and an App

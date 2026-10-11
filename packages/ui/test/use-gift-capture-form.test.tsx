@@ -78,6 +78,17 @@ describe("useGiftCaptureForm", () => {
     });
   });
 
+  it("opens named by shared text, ready to save", () => {
+    const { result } = renderHook(() =>
+      useGiftCaptureForm({ ideaPool: pool, startTitle: "Kite" }),
+    );
+
+    expect(result.current.submit()).toEqual({
+      ok: true,
+      input: { giftIdea: { id: "i-kite" }, recipients: [] },
+    });
+  });
+
   it("resets to where it started", () => {
     const { result } = renderHook(() =>
       useGiftCaptureForm({ ideaPool: [], startGiven: true }),
