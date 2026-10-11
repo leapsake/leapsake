@@ -8,7 +8,10 @@ import {
 } from "./entity-form";
 
 // The form's row helpers live beside their components; these stand in for what those import.
-vi.mock("react-native", () => ({ StyleSheet: { create: (s: unknown) => s } }));
+vi.mock("react-native", () => ({
+  Platform: { select: (o: { default: unknown }) => o.default },
+  StyleSheet: { create: (s: unknown) => s },
+}));
 vi.mock("@react-native-picker/picker", () => ({ Picker: {} }));
 vi.mock("expo-router", () => ({}));
 vi.mock("expo-localization", () => ({ getLocales: () => [] }));
