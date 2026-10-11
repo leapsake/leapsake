@@ -163,6 +163,54 @@ describe("the site's icons", () => {
   });
 });
 
+describe("the app's credential associations", () => {
+  // What lets password managers file the mobile app's login under leapsake.com.
+  // Cloudflare answers a missing path with the home page, so only the build shows
+  // these exist, and a wrong app ID fails with nothing on screen.
+  const dist = (path: string) => join(WEBSITE, "dist", path);
+  let app: {
+    expo: { ios: { bundleIdentifier: string }; android: { package: string } };
+  };
+
+  beforeAll(async () => {
+    await execFileAsync("pnpm", ["exec", "astro", "build"], { cwd: WEBSITE });
+    app = JSON.parse(
+      await readFile(join(WEBSITE, "../mobile/app.json"), "utf8"),
+    );
+  }, 120_000);
+
+  it("names the iOS app for shared web credentials", async () => {
+    const aasa = JSON.parse(
+      await readFile(dist(".well-known/apple-app-site-association"), "utf8"),
+    );
+    expect(aasa.webcredentials.apps).toEqual([
+      expect.stringMatching(
+        new RegExp(`^[A-Z0-9]{10}\\.${app.expo.ios.bundleIdentifier}$`),
+      ),
+    ]);
+  });
+
+  it("serves the extensionless association file as JSON", async () => {
+    const headers = await readFile(dist("_headers"), "utf8");
+    expect(headers).toContain(
+      "/.well-known/apple-app-site-association\n  Content-Type: application/json",
+    );
+  });
+
+  it("names the Android app and its signing certificate", async () => {
+    const [statement] = JSON.parse(
+      await readFile(dist(".well-known/assetlinks.json"), "utf8"),
+    );
+    expect(statement.relation).toEqual([
+      "delegate_permission/common.get_login_creds",
+    ]);
+    expect(statement.target.package_name).toBe(app.expo.android.package);
+    expect(statement.target.sha256_cert_fingerprints).toEqual([
+      expect.stringMatching(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/),
+    ]);
+  });
+});
+
 /**
  * The docs model, exercised against real files.
  *
