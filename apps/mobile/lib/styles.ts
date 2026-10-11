@@ -79,6 +79,7 @@ export const styles = StyleSheet.create({
     color: colors.danger,
   },
   muted: {
+    fontFamily: fonts.serif,
     color: colors.muted,
   },
   row: {
@@ -173,12 +174,14 @@ export const styles = StyleSheet.create({
   },
   // A prompt's occasion, muted, directly under the question it is about.
   promptOccasion: {
+    fontFamily: fonts.serif,
     fontSize: 15,
     color: colors.muted,
     marginTop: 2,
   },
   // The line explaining what ticking anything does, above the toggles.
   promptCaption: {
+    fontFamily: fonts.serif,
     fontSize: 15,
     color: colors.muted,
   },
