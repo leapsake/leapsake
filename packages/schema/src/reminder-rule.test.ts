@@ -205,13 +205,16 @@ describe("promptOffsetDays", () => {
   // Every kind that asks the question has to have more than one answer to it,
   // and `death` must not ask at all.
   it("only prompts where there is a real choice to make", () => {
-    expect(kindDefs.death.prompt).toBeUndefined();
     for (const [kind, def] of Object.entries(kindDefs)) {
       if (def.prompt === undefined) continue;
-      expect(
-        def.defaultReminderSchedule.length,
-        `${kind} prompts with one answer`,
-      ).toBeGreaterThan(1);
+      // A death's bearer has always died, so it only ever asks in memory.
+      const asked =
+        kind === "death"
+          ? def.memorialReminderSchedule
+          : def.defaultReminderSchedule;
+      expect(asked?.length, `${kind} prompts with one answer`).toBeGreaterThan(
+        1,
+      );
       expect(def.prompt.occasion.length).toBeGreaterThan(0);
     }
   });

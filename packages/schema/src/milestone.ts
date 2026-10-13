@@ -8,6 +8,7 @@ import {
   type ReminderRuleInput,
   actionDefOf,
   reminderScheduleInputSchema,
+  reachAction,
   verbOf,
   YOUR_PARTNER,
 } from "./reminder-rule.js";
@@ -51,8 +52,10 @@ export function isMilestoneKind(value: unknown): value is MilestoneKind {
  * One entry in a kind's default schedule. An action the kind never wants is
  * absent; `enabledByDefault: false` means offered but off.
  */
-export interface DefaultReminderRule {
-  action: KnownReminderAction;
+export interface DefaultReminderRule<
+  A extends ReminderAction = KnownReminderAction,
+> {
+  action: A;
   offsetDays: number;
   enabledByDefault: boolean;
 }
@@ -85,8 +88,9 @@ export interface MilestoneKindDef {
    * celebrating. Absent offers nothing.
    */
   memorialReminderSchedule?: DefaultReminderRule[];
-  /** The whole title of a day-of `remember` on this occasion, in memory. */
-  memorialNote?: (subject: string) => string;
+  /** The whole title of a day-of `remember` on this occasion, in memory;
+   *  `shared` when it was the user's own with the subject. */
+  memorialNote?: (subject: string, shared: boolean) => string;
   /** The phrase a `wish` interpolates, with its article: "a happy birthday". */
   greeting: string;
   /**
@@ -167,6 +171,8 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     allowedBearerTypes: ["person", "pet"],
     recursAnnually: true,
     greeting: "a peaceful remembrance",
+    // Asked only in memory, which a death always is: its bearer has died.
+    prompt: { occasion: "passing" },
     defaultReminderSchedule: [
       { action: "remember", offsetDays: 0, enabledByDefault: false },
     ],
@@ -176,7 +182,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
         offsetDays: 0,
         enabledByDefault: false,
       },
-      { action: "remember", offsetDays: 0, enabledByDefault: false },
+      { action: "remember", offsetDays: 0, enabledByDefault: true },
     ],
   },
   "first-date": {
@@ -195,6 +201,13 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
     ownReminderSchedule: OWN_COUPLED_SCHEDULE,
+    memorialReminderSchedule: [
+      { action: "remember", offsetDays: 0, enabledByDefault: true },
+    ],
+    memorialNote: (subject, shared) =>
+      shared
+        ? `🕯️ It would have been the anniversary of your first date with ${subject}`
+        : `🕯️ It would have been the anniversary of ${subject}’s first date`,
   },
   // Shown as "Anniversary": unqualified, the word means a wedding anniversary.
   wedding: {
@@ -217,6 +230,13 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
     ownReminderSchedule: OWN_COUPLED_SCHEDULE,
+    memorialReminderSchedule: [
+      { action: "remember", offsetDays: 0, enabledByDefault: true },
+    ],
+    memorialNote: (subject, shared) =>
+      shared
+        ? `🕯️ It would have been your anniversary with ${subject}`
+        : `🕯️ It would have been ${subject}’s anniversary`,
   },
   met: {
     label: "Met",
@@ -289,14 +309,21 @@ export function offerContextOf({
   subject,
   subjectIsSelf,
   shared,
+  memorial = false,
+  recipients = {},
 }: Omit<PlanQuestionContext, "occasion"> & {
   kind: MilestoneKind;
+  /** The names of the people a memorial occasion offers to reach, by id. */
+  recipients?: Readonly<Record<string, string>>;
 }): OfferContext {
   const coupled = kindDefs[kind].coupled === true;
+  const greeting = kindDefs[kind].greeting;
+  if (memorial) return { greeting, forSelf: false, partner: null, recipients };
   return {
-    greeting: kindDefs[kind].greeting,
+    greeting,
     forSelf: subjectIsSelf && !coupled,
     partner: shared ? subject : subjectIsSelf && coupled ? YOUR_PARTNER : null,
+    recipients,
   };
 }
 
@@ -369,9 +396,21 @@ export type OccasionAudience = "theirs" | "own" | "memorial";
 export function kindDefaultSchedule(
   kind: MilestoneKind,
   audience: OccasionAudience,
-): DefaultReminderRule[] {
+  reachable: readonly string[] = [],
+): DefaultReminderRule<ReminderAction>[] {
   const def = kindDefs[kind];
-  if (audience === "memorial") return def.memorialReminderSchedule ?? [];
+  if (audience === "memorial") {
+    const memorial = def.memorialReminderSchedule;
+    if (memorial === undefined) return [];
+    return [
+      ...memorial,
+      ...reachable.map((personId) => ({
+        action: reachAction(personId),
+        offsetDays: 0,
+        enabledByDefault: false,
+      })),
+    ];
+  }
   if (audience === "own")
     return def.ownReminderSchedule ?? def.defaultReminderSchedule;
   return def.defaultReminderSchedule;
@@ -385,6 +424,8 @@ export function resolveReminderSchedule(
   kind: MilestoneKind,
   storedRules: ReminderRule[],
   audience: OccasionAudience = "theirs",
+  /** Who a memorial occasion offers to reach. */
+  reachable: readonly string[] = [],
 ): ResolvedReminderSchedule {
   const valid = storedRules.filter((r) => verbOf(r.action) !== "plan");
   const stored = valid.filter((r) => r.occurrenceYear === null);
@@ -393,7 +434,7 @@ export function resolveReminderSchedule(
   const rules: ReminderRuleInput[] =
     source === "stored"
       ? stored.map(ruleInputOf)
-      : kindDefaultSchedule(kind, audience).map((d) => ({
+      : kindDefaultSchedule(kind, audience, reachable).map((d) => ({
           action: d.action,
           label: null,
           offsetDays: d.offsetDays,
@@ -430,10 +471,12 @@ export function resolveReminderSchedule(
 export function promptOffsetDays(
   kind: MilestoneKind,
   audience: OccasionAudience = "theirs",
+  /** Who a memorial occasion offers to reach. */
+  reachable: readonly string[] = [],
 ): number {
   return Math.max(
     0,
-    ...kindDefaultSchedule(kind, audience).map(
+    ...kindDefaultSchedule(kind, audience, reachable).map(
       (d) => d.offsetDays + actionDefOf(d.action).activeDays,
     ),
   );
@@ -481,9 +524,11 @@ export function planOffers(
   storedRules: readonly ReminderRuleInput[],
   daysUntilOccurrence: number,
   audience: OccasionAudience = "theirs",
+  /** Who a memorial occasion offers to reach. */
+  reachable: readonly string[] = [],
 ): ReminderRuleInput[] {
   const stored = new Map(storedRules.map((r) => [r.action, r]));
-  return kindDefaultSchedule(kind, audience)
+  return kindDefaultSchedule(kind, audience, reachable)
     .map(
       (d): ReminderRuleInput =>
         stored.get(d.action) ?? {
@@ -522,11 +567,19 @@ export function planTiming(
   storedRules: readonly ReminderRuleInput[],
   learnedDaysOut: number,
   audience: OccasionAudience = "theirs",
+  /** Who a memorial occasion offers to reach. */
+  reachable: readonly string[] = [],
 ): PlanTiming {
-  const usual = promptOffsetDays(kind, audience);
+  const usual = promptOffsetDays(kind, audience, reachable);
   if (learnedDaysOut - usual >= OFFER_NOTICE_DAYS)
     return { dueOffsetDays: usual, late: false };
-  const lastDays = planOffers(kind, storedRules, learnedDaysOut, audience)
+  const lastDays = planOffers(
+    kind,
+    storedRules,
+    learnedDaysOut,
+    audience,
+    reachable,
+  )
     .map((r) => latestOffsetDays(r.action, r.offsetDays))
     .filter((latest) => latest > 0)
     .map((latest) => latest + OFFER_NOTICE_DAYS)

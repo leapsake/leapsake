@@ -15,6 +15,7 @@ export const reminderVerbSchema = z.enum([
   "wish",
   "remember",
   "arrange",
+  "reach",
   "plan",
   "other",
 ]);
@@ -103,6 +104,8 @@ export interface ReminderCopyContext {
   /** The occasion is the user's alone, so copy addresses them: "your
    *  birthday". */
   forSelf: boolean;
+  /** Who a `reach` names, mention-wrapped; absent for every other action. */
+  recipient?: string;
 }
 
 /** Who an offer on the prompt is worded for. */
@@ -115,6 +118,8 @@ export interface OfferContext {
   /** Who the user shares the occasion with, by name or {@link YOUR_PARTNER};
    *  null when it is not theirs. */
   partner: string | null;
+  /** The name of each person a `reach:<personId>` offer names, by id. */
+  recipients?: Readonly<Record<string, string>>;
 }
 
 /** Stands in for a partner the user's own couple occasion has not named. */
@@ -123,6 +128,25 @@ export const YOUR_PARTNER = "your partner";
 /** How offers are worded about someone else's occasion. */
 export function offerContextForOthers(greeting: string): OfferContext {
   return { greeting, forSelf: false, partner: null };
+}
+
+/** Stands in for a `reach` recipient whose name is not to hand. */
+const SOMEONE_CLOSE = "someone close to them";
+
+/** `reach:<personId>`: get in touch with someone close to a person who has
+ *  died. Not in the registry, since its qualifier is a person. */
+const reachDef: ReminderActionDef = {
+  label: "Reach out to someone close to them",
+  offer: ({ recipients }, qualifier) =>
+    `Reach out to ${(qualifier !== null && recipients?.[qualifier]) || SOMEONE_CLOSE}`,
+  icon: "💬",
+  activeDays: 0,
+  template: ({ recipient }) => `Reach out to ${recipient ?? SOMEONE_CLOSE}`,
+};
+
+/** The action that reaches one person on an occasion kept in memory. */
+export function reachAction(personId: string): ReminderAction {
+  return formatAction("reach", personId);
 }
 
 /** Who the prompt's question is about, which decides how it is phrased. */
@@ -156,7 +180,9 @@ export function planQuestion({
   shared,
   memorial = false,
 }: PlanQuestionContext): string {
-  if (memorial) return `How do you want to mark ${subject}’s ${occasion}?`;
+  if (memorial && shared)
+    return `How do you want to remember your ${occasion} with ${subject}?`;
+  if (memorial) return `How do you want to remember ${subject}’s ${occasion}?`;
   if (subjectIsSelf) return `What do you want to do for your own ${occasion}?`;
   if (shared)
     return `What do you want to do for your ${occasion} with ${subject}?`;
@@ -173,7 +199,7 @@ export interface ReminderActionDef {
    * The label a prompt shows once it knows the occasion and whose it is:
    * "Wish them a happy birthday". Absent keeps `label`.
    */
-  offer?: (context: OfferContext) => string;
+  offer?: (context: OfferContext, qualifier: string | null) => string;
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
@@ -355,6 +381,7 @@ export function actionDefOf(action: ReminderAction): ReminderActionDef {
   const known = (actionDefs as Record<string, ReminderActionDef>)[action];
   if (known !== undefined) return known;
   const { verb, qualifier } = parseAction(action);
+  if (verb === "reach" && qualifier !== null) return reachDef;
   const label =
     qualifier === null
       ? capitalize(verb)
@@ -513,7 +540,7 @@ export function offerLabel(
   context: OfferContext,
 ): string {
   const def = actionDefOf(action);
-  return def.offer?.(context) ?? def.label;
+  return def.offer?.(context, parseAction(action).qualifier) ?? def.label;
 }
 
 /**

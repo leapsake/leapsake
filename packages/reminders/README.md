@@ -503,10 +503,12 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
   for it — any edit at all would reset it.
 - **Holiday errands do not slide.** The observance walk has no learned date wired in. Its shipped
   rules are all off, so nothing reaches this today.
-- **Not every kind prompts.** `death` must not — a checkbox list of ways to recognise a death
-  anniversary is exactly the wrong object, and its single quiet `remember` is already right. The
-  same reasoning excludes any kind offering one action: a question with one answer is not a
-  question. Adding a kind is one `kindDefs` line.
+- **Not every kind prompts.** A kind offering one action does not: a question with one answer is
+  not a question. Adding a kind is one `kindDefs` line.
+- **A death asks only how to remember them** _(owner, 2026-10-12)_: "How do you want to remember
+  Peter Bailey’s passing?", offering only the memorial list — a note, a visit to their resting
+  place, and reaching the people closest to them. It once never asked, since a checkbox list of
+  errands is the wrong object for a death; what it offers now is commemoration, never an errand.
 
 ## Schedules — where a rule comes from
 
@@ -526,7 +528,13 @@ the occasion, not a setting the user writes:
 - **In memory** — any occasion of a person or pet with a Death milestone, dated or not — takes
   `memorialReminderSchedule`, or nothing. It is remembered, not celebrated: no gift, card or wish,
   no holiday reminders, and nobody who has died is offered as someone to reach. Recording a death
-  drops what was chosen for that person's other occasions, so each falls back to this list.
+  drops what was chosen for that person's other occasions, so each falls back to this list. A
+  couple's occasion is in memory once either partner has died.
+
+A memorial list also offers to **reach** up to three living people closest to whoever died:
+`reach:<personId>`, one per person, their partner first, then their children, siblings and
+parents. A couple's survivor comes before anyone else, and neither you nor anyone who has died is
+ever offered. The reminder carries that person's ways to be reached, as a wish does.
 
 ### There are no per-person and no per-kind defaults _(owner, 2026-09-05)_
 

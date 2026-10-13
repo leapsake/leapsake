@@ -22,6 +22,7 @@ import {
   nextOccurrence,
   recentOccurrence,
   reminderRuleLabel,
+  parseAction,
   todayCivil,
   verbOf,
   YOUR_PARTNER,
@@ -77,6 +78,8 @@ export interface ReminderEngineDeps {
     milestone: RemindEligibleMilestone,
     /** Whose occasion it is, which picks its kind's defaults. */
     audience: OccasionAudience,
+    /** Who a memorial occasion offers to reach. */
+    reachable: readonly string[],
   ): Promise<ResolvedReminderSchedule>;
   /**
    * The bearer's display label. `null` means the bearer is gone and the row is
@@ -97,6 +100,12 @@ export interface ReminderEngineDeps {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<boolean>;
+  /** The living people closest to a bearer who has died, closest first.
+   *  Omitted: nobody is offered to reach. */
+  reachableFor?(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<string[]>;
   /**
    * The user's own partnerships with no date yet, each asked about once.
    * Omitted: no partnership rows, and previously minted ones are pruned.
@@ -235,6 +244,8 @@ interface ReminderCopySource {
   occasion: string;
   /** The occasion is the user's alone, so templates address them. */
   forSelf: boolean;
+  /** Who a `reach` names, mention-wrapped. */
+  recipient?: string;
   /** An `other` rule's free text, which is the whole of its copy. */
   label: string | null;
   /** Copy that replaces the template in both forms, for the self-directed
@@ -261,6 +272,7 @@ function renderTitle(copy: ReminderCopySource, belated: boolean): string {
               : copy.greeting,
           occasion: copy.occasion,
           forSelf: copy.forSelf,
+          recipient: copy.recipient,
         });
   return `${def.icon ?? ""} ${body}`.trim();
 }
@@ -290,15 +302,15 @@ function copyOverrideOf(
   action: ReminderAction,
   kind: MilestoneKind,
 ): { plain: string; belated: string } | null {
+  // Shared two ways: a couple's occasion borne by the user's partner, or
+  // anything borne by the user's own relationship.
+  const shared = !subjectIsSelf && (isOwnCouple || isSelf);
   if (memorial && verbOf(action) === "remember") {
-    const note = kindDefs[kind].memorialNote?.(subject);
+    const note = kindDefs[kind].memorialNote?.(subject, shared);
     return note === undefined ? null : { plain: note, belated: note };
   }
   if (verbOf(action) === "plan") {
     const occasion = kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label;
-    // Shared two ways: a couple's occasion borne by the user's partner, or
-    // anything borne by the user's own relationship.
-    const shared = !subjectIsSelf && (isOwnCouple || isSelf);
     // Nothing differs from the template, so `actionDefs.plan` renders it.
     if (!memorial && !subjectIsSelf && !shared) return null;
     const title = `${actionDefOf(action).icon ?? ""} ${planQuestion({
@@ -315,6 +327,18 @@ function copyOverrideOf(
   // Which kinds have a self-directed wish is a per-kind fact (`selfWish`).
   if (verbOf(action) === "wish") return kindDefs[kind].selfWish ?? null;
   return null;
+}
+
+/** Who a `reach:<personId>` names, mention-wrapped; `undefined` for any other
+ *  action, `null` when that person is gone. */
+async function recipientOf(
+  deps: ReminderEngineDeps,
+  action: ReminderAction,
+): Promise<string | null | undefined> {
+  const { verb, qualifier } = parseAction(action);
+  if (verb !== "reach" || qualifier === null) return undefined;
+  const label = await deps.resolveLabel("person", qualifier);
+  return label === null ? null : mentionToken(label, "person", qualifier);
 }
 
 /** What a `system` reminder is about: its action and its bearer, keyed by id
@@ -775,7 +799,11 @@ async function computeDesired(
     const subjectIsSelf = bearerIsSelf && m.bearerType === "person";
     // The schedule before the label, so the possibly-encrypted label lookup is
     // skipped when nothing is in window.
-    const resolved = await deps.resolveSchedule(m, audience);
+    const reachable =
+      memorial && deps.reachableFor !== undefined
+        ? await deps.reachableFor(m.bearerType, m.bearerId)
+        : [];
+    const resolved = await deps.resolveSchedule(m, audience, reachable);
     // Deadlines run from when the app learned of the occasion and its answer:
     // you can't be late for something it has only just learned.
     const learned = todayCivil(m.createdAt);
@@ -804,6 +832,7 @@ async function computeDesired(
         resolved.rules,
         learnedDaysOut,
         audience,
+        reachable,
       );
       // Asked only while it still offers a choice; the day-of wish it leaves
       // behind is already on the schedule. An import asks only in time.
@@ -811,7 +840,8 @@ async function computeDesired(
         asks &&
         answer === undefined &&
         !(timing.late && m.imported) &&
-        planOffers(m.kind, resolved.rules, days, audience).length >= 2
+        planOffers(m.kind, resolved.rules, days, audience, reachable).length >=
+          2
       ) {
         timed.push({
           rule: {
@@ -863,6 +893,8 @@ async function computeDesired(
       const partnerless = subjectIsSelf && kindDefs[m.kind].coupled === true;
 
       for (const { rule, offsetDays, runUp } of rules) {
+        const recipient = await recipientOf(deps, rule.action);
+        if (recipient === null) continue; // the person to reach is gone
         const id = deterministicUuid(
           SYSTEM_REMINDER_NAMESPACE,
           occurrenceName(m.id, occ.year, actionKeyOf(rule)),
@@ -883,6 +915,7 @@ async function computeDesired(
             kindDefs[m.kind].prompt?.occasion ??
             kindDefs[m.kind].label.toLowerCase(),
           forSelf: subjectIsSelf && !partnerless,
+          recipient,
           label: rule.label ?? null,
           override: copyOverrideOf(
             memorial,

@@ -154,6 +154,7 @@ export {
   planQuestion,
   YOUR_PARTNER,
   offerContextForOthers,
+  reachAction,
   verbOf,
   formatAction,
   actionDefs,

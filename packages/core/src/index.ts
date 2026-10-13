@@ -442,7 +442,7 @@ export function createCore(
         today: todayCivil(),
       }),
   });
-  const { occasionAudience, scheduleContext, ...remindersSurface } =
+  const { occasionDefaults, scheduleContext, ...remindersSurface } =
     remindersApi;
   // A couple's occasion on your partner was with you, so it is linked before
   // any reconcile rather than asked about.
@@ -929,17 +929,17 @@ export function createCore(
           milestoneId,
         );
         const milestone = await milestones.get(milestoneId);
-        const audience =
+        const { audience, reachable } =
           milestone === undefined
-            ? "theirs"
-            : await occasionAudience(
+            ? { audience: "theirs" as const, reachable: [] }
+            : await occasionDefaults(
                 milestone.bearerType,
                 milestone.bearerId,
                 kind,
               );
         // The editor renders rules; which level supplied them is the engine's
         // business, so this keeps its narrower shape.
-        return resolveReminderSchedule(kind, stored, audience).rules;
+        return resolveReminderSchedule(kind, stored, audience, reachable).rules;
       },
       scheduleContext,
       // Milestone and schedule commit together. A sent `reminderSchedule`
@@ -1006,14 +1006,16 @@ export function createCore(
         await driver.transaction(async () => {
           const milestone = await milestones.get(milestoneId);
           if (milestone === undefined) return;
+          const { audience, reachable } = await occasionDefaults(
+            milestone.bearerType,
+            milestone.bearerId,
+            milestone.kind,
+          );
           const resolved = resolveReminderSchedule(
             milestone.kind,
             await reminderRules.listForBearer("milestone", milestoneId),
-            await occasionAudience(
-              milestone.bearerType,
-              milestone.bearerId,
-              milestone.kind,
-            ),
+            audience,
+            reachable,
           );
           const answer = resolved.answers.get(year);
           await reminderRules.replaceAnswer(

@@ -8,6 +8,7 @@ import {
   type OccasionAudience,
   type OfferContext,
   type Relationship,
+  type RelationshipRole,
   type Reminder,
   type ReminderAction,
   type ReminderRuleInput,
@@ -29,6 +30,7 @@ import {
   todayCivil,
   verbOf,
   offerContextOf,
+  parseAction,
 } from "@leapsake/schema";
 import {
   type ContactMethodsRepo,
@@ -140,6 +142,18 @@ function reachableMethods(methods: ContactMethod[]): ContactMethod[] {
   return methods.filter((entry) => entry.kind !== "postal");
 }
 
+/** The most people a memorial occasion offers to reach. */
+const MAX_REACHABLE = 3;
+
+/** The ties a memorial occasion offers to reach, closest first. */
+const KIN_ORDER: readonly RelationshipRole[] = [
+  "spouse",
+  "partner",
+  "child",
+  "sibling",
+  "parent",
+];
+
 /** The audience `planQuestion`'s shapes add up to. */
 function audienceOf(phrasing: {
   subjectIsSelf: boolean;
@@ -154,6 +168,8 @@ function audienceOf(phrasing: {
 export interface MilestoneScheduleContext {
   /** Whose occasion it is, which picks its kind's default list. */
   audience: OccasionAudience;
+  /** Who a memorial occasion offers to reach, closest first. */
+  reachable: string[];
   /** How the editor's offers are worded. */
   offer: OfferContext;
 }
@@ -177,6 +193,8 @@ export interface PlanReminderTarget {
   subjectIsSelf: boolean;
   shared: boolean;
   memorial: boolean;
+  /** The name of each person a `reach` offer names, by id. */
+  recipients: Record<string, string>;
   /** The occasion itself, not the row's decide-by `dueDate`, so the screen can
    *  say when the occasion is. */
   occurrenceDate: number;
@@ -272,6 +290,19 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     return false; // a pet is never you
   }
 
+  /** Who a `wish` or `reach` reminder puts in touch with. */
+  async function contactRecipients(t: {
+    action: ReminderAction;
+    bearerType: MilestoneBearerType;
+    bearerId: string;
+  }): Promise<string[]> {
+    const { verb, qualifier } = parseAction(t.action);
+    if (verb !== "reach") return wishRecipients(t.bearerType, t.bearerId);
+    if (qualifier === null || (await isDeceased("person", qualifier)))
+      return [];
+    return [qualifier];
+  }
+
   /** Who a wish on this bearer is for: the person, or a couple's partners but
    *  you. A pet can own no contact method, so it is nobody here. */
   async function wishRecipients(
@@ -297,10 +328,85 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<boolean> {
-    if (bearerType === "relationship") return false;
+    // A couple is remembered once either partner has died.
+    if (bearerType === "relationship") {
+      for (const end of endpointsOf(await relationships.get(bearerId)))
+        if (end.type === "person" && (await isDeceased("person", end.id)))
+          return true;
+      return false;
+    }
     return (await milestones.listForBearer(bearerType, bearerId)).some(
       (m) => m.kind === "death",
     );
+  }
+
+  /** The living people closest to a bearer who has died, closest first, at
+   *  most {@link MAX_REACHABLE}: a couple's survivor, then each one's kin. */
+  async function reachableFor(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<string[]> {
+    const departed: string[] = [];
+    const candidates: string[] = [];
+    if (bearerType === "relationship") {
+      for (const end of endpointsOf(await relationships.get(bearerId))) {
+        if (end.type !== "person") continue;
+        if (await isDeceased("person", end.id)) departed.push(end.id);
+        else candidates.push(end.id);
+      }
+    } else if (bearerType === "person") departed.push(bearerId);
+    for (const personId of departed)
+      candidates.push(...(await closestKinOf(personId)));
+
+    const selfId = (await self.getSelf())?.personId;
+    const reachable: string[] = [];
+    for (const id of candidates) {
+      if (reachable.length === MAX_REACHABLE) break;
+      if (id === selfId || reachable.includes(id) || departed.includes(id))
+        continue;
+      if (!(await isDeceased("person", id))) reachable.push(id);
+    }
+    return reachable;
+  }
+
+  /** A person's partners, children, siblings and parents, in that order. */
+  async function closestKinOf(personId: string): Promise<string[]> {
+    const ranked: { id: string; rank: number }[] = [];
+    for (const rel of await relationships.listForEntity("person", personId)) {
+      const personIsA = rel.aType === "person" && rel.aId === personId;
+      if ((personIsA ? rel.bType : rel.aType) !== "person") continue;
+      const rank = KIN_ORDER.indexOf(
+        baseRole(personIsA ? rel.bRole : rel.aRole),
+      );
+      if (rank !== -1) ranked.push({ id: personIsA ? rel.bId : rel.aId, rank });
+    }
+    return ranked.sort((a, b) => a.rank - b.rank).map((k) => k.id);
+  }
+
+  /** Whose occasion it is, and who a memorial one offers to reach. */
+  async function occasionDefaults(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+    kind: MilestoneKind,
+  ): Promise<{ audience: OccasionAudience; reachable: string[] }> {
+    const audience = await occasionAudience(bearerType, bearerId, kind);
+    return {
+      audience,
+      reachable:
+        audience === "memorial" ? await reachableFor(bearerType, bearerId) : [],
+    };
+  }
+
+  /** Each reachable person's name, by id, for the offers that name them. */
+  async function recipientNames(
+    ids: readonly string[],
+  ): Promise<Record<string, string>> {
+    const names: Record<string, string> = {};
+    for (const id of ids) {
+      const label = await entities.label("person", id);
+      if (label !== undefined) names[id] = label;
+    }
+    return names;
   }
 
   /** Any milestone bearer, named. Shared by the engine and `targets`, so a
@@ -378,13 +484,12 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerId: string,
     kind: MilestoneKind,
   ): Promise<{ subjectIsSelf: boolean; shared: boolean; memorial: boolean }> {
-    if (await isDeceased(bearerType, bearerId))
-      return { subjectIsSelf: false, shared: false, memorial: true };
+    const memorial = await isDeceased(bearerType, bearerId);
     const isSelf = await milestoneIsSelf(bearerType, bearerId);
-    const subjectIsSelf = isSelf && bearerType === "person";
+    const subjectIsSelf = !memorial && isSelf && bearerType === "person";
     return {
       subjectIsSelf,
-      memorial: false,
+      memorial,
       shared:
         !subjectIsSelf &&
         (isSelf ||
@@ -411,9 +516,18 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   ): Promise<MilestoneScheduleContext> {
     const phrasing = await planPhrasing(bearerType, bearerId, kind);
     const subject = (await milestoneBearerLabel(bearerType, bearerId)) ?? "";
+    const audience = audienceOf(phrasing);
+    const reachable =
+      audience === "memorial" ? await reachableFor(bearerType, bearerId) : [];
     return {
-      audience: audienceOf(phrasing),
-      offer: offerContextOf({ ...phrasing, subject, kind }),
+      audience,
+      reachable,
+      offer: offerContextOf({
+        ...phrasing,
+        subject,
+        kind,
+        recipients: await recipientNames(reachable),
+      }),
     };
   }
 
@@ -425,11 +539,12 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     },
     // Stored rules, else the kind's defaults; the source is what mints a
     // prompt.
-    resolveSchedule: async (m, audience) =>
+    resolveSchedule: async (m, audience, reachable) =>
       resolveReminderSchedule(
         m.kind,
         await reminderRules.listForBearer("milestone", m.id),
         audience,
+        reachable,
       ),
     reminders: {
       getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
@@ -466,6 +581,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     resolveLabel: milestoneBearerLabel,
     isSelf: milestoneIsSelf,
     isDeceased,
+    reachableFor,
     isOwnPartnership,
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
@@ -560,7 +676,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   };
 
   return {
-    occasionAudience,
+    occasionDefaults,
     scheduleContext,
     // Reads attach what each reminder's #tags and @mentions resolve to now; the
     // text stays the source of truth for which exist.
@@ -720,10 +836,15 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 milestone.kind,
               );
               const audience = audienceOf(phrasing);
+              const reachable =
+                audience === "memorial"
+                  ? await reachableFor(bearerType, bearerId)
+                  : [];
               const { rules } = resolveReminderSchedule(
                 milestone.kind,
                 await reminderRules.listForBearer("milestone", milestone.id),
                 audience,
+                reachable,
               );
               const daysOut = daysUntil(
                 todayCivil(),
@@ -738,10 +859,17 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 subject:
                   (await milestoneBearerLabel(bearerType, bearerId)) ?? "",
                 ...phrasing,
+                recipients: await recipientNames(reachable),
                 occurrenceDate,
                 occurrenceYear: civilFromDueMs(occurrenceDate).year,
                 offers: promptDraftOf(
-                  planOffers(milestone.kind, rules, daysOut, audience),
+                  planOffers(
+                    milestone.kind,
+                    rules,
+                    daysOut,
+                    audience,
+                    reachable,
+                  ),
                 ),
               };
             })(),
@@ -764,11 +892,13 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           : [],
       );
 
-      // ⚠️ `wish` only: an errand wants no call buttons. A couple's wish has
-      // one entry per partner, in the relationship's own order.
+      // ⚠️ `wish` and `reach` only: an errand wants no call buttons. A
+      // couple's wish has one entry per partner, in the relationship's order.
       const contacts: ContactReminderTarget[] = [];
-      for (const t of targets.filter((w) => verbOf(w.action) === "wish"))
-        for (const personId of await wishRecipients(t.bearerType, t.bearerId))
+      for (const t of targets.filter((w) =>
+        ["wish", "reach"].includes(verbOf(w.action)),
+      ))
+        for (const personId of await contactRecipients(t))
           contacts.push({
             reminderId: t.id,
             personId,

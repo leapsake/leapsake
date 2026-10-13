@@ -76,7 +76,7 @@ export function MilestoneForm({
     let active = true;
     void core.milestones
       .scheduleContext(bearerType, bearerId, kind)
-      .then(({ audience, offer: context }) => {
+      .then(({ audience, reachable, offer: context }) => {
         if (!active) return;
         setOffer({ kind, context });
         if (audience === "theirs" || kind === savedKind) return;
@@ -85,8 +85,12 @@ export function MilestoneForm({
             ? draft
             : {
                 ...draft,
-                reminderSchedule: resolveReminderSchedule(kind, [], audience)
-                  .rules,
+                reminderSchedule: resolveReminderSchedule(
+                  kind,
+                  [],
+                  audience,
+                  reachable,
+                ).rules,
               },
         );
       });

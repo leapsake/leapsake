@@ -63,9 +63,12 @@ const HANDOVER_OPTIONS: { value: Handover; label: string }[] = [
   { value: "in-person", label: TEXT.inPerson },
 ];
 
-/** A line's words: a gift or card as given, a wish with what it wishes. */
+/** A line's words: a gift or card as given, a wish with what it wishes, a
+ *  reach with who it reaches. */
 function lineLabel(rule: ReminderRuleInput, offer: OfferContext): string {
-  return isGivenItem(rule.action) || verbOf(rule.action) === "wish"
+  return isGivenItem(rule.action) ||
+    verbOf(rule.action) === "wish" ||
+    verbOf(rule.action) === "reach"
     ? offerLabel(rule.action, offer)
     : reminderRuleLabel(rule);
 }

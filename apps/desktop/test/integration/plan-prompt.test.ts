@@ -402,7 +402,13 @@ describe("the plan prompt about an occasion of your own", () => {
       await core.milestones.scheduleContext("person", me.id, "birthday"),
     ).toEqual({
       audience: "own",
-      offer: { greeting: "a happy birthday", forSelf: true, partner: null },
+      reachable: [],
+      offer: {
+        greeting: "a happy birthday",
+        forSelf: true,
+        partner: null,
+        recipients: {},
+      },
     });
     expect(
       (await core.milestones.scheduleContext("person", me.id, "wedding")).offer
@@ -412,7 +418,13 @@ describe("the plan prompt about an occasion of your own", () => {
       await core.milestones.scheduleContext("person", violet.id, "birthday"),
     ).toEqual({
       audience: "theirs",
-      offer: { greeting: "a happy birthday", forSelf: false, partner: null },
+      reachable: [],
+      offer: {
+        greeting: "a happy birthday",
+        forSelf: false,
+        partner: null,
+        recipients: {},
+      },
     });
   });
 });
