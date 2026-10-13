@@ -442,11 +442,8 @@ export function createCore(
         today: todayCivil(),
       }),
   });
-  const {
-    isOwnOccasion: _isOwnOccasion,
-    scheduleContext,
-    ...remindersSurface
-  } = remindersApi;
+  const { occasionAudience, scheduleContext, ...remindersSurface } =
+    remindersApi;
   // A couple's occasion on your partner was with you, so it is linked before
   // any reconcile rather than asked about.
   const regenerateSystem = async () => {
@@ -500,6 +497,17 @@ export function createCore(
       }
       if (answer !== undefined) await writePlanAnswer(milestoneId, answer);
     });
+  }
+
+  /** Drops what was chosen for someone's other occasions now they have died,
+   *  so each falls back to its memorial defaults. Transaction-free. */
+  async function forgetChoicesForLiving(death: Milestone): Promise<void> {
+    for (const m of await milestones.listForBearer(
+      death.bearerType,
+      death.bearerId,
+    ))
+      if (m.id !== death.id)
+        await reminderRules.removeAllForBearer("milestone", m.id);
   }
 
   /** Answer a milestone's prompt for one year. Transaction-free. */
@@ -921,16 +929,17 @@ export function createCore(
           milestoneId,
         );
         const milestone = await milestones.get(milestoneId);
-        const own =
-          milestone !== undefined &&
-          (await remindersApi.isOwnOccasion(
-            milestone.bearerType,
-            milestone.bearerId,
-            kind,
-          ));
+        const audience =
+          milestone === undefined
+            ? "theirs"
+            : await occasionAudience(
+                milestone.bearerType,
+                milestone.bearerId,
+                kind,
+              );
         // The editor renders rules; which level supplied them is the engine's
         // business, so this keeps its narrower shape.
-        return resolveReminderSchedule(kind, stored, own).rules;
+        return resolveReminderSchedule(kind, stored, audience).rules;
       },
       scheduleContext,
       // Milestone and schedule commit together. A sent `reminderSchedule`
@@ -946,6 +955,7 @@ export function createCore(
               reminderSchedule,
             );
           }
+          if (created.kind === "death") await forgetChoicesForLiving(created);
           // A birthday is the likeliest first thing anyone records about a
           // person they had only named, and it is a fact of that person's own.
           await entities.publishBearerIfUnpublished(
@@ -973,6 +983,7 @@ export function createCore(
               reminderSchedule,
             );
           }
+          if (updated?.kind === "death") await forgetChoicesForLiving(updated);
           return updated;
         });
         await regenerateSystem();
@@ -998,7 +1009,7 @@ export function createCore(
           const resolved = resolveReminderSchedule(
             milestone.kind,
             await reminderRules.listForBearer("milestone", milestoneId),
-            await remindersApi.isOwnOccasion(
+            await occasionAudience(
               milestone.bearerType,
               milestone.bearerId,
               milestone.kind,

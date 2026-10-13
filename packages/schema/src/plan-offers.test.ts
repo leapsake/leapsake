@@ -105,7 +105,7 @@ describe("planOffers", () => {
   });
 
   it("offers your own birthday a party, not a gift for yourself", () => {
-    expect(actionsOf(planOffers("birthday", [], 60, true))).toEqual([
+    expect(actionsOf(planOffers("birthday", [], 60, "own"))).toEqual([
       "arrange:party",
       "wish",
     ]);
@@ -113,7 +113,7 @@ describe("planOffers", () => {
 
   it("offers your own anniversary a special meal with your partner", () => {
     for (const kind of ["wedding", "first-date"] as const)
-      expect(actionsOf(planOffers(kind, [], 60, true))).toEqual([
+      expect(actionsOf(planOffers(kind, [], 60, "own"))).toEqual([
         "get:gift",
         "get:card",
         "send:card",
@@ -123,6 +123,22 @@ describe("planOffers", () => {
         "give:gift",
         "wish",
       ]);
+  });
+
+  it("offers a birthday kept in memory a note and a visit, nothing more", () => {
+    expect(planOffers("birthday", [], 60, "memorial")).toEqual([
+      {
+        action: "visit:resting-place",
+        label: null,
+        offsetDays: 0,
+        enabled: false,
+      },
+      { action: "remember", label: null, offsetDays: 0, enabled: true },
+    ]);
+  });
+
+  it("offers nothing on a kind with no way to keep it in memory", () => {
+    expect(planOffers("graduation", [], 60, "memorial")).toEqual([]);
   });
 
   it("keeps someone else's anniversary to a card or a gift", () => {

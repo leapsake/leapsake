@@ -141,6 +141,8 @@ export interface PlanQuestionContext {
    * anniversary.
    */
   shared: boolean;
+  /** The subject has died, so the occasion is remembered, not celebrated. */
+  memorial?: boolean;
 }
 
 /**
@@ -152,7 +154,9 @@ export function planQuestion({
   occasion,
   subjectIsSelf,
   shared,
+  memorial = false,
 }: PlanQuestionContext): string {
+  if (memorial) return `How do you want to mark ${subject}’s ${occasion}?`;
   if (subjectIsSelf) return `What do you want to do for your own ${occasion}?`;
   if (shared)
     return `What do you want to do for your ${occasion} with ${subject}?`;
@@ -279,6 +283,12 @@ export const actionDefs = {
     icon: "🏡",
     activeDays: 7,
     template: ({ subject }) => `Visit ${subject}`,
+  },
+  "visit:resting-place": {
+    label: "Visit their resting place",
+    icon: "💐",
+    activeDays: 7,
+    template: ({ subject }) => `Visit ${subject}’s resting place`,
   },
   remember: {
     label: "Remember them",

@@ -512,14 +512,21 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
 
 A schedule is set on the **occasion** — one milestone, or one (person, holiday) observance — or it
 is the **shipped default** for that kind (`kindDefaultSchedule`,
-`observanceDefaultReminderSchedule`). Two levels.
-
-The shipped default depends on whose occasion it is. Your own birthday, or your anniversary or
-first date with your partner, takes the kind's `ownReminderSchedule` where it has one: you can't
-give yourself a gift, and a special meal belongs to your anniversary, not to someone else's. This
-is still the shipped level. It is a fact about the occasion, not a setting the user writes. `resolveReminderSchedule` and
+`observanceDefaultReminderSchedule`). Two levels. `resolveReminderSchedule` and
 `resolveObservanceReminderSchedule` therefore resolve all-or-nothing: stored rows win wholesale,
 because there is exactly one level a user can write.
+
+The shipped default depends on whose occasion it is, its `OccasionAudience`. That is a fact about
+the occasion, not a setting the user writes:
+
+- **Someone else's** takes `defaultReminderSchedule`.
+- **Your own** — your birthday, or your anniversary or first date with your partner — takes
+  `ownReminderSchedule` where the kind has one. You can't give yourself a gift, and a special meal
+  belongs to your anniversary, not to someone else's.
+- **In memory** — any occasion of a person or pet with a Death milestone, dated or not — takes
+  `memorialReminderSchedule`, or nothing. It is remembered, not celebrated: no gift, card or wish,
+  no holiday reminders, and nobody who has died is offered as someone to reach. Recording a death
+  drops what was chosen for that person's other occasions, so each falls back to this list.
 
 ### There are no per-person and no per-kind defaults _(owner, 2026-09-05)_
 

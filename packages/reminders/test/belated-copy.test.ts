@@ -55,10 +55,10 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
-    resolveSchedule: async (m, own) => {
+    resolveSchedule: async (m, audience) => {
       const custom = schedules.get(m.id);
       return custom === undefined
-        ? resolveReminderSchedule(m.kind, [], own)
+        ? resolveReminderSchedule(m.kind, [], audience)
         : {
             rules: custom,
             source: "stored" as const,

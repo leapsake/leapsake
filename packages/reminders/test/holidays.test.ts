@@ -29,7 +29,8 @@ function makeHarness() {
     milestones: {
       listRemindEligible: async (): Promise<RemindEligibleMilestone[]> => [],
     },
-    resolveSchedule: async (m, own) => resolveReminderSchedule(m.kind, [], own),
+    resolveSchedule: async (m, audience) =>
+      resolveReminderSchedule(m.kind, [], audience),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {
@@ -132,6 +133,16 @@ describe("holiday reminders", () => {
     expect(h.titles()).toEqual([
       "🎉 Wish @[Violet Bick](person:11111111-1111-4111-8111-111111111111) a Merry Christmas",
     ]);
+  });
+
+  it("reminds of no holiday for someone who has died", async () => {
+    h.setCandidates([candidate()]);
+    await regenerateSystemReminders({
+      ...h.deps,
+      isDeceased: async (_type, id) => id === VIOLET,
+    });
+
+    expect(h.titles()).toEqual([]);
   });
 
   it("keeps a missed observance as belated for a couple of days", async () => {

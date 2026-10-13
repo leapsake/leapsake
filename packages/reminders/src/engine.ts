@@ -25,6 +25,7 @@ import {
   todayCivil,
   verbOf,
   YOUR_PARTNER,
+  type OccasionAudience,
 } from "@leapsake/schema";
 
 /** A stored due date is UTC midnight, so whole-day shifts are exact. */
@@ -74,8 +75,8 @@ export interface ReminderEngineDeps {
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
-    /** The occasion is the user's own, which picks its kind's own defaults. */
-    own: boolean,
+    /** Whose occasion it is, which picks its kind's defaults. */
+    audience: OccasionAudience,
   ): Promise<ResolvedReminderSchedule>;
   /**
    * The bearer's display label. `null` means the bearer is gone and the row is
@@ -90,6 +91,12 @@ export interface ReminderEngineDeps {
    * which flips its copy to the self-directed form. Omitted: third-party form.
    */
   isSelf?(bearerType: MilestoneBearerType, bearerId: string): Promise<boolean>;
+  /** Whether the bearer has died: a person or pet with a Death milestone.
+   *  Omitted: everyone is living. */
+  isDeceased?(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean>;
   /**
    * The user's own partnerships with no date yet, each asked about once.
    * Omitted: no partnership rows, and previously minted ones are pruned.
@@ -267,10 +274,12 @@ function derivedTitle(want: DesiredReminder): string | null {
 }
 
 /**
- * Copy for a row about the user, whose occasion the third-person templates get
- * wrong: their own ("your own …") or shared ("… with @Violet").
+ * Copy the third-person templates get wrong: the user's own occasion ("your
+ * own …"), a shared one ("… with @Violet"), or one kept in memory.
  */
 function copyOverrideOf(
+  /** The bearer has died. */
+  memorial: boolean,
   /** The occasion is the user's own: their person, or their relationship. */
   isSelf: boolean,
   /** ...and the subject the copy names is the user, not their partner. */
@@ -281,18 +290,23 @@ function copyOverrideOf(
   action: ReminderAction,
   kind: MilestoneKind,
 ): { plain: string; belated: string } | null {
+  if (memorial && verbOf(action) === "remember") {
+    const note = kindDefs[kind].memorialNote?.(subject);
+    return note === undefined ? null : { plain: note, belated: note };
+  }
   if (verbOf(action) === "plan") {
     const occasion = kindDefs[kind].prompt?.occasion ?? kindDefs[kind].label;
     // Shared two ways: a couple's occasion borne by the user's partner, or
     // anything borne by the user's own relationship.
     const shared = !subjectIsSelf && (isOwnCouple || isSelf);
     // Nothing differs from the template, so `actionDefs.plan` renders it.
-    if (!subjectIsSelf && !shared) return null;
+    if (!memorial && !subjectIsSelf && !shared) return null;
     const title = `${actionDefOf(action).icon ?? ""} ${planQuestion({
       subject,
       occasion,
       subjectIsSelf,
       shared,
+      memorial,
     })}`.trim();
     // A passed occasion asks the same question: the answer shapes next year.
     return { plain: title, belated: title };
@@ -748,13 +762,20 @@ async function computeDesired(
       kindDefs[m.kind].coupled === true &&
       deps.isOwnPartnership !== undefined &&
       (await deps.isOwnPartnership(m.bearerType, m.bearerId));
-    const own = bearerIsSelf || isOwnCouple;
+    const memorial =
+      deps.isDeceased !== undefined &&
+      (await deps.isDeceased(m.bearerType, m.bearerId));
+    const audience: OccasionAudience = memorial
+      ? "memorial"
+      : bearerIsSelf || isOwnCouple
+        ? "own"
+        : "theirs";
     // Only you personally: your relationship names your partner, so it takes
     // the shared wording.
     const subjectIsSelf = bearerIsSelf && m.bearerType === "person";
     // The schedule before the label, so the possibly-encrypted label lookup is
     // skipped when nothing is in window.
-    const resolved = await deps.resolveSchedule(m, own);
+    const resolved = await deps.resolveSchedule(m, audience);
     // Deadlines run from when the app learned of the occasion and its answer:
     // you can't be late for something it has only just learned.
     const learned = todayCivil(m.createdAt);
@@ -778,14 +799,19 @@ async function computeDesired(
       // Each enabled rule, with the deadline and run-up it actually has for
       // this occurrence — not always the ones it was written with.
       const timed: TimedRule[] = [];
-      const timing = planTiming(m.kind, resolved.rules, learnedDaysOut, own);
+      const timing = planTiming(
+        m.kind,
+        resolved.rules,
+        learnedDaysOut,
+        audience,
+      );
       // Asked only while it still offers a choice; the day-of wish it leaves
       // behind is already on the schedule. An import asks only in time.
       if (
         asks &&
         answer === undefined &&
         !(timing.late && m.imported) &&
-        planOffers(m.kind, resolved.rules, days, own).length >= 2
+        planOffers(m.kind, resolved.rules, days, audience).length >= 2
       ) {
         timed.push({
           rule: {
@@ -859,6 +885,7 @@ async function computeDesired(
           forSelf: subjectIsSelf && !partnerless,
           label: rule.label ?? null,
           override: copyOverrideOf(
+            memorial,
             bearerIsSelf,
             subjectIsSelf,
             isOwnCouple,
@@ -898,6 +925,12 @@ async function computeDesired(
   // would prune every holiday row; the resolver answers `[]` instead.
   if (deps.holidays !== undefined) {
     for (const candidate of await deps.holidays.listCandidates()) {
+      // A holiday is wished to someone, so nobody who has died is reminded of.
+      if (
+        deps.isDeceased !== undefined &&
+        (await deps.isDeceased(candidate.bearerType, candidate.bearerId))
+      )
+        continue;
       let label: string | undefined;
       for (const occ of candidate.occurrences) {
         // No `days < 0` guard: isWithinWindow keeps the belated tail open.

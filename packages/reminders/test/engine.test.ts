@@ -62,10 +62,10 @@ function makeHarness() {
     milestones: { listRemindEligible: async () => milestones },
     // A custom set stands in for every year's answer, so it suppresses the
     // prompt. An un-set milestone rides its kind defaults, prompt and all.
-    resolveSchedule: async (m, own) => {
+    resolveSchedule: async (m, audience) => {
       const custom = schedules.get(m.id);
       return custom === undefined
-        ? resolveReminderSchedule(m.kind, [], own)
+        ? resolveReminderSchedule(m.kind, [], audience)
         : {
             rules: custom,
             source: "stored" as const,

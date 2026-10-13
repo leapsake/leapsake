@@ -73,11 +73,11 @@ function makeHarness() {
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
     // A set schedule stands in for stored rule rows, so it reads as `stored`.
-    resolveSchedule: async (m, own) => {
+    resolveSchedule: async (m, audience) => {
       const custom = schedules.get(m.id);
       const standing =
         custom === undefined
-          ? resolveReminderSchedule(m.kind, [], own)
+          ? resolveReminderSchedule(m.kind, [], audience)
           : {
               rules: custom,
               source: "stored" as const,

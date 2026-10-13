@@ -387,7 +387,7 @@ describe("the plan prompt about an occasion of your own", () => {
   it("offers your anniversary a special meal with your partner", async () => {
     const { plan } = await ownOccasion(
       "wedding",
-      promptOffsetDays("wedding", true) + actionDefs.plan.activeDays,
+      promptOffsetDays("wedding", "own") + actionDefs.plan.activeDays,
     );
 
     expect(plan?.offers.map((o) => o.action)).toContain("arrange:meal");
@@ -401,7 +401,7 @@ describe("the plan prompt about an occasion of your own", () => {
     expect(
       await core.milestones.scheduleContext("person", me.id, "birthday"),
     ).toEqual({
-      own: true,
+      audience: "own",
       offer: { greeting: "a happy birthday", forSelf: true, partner: null },
     });
     expect(
@@ -411,7 +411,7 @@ describe("the plan prompt about an occasion of your own", () => {
     expect(
       await core.milestones.scheduleContext("person", violet.id, "birthday"),
     ).toEqual({
-      own: false,
+      audience: "theirs",
       offer: { greeting: "a happy birthday", forSelf: false, partner: null },
     });
   });

@@ -339,6 +339,7 @@ export {
 } from "./milestone.js";
 export type {
   MilestoneBearerType,
+  OccasionAudience,
   MilestoneKind,
   MilestoneKindDef,
   DefaultReminderRule,

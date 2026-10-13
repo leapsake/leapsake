@@ -66,7 +66,7 @@ export function MilestoneForm({
   }, [core, savedId, savedKind, update]);
 
   // Whose occasion this kind would be, which words the schedule and, on a kind
-  // the milestone was not saved as, seeds the user's own list.
+  // the milestone was not saved as, seeds its own or memorial list.
   const kind = form.fields.kind;
   const [offer, setOffer] = useState<{
     kind: MilestoneKind;
@@ -76,16 +76,17 @@ export function MilestoneForm({
     let active = true;
     void core.milestones
       .scheduleContext(bearerType, bearerId, kind)
-      .then(({ own, offer: context }) => {
+      .then(({ audience, offer: context }) => {
         if (!active) return;
         setOffer({ kind, context });
-        if (!own || kind === savedKind) return;
+        if (audience === "theirs" || kind === savedKind) return;
         update((draft) =>
           draft.scheduleCustomized || draft.kind !== kind
             ? draft
             : {
                 ...draft,
-                reminderSchedule: resolveReminderSchedule(kind, [], true).rules,
+                reminderSchedule: resolveReminderSchedule(kind, [], audience)
+                  .rules,
               },
         );
       });

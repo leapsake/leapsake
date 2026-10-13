@@ -80,6 +80,7 @@ describe("reminderActionSchema / actionDefs", () => {
       "give:card",
       "give:gift",
       "visit",
+      "visit:resting-place",
       "remember",
       "arrange:party",
       "arrange:meal",

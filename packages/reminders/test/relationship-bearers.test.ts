@@ -57,7 +57,8 @@ function makeHarness() {
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
-    resolveSchedule: async (m, own) => resolveReminderSchedule(m.kind, [], own),
+    resolveSchedule: async (m, audience) =>
+      resolveReminderSchedule(m.kind, [], audience),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {

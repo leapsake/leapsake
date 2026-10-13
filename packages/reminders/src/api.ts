@@ -5,6 +5,7 @@ import {
   type GiftPartyType,
   type MilestoneBearerType,
   type MilestoneKind,
+  type OccasionAudience,
   type OfferContext,
   type Relationship,
   type Reminder,
@@ -139,10 +140,20 @@ function reachableMethods(methods: ContactMethod[]): ContactMethod[] {
   return methods.filter((entry) => entry.kind !== "postal");
 }
 
+/** The audience `planQuestion`'s shapes add up to. */
+function audienceOf(phrasing: {
+  subjectIsSelf: boolean;
+  shared: boolean;
+  memorial: boolean;
+}): OccasionAudience {
+  if (phrasing.memorial) return "memorial";
+  return phrasing.subjectIsSelf || phrasing.shared ? "own" : "theirs";
+}
+
 /** Whose occasion a milestone is, for a schedule editor. */
 export interface MilestoneScheduleContext {
-  /** The occasion is the user's own, so it defaults to its kind's own list. */
-  own: boolean;
+  /** Whose occasion it is, which picks its kind's default list. */
+  audience: OccasionAudience;
   /** How the editor's offers are worded. */
   offer: OfferContext;
 }
@@ -165,6 +176,7 @@ export interface PlanReminderTarget {
    *  answering screen word it the same. */
   subjectIsSelf: boolean;
   shared: boolean;
+  memorial: boolean;
   /** The occasion itself, not the row's decide-by `dueDate`, so the screen can
    *  say when the occasion is. */
   occurrenceDate: number;
@@ -266,12 +278,29 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string[]> {
-    if (bearerType === "person") return [bearerId];
+    if (bearerType === "person")
+      return (await isDeceased("person", bearerId)) ? [] : [bearerId];
     if (bearerType !== "relationship") return [];
     const selfId = (await self.getSelf())?.personId;
-    return endpointsOf(await relationships.get(bearerId))
+    const others = endpointsOf(await relationships.get(bearerId))
       .filter((e) => e.type === "person" && e.id !== selfId)
       .map((e) => e.id);
+    const living: string[] = [];
+    for (const id of others)
+      if (!(await isDeceased("person", id))) living.push(id);
+    return living;
+  }
+
+  /** Whether a person or pet has died: they have a Death milestone, dated or
+   *  not. */
+  async function isDeceased(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean> {
+    if (bearerType === "relationship") return false;
+    return (await milestones.listForBearer(bearerType, bearerId)).some(
+      (m) => m.kind === "death",
+    );
   }
 
   /** Any milestone bearer, named. Shared by the engine and `targets`, so a
@@ -343,16 +372,19 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     );
   }
 
-  /** Which of `planQuestion`'s three shapes a prompt takes. */
+  /** Which of `planQuestion`'s shapes a prompt takes. */
   async function planPhrasing(
     bearerType: MilestoneBearerType,
     bearerId: string,
     kind: MilestoneKind,
-  ): Promise<{ subjectIsSelf: boolean; shared: boolean }> {
+  ): Promise<{ subjectIsSelf: boolean; shared: boolean; memorial: boolean }> {
+    if (await isDeceased(bearerType, bearerId))
+      return { subjectIsSelf: false, shared: false, memorial: true };
     const isSelf = await milestoneIsSelf(bearerType, bearerId);
     const subjectIsSelf = isSelf && bearerType === "person";
     return {
       subjectIsSelf,
+      memorial: false,
       shared:
         !subjectIsSelf &&
         (isSelf ||
@@ -361,19 +393,14 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     };
   }
 
-  /** Whether an occasion is the user's own: theirs alone, or shared with
-   *  their partner. */
-  async function isOwnOccasion(
+  /** Whose occasion it is: kept in memory, the user's own, or someone
+   *  else's. */
+  async function occasionAudience(
     bearerType: MilestoneBearerType,
     bearerId: string,
     kind: MilestoneKind,
-  ): Promise<boolean> {
-    const { subjectIsSelf, shared } = await planPhrasing(
-      bearerType,
-      bearerId,
-      kind,
-    );
-    return subjectIsSelf || shared;
+  ): Promise<OccasionAudience> {
+    return audienceOf(await planPhrasing(bearerType, bearerId, kind));
   }
 
   /** What a milestone's schedule editor needs to seed and word its rules. */
@@ -385,7 +412,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     const phrasing = await planPhrasing(bearerType, bearerId, kind);
     const subject = (await milestoneBearerLabel(bearerType, bearerId)) ?? "";
     return {
-      own: phrasing.subjectIsSelf || phrasing.shared,
+      audience: audienceOf(phrasing),
       offer: offerContextOf({ ...phrasing, subject, kind }),
     };
   }
@@ -398,11 +425,11 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     },
     // Stored rules, else the kind's defaults; the source is what mints a
     // prompt.
-    resolveSchedule: async (m, own) =>
+    resolveSchedule: async (m, audience) =>
       resolveReminderSchedule(
         m.kind,
         await reminderRules.listForBearer("milestone", m.id),
-        own,
+        audience,
       ),
     reminders: {
       getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
@@ -438,6 +465,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     // `null` means gone, and only gone: the engine skips a row it cannot name.
     resolveLabel: milestoneBearerLabel,
     isSelf: milestoneIsSelf,
+    isDeceased,
     isOwnPartnership,
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
@@ -532,7 +560,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   };
 
   return {
-    isOwnOccasion,
+    occasionAudience,
     scheduleContext,
     // Reads attach what each reminder's #tags and @mentions resolve to now; the
     // text stays the source of truth for which exist.
@@ -691,11 +719,11 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 bearerId,
                 milestone.kind,
               );
-              const own = phrasing.subjectIsSelf || phrasing.shared;
+              const audience = audienceOf(phrasing);
               const { rules } = resolveReminderSchedule(
                 milestone.kind,
                 await reminderRules.listForBearer("milestone", milestone.id),
-                own,
+                audience,
               );
               const daysOut = daysUntil(
                 todayCivil(),
@@ -713,7 +741,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 occurrenceDate,
                 occurrenceYear: civilFromDueMs(occurrenceDate).year,
                 offers: promptDraftOf(
-                  planOffers(milestone.kind, rules, daysOut, own),
+                  planOffers(milestone.kind, rules, daysOut, audience),
                 ),
               };
             })(),
