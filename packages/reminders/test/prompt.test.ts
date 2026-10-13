@@ -73,11 +73,11 @@ function makeHarness() {
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
     // A set schedule stands in for stored rule rows, so it reads as `stored`.
-    resolveSchedule: async (m) => {
+    resolveSchedule: async (m, own) => {
       const custom = schedules.get(m.id);
       const standing =
         custom === undefined
-          ? resolveReminderSchedule(m.kind, [])
+          ? resolveReminderSchedule(m.kind, [], own)
           : {
               rules: custom,
               source: "stored" as const,
@@ -220,6 +220,7 @@ describe("the plan prompt", () => {
         subject: "Violet",
         greeting: "a happy birthday",
         occasion: "birthday",
+        forSelf: false,
       }),
     ).not.toMatch(/\d|week|month/);
   });
@@ -389,6 +390,28 @@ describe("the plan prompt", () => {
       "🗓 What do you want to do for your own birthday?",
     );
     expect(h.prompts()[0].title).not.toContain("@[");
+  });
+
+  it("asks about your own birthday as early as anyone else's", async () => {
+    h.setSelf("p1");
+    h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.prompts()).toHaveLength(1);
+  });
+
+  it("plans your own birthday party, addressed to you", async () => {
+    const occ = daysOut(21);
+    h.setSelf("p1");
+    h.setMilestones([birthday("m1", "p1", occ)]);
+    h.setAnswer("m1", occ.year, [
+      { action: "arrange:party", offsetDays: 21, enabled: true },
+    ]);
+    await regenerateSystemReminders(h.deps);
+
+    expect(h.activeSystem().map((r) => r.title)).toEqual([
+      "🎈 Plan a party for your birthday",
+    ]);
   });
 
   // ⚠️ The list read substitutes one uniform horizon for every action, so it has

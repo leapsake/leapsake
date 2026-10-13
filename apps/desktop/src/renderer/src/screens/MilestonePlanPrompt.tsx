@@ -6,6 +6,7 @@ import {
   formatDueIn,
   isoFromDueMs,
   kindDefs,
+  offerContextOf,
   planQuestion,
 } from "@leapsake/schema";
 import { ReminderPromptFields } from "@leapsake/ui/web";
@@ -36,7 +37,7 @@ export function MilestonePlanPrompt() {
       <Form method="post">
         <ReminderPromptFields
           value={schedule}
-          greeting={kindDefs[target.milestoneKind].greeting}
+          offer={offerContextOf({ ...target, kind: target.milestoneKind })}
           onChange={setSchedule}
         />
         <input type="hidden" name="year" value={target.occurrenceYear} />

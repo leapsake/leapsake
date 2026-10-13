@@ -1,12 +1,15 @@
 import { z } from "zod";
 import {
   type KnownReminderAction,
+  type OfferContext,
+  type PlanQuestionContext,
   type ReminderAction,
   type ReminderRule,
   type ReminderRuleInput,
   actionDefOf,
   reminderScheduleInputSchema,
   verbOf,
+  YOUR_PARTNER,
 } from "./reminder-rule.js";
 
 /**
@@ -72,6 +75,11 @@ export interface MilestoneKindDef {
    * entry with `enabledByDefault` set.
    */
   defaultReminderSchedule: DefaultReminderRule[];
+  /**
+   * What the user's own occasion offers in its place: your birthday, or your
+   * anniversary with your partner. Absent keeps `defaultReminderSchedule`.
+   */
+  ownReminderSchedule?: DefaultReminderRule[];
   /** The phrase a `wish` interpolates, with its article: "a happy birthday". */
   greeting: string;
   /**
@@ -95,6 +103,18 @@ export interface MilestoneKindDef {
    */
   prompt?: { occasion: string };
 }
+
+/** What your own anniversary or first date offers: your partner's errands. */
+const OWN_COUPLED_SCHEDULE: DefaultReminderRule[] = [
+  { action: "get:gift", offsetDays: 12, enabledByDefault: false },
+  { action: "get:card", offsetDays: 12, enabledByDefault: false },
+  { action: "send:card", offsetDays: 7, enabledByDefault: false },
+  { action: "send:gift", offsetDays: 7, enabledByDefault: false },
+  { action: "arrange:meal", offsetDays: 7, enabledByDefault: false },
+  { action: "give:card", offsetDays: 0, enabledByDefault: false },
+  { action: "give:gift", offsetDays: 0, enabledByDefault: false },
+  { action: "wish", offsetDays: 0, enabledByDefault: false },
+];
 
 /** Every milestone kind's definition, in UI listing order. */
 export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
@@ -120,6 +140,10 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "give:gift", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: true },
     ],
+    ownReminderSchedule: [
+      { action: "arrange:party", offsetDays: 21, enabledByDefault: false },
+      { action: "wish", offsetDays: 0, enabledByDefault: true },
+    ],
   },
   death: {
     label: "Death",
@@ -138,10 +162,6 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy first date anniversary",
     belatedGreeting: "a happy belated first date anniversary",
-    selfWish: {
-      plain: "\u{1F49E} It’s the anniversary of your first date!",
-      belated: "\u{1F49E} It was the anniversary of your first date",
-    },
     coupled: true,
     prompt: { occasion: "first date anniversary" },
     defaultReminderSchedule: [
@@ -150,6 +170,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "give:card", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
+    ownReminderSchedule: OWN_COUPLED_SCHEDULE,
   },
   // Shown as "Anniversary": unqualified, the word means a wedding anniversary.
   wedding: {
@@ -160,10 +181,6 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     recursAnnually: true,
     greeting: "a happy anniversary",
     belatedGreeting: "a happy belated anniversary",
-    selfWish: {
-      plain: "\u{1F48D} It’s your anniversary!",
-      belated: "\u{1F48D} It was your anniversary",
-    },
     coupled: true,
     prompt: { occasion: "anniversary" },
     defaultReminderSchedule: [
@@ -175,6 +192,7 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
       { action: "give:gift", offsetDays: 0, enabledByDefault: false },
       { action: "wish", offsetDays: 0, enabledByDefault: false },
     ],
+    ownReminderSchedule: OWN_COUPLED_SCHEDULE,
   },
   met: {
     label: "Met",
@@ -240,6 +258,24 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
   },
 };
 
+/** How a prompt's offers are worded, from the facts {@link planQuestion}
+ *  reads. */
+export function offerContextOf({
+  kind,
+  subject,
+  subjectIsSelf,
+  shared,
+}: Omit<PlanQuestionContext, "occasion"> & {
+  kind: MilestoneKind;
+}): OfferContext {
+  const coupled = kindDefs[kind].coupled === true;
+  return {
+    greeting: kindDefs[kind].greeting,
+    forSelf: subjectIsSelf && !coupled,
+    partner: shared ? subject : subjectIsSelf && coupled ? YOUR_PARTNER : null,
+  };
+}
+
 /** The preferred (first allowed) bearer type for a kind. */
 export function preferredBearerType(kind: MilestoneKind): MilestoneBearerType {
   return kindDefs[kind].allowedBearerTypes[0];
@@ -300,12 +336,27 @@ const furthestFirst = (rules: ReminderRuleInput[]) =>
   [...rules].sort((a, b) => b.offsetDays - a.offsetDays);
 
 /**
+ * A kind's default schedule for an occasion that is the user's own (`own`), or
+ * someone else's.
+ */
+export function kindDefaultSchedule(
+  kind: MilestoneKind,
+  own: boolean,
+): DefaultReminderRule[] {
+  const def = kindDefs[kind];
+  return (
+    (own ? def.ownReminderSchedule : undefined) ?? def.defaultReminderSchedule
+  );
+}
+
+/**
  * A milestone's standing rules, or its kind's defaults when it has none, and
  * its answers by year, furthest lead first. A stored `plan` row is ignored.
  */
 export function resolveReminderSchedule(
   kind: MilestoneKind,
   storedRules: ReminderRule[],
+  own = false,
 ): ResolvedReminderSchedule {
   const valid = storedRules.filter((r) => verbOf(r.action) !== "plan");
   const stored = valid.filter((r) => r.occurrenceYear === null);
@@ -314,7 +365,7 @@ export function resolveReminderSchedule(
   const rules: ReminderRuleInput[] =
     source === "stored"
       ? stored.map(ruleInputOf)
-      : kindDefs[kind].defaultReminderSchedule.map((d) => ({
+      : kindDefaultSchedule(kind, own).map((d) => ({
           action: d.action,
           label: null,
           offsetDays: d.offsetDays,
@@ -348,10 +399,10 @@ export function resolveReminderSchedule(
  * Days before the occurrence a kind's prompt comes due: the furthest
  * `offsetDays + activeDays` it offers, so every offer keeps its full run-up.
  */
-export function promptOffsetDays(kind: MilestoneKind): number {
+export function promptOffsetDays(kind: MilestoneKind, own = false): number {
   return Math.max(
     0,
-    ...kindDefs[kind].defaultReminderSchedule.map(
+    ...kindDefaultSchedule(kind, own).map(
       (d) => d.offsetDays + actionDefOf(d.action).activeDays,
     ),
   );
@@ -398,9 +449,10 @@ export function planOffers(
   kind: MilestoneKind,
   storedRules: readonly ReminderRuleInput[],
   daysUntilOccurrence: number,
+  own = false,
 ): ReminderRuleInput[] {
   const stored = new Map(storedRules.map((r) => [r.action, r]));
-  return kindDefs[kind].defaultReminderSchedule
+  return kindDefaultSchedule(kind, own)
     .map(
       (d): ReminderRuleInput =>
         stored.get(d.action) ?? {
@@ -438,11 +490,12 @@ export function planTiming(
   kind: MilestoneKind,
   storedRules: readonly ReminderRuleInput[],
   learnedDaysOut: number,
+  own = false,
 ): PlanTiming {
-  const usual = promptOffsetDays(kind);
+  const usual = promptOffsetDays(kind, own);
   if (learnedDaysOut - usual >= OFFER_NOTICE_DAYS)
     return { dueOffsetDays: usual, late: false };
-  const lastDays = planOffers(kind, storedRules, learnedDaysOut)
+  const lastDays = planOffers(kind, storedRules, learnedDaysOut, own)
     .map((r) => latestOffsetDays(r.action, r.offsetDays))
     .filter((latest) => latest > 0)
     .map((latest) => latest + OFFER_NOTICE_DAYS)

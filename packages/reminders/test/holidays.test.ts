@@ -29,7 +29,7 @@ function makeHarness() {
     milestones: {
       listRemindEligible: async (): Promise<RemindEligibleMilestone[]> => [],
     },
-    resolveSchedule: async (m) => resolveReminderSchedule(m.kind, []),
+    resolveSchedule: async (m, own) => resolveReminderSchedule(m.kind, [], own),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
       insert: async (row) => {

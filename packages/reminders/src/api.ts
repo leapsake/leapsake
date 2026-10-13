@@ -351,6 +351,21 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     };
   }
 
+  /** Whether an occasion is the user's own: theirs alone, or shared with
+   *  their partner. */
+  async function isOwnOccasion(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+    kind: MilestoneKind,
+  ): Promise<boolean> {
+    const { subjectIsSelf, shared } = await planPhrasing(
+      bearerType,
+      bearerId,
+      kind,
+    );
+    return subjectIsSelf || shared;
+  }
+
   // The engine's ports over the real repos, built per call so `today` is
   // re-read each time.
   const systemReminderDeps = (): ReminderEngineDeps => ({
@@ -359,10 +374,11 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     },
     // Stored rules, else the kind's defaults; the source is what mints a
     // prompt.
-    resolveSchedule: async (m) =>
+    resolveSchedule: async (m, own) =>
       resolveReminderSchedule(
         m.kind,
         await reminderRules.listForBearer("milestone", m.id),
+        own,
       ),
     reminders: {
       getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
@@ -492,6 +508,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   };
 
   return {
+    isOwnOccasion,
     // Reads attach what each reminder's #tags and @mentions resolve to now; the
     // text stays the source of truth for which exist.
     list: async (): Promise<ReminderWithTags[]> => {
@@ -643,9 +660,17 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           if (occurrenceDate == null) return [];
           return [
             (async (): Promise<PlanReminderTarget> => {
+              // The same two facts the engine's copy layer branches on.
+              const phrasing = await planPhrasing(
+                bearerType,
+                bearerId,
+                milestone.kind,
+              );
+              const own = phrasing.subjectIsSelf || phrasing.shared;
               const { rules } = resolveReminderSchedule(
                 milestone.kind,
                 await reminderRules.listForBearer("milestone", milestone.id),
+                own,
               );
               const daysOut = daysUntil(
                 todayCivil(),
@@ -659,12 +684,11 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 bearerId,
                 subject:
                   (await milestoneBearerLabel(bearerType, bearerId)) ?? "",
-                // The same two facts the engine's copy layer branches on.
-                ...(await planPhrasing(bearerType, bearerId, milestone.kind)),
+                ...phrasing,
                 occurrenceDate,
                 occurrenceYear: civilFromDueMs(occurrenceDate).year,
                 offers: promptDraftOf(
-                  planOffers(milestone.kind, rules, daysOut),
+                  planOffers(milestone.kind, rules, daysOut, own),
                 ),
               };
             })(),

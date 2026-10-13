@@ -347,3 +347,49 @@ describe("the plan prompt, end to end through core", () => {
     expect(labels).toEqual(["🎉 Wish @Violet Bick a happy birthday"]);
   });
 });
+
+describe("the plan prompt about an occasion of your own", () => {
+  /** You, with a birthday or anniversary `days` out and nothing configured. */
+  async function ownOccasion(kind: "birthday" | "wedding", days: number) {
+    const me = await core.people.create({ firstName: "George" }, []);
+    await core.self.set(me.id);
+    const occ = civilDaysFromToday(days);
+    const milestone = await core.milestones.create({
+      kind,
+      bearerType: "person",
+      bearerId: me.id,
+      year: 2015,
+      month: occ.month,
+      day: occ.day,
+    });
+    const { plans } = await core.reminders.targets();
+    return {
+      milestone,
+      plan: plans.find((p) => p.milestoneId === milestone.id),
+    };
+  }
+
+  it("offers your birthday a party, never a gift for yourself", async () => {
+    const { milestone, plan } = await ownOccasion("birthday", APPEARS_DAYS);
+
+    expect(plan?.offers.map((o) => o.action)).toEqual([
+      "arrange:party",
+      "wish",
+    ]);
+    // The editor opens on the same list the question offered.
+    expect(
+      (await core.milestones.reminderSchedule(milestone.id, "birthday")).map(
+        (r) => r.action,
+      ),
+    ).toEqual(["arrange:party", "wish"]);
+  });
+
+  it("offers your anniversary a special meal with your partner", async () => {
+    const { plan } = await ownOccasion(
+      "wedding",
+      promptOffsetDays("wedding", true) + actionDefs.plan.activeDays,
+    );
+
+    expect(plan?.offers.map((o) => o.action)).toContain("arrange:meal");
+  });
+});

@@ -511,8 +511,13 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
 ## Schedules — where a rule comes from
 
 A schedule is set on the **occasion** — one milestone, or one (person, holiday) observance — or it
-is the **shipped default** for that kind (`kindDefs[kind].defaultReminderSchedule`,
-`observanceDefaultReminderSchedule`). Two levels. `resolveReminderSchedule` and
+is the **shipped default** for that kind (`kindDefaultSchedule`,
+`observanceDefaultReminderSchedule`). Two levels.
+
+The shipped default depends on whose occasion it is. Your own birthday, or your anniversary or
+first date with your partner, takes the kind's `ownReminderSchedule` where it has one: you can't
+give yourself a gift, and a special meal belongs to your anniversary, not to someone else's. This
+is still the shipped level. It is a fact about the occasion, not a setting the user writes. `resolveReminderSchedule` and
 `resolveObservanceReminderSchedule` therefore resolve all-or-nothing: stored rows win wholesale,
 because there is exactly one level a user can write.
 

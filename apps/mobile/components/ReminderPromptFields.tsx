@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
+  type OfferContext,
   type ReminderRuleInput,
   actionDefOf,
   leadTimeLabel,
@@ -16,19 +17,19 @@ import { colors, styles } from "../lib/styles";
  */
 export function ReminderPromptFields({
   value,
-  greeting,
+  offer,
   onChange,
 }: {
   value: readonly ReminderRuleInput[];
-  /** The occasion's greeting, "a happy birthday", which the labels may name. */
-  greeting: string;
+  /** The occasion and whose it is, which the labels may name. */
+  offer: OfferContext;
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
   return (
     <View>
       {promptItemsOf(value).map(({ index, rule }) => {
         const def = actionDefOf(rule.action);
-        const label = offerLabel(rule.action, greeting);
+        const label = offerLabel(rule.action, offer);
         return (
           <Pressable
             key={index}

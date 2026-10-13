@@ -466,7 +466,8 @@ describe("onboarding + milestone families coexist", () => {
     h.deps.milestones.listRemindEligible = async () => [
       birthday("m1", "p1", occ),
     ];
-    h.deps.resolveSchedule = async (m) => resolveReminderSchedule(m.kind, []);
+    h.deps.resolveSchedule = async (m, own) =>
+      resolveReminderSchedule(m.kind, [], own);
     h.deps.resolveLabel = async () => "Violet";
 
     const result = await regenerateSystemReminders(h.deps);

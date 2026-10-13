@@ -62,10 +62,10 @@ function makeHarness() {
     milestones: { listRemindEligible: async () => milestones },
     // A custom set stands in for every year's answer, so it suppresses the
     // prompt. An un-set milestone rides its kind defaults, prompt and all.
-    resolveSchedule: async (m) => {
+    resolveSchedule: async (m, own) => {
       const custom = schedules.get(m.id);
       return custom === undefined
-        ? resolveReminderSchedule(m.kind, [])
+        ? resolveReminderSchedule(m.kind, [], own)
         : {
             rules: custom,
             source: "stored" as const,
@@ -233,10 +233,10 @@ describe("regenerateSystemReminders", () => {
     expect(reminder.dueDate).toBe(dueDateMs(daysOut(0)));
   });
 
-  // The bug the registry lookup fixed: only `birthday` had a self-directed
-  // wish, so every other occasion of your own told you to wish *yourself* one —
-  // "🎉 Wish @You a happy anniversary", with a link to your own page.
-  it("renders your own anniversary self-directed too, not only your birthday", async () => {
+  // A wish is never addressed to you: "🎉 Wish @You a happy anniversary" linked
+  // to your own page. Your anniversary is your partner's too, so it wishes them,
+  // even before they are linked.
+  it("wishes your partner on your own anniversary, named or not", async () => {
     h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
     h.setSelf("p1");
     h.setMilestones([
@@ -246,7 +246,7 @@ describe("regenerateSystemReminders", () => {
     await regenerateSystemReminders(h.deps);
 
     const [reminder] = h.activeSystem();
-    expect(reminder.title).toBe("💍 It’s your anniversary!");
+    expect(reminder.title).toBe("🎉 Wish your partner a happy anniversary");
     expect(reminder.title).not.toContain("@[");
   });
 

@@ -24,6 +24,7 @@ import {
   reminderRuleLabel,
   todayCivil,
   verbOf,
+  YOUR_PARTNER,
 } from "@leapsake/schema";
 
 /** A stored due date is UTC midnight, so whole-day shifts are exact. */
@@ -73,6 +74,8 @@ export interface ReminderEngineDeps {
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
+    /** The occasion is the user's own, which picks its kind's own defaults. */
+    own: boolean,
   ): Promise<ResolvedReminderSchedule>;
   /**
    * The bearer's display label. `null` means the bearer is gone and the row is
@@ -223,6 +226,8 @@ interface ReminderCopySource {
    *  belated form (see `belatedGreeting` in `@leapsake/schema`). */
   belatedGreeting: string | null;
   occasion: string;
+  /** The occasion is the user's alone, so templates address them. */
+  forSelf: boolean;
   /** An `other` rule's free text, which is the whole of its copy. */
   label: string | null;
   /** Copy that replaces the template in both forms, for the self-directed
@@ -248,6 +253,7 @@ function renderTitle(copy: ReminderCopySource, belated: boolean): string {
               ? copy.belatedGreeting
               : copy.greeting,
           occasion: copy.occasion,
+          forSelf: copy.forSelf,
         });
   return `${def.icon ?? ""} ${body}`.trim();
 }
@@ -733,9 +739,22 @@ async function computeDesired(
     ].filter((occ) => occ !== null);
     if (occurrences.length === 0) continue;
 
+    // Every bearer type is asked, so your own relationship counts as yours.
+    const bearerIsSelf =
+      deps.isSelf !== undefined
+        ? await deps.isSelf(m.bearerType, m.bearerId)
+        : false;
+    const isOwnCouple =
+      kindDefs[m.kind].coupled === true &&
+      deps.isOwnPartnership !== undefined &&
+      (await deps.isOwnPartnership(m.bearerType, m.bearerId));
+    const own = bearerIsSelf || isOwnCouple;
+    // Only you personally: your relationship names your partner, so it takes
+    // the shared wording.
+    const subjectIsSelf = bearerIsSelf && m.bearerType === "person";
     // The schedule before the label, so the possibly-encrypted label lookup is
     // skipped when nothing is in window.
-    const resolved = await deps.resolveSchedule(m);
+    const resolved = await deps.resolveSchedule(m, own);
     // Deadlines run from when the app learned of the occasion and its answer:
     // you can't be late for something it has only just learned.
     const learned = todayCivil(m.createdAt);
@@ -745,8 +764,6 @@ async function computeDesired(
     // answered, made a rule so it shares the window, id, copy and prune paths.
     const asks = kindDefs[m.kind].prompt !== undefined && m.asksEachYear;
     let subject: string | undefined;
-    let bearerIsSelf = false;
-    let isOwnCouple = false;
 
     for (const occ of occurrences) {
       const learnedDaysOut = daysUntil(learned, occ);
@@ -761,14 +778,14 @@ async function computeDesired(
       // Each enabled rule, with the deadline and run-up it actually has for
       // this occurrence — not always the ones it was written with.
       const timed: TimedRule[] = [];
-      const timing = planTiming(m.kind, resolved.rules, learnedDaysOut);
+      const timing = planTiming(m.kind, resolved.rules, learnedDaysOut, own);
       // Asked only while it still offers a choice; the day-of wish it leaves
       // behind is already on the schedule. An import asks only in time.
       if (
         asks &&
         answer === undefined &&
         !(timing.late && m.imported) &&
-        planOffers(m.kind, resolved.rules, days).length >= 2
+        planOffers(m.kind, resolved.rules, days, own).length >= 2
       ) {
         timed.push({
           rule: {
@@ -815,16 +832,9 @@ async function computeDesired(
           m.bearerType === "relationship"
             ? label
             : mentionToken(label, m.bearerType, m.bearerId);
-        // Every bearer type is asked, so your own relationship counts as yours.
-        bearerIsSelf =
-          deps.isSelf !== undefined
-            ? await deps.isSelf(m.bearerType, m.bearerId)
-            : false;
-        isOwnCouple =
-          kindDefs[m.kind].coupled === true &&
-          deps.isOwnPartnership !== undefined &&
-          (await deps.isOwnPartnership(m.bearerType, m.bearerId));
       }
+      // Your own couple's occasion with nobody linked yet is still about them.
+      const partnerless = subjectIsSelf && kindDefs[m.kind].coupled === true;
 
       for (const { rule, offsetDays, runUp } of rules) {
         const id = deterministicUuid(
@@ -834,7 +844,10 @@ async function computeDesired(
         // Assembled, not rendered: the read renders it a second time.
         const copy: ReminderCopySource = {
           action: rule.action,
-          subject,
+          subject:
+            partnerless && verbOf(rule.action) !== "plan"
+              ? YOUR_PARTNER
+              : subject,
           greeting: kindDefs[m.kind].greeting,
           // Absent on the kinds with no natural belated form, which then keep
           // the plain greeting rather than being handed a spliced one.
@@ -843,12 +856,11 @@ async function computeDesired(
           occasion:
             kindDefs[m.kind].prompt?.occasion ??
             kindDefs[m.kind].label.toLowerCase(),
+          forSelf: subjectIsSelf && !partnerless,
           label: rule.label ?? null,
           override: copyOverrideOf(
             bearerIsSelf,
-            // Only you personally: your relationship names your partner, so it
-            // takes the shared wording.
-            bearerIsSelf && m.bearerType === "person",
+            subjectIsSelf,
             isOwnCouple,
             subject,
             rule.action,
@@ -931,6 +943,7 @@ async function computeDesired(
             // No belated greeting yet: a holiday's greeting is a stored column.
             belatedGreeting: null,
             occasion: candidate.occasion,
+            forSelf: false,
             label: rule.label ?? null,
             // No self-directed case: your own Christmas is not reminded.
             override: null,

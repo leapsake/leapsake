@@ -441,6 +441,7 @@ export function createCore(
         today: todayCivil(),
       }),
   });
+  const { isOwnOccasion: _isOwnOccasion, ...remindersSurface } = remindersApi;
   // A couple's occasion on your partner was with you, so it is linked before
   // any reconcile rather than asked about.
   const regenerateSystem = async () => {
@@ -914,9 +915,17 @@ export function createCore(
           "milestone",
           milestoneId,
         );
+        const milestone = await milestones.get(milestoneId);
+        const own =
+          milestone !== undefined &&
+          (await remindersApi.isOwnOccasion(
+            milestone.bearerType,
+            milestone.bearerId,
+            kind,
+          ));
         // The editor renders rules; which level supplied them is the engine's
         // business, so this keeps its narrower shape.
-        return resolveReminderSchedule(kind, stored).rules;
+        return resolveReminderSchedule(kind, stored, own).rules;
       },
       // Milestone and schedule commit together. A sent `reminderSchedule`
       // replaces the whole rule set; an omitted one leaves it as it is.
@@ -983,6 +992,11 @@ export function createCore(
           const resolved = resolveReminderSchedule(
             milestone.kind,
             await reminderRules.listForBearer("milestone", milestoneId),
+            await remindersApi.isOwnOccasion(
+              milestone.bearerType,
+              milestone.bearerId,
+              milestone.kind,
+            ),
           );
           const answer = resolved.answers.get(year);
           await reminderRules.replaceAnswer(
@@ -1015,7 +1029,7 @@ export function createCore(
 
     gifts: giftsApi,
 
-    reminders: { ...remindersApi, regenerateSystem },
+    reminders: { ...remindersSurface, regenerateSystem },
 
     // Who "you" are: a pointer at a Person. Reconciling flips your own
     // birthday's reminder to its self-directed copy at once.

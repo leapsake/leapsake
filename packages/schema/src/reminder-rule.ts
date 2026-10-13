@@ -14,6 +14,7 @@ export const reminderVerbSchema = z.enum([
   "post",
   "wish",
   "remember",
+  "arrange",
   "plan",
   "other",
 ]);
@@ -99,7 +100,25 @@ export interface ReminderCopyContext {
    * "Christmas".
    */
   occasion: string;
+  /** The occasion is the user's alone, so copy addresses them: "your
+   *  birthday". */
+  forSelf: boolean;
 }
+
+/** Who an offer on the prompt is worded for. */
+export interface OfferContext {
+  /** The occasion's greeting, "a happy birthday", which a wish names. */
+  greeting: string;
+  /** The occasion is the user's alone: their birthday, not their
+   *  anniversary. */
+  forSelf: boolean;
+  /** Who the user shares the occasion with, by name or {@link YOUR_PARTNER};
+   *  null when it is not theirs. */
+  partner: string | null;
+}
+
+/** Stands in for a partner the user's own couple occasion has not named. */
+export const YOUR_PARTNER = "your partner";
 
 /** Who the prompt's question is about, which decides how it is phrased. */
 export interface PlanQuestionContext {
@@ -142,10 +161,10 @@ export interface ReminderActionDef {
   /** Display label, e.g. "Get a gift". */
   label: string;
   /**
-   * The label a prompt shows once it knows the occasion, from its greeting:
+   * The label a prompt shows once it knows the occasion and whose it is:
    * "Wish them a happy birthday". Absent keeps `label`.
    */
-  offer?: (greeting: string) => string;
+  offer?: (context: OfferContext) => string;
   /** Optional emoji shown beside the label. */
   icon?: string;
   /**
@@ -183,7 +202,10 @@ const OTHER_LABEL = "Other";
 export const actionDefs = {
   wish: {
     label: "Wish them",
-    offer: (greeting) => `Wish them ${greeting}`,
+    offer: ({ greeting, forSelf, partner }) =>
+      forSelf
+        ? "Celebrate on the day"
+        : `Wish ${partner ?? "them"} ${greeting}`,
     icon: "🎉",
     activeDays: 0,
     template: ({ subject, greeting }) => `Wish ${subject} ${greeting}`,
@@ -258,6 +280,26 @@ export const actionDefs = {
     icon: "🕯️",
     activeDays: 0,
     template: ({ subject }) => `Remember ${subject}`,
+  },
+  "arrange:party": {
+    label: "Plan a party",
+    icon: "🎈",
+    activeDays: 21,
+    latestOffsetDays: 7,
+    template: ({ subject, occasion, forSelf }) =>
+      forSelf
+        ? `Plan a party for your ${occasion}`
+        : `Plan a party for ${subject}`,
+  },
+  "arrange:meal": {
+    label: "Plan a special meal",
+    icon: "🍽️",
+    activeDays: 14,
+    latestOffsetDays: 1,
+    template: ({ subject, occasion, forSelf }) =>
+      forSelf
+        ? `Plan a special meal for your ${occasion}`
+        : `Plan a special meal with ${subject}`,
   },
   plan: {
     label: "Decide how to mark it",
@@ -450,10 +492,13 @@ export function reminderRuleLabel(rule: {
   return actionDefOf(rule.action).label;
 }
 
-/** An action's label on a prompt about an occasion with this greeting. */
-export function offerLabel(action: ReminderAction, greeting: string): string {
+/** An action's label on a prompt about this occasion. */
+export function offerLabel(
+  action: ReminderAction,
+  context: OfferContext,
+): string {
   const def = actionDefOf(action);
-  return def.offer?.(greeting) ?? def.label;
+  return def.offer?.(context) ?? def.label;
 }
 
 /**

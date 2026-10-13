@@ -1,4 +1,5 @@
 import {
+  type OfferContext,
   type ReminderRuleInput,
   actionDefOf,
   leadTimeLabel,
@@ -14,12 +15,12 @@ import { useMessages } from "../../messages/index.js";
  */
 export function ReminderPromptFields({
   value,
-  greeting,
+  offer,
   onChange,
 }: {
   value: readonly ReminderRuleInput[];
-  /** The occasion's greeting, "a happy birthday", which the labels may name. */
-  greeting: string;
+  /** The occasion and whose it is, which the labels may name. */
+  offer: OfferContext;
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
   const m = useMessages();
@@ -31,7 +32,7 @@ export function ReminderPromptFields({
       <ul>
         {promptItemsOf(value).map(({ index, rule }) => {
           const def = actionDefOf(rule.action);
-          const label = offerLabel(rule.action, greeting);
+          const label = offerLabel(rule.action, offer);
           return (
             // Positional, like the schedule editor: no stable id until saved.
             <li key={index}>

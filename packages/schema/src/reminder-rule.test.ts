@@ -20,6 +20,8 @@ import {
   promptOffsetDays,
   leadTimeLabel,
   offerLabel,
+  offerContextOf,
+  type OfferContext,
   planOffers,
   promptAnswerOf,
   handedOverInPerson,
@@ -79,6 +81,8 @@ describe("reminderActionSchema / actionDefs", () => {
       "give:gift",
       "visit",
       "remember",
+      "arrange:party",
+      "arrange:meal",
       "other",
     ]);
     // ⚠️ The unoffered ones keep their registry entries on purpose: a rule stored
@@ -176,6 +180,7 @@ describe("reminderActionSchema / actionDefs", () => {
         subject: "@Violet",
         greeting: "hi",
         occasion: "birthday",
+        forSelf: false,
       }),
     ).toContain("@Violet");
   });
@@ -462,13 +467,51 @@ describe("actionKeyOf", () => {
   });
 });
 
+/** How a prompt about someone else's occasion words its offers. */
+const theirs = (greeting: string): OfferContext => ({
+  greeting,
+  forSelf: false,
+  partner: null,
+});
+
 describe("offerLabel", () => {
   it("names the occasion where the action's label would not", () => {
-    expect(offerLabel("wish", kindDefs.birthday.greeting)).toBe(
+    expect(offerLabel("wish", theirs(kindDefs.birthday.greeting))).toBe(
       "Wish them a happy birthday",
     );
-    expect(offerLabel("send:gift", kindDefs.birthday.greeting)).toBe(
+    expect(offerLabel("send:gift", theirs(kindDefs.birthday.greeting))).toBe(
       "Send a gift",
+    );
+  });
+
+  it("never offers to wish you a happy birthday", () => {
+    const context = offerContextOf({
+      kind: "birthday",
+      subject: "George Bailey",
+      subjectIsSelf: true,
+      shared: false,
+    });
+    expect(offerLabel("wish", context)).toBe("Celebrate on the day");
+  });
+
+  it("wishes your partner on your own anniversary, by name once known", () => {
+    const named = offerContextOf({
+      kind: "wedding",
+      subject: "Mary Hatch",
+      subjectIsSelf: false,
+      shared: true,
+    });
+    const unnamed = offerContextOf({
+      kind: "wedding",
+      subject: "George Bailey",
+      subjectIsSelf: true,
+      shared: false,
+    });
+    expect(offerLabel("wish", named)).toBe(
+      "Wish Mary Hatch a happy anniversary",
+    );
+    expect(offerLabel("wish", unnamed)).toBe(
+      "Wish your partner a happy anniversary",
     );
   });
 });
@@ -510,8 +553,12 @@ describe("the prompt's draft and answer", () => {
   });
 
   it("labels the ticks for giving, not for buying", () => {
-    expect(offerLabel("get:gift", "a happy birthday")).toBe("Give a gift");
-    expect(offerLabel("get:card", "a happy birthday")).toBe("Give a card");
+    expect(offerLabel("get:gift", theirs("a happy birthday"))).toBe(
+      "Give a gift",
+    );
+    expect(offerLabel("get:card", theirs("a happy birthday"))).toBe(
+      "Give a card",
+    );
   });
 
   it("posts what is ticked, unless told otherwise", () => {

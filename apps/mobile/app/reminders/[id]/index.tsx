@@ -7,6 +7,7 @@ import {
   isReminderEditable,
   isoFromDueMs,
   kindDefs,
+  offerContextOf,
   reminderLabel,
 } from "@leapsake/schema";
 import { type InPersonAnswer, type PlanAnswer } from "@leapsake/core";
@@ -301,7 +302,10 @@ export default function ReminderDetailScreen() {
           </Text>
           <ReminderPromptFields
             value={draft ?? planTarget.offers}
-            greeting={kindDefs[planTarget.milestoneKind].greeting}
+            offer={offerContextOf({
+              ...planTarget,
+              kind: planTarget.milestoneKind,
+            })}
             onChange={setDraft}
           />
           <Button

@@ -464,7 +464,9 @@ describe("your own anniversary, on the day, with no spouse attached", () => {
       ],
     });
 
-    expect(await titles()).toContain("💍 It’s your anniversary!");
+    expect(await titles()).toContain(
+      "🎉 Wish your partner a happy anniversary",
+    );
 
     const { linkPartners } = await core.reminders.targets();
     const offer = linkPartners.find((l) => l.milestoneId === milestone.id);

@@ -65,7 +65,7 @@ const HANDOVER_OPTIONS: { value: Handover; label: string }[] = [
 /** A line's words: a gift or card as given, a wish with what it wishes. */
 function lineLabel(rule: ReminderRuleInput, greeting: string): string {
   return isGivenItem(rule.action) || verbOf(rule.action) === "wish"
-    ? offerLabel(rule.action, greeting)
+    ? offerLabel(rule.action, { greeting, forSelf: false, partner: null })
     : reminderRuleLabel(rule);
 }
 

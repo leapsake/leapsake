@@ -103,6 +103,33 @@ describe("planOffers", () => {
     };
     expect(planOffers("birthday", [stored], 60)[0]).toEqual(stored);
   });
+
+  it("offers your own birthday a party, not a gift for yourself", () => {
+    expect(actionsOf(planOffers("birthday", [], 60, true))).toEqual([
+      "arrange:party",
+      "wish",
+    ]);
+  });
+
+  it("offers your own anniversary a special meal with your partner", () => {
+    for (const kind of ["wedding", "first-date"] as const)
+      expect(actionsOf(planOffers(kind, [], 60, true))).toEqual([
+        "get:gift",
+        "get:card",
+        "send:card",
+        "send:gift",
+        "arrange:meal",
+        "give:card",
+        "give:gift",
+        "wish",
+      ]);
+  });
+
+  it("keeps someone else's anniversary to a card or a gift", () => {
+    expect(actionsOf(planOffers("wedding", [], 60))).not.toContain(
+      "arrange:meal",
+    );
+  });
 });
 
 describe("planTiming", () => {
