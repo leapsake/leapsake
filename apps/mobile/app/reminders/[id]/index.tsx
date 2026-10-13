@@ -24,6 +24,7 @@ import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { useLeaveWhenGone } from "../../../lib/use-leave-when-gone";
 import {
   REMIND_ME_IN,
   REMOVAL_COPY,
@@ -87,6 +88,7 @@ export default function ReminderDetailScreen() {
     [core, id],
   );
   const { data, error } = useFocusedData(load);
+  useLeaveWhenGone(data !== null && data[0] === undefined);
 
   // Every branch mounts the header: options come from the mounted
   // `<Stack.Screen>`, so a branch without one leaves the screen unnamed.
@@ -100,7 +102,6 @@ export default function ReminderDetailScreen() {
     return (
       <View style={styles.screen}>
         <Stack.Screen options={HEADER} />
-        <Text style={styles.muted}>This reminder no longer exists.</Text>
       </View>
     );
   }

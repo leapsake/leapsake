@@ -5,6 +5,7 @@ import { isReminderEditable } from "@leapsake/schema";
 import { ReminderForm } from "../../../components/ReminderForm";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
+import { useLeaveWhenGone } from "../../../lib/use-leave-when-gone";
 import { styles } from "../../../lib/styles";
 import { LoadState } from "../../../components/LoadState";
 
@@ -14,6 +15,7 @@ export default function ReminderEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => core.reminders.get(id), [core, id]);
   const { data: reminder, error } = useFocusedData(load);
+  useLeaveWhenGone(reminder === undefined);
 
   if (error !== null || reminder === null) return <LoadState error={error} />;
   if (reminder === undefined) {
@@ -22,7 +24,6 @@ export default function ReminderEditScreen() {
         <Stack.Screen
           options={{ title: "Edit reminder", headerBackTitle: "Back" }}
         />
-        <Text style={styles.muted}>This reminder no longer exists.</Text>
       </View>
     );
   }
