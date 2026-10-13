@@ -24,17 +24,25 @@ The OS pending set is **derived state**, rebuilt from reminder rows on every rec
 this package persists "the next digest fires on 15 August" — `planNotifications` recomputes the
 whole desired set from scratch every call, keyed on `now`.
 
-## Which days notify _(owner, 2026-09-11)_
+## Which days notify _(owner, 2026-10-12)_
 
-A reminder notifies on its **due day** — the one that matters most — and on **every day it enters
-Today**: the day it goes on display (`activeFrom`) or the day a snooze ends, whichever is later. A
-day that is both is one notification. So putting a row off schedules its own return the moment it
-is set, with no new plumbing: the post-write reconcile already runs then.
+A reminder notifies on **every day it sits in Today undone**: from the day it goes on display
+(`activeFrom`), or today if it already is, until it is completed or deleted. Notifications are a
+nudge to open the app while something is waiting, and a reminder you have not dealt with is still
+waiting.
 
-⚠️ **A snoozed row stays in the plan.** It used to be dropped while snoozed, which cancelled its
-due-day notification until some later reconcile re-added it — and on a device nobody opened in
-between, never. Completed, deleted and onboarding rows stay silent. The rule is one function,
-`notifyDaysOf` in `src/planner.ts`.
+- **A snooze is the way to quiet one.** A snoozed row is silent until the day its snooze ends,
+  then notifies daily again. It is never dropped from the plan: it schedules its own return the
+  moment it is set, with no new plumbing, since the post-write reconcile already runs then.
+- **A row with an occasion stops when the engine would prune it**, `BELATED_DAYS` after the
+  occasion (`@leapsake/reminders`' `isWithinWindow`). Otherwise a dormant device would keep
+  notifying about a row the next app open removes.
+- **A row with no occasion** (a user reminder, a dateless system row) repeats through the
+  year the caller looks ahead (`NOTIFICATION_WINDOW_DAYS`); the budget cuts it far sooner.
+
+This replaced notifying only on the due day and the day a row entered Today, once "Remind me
+in…" made it cheap to put a reminder off. Completed, deleted and onboarding rows stay silent.
+The rule is one function, `notifyDaysOf` in `src/planner.ts`.
 
 ## The horizon is the caller's, the budget is this package's
 

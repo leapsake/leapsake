@@ -1,8 +1,17 @@
 // The planner: the notifications that should be pending, deterministic in
 // `now`. The horizon is the caller's; see the README.
-import { civilFromDueMs, daysUntil, reminderLabel } from "@leapsake/schema";
+import {
+  civilFromDueMs,
+  dueDateMs,
+  reminderLabel,
+  todayCivil,
+} from "@leapsake/schema";
 import type { CivilDate } from "@leapsake/schema";
-import { onboardingRouteOf } from "@leapsake/reminders";
+import {
+  BELATED_DAYS,
+  NOTIFICATION_WINDOW_DAYS,
+  onboardingRouteOf,
+} from "@leapsake/reminders";
 
 /** How a device wants its reminders to reach it. `each` is planned exactly
  *  like `digest`; v0.1 builds could still store it. */
@@ -17,6 +26,8 @@ export interface NotifiableReminder {
   dueDate: number | null;
   /** Epoch-ms UTC midnight of the day this goes on display; null if it is. */
   activeFrom?: number | null;
+  /** Epoch-ms UTC midnight of the occasion it counts down to; null for none. */
+  occurrenceDate?: number | null;
   completedAt: number | null;
   /** Epoch-ms UTC midnight of the day a snooze ends; `null` if not snoozed. */
   snoozedUntil: number | null;
@@ -67,7 +78,7 @@ export function planNotifications(
   const budget = options.budget ?? NOTIFICATION_BUDGET;
 
   const days = reminders.flatMap((reminder) =>
-    notifyDaysOf(reminder).map((day) => ({ reminder, day })),
+    notifyDaysOf(reminder, now).map((day) => ({ reminder, day })),
   );
   // `each` falls through to the digest too; one-per-reminder was `planEach`.
   const planned = planDigest(days, policy);
@@ -116,9 +127,11 @@ function tripwireFor(
   };
 }
 
-/** The days a reminder notifies on: its due day and each day it enters Today;
- *  see the README's _Which days notify_. */
-function notifyDaysOf(r: NotifiableReminder): CivilDate[] {
+const DAY_MS = 86_400_000;
+
+/** The days a reminder notifies on: every day it sits in Today undone; see the
+ *  README's _Which days notify_. */
+function notifyDaysOf(r: NotifiableReminder, now: number): CivilDate[] {
   if (
     r.completedAt !== null ||
     r.deletedAt !== null ||
@@ -126,25 +139,19 @@ function notifyDaysOf(r: NotifiableReminder): CivilDate[] {
   )
     return [];
 
-  const snoozeEnd =
-    r.snoozedUntil === null ? null : civilFromDueMs(r.snoozedUntil);
-  const shown =
-    r.activeFrom === null || r.activeFrom === undefined
-      ? null
-      : civilFromDueMs(r.activeFrom);
-  const entersToday =
-    snoozeEnd !== null && (shown === null || daysUntil(shown, snoozeEnd) > 0)
-      ? snoozeEnd
-      : shown;
-  const due = r.dueDate === null ? null : civilFromDueMs(r.dueDate);
+  const today = dueDateMs(todayCivil(now));
+  const lands = Math.max(today, r.activeFrom ?? today, r.snoozedUntil ?? today);
+  const horizon = today + NOTIFICATION_WINDOW_DAYS * DAY_MS;
+  // A row with an occasion is pruned once its belated tail ends.
+  const leaves =
+    r.occurrenceDate === null || r.occurrenceDate === undefined
+      ? horizon
+      : Math.min(horizon, r.occurrenceDate + BELATED_DAYS * DAY_MS);
 
-  const days = new Map<string, CivilDate>();
-  for (const day of [entersToday, due]) {
-    if (day === null) continue;
-    if (snoozeEnd !== null && daysUntil(snoozeEnd, day) < 0) continue;
-    days.set(isoOf(day), day);
-  }
-  return [...days.values()];
+  const days: CivilDate[] = [];
+  for (let day = lands; day <= leaves; day += DAY_MS)
+    days.push(civilFromDueMs(day));
+  return days;
 }
 
 /** One reminder on one of its days: what the digest plans from. */
