@@ -1,3 +1,4 @@
+import { type MilestoneKind, isMilestoneKind } from "@leapsake/schema";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MilestoneForm } from "../../../../components/MilestoneForm";
 import { useCore } from "../../../../lib/core-context";
@@ -5,7 +6,11 @@ import { useCore } from "../../../../lib/core-context";
 export default function PersonMilestoneNewScreen() {
   const core = useCore();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, kind } = useLocalSearchParams<{ id: string; kind?: string }>();
+  // `?kind=`, from "They’ve passed away", opens on that kind.
+  const initialKind: MilestoneKind | undefined = isMilestoneKind(kind)
+    ? kind
+    : undefined;
 
   // Nothing loads first, so the form declares the header from the start.
   return (
@@ -13,6 +18,7 @@ export default function PersonMilestoneNewScreen() {
       title="Add milestone"
       bearerType="person"
       bearerId={id}
+      initialKind={initialKind}
       onSubmit={async (value) => {
         await core.milestones.create({
           ...value,

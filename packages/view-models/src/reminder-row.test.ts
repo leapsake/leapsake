@@ -79,6 +79,7 @@ describe("reminderOfferLabelOf", () => {
       "remindMe",
       "remindMe",
       "remindMe",
+      "markDeceased",
       "stopAsking",
     ]);
   });

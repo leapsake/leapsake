@@ -23,6 +23,7 @@ export type ReminderOfferLabel =
   | "remindMe"
   | "dismiss"
   | "stopAsking"
+  | "markDeceased"
   | "giveInPerson";
 
 const ONBOARDING_LABEL = {
@@ -40,6 +41,7 @@ export function reminderOfferLabelOf(
   if (action.kind === "snooze") return "remindMe";
   if (action.kind === "dismiss") return "dismiss";
   if (action.kind === "stop-asking") return "stopAsking";
+  if (action.kind === "mark-deceased") return "markDeceased";
   if (action.kind === "give-in-person") return "giveInPerson";
   const { cta } = action;
   switch (cta.kind) {

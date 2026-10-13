@@ -24,6 +24,10 @@ const reminder = (id: string, completedAt: number | null = null) => ({
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
+  bearerType: "person" as const,
+  bearerId: "p1",
+  subjectIsSelf: false,
+  memorial: false,
   occurrenceYear: 2026,
   offers: [
     {
@@ -145,6 +149,11 @@ describe("rowAffordanceFor", () => {
         label: "Just the day",
       },
       ...remindMe("prompt"),
+      {
+        kind: "link",
+        to: "/people/p1/milestones/new?kind=death",
+        label: "They’ve passed away →",
+      },
       {
         kind: "link",
         to: "/milestones/m1/stop-asking?reminder=prompt",

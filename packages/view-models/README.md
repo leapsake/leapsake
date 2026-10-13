@@ -98,7 +98,8 @@ birthday.
   row's point. Queued behind the main CTA, it appeared only for the few days a year nothing
   outranked it.
 - **Just the day**: a `plan` prompt's one-tap answer, the commonest, which writes the **full**
-  offer set with only `wish` enabled, so it counts as answered. A client that renders the prompt
+  offer set with only the day-of note (`wish`, or `remember` in memory) enabled, so it counts as
+  answered. A client that renders the prompt
   as only a link to a settings screen has lost the trade the prompt makes.
 - **Giving it in person**: on a milestone's posting (`send:*`), the answer the prompt no longer
   asks up front _(owner, 2026-10-01)_. It swaps that year's posting for a `give:*` on the day,
@@ -106,6 +107,9 @@ birthday.
 - **Remind me in…**: one per `SNOOZE_PRESET_DAYS` preset (tomorrow, three days, a week; _owner,
   2026-09-11_) that `snoozeTargetOf` allows, on any row. Never on a row due today or belated,
   never past the due date, never on a row not yet on display.
+- **They've passed away** (`mark-deceased`): on a `plan` prompt about a living person or pet
+  other than you, since the question about their day is where the user tends to learn it. It
+  opens a Death milestone form; saving one keeps their occasions in memory.
 - **Don't ask again**: offered from the first encounter _(owner, 2026-09-11)_, and only on rows
   Leapsake asked unbidden (nudges, `plan` prompts, partnership questions), since an ordinary
   reminder's Remove is already a permanent tombstone. With nothing retiring by being put off, it

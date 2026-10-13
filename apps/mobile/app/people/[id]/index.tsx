@@ -8,6 +8,7 @@ import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
+import { MarkDeceasedLink } from "../../../components/MarkDeceasedLink";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PersonDetailFields } from "../../../components/PersonDetailFields";
 import { RecordTimestamps } from "../../../components/RecordTimestamps";
@@ -150,6 +151,12 @@ export default function PersonDetailScreen() {
           <Text style={styles.link}>Merge duplicate…</Text>
         </Pressable>
       )}
+
+      <MarkDeceasedLink
+        bearerType="person"
+        bearerId={person.id}
+        timeline={timeline}
+      />
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
       <Button

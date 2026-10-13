@@ -54,6 +54,10 @@ const planContext = {
   planTarget: {
     milestoneId: "m1",
     milestoneKind: "birthday" as const,
+    bearerType: "person" as const,
+    bearerId: "p1",
+    subjectIsSelf: false,
+    memorial: false,
     occurrenceYear: 2026,
     offers: [
       {
@@ -193,6 +197,11 @@ describe("offerFor", () => {
         label: "Just the day",
       },
       ...REMIND_ME,
+      {
+        kind: "navigate",
+        path: "/people/p1/milestones/new?kind=death",
+        label: "They’ve passed away ›",
+      },
       { kind: "stop-asking", milestoneId: "m1", label: "Don’t ask again…" },
     ]);
   });
@@ -247,7 +256,7 @@ describe("isAnsweredInline", () => {
     // needs to draw beside Save.
     expect(
       actions.filter((a) => !isAnsweredInline(a)).map((a) => a.kind),
-    ).toEqual(["snooze", "snooze", "snooze", "stop-asking"]);
+    ).toEqual(["snooze", "snooze", "snooze", "mark-deceased", "stop-asking"]);
   });
 
   it("leaves an ordinary nudge's offers alone", () => {

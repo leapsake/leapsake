@@ -2,6 +2,7 @@ import { ONBOARDING_REMINDERS } from "@leapsake/reminders";
 import { dueDateMs, todayCivil } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import {
+  type PlanReminderSubject,
   SNOOZE_PRESET_DAYS,
   bucketReminders,
   partitionReminders,
@@ -133,6 +134,10 @@ describe("partitionReminders", () => {
 const planTarget = {
   milestoneId: "m1",
   milestoneKind: "birthday" as const,
+  bearerType: "person" as const,
+  bearerId: "p1",
+  subjectIsSelf: false,
+  memorial: false,
   occurrenceYear: 2026,
   offers: [
     {
@@ -331,8 +336,20 @@ describe("reminderActionsOf", () => {
       "snooze",
       "snooze",
       "snooze",
+      "mark-deceased",
       "stop-asking",
     ]);
+  });
+
+  it("offers to record a death only where someone could have died", () => {
+    const offered = (subject: Partial<PlanReminderSubject>) =>
+      kinds(reminder("prompt", {}), {
+        planTarget: { ...planTarget, ...subject },
+      }).includes("mark-deceased");
+    expect(offered({ bearerType: "pet" })).toBe(true);
+    expect(offered({ subjectIsSelf: true })).toBe(false);
+    expect(offered({ memorial: true })).toBe(false);
+    expect(offered({ bearerType: "relationship" })).toBe(false);
   });
 
   it("offers a posting the chance to be handed over in person instead", () => {

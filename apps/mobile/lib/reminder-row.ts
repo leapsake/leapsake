@@ -36,6 +36,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
   stopAsking: "Don’t ask again…",
+  markDeceased: "They’ve passed away ›",
   giveInPerson: "Giving it in person",
 };
 
@@ -144,6 +145,12 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return { kind: "dismiss", label };
     case "stop-asking":
       return { kind: "stop-asking", milestoneId: action.milestoneId, label };
+    case "mark-deceased":
+      return {
+        kind: "navigate",
+        path: `/${action.bearerType === "pet" ? "pets" : "people"}/${action.bearerId}/milestones/new?kind=death`,
+        label,
+      };
     case "give-in-person":
       return { ...action, label };
   }

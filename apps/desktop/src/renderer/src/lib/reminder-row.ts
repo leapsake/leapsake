@@ -35,6 +35,7 @@ const LABELS: Record<Exclude<ReminderOfferLabel, "remindMe">, string> = {
   justTheDay: "Just the day",
   dismiss: "Don’t ask again",
   stopAsking: "Don’t ask again…",
+  markDeceased: "They’ve passed away →",
   giveInPerson: "Giving it in person",
 };
 
@@ -72,6 +73,14 @@ function ctaPathFor(cta: ReminderCta): string {
     case "link-partner":
       return `/people/${cta.personId}/milestones/${cta.milestoneId}/rebind`;
   }
+}
+
+/** The form that records someone's death, already set to that kind. */
+function deathFormPath(action: {
+  bearerType: "person" | "pet";
+  bearerId: string;
+}): string {
+  return `/${action.bearerType === "pet" ? "pets" : "people"}/${action.bearerId}/milestones/new?kind=death`;
 }
 
 /**
@@ -141,5 +150,7 @@ export function rowAffordanceFor(
         to: `/milestones/${action.milestoneId}/stop-asking?reminder=${reminderId}`,
         label,
       };
+    case "mark-deceased":
+      return { kind: "link", to: deathFormPath(action), label };
   }
 }

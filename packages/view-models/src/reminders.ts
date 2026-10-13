@@ -5,6 +5,7 @@ import {
 } from "@leapsake/reminders";
 import {
   type GiftPartyType,
+  type MilestoneBearerType,
   type MilestoneKind,
   type ReminderAction,
   type ReminderRuleInput,
@@ -192,6 +193,13 @@ export interface PlanReminderSubject {
   milestoneId: string;
   /** Not `kind`, which {@link ReminderCta} discriminates on. */
   milestoneKind: MilestoneKind;
+  /** Whose occasion it is: a person, a pet or a relationship. */
+  bearerType: MilestoneBearerType;
+  bearerId: string;
+  /** The occasion is the user's own. */
+  subjectIsSelf: boolean;
+  /** The bearer has died, so the occasion is kept in memory. */
+  memorial: boolean;
   /** The year of the occasion asked about: the one year an answer covers. */
   occurrenceYear: number;
   /** Every action offered, `enabled` carrying which arrive pre-ticked. */
@@ -294,6 +302,7 @@ export type ReminderRowAction =
   | { kind: "snooze"; days: number }
   | { kind: "dismiss" }
   | { kind: "stop-asking"; milestoneId: string }
+  | { kind: "mark-deceased"; bearerType: "person" | "pet"; bearerId: string }
   | {
       kind: "give-in-person";
       milestoneId: string;
@@ -356,7 +365,7 @@ export function reminderActionsOf(
       year: cta.occurrenceYear,
       schedule: cta.offers.map((offer) => ({
         ...offer,
-        enabled: offer.action === "wish",
+        enabled: offer.action === "wish" || offer.action === "remember",
       })),
     });
 
@@ -389,6 +398,18 @@ export function reminderActionsOf(
     for (const days of SNOOZE_PRESET_DAYS)
       if (snoozeTargetOf(reminder, days, now) !== null)
         actions.push({ kind: "snooze", days });
+  // Where the user learns someone has died: the question about their day.
+  if (
+    cta?.kind === "plan" &&
+    cta.bearerType !== "relationship" &&
+    !cta.subjectIsSelf &&
+    !cta.memorial
+  )
+    actions.push({
+      kind: "mark-deceased",
+      bearerType: cta.bearerType,
+      bearerId: cta.bearerId,
+    });
   // A nudge's only out is permanent; a prompt's is this year's, or for good.
   if (cta?.kind === "plan")
     actions.push({ kind: "stop-asking", milestoneId: cta.milestoneId });
