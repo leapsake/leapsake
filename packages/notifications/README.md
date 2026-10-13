@@ -90,8 +90,7 @@ Every reminder notifying on a given day is bundled into one notification at each
 digest of more opens the list. Every time follows the same rule — whatever is still undone — and
 completing a reminder re-plans the day, so a later time carries only what is left, and none comes
 once nothing is. Each time spends a slot of the budget, so more times mean shorter coverage. The
-copy (`digestCopy` in `planner.ts`) is **provisional wording**, free to change without touching the
-reconcile mechanics, which only care about the `title`/`body` shape.
+copy is not this package's; see _The words are the caller's_.
 
 v0.1 also offered `each`, one notification per reminder. It was no more timely (the same schedule,
 exploded, with a tap target per item) and it spent the budget one slot per reminder rather than
@@ -100,6 +99,19 @@ UI, but `each` is still a valid stored mode, because v0.1 builds can write it in
 and the planner treats it as `digest`. To bring it back, restore `planEach` from git history and
 branch on the mode in `planNotifications` again. Once no v0.1 installs remain, the schema can drop
 it instead.
+
+## The words are the caller's
+
+Every notification is worded through the injected `NotificationCopy` port, so this package holds
+no user-visible text and the wording can be translated or rewritten without touching the plan.
+The planner describes each digest as a `DigestSituation`: whether it is a follow-up to the day's
+first time, the part of the day it fires in (`partOfDayOf`), the labels it carries, and a
+`variant`. The catalog (`@leapsake/ui/messages` → `notifications`) turns that into a title and
+body, choosing among a bank of phrasings by `variant`.
+
+⚠️ **The variant is a hash of the digest's id, never random.** `reconcile` reschedules on any
+change of text, so a phrasing that moved between plans would cancel and reschedule the whole
+schedule on every app open.
 
 ## Fire time is local wall-clock math, not the due-date storage convention
 

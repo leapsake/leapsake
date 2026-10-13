@@ -397,4 +397,21 @@ export interface Messages {
     pet: string;
     of: (type: GiftPartyType) => string;
   };
+
+  /** What reaches a device while the app is closed. */
+  notifications: {
+    /** One delivery's digest; `variant` picks among phrasings, so the same
+     *  digest always reads the same. */
+    digest: (situation: {
+      /** An earlier delivery time comes before this one the same day. */
+      followUp: boolean;
+      partOfDay: "morning" | "day" | "evening";
+      /** At least one. */
+      labels: readonly string[];
+      variant: number;
+    }) => { title: string; body: string };
+    /** The notice a month before the schedule lapses: never claims anything
+     *  was switched off, since opening the app is the fix. */
+    runningOut: { title: string; body: string };
+  };
 }

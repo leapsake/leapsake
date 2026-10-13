@@ -11,6 +11,29 @@ const people = (count: number) =>
 /** A count of items, in the singular for one. */
 const items = (count: number) => (count === 1 ? "1 item" : `${count} items`);
 
+/** Digest titles by first or later delivery, then part of day. Each must read
+ *  well above one reminder or several. */
+const DIGEST_TITLES = {
+  first: {
+    morning: [
+      "Good morning!",
+      "Morning! Here’s your day",
+      "Good morning, here’s today",
+    ],
+    day: ["Here’s today", "On your list today", "Today in Leapsake"],
+    evening: ["This evening", "Here’s today", "On your list today"],
+  },
+  followUp: {
+    morning: ["Still on your list", "Still waiting for you"],
+    day: ["Still on your list", "Still waiting for you", "Still to do today"],
+    evening: [
+      "Before your day ends",
+      "Still on your list",
+      "Still to do today",
+    ],
+  },
+} as const;
+
 /** The English catalog; gender values come from `@leapsake/schema`'s table. */
 export const en: Messages = {
   common: {
@@ -412,5 +435,23 @@ export const en: Messages = {
     person: "Person",
     pet: "Pet",
     of: (type) => (type === "pet" ? "Pet" : "Person"),
+  },
+
+  notifications: {
+    digest: ({ followUp, partOfDay, labels, variant }) => {
+      const titles = DIGEST_TITLES[followUp ? "followUp" : "first"][partOfDay];
+      const [lead, ...rest] = labels;
+      const body =
+        rest.length === 0
+          ? lead
+          : rest.length === 1
+            ? `${lead} and ${rest[0]}`
+            : `${lead} and ${rest.length} more`;
+      return { title: titles[variant % titles.length], body };
+    },
+    runningOut: {
+      title: "Your reminders are running out",
+      body: "Open Leapsake to keep them coming.",
+    },
   },
 };

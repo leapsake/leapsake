@@ -8,6 +8,12 @@ export type {
   NotificationPolicy,
   PlanOptions,
 } from "./planner.js";
+export type {
+  DigestSituation,
+  NotificationCopy,
+  NotificationText,
+  PartOfDay,
+} from "./copy.js";
 export { reconcile } from "./reconcile.js";
 export type {
   NotificationScheduler,

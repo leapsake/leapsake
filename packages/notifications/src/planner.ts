@@ -1,5 +1,6 @@
 // The planner: the notifications that should be pending, deterministic in
 // `now`. The horizon is the caller's; see the README.
+import { type NotificationCopy, partOfDayOf, variantOf } from "./copy.js";
 import {
   civilFromDueMs,
   dueDateMs,
@@ -71,6 +72,7 @@ export interface PlanOptions {
 export function planNotifications(
   reminders: readonly NotifiableReminder[],
   policy: NotificationPolicy,
+  copy: NotificationCopy,
   now: number,
   options: PlanOptions = {},
 ): DesiredNotification[] {
@@ -81,7 +83,7 @@ export function planNotifications(
     notifyDaysOf(reminder, now).map((day) => ({ reminder, day })),
   );
   // `each` falls through to the digest too; one-per-reminder was `planEach`.
-  const planned = planDigest(days, policy);
+  const planned = planDigest(days, policy, copy);
 
   const live = planned.filter((n) => n.fireAt > now);
   live.sort((a, b) => a.fireAt - b.fireAt);
@@ -89,11 +91,11 @@ export function planNotifications(
   // A slot is taken back for the notice only if the full plan warrants one;
   // `slice` and `- 1` both behave on `Infinity`.
   const full = live.slice(0, budget);
-  if (tripwireFor(full, now) === null) return full;
+  if (tripwireFor(full, copy, now) === null) return full;
 
   // Coverage now ends earlier, so the notice is derived again.
   const scheduled = live.slice(0, budget - 1);
-  const tripwire = tripwireFor(scheduled, now);
+  const tripwire = tripwireFor(scheduled, copy, now);
   return tripwire === null ? scheduled : [...scheduled, tripwire];
 }
 
@@ -106,6 +108,7 @@ const TRIPWIRE_ID = "tripwire";
  *  coverage or too little to warn ahead of it. */
 function tripwireFor(
   scheduled: readonly DesiredNotification[],
+  copy: NotificationCopy,
   now: number,
 ): DesiredNotification | null {
   if (scheduled.length === 0) return null;
@@ -118,10 +121,7 @@ function tripwireFor(
     // A fixed id and a coverage-based `fireAt`, so a re-plan changes nothing.
     id: TRIPWIRE_ID,
     fireAt,
-    // Provisional wording; never claim notifications were switched off, nor
-    // point at a setting: opening the app is the fix.
-    title: "Your reminders are running out",
-    body: "Open Leapsake to keep them coming.",
+    ...copy.runningOut,
     // The app itself is the destination.
     reminderId: null,
   };
@@ -170,6 +170,7 @@ function isoOf(date: CivilDate): string {
 function planDigest(
   days: readonly NotifyingDay[],
   policy: NotificationPolicy,
+  copy: NotificationCopy,
 ): DesiredNotification[] {
   const byDay = new Map<
     string,
@@ -186,36 +187,29 @@ function planDigest(
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .flatMap(([key, { day, reminders: dayReminders }]) => {
-      const { title, body } = digestCopy(dayReminders);
-      return policy.deliveryMinutes.map((minute) => ({
-        id: `digest:${key}@${clockOf(minute)}`,
-        fireAt: fireAtFor(day, minute),
-        title,
-        body,
-        // A digest of one reminder opens it; of more, the list.
-        reminderId: dayReminders.length === 1 ? dayReminders[0].id : null,
-      }));
+      const labels = dayReminders.map((r) => reminderLabel(r));
+      const first = Math.min(...policy.deliveryMinutes);
+      return policy.deliveryMinutes.map((minute) => {
+        const id = `digest:${key}@${clockOf(minute)}`;
+        return {
+          id,
+          fireAt: fireAtFor(day, minute),
+          ...copy.digest({
+            followUp: minute !== first,
+            partOfDay: partOfDayOf(minute),
+            labels,
+            variant: variantOf(id),
+          }),
+          // A digest of one reminder opens it; of more, the list.
+          reminderId: dayReminders.length === 1 ? dayReminders[0].id : null,
+        };
+      });
     });
 }
 
 /** Minute 540 as `0900`, keying a day's digests apart. */
 function clockOf(minute: number): string {
   return `${pad2(Math.floor(minute / 60))}${pad2(minute % 60)}`;
-}
-
-/** A day's digest copy: provisional; only its shape matters. */
-function digestCopy(reminders: readonly NotifiableReminder[]): {
-  title: string;
-  body: string;
-} {
-  const labels = reminders.map((r) => reminderLabel(r));
-  if (labels.length === 1) return { title: "Leapsake", body: labels[0] };
-  const [lead, ...rest] = labels;
-  const body =
-    rest.length === 1
-      ? `${lead} and ${rest[0]}`
-      : `${lead} and ${rest.length} more`;
-  return { title: `${labels.length} reminders today`, body };
 }
 
 /** The fire instant for a civil day and minute in the current zone: local

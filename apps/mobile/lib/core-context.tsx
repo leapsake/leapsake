@@ -42,6 +42,7 @@ import {
   planNotifications,
   reconcile as reconcileNotificationSchedule,
 } from "@leapsake/notifications";
+import { useMessages } from "@leapsake/ui/messages";
 import { addContactsChangeListener, getPermissionsAsync } from "expo-contacts";
 import { syncDeviceContacts } from "./device-contacts-sync";
 import { deviceRegion } from "./device-region";
@@ -155,6 +156,12 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [resetVersion, setResetVersion] = useState(0);
   // The current core, for listeners set up once before any core is built.
   const coreRef = useRef<CoreApi | null>(null);
+  // Read by the reconcile, which outlives a render.
+  const { notifications: notificationCopy } = useMessages();
+  const notificationCopyRef = useRef(notificationCopy);
+  useEffect(() => {
+    notificationCopyRef.current = notificationCopy;
+  }, [notificationCopy]);
   const deviceId = useRef<string | null>(null);
   const notificationScheduler = useRef<MobileNotificationScheduler | null>(
     null,
@@ -198,9 +205,15 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           scheduler.listPending(),
         ]);
         if (policy === undefined || !isLiveCore(coreApi)) return;
-        const desired = planNotifications(reminders, policy, Date.now(), {
-          budget: PLATFORM_NOTIFICATION_BUDGET,
-        });
+        const desired = planNotifications(
+          reminders,
+          policy,
+          notificationCopyRef.current,
+          Date.now(),
+          {
+            budget: PLATFORM_NOTIFICATION_BUDGET,
+          },
+        );
         await reconcileNotificationSchedule(desired, pending, scheduler);
       } catch (cause) {
         if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure

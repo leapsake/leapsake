@@ -7,10 +7,34 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   type DesiredNotification,
+  type DigestSituation,
   NOTIFICATION_BUDGET,
   type NotifiableReminder,
-  planNotifications,
+  type NotificationCopy,
+  type NotificationPolicy,
+  type PlanOptions,
+  planNotifications as planWith,
 } from "../src/index.js";
+
+/** Wording that spells out the situation it was written from, so a test reads
+ *  what the planner decided rather than any phrasing. */
+const COPY: NotificationCopy = {
+  digest: (situation) => ({
+    title: JSON.stringify({ ...situation, labels: undefined }),
+    body: situation.labels.join(" | "),
+  }),
+  runningOut: { title: "running out", body: "open the app" },
+};
+
+const situationOf = (n: DesiredNotification) =>
+  JSON.parse(n.title) as Omit<DigestSituation, "labels">;
+
+const planNotifications = (
+  reminders: readonly NotifiableReminder[],
+  policy: NotificationPolicy,
+  now: number,
+  options?: PlanOptions,
+) => planWith(reminders, policy, COPY, now, options);
 
 /** Local wall-clock instant — the same construction {@link planNotifications}
  *  uses for `fireAt`, so expectations stay timezone-agnostic across machines. */
@@ -115,7 +139,7 @@ describe("planNotifications", () => {
     ]);
     expect(result[0]).toMatchObject({
       fireAt: localInstant(2026, 8, 16, 9, 0),
-      title: "2 reminders today",
+      body: "Call Harry | Gift Tilly",
       // Two reminders that day — no single tap target.
       reminderId: null,
     });
@@ -262,7 +286,7 @@ describe("planNotifications — which days notify", () => {
     const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
     expect(result[0].id).toBe("digest:2026-08-18@0900");
-    expect(result[0].title).toBe("2 reminders today");
+    expect(result[0].body).toBe("Reminder | Reminder");
   });
 });
 
@@ -292,10 +316,57 @@ describe("planNotifications — several delivery times", () => {
 
     expect(evening).toMatchObject({
       fireAt: localInstant(2026, 8, 20, 19, 0),
-      title: morning.title,
       body: morning.body,
       reminderId: "wish",
     });
+  });
+
+  it("marks every time after the day's first as a follow-up", () => {
+    const r = occasion("wish", due({ year: 2026, month: 8, day: 20 }));
+
+    const [morning, evening] = planNotifications(
+      [r],
+      { mode: "digest", deliveryMinutes: [540, 1140] },
+      NOW,
+    );
+
+    expect(situationOf(morning).followUp).toBe(false);
+    expect(situationOf(evening).followUp).toBe(true);
+  });
+
+  it.each([
+    [240, "morning"],
+    [9 * 60 + 59, "morning"],
+    [10 * 60, "day"],
+    [16 * 60 + 59, "day"],
+    [17 * 60, "evening"],
+    [3 * 60 + 59, "evening"],
+  ])("words minute %i as %s", (minute, partOfDay) => {
+    const r = occasion("wish", due({ year: 2026, month: 8, day: 20 }));
+
+    const [first] = planNotifications(
+      [r],
+      { mode: "digest", deliveryMinutes: [minute] },
+      NOW,
+    );
+
+    expect(situationOf(first).partOfDay).toBe(partOfDay);
+  });
+
+  // Reconcile reschedules on any change of text, so the phrasing a digest is
+  // given must not move between plans.
+  it("gives each digest the same variant on every plan", () => {
+    const r = reminder({ id: "question" });
+
+    const a = planNotifications([r], MORNING_AND_EVENING, NOW);
+    const b = planNotifications([r], MORNING_AND_EVENING, NOW + 60_000);
+
+    expect(a.map((n) => situationOf(n).variant)).toEqual(
+      b.map((n) => situationOf(n).variant),
+    );
+    expect(new Set(a.map((n) => situationOf(n).variant)).size).toBeGreaterThan(
+      1,
+    );
   });
 
   it("keeps today's later time once its earlier one has passed", () => {
@@ -437,6 +508,14 @@ describe("planNotifications — the running-out notice", () => {
     const real = realOnly(result);
     expect(tripwire!.fireAt).toBeGreaterThan(NOW);
     expect(tripwire!.fireAt).toBeLessThan(real[real.length - 1].fireAt);
+  });
+
+  it("is worded by the copy's running-out notice", () => {
+    const tripwire = tripwireOf(
+      planNotifications(YEAR_OF_REMINDERS, POLICY_DIGEST, NOW),
+    );
+
+    expect(tripwire).toMatchObject(COPY.runningOut);
   });
 
   it("opens the app rather than any one reminder", () => {
