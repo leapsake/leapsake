@@ -791,6 +791,45 @@ describe("listNotifiableReminders", () => {
     expect(notifiable.map((r) => r.source).sort()).toEqual(["system", "user"]);
   });
 
+  it("labels each family with the category notifications choose by", async () => {
+    const h = makeHarness();
+    h.setMilestones([birthday("m1", "p1", FAR)]);
+    h.labels.set("p1", "Violet");
+    h.setSchedule("m1", [{ action: "wish", offsetDays: 0, enabled: true }]);
+    h.rows.set("u1", {
+      id: "u1",
+      title: "Book flights",
+      body: null,
+      completedAt: null,
+      dueDate: null,
+      snoozedUntil: null,
+      source: "user",
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+    });
+    const deps: ReminderEngineDeps = {
+      ...h.deps,
+      onboarding: {
+        hasAnyEntityBesidesSelf: async () => true,
+        hasSelf: async () => false,
+        hasAccount: async () => true,
+        hasNotificationPolicy: async () => true,
+      },
+      duplicates: { pairKeys: async () => ["a:b"] },
+    };
+
+    const notifiable = await listNotifiableReminders(deps);
+    const categoryOf = (title: string) =>
+      notifiable.find((r) => r.title?.includes(title))?.category;
+
+    expect(categoryOf("Book flights")).toBe("custom");
+    expect(categoryOf("Violet")).toBe("occasion");
+    expect(
+      notifiable.filter((r) => r.category === "todo").length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
   // *(owner, 2026-09-11)*: a dated reminder the user wrote goes on display on its
   // due date, so it waits in the later sections and enters Today — and notifies —
   // on the day it names. Undated, it is on display at once.

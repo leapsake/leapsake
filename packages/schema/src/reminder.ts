@@ -10,6 +10,12 @@ export const reminderSourceSchema = z.enum(["user", "system"]);
 
 export type ReminderSource = z.infer<typeof reminderSourceSchema>;
 
+/** What a reminder is about, for choosing which ones notify: one the user
+ *  wrote, one an occasion generates, or one the app asks of the user. */
+export const reminderCategorySchema = z.enum(["custom", "occasion", "todo"]);
+
+export type ReminderCategory = z.infer<typeof reminderCategorySchema>;
+
 /**
  * A note or task with a title, a body, or both. Its `#tags` and `@mentions` are
  * parsed from the text on every write; the text is their source of truth.

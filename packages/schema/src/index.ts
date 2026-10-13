@@ -70,6 +70,7 @@ export type { Tag, HashtagSegment } from "./tag.js";
 export {
   reminderSchema,
   reminderSourceSchema,
+  reminderCategorySchema,
   createReminderInputSchema,
   updateReminderInputSchema,
   snoozeUntilSchema,
@@ -84,6 +85,7 @@ export type {
   Reminder,
   ReminderWithTags,
   ReminderSource,
+  ReminderCategory,
   CreateReminderInput,
   UpdateReminderInput,
   ReminderDraft,

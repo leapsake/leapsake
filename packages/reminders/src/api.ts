@@ -483,6 +483,9 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         occurrenceDate: null,
         countdownDate: stored.dueDate,
         materialized: true,
+        // A row the walk no longer wants is never notified, so its family is
+        // moot; a system one is most likely a lapsed occasion.
+        category: stored.source === "user" ? "custom" : "occasion",
       });
     }
     return withTagsAndMentions(row);

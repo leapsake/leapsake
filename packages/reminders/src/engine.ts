@@ -4,6 +4,7 @@ import {
   type MilestoneBearerType,
   type RemindEligibleMilestone,
   type Reminder,
+  type ReminderCategory,
   type MilestoneKind,
   type ReminderAction,
   type ReminderRuleInput,
@@ -206,6 +207,7 @@ interface DesiredReminder {
   /** Whether the occasion has passed (see {@link isWithinWindow}); read by
    *  {@link displayTitle}. */
   belated?: boolean;
+  category: Exclude<ReminderCategory, "custom">;
 }
 
 /**
@@ -565,6 +567,7 @@ export interface ReminderWindowFacts {
   /** `false` marks a preview with no row yet: no state, and nothing to edit,
    *  remove or join. */
   materialized: boolean;
+  category: ReminderCategory;
 }
 
 /** A reminder paired with what the engine knows about its timing. */
@@ -615,6 +618,7 @@ export async function listRemindersInWindow(
       occurrenceDate: null,
       countdownDate: row.dueDate,
       materialized: true,
+      category: "custom" as const,
     })),
   ];
 }
@@ -650,6 +654,7 @@ function factsOf(
     occurrenceDate: want.occurrenceDate,
     countdownDate: want.countdownDate ?? want.dueDate,
     materialized,
+    category: want.category,
   };
 }
 
@@ -858,6 +863,7 @@ async function computeDesired(
           title: renderTitle(copy, false),
           copy,
           belated: days < 0,
+          category: "occasion",
           dueDate,
           activeFrom: dueDate - runUp * DAY_MS,
           occurrenceDate: dueDateMs(occ),
@@ -935,6 +941,7 @@ async function computeDesired(
             title: renderTitle(copy, false),
             copy,
             belated: days < 0,
+            category: "occasion",
             dueDate,
             activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
             occurrenceDate: dueDateMs(occ),
@@ -968,6 +975,7 @@ async function computeDesired(
         dueDate: null,
         activeFrom: null,
         occurrenceDate: null,
+        category: "todo",
         order: index,
       });
     }
@@ -985,6 +993,7 @@ async function computeDesired(
         dueDate: null,
         activeFrom: null,
         occurrenceDate: null,
+        category: "todo",
         order: ONBOARDING_STEPS.length,
       });
     }
@@ -1001,6 +1010,7 @@ async function computeDesired(
         dueDate: null,
         activeFrom: null,
         occurrenceDate: null,
+        category: "todo",
         order: ONBOARDING_STEPS.length + 1 + index,
       });
     }
