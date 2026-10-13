@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_DELIVERY_TIMES,
   notificationModeSchema,
   notificationSettingsSchema,
 } from "./notification-settings.js";
@@ -9,7 +10,7 @@ const validSettings = {
   label: "iPhone",
   platform: "ios",
   mode: "digest" as const,
-  deliveryMinute: 540,
+  deliveryMinutes: [540],
   permissionState: "granted",
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -56,12 +57,28 @@ describe("notificationSettingsSchema", () => {
     ).toThrow();
   });
 
-  it("rejects a non-integer deliveryMinute", () => {
-    expect(() =>
+  it("accepts up to MAX_DELIVERY_TIMES delivery times", () => {
+    const times = Array.from({ length: MAX_DELIVERY_TIMES }, (_, i) => i * 60);
+    expect(
       notificationSettingsSchema.parse({
         ...validSettings,
-        deliveryMinute: 540.5,
-      }),
+        deliveryMinutes: times,
+      }).deliveryMinutes,
+    ).toEqual(times);
+  });
+
+  it.each([
+    ["no times", []],
+    [
+      "more than MAX_DELIVERY_TIMES",
+      Array.from({ length: MAX_DELIVERY_TIMES + 1 }, (_, i) => i * 60),
+    ],
+    ["a non-integer minute", [540.5]],
+    ["a minute before midnight", [-1]],
+    ["a minute past the end of the day", [24 * 60]],
+  ])("rejects %s", (_, deliveryMinutes) => {
+    expect(() =>
+      notificationSettingsSchema.parse({ ...validSettings, deliveryMinutes }),
     ).toThrow();
   });
 });

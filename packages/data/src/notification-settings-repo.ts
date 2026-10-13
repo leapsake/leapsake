@@ -10,7 +10,7 @@ import { assignmentClause, resolveCodec } from "./syncable.js";
 type PolicyPatch = Partial<
   Pick<
     NotificationSettings,
-    "label" | "platform" | "mode" | "deliveryMinute" | "permissionState"
+    "label" | "platform" | "mode" | "deliveryMinutes" | "permissionState"
   >
 >;
 
@@ -18,9 +18,16 @@ const DEFAULTS = {
   label: null,
   platform: null,
   mode: "off",
-  deliveryMinute: 540,
+  deliveryMinutes: [540],
   permissionState: null,
 } as const satisfies PolicyPatch;
+
+const JSON_FIELDS = ["deliveryMinutes"] as const;
+
+/** Delivery times in the order they fire, each once. */
+function inFiringOrder(minutes: readonly number[]): number[] {
+  return [...new Set(minutes)].sort((a, b) => a - b);
+}
 
 export interface NotificationSettingsRepo extends EntityRepo<NotificationSettings> {
   /** Upsert any device's policy fields, creating the row with defaults if
@@ -46,9 +53,11 @@ export function createNotificationSettingsRepo(
     driver,
     table: "notification_settings",
     schema: notificationSettingsSchema,
+    json: JSON_FIELDS,
   });
   const codec = resolveCodec<NotificationSettings>({
     schema: notificationSettingsSchema,
+    json: JSON_FIELDS,
   });
 
   async function upsert(
@@ -93,7 +102,13 @@ export function createNotificationSettingsRepo(
 
   return {
     ...base,
-    setPolicy: (deviceId, patch) => upsert(deviceId, patch),
+    setPolicy: (deviceId, patch) =>
+      upsert(
+        deviceId,
+        patch.deliveryMinutes === undefined
+          ? patch
+          : { ...patch, deliveryMinutes: inFiringOrder(patch.deliveryMinutes) },
+      ),
     setPermissionState: (deviceId, state) =>
       upsert(deviceId, { permissionState: state }),
   };

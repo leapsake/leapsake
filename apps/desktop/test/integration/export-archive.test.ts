@@ -382,7 +382,7 @@ describe("core.export.archive — data.json", () => {
     );
     await core.notificationSettings.setPolicy("device-1", {
       mode: "digest",
-      deliveryMinute: 480,
+      deliveryMinutes: [480, 1140],
       label: "George's laptop",
       platform: "darwin",
     });
@@ -415,7 +415,7 @@ describe("core.export.archive — data.json", () => {
     expect(data.notificationSettings?.[0]).toMatchObject({
       id: "device-1",
       mode: "digest",
-      deliveryMinute: 480,
+      deliveryMinutes: [480, 1140],
       label: "George's laptop",
     });
     // A fact about one machine, not a preference: restoring it onto another

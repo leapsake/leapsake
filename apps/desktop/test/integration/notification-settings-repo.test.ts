@@ -3,6 +3,7 @@ import {
   type NotificationSettingsRepo,
   type SqliteDriver,
   createNotificationSettingsRepo,
+  migrations,
   runMigrations,
 } from "@leapsake/data";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -35,7 +36,7 @@ describe("notificationSettingsRepo", () => {
       label: null,
       platform: null,
       mode: "off",
-      deliveryMinute: 540,
+      deliveryMinutes: [540],
       permissionState: null,
       deletedAt: null,
     });
@@ -48,13 +49,13 @@ describe("notificationSettingsRepo", () => {
     await new Promise((resolve) => setTimeout(resolve, 2));
     const updated = await repo.setPolicy(deviceId, {
       mode: "each",
-      deliveryMinute: 480,
+      deliveryMinutes: [480],
     });
 
     expect(updated.label).toBe("iPhone");
     expect(updated.platform).toBe("ios");
     expect(updated.mode).toBe("each");
-    expect(updated.deliveryMinute).toBe(480);
+    expect(updated.deliveryMinutes).toEqual([480]);
 
     // Exactly one row — a re-write merges in place.
     const rows = await driver.all<{ n: number }>(
@@ -103,5 +104,52 @@ describe("notificationSettingsRepo", () => {
       "SELECT COUNT(*) AS n FROM notification_settings",
     );
     expect(rows[0]?.n).toBe(1);
+  });
+
+  it("stores delivery times in the order they fire, each once", async () => {
+    const deviceId = crypto.randomUUID();
+    const settings = await repo.setPolicy(deviceId, {
+      deliveryMinutes: [1140, 540, 1140],
+    });
+
+    expect(settings.deliveryMinutes).toEqual([540, 1140]);
+    expect((await repo.get(deviceId))?.deliveryMinutes).toEqual([540, 1140]);
+  });
+
+  it("rejects more than three delivery times", async () => {
+    await expect(
+      repo.setPolicy(crypto.randomUUID(), {
+        deliveryMinutes: [480, 720, 1020, 1140],
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("migration 44", () => {
+  it("carries a device's one delivery time into its list", async () => {
+    const fresh = makeEncryptedTestDriver();
+    try {
+      await runMigrations(
+        fresh.driver,
+        migrations.filter((step) => step.version <= 43),
+      );
+      await fresh.driver.run(
+        `INSERT INTO notification_settings
+           (id, mode, delivery_minute, created_at, updated_at)
+         VALUES ('device-1', 'digest', 480, 1, 1)`,
+      );
+
+      await runMigrations(fresh.driver);
+
+      const migrated = await createNotificationSettingsRepo(fresh.driver).get(
+        "device-1",
+      );
+      expect(migrated).toMatchObject({
+        mode: "digest",
+        deliveryMinutes: [480],
+      });
+    } finally {
+      fresh.cleanup();
+    }
   });
 });

@@ -11,9 +11,11 @@ import {
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import type { NotificationMode } from "@leapsake/core";
+import { MAX_DELIVERY_TIMES } from "@leapsake/schema";
 import { CheckboxBox } from "../components/Checkbox";
 import { SelectField } from "../components/SelectField";
 import { useCore, useDeviceId } from "../lib/core-context";
+import { nextDeliveryTime } from "../lib/delivery-times";
 import { requestNotificationPermissionOnThisDevice } from "../lib/notification-permission";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
@@ -29,10 +31,21 @@ const modeFor = (on: boolean): NotificationMode => (on ? "digest" : "off");
 /** The title on the alert a failed write raises; every write is a policy. */
 const FAILURE_TITLE = "Couldn’t save that";
 
-/** 9:00 AM, shown before this device has a policy row. */
-const DEFAULT_DELIVERY_MINUTE = 540;
+/** 9:00 AM alone, shown before this device has a policy row. */
+const DEFAULT_DELIVERY_MINUTES: readonly number[] = [540];
 
-/** "9:00 AM" for minute 540: `deliveryMinute` counts from local midnight. */
+/** The label on the first time's picker, then on each later one's. */
+const FIRST_TIME_LABEL = "Deliver at";
+const LATER_TIME_LABEL = "And again at";
+
+const ADD_TIME_LABEL = "Add another time";
+const REMOVE_TIME_LABEL = "Remove";
+const removeTimeA11yLabel = (time: string) => `Remove ${time}`;
+
+/** What every time shares, shown while another can be added. */
+const TIMES_HINT = "Each comes only if something is still waiting for you.";
+
+/** "9:00 AM" for minute 540, counted from local midnight. */
 function formatDeliveryTime(minute: number): string {
   const hour24 = Math.floor(minute / 60);
   const min = minute % 60;
@@ -68,7 +81,7 @@ export default function NotificationsScreen() {
     ]);
     return {
       mode: mine?.mode ?? ("off" as NotificationMode),
-      deliveryMinute: mine?.deliveryMinute ?? DEFAULT_DELIVERY_MINUTE,
+      deliveryMinutes: mine?.deliveryMinutes ?? DEFAULT_DELIVERY_MINUTES,
       others: others.filter((row) => row.id !== deviceId),
     };
   }, [core, deviceId]);
@@ -77,7 +90,7 @@ export default function NotificationsScreen() {
   // lags the spin, so the prop must follow the choice synchronously.
   const [pendingMine, setPendingMine] = useState<{
     mode?: NotificationMode;
-    deliveryMinute?: number;
+    deliveryMinutes?: readonly number[];
   }>({});
   const [pendingOthers, setPendingOthers] = useState<
     Record<string, NotificationMode>
@@ -107,7 +120,7 @@ export default function NotificationsScreen() {
   // never drifts from this device's own name.
   async function setMine(patch: {
     mode?: NotificationMode;
-    deliveryMinute?: number;
+    deliveryMinutes?: readonly number[];
   }) {
     const wasMode = data?.mode ?? "off";
     setPendingMine((current) => ({ ...current, ...patch }));
@@ -116,8 +129,10 @@ export default function NotificationsScreen() {
       else if (patch.mode !== undefined) {
         await requestPermissionIfOptingIn(patch.mode, wasMode);
       }
+      const { deliveryMinutes: times, ...rest } = patch;
       await core.notificationSettings.setPolicy(deviceId, {
-        ...patch,
+        ...rest,
+        ...(times === undefined ? {} : { deliveryMinutes: [...times] }),
         label: Platform.OS === "ios" ? "iPhone" : "Android phone",
         platform: Platform.OS,
       });
@@ -130,7 +145,7 @@ export default function NotificationsScreen() {
       setPendingMine((current) => {
         const next = { ...current };
         if ("mode" in patch) delete next.mode;
-        if ("deliveryMinute" in patch) delete next.deliveryMinute;
+        if ("deliveryMinutes" in patch) delete next.deliveryMinutes;
         return next;
       });
     }
@@ -154,10 +169,10 @@ export default function NotificationsScreen() {
 
   // The choice in flight, else the stored policy.
   const mode = pendingMine.mode ?? data?.mode ?? "off";
-  const deliveryMinute =
-    pendingMine.deliveryMinute ??
-    data?.deliveryMinute ??
-    DEFAULT_DELIVERY_MINUTE;
+  const deliveryMinutes =
+    pendingMine.deliveryMinutes ??
+    data?.deliveryMinutes ??
+    DEFAULT_DELIVERY_MINUTES;
 
   return (
     <>
@@ -176,13 +191,9 @@ export default function NotificationsScreen() {
               onToggle={(on) => void setMine({ mode: modeFor(on) })}
             />
             {mode !== "off" && (
-              <SelectField
-                label="Deliver at"
-                value={String(deliveryMinute)}
-                options={TIME_OPTIONS}
-                onChange={(value) =>
-                  void setMine({ deliveryMinute: Number(value) })
-                }
+              <DeliveryTimes
+                minutes={deliveryMinutes}
+                onChange={(next) => void setMine({ deliveryMinutes: next })}
               />
             )}
             {permissionNotice !== null && (
@@ -216,6 +227,62 @@ export default function NotificationsScreen() {
         )}
       </ScrollView>
     </>
+  );
+}
+
+/**
+ * One picker per delivery time, each offering only the times not already
+ * taken; later ones can be removed, and more added up to the cap.
+ */
+function DeliveryTimes({
+  minutes,
+  onChange,
+}: {
+  minutes: readonly number[];
+  onChange: (next: readonly number[]) => void;
+}) {
+  const replaceAt = (index: number, minute: number) =>
+    onChange(minutes.map((m, i) => (i === index ? minute : m)));
+  const removeAt = (index: number) =>
+    onChange(minutes.filter((_, i) => i !== index));
+
+  return (
+    <View style={{ gap: 8 }}>
+      {minutes.map((minute, index) => (
+        <View key={index} style={{ gap: 4 }}>
+          <SelectField
+            label={index === 0 ? FIRST_TIME_LABEL : LATER_TIME_LABEL}
+            value={String(minute)}
+            options={TIME_OPTIONS.filter(
+              (option) =>
+                option.value === String(minute) ||
+                !minutes.includes(Number(option.value)),
+            )}
+            onChange={(value) => replaceAt(index, Number(value))}
+          />
+          {index > 0 && (
+            <Button
+              label={REMOVE_TIME_LABEL}
+              tone="secondary"
+              accessibilityLabel={removeTimeA11yLabel(
+                formatDeliveryTime(minute),
+              )}
+              onPress={() => removeAt(index)}
+            />
+          )}
+        </View>
+      ))}
+      {minutes.length < MAX_DELIVERY_TIMES && (
+        <>
+          <Button
+            label={ADD_TIME_LABEL}
+            tone="secondary"
+            onPress={() => onChange([...minutes, nextDeliveryTime(minutes)])}
+          />
+          <Text style={styles.muted}>{TIMES_HINT}</Text>
+        </>
+      )}
+    </View>
   );
 }
 

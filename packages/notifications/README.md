@@ -85,8 +85,11 @@ asked for is about to stop working; re-engagement tells them they'd get more out
 
 ## One mode: the digest _(owner, 2026-09-30)_
 
-Every reminder notifying on a given day fires at the same `deliveryMinute`, bundled into one
-notification: tapping a digest of one reminder opens it, and a digest of more opens the list. The
+Every reminder notifying on a given day is bundled into one notification at each of the device's
+`deliveryMinutes` (up to `MAX_DELIVERY_TIMES`): tapping a digest of one reminder opens it, and a
+digest of more opens the list. Every time follows the same rule — whatever is still undone — and
+completing a reminder re-plans the day, so a later time carries only what is left, and none comes
+once nothing is. Each time spends a slot of the budget, so more times mean shorter coverage. The
 copy (`digestCopy` in `planner.ts`) is **provisional wording**, free to change without touching the
 reconcile mechanics, which only care about the `title`/`body` shape.
 
@@ -120,6 +123,6 @@ scheduler calls), and any drift cancels-then-reschedules rather than trying to p
   (`expo-notifications`), and a future desktop applier (Electron's `Notification`) can share this
   package unchanged.
 - **No device policy storage.** `notification_settings` (migration 29) and its repo are
-  `@leapsake/data`'s; this package only reads the `mode`/`deliveryMinute` shape (`NotificationPolicy`)
+  `@leapsake/data`'s; this package only reads the `mode`/`deliveryMinutes` shape (`NotificationPolicy`)
   off whatever row the caller passes.
 - **No permission handling.** Asking for OS permission, and what to do on denial, is Inc 3's.

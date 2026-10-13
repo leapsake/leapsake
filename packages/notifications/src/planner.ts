@@ -37,8 +37,8 @@ export interface NotifiableReminder {
 /** The fields of a `notification_settings` row the planner reads. */
 export interface NotificationPolicy {
   mode: NotificationMode;
-  /** Minutes past local midnight the notification fires at. */
-  deliveryMinute: number;
+  /** Minutes past local midnight, one digest each. */
+  deliveryMinutes: readonly number[];
 }
 
 /** One notification that should be pending; its `id` is stable per mode and
@@ -185,17 +185,22 @@ function planDigest(
 
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([key, { day, reminders: dayReminders }]) => {
+    .flatMap(([key, { day, reminders: dayReminders }]) => {
       const { title, body } = digestCopy(dayReminders);
-      return {
-        id: `digest:${key}`,
-        fireAt: fireAtFor(day, policy.deliveryMinute),
+      return policy.deliveryMinutes.map((minute) => ({
+        id: `digest:${key}@${clockOf(minute)}`,
+        fireAt: fireAtFor(day, minute),
         title,
         body,
         // A digest of one reminder opens it; of more, the list.
         reminderId: dayReminders.length === 1 ? dayReminders[0].id : null,
-      };
+      }));
     });
+}
+
+/** Minute 540 as `0900`, keying a day's digests apart. */
+function clockOf(minute: number): string {
+  return `${pad2(Math.floor(minute / 60))}${pad2(minute % 60)}`;
 }
 
 /** A day's digest copy: provisional; only its shape matters. */

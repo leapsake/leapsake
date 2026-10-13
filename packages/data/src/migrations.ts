@@ -777,6 +777,19 @@ export const migrations: Migration[] = [
       );
     },
   },
+  {
+    version: 44,
+    async up(driver) {
+      // A device's delivery times become a JSON list, its one time the first.
+      await driver.exec(`
+        ALTER TABLE notification_settings
+          ADD COLUMN delivery_minutes TEXT NOT NULL DEFAULT '[540]';
+        UPDATE notification_settings
+           SET delivery_minutes = '[' || delivery_minute || ']';
+        ALTER TABLE notification_settings DROP COLUMN delivery_minute;
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

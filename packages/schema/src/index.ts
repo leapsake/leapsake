@@ -102,6 +102,8 @@ export type { SelfPerson, SetSelfInput } from "./self-person.js";
 export {
   notificationModeSchema,
   notificationSettingsSchema,
+  deliveryMinutesSchema,
+  MAX_DELIVERY_TIMES,
 } from "./notification-settings.js";
 export type {
   NotificationMode,

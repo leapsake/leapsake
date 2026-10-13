@@ -812,7 +812,7 @@ describe("buildArchive — data.json", () => {
                 label: "iPhone",
                 platform: "ios",
                 mode: "digest",
-                deliveryMinute: 540,
+                deliveryMinutes: [540],
                 permissionState: "granted",
                 ...stamps,
               },
@@ -946,7 +946,7 @@ describe("buildArchive — data.json", () => {
                 label: "George's iPhone",
                 platform: "ios",
                 mode: "each",
-                deliveryMinute: 480,
+                deliveryMinutes: [480],
                 permissionState: "granted",
                 ...stamps,
               },
@@ -961,7 +961,7 @@ describe("buildArchive — data.json", () => {
       id: "device-1",
       label: "George's iPhone",
       mode: "each",
-      deliveryMinute: 480,
+      deliveryMinutes: [480],
     });
     expect(row).not.toHaveProperty("platform");
     expect(row).not.toHaveProperty("permissionState");

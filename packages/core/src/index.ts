@@ -1037,7 +1037,7 @@ export function createCore(
         deviceId: string,
         patch: Partial<{
           mode: NotificationMode;
-          deliveryMinute: number;
+          deliveryMinutes: number[];
           label: string | null;
           platform: string | null;
         }>,

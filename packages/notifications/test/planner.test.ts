@@ -66,7 +66,7 @@ function occasion(
 const idsOf = (plan: DesiredNotification[]) =>
   plan.filter((n) => n.id !== "tripwire").map((n) => n.id);
 
-const POLICY_DIGEST = { mode: "digest" as const, deliveryMinute: 540 }; // 09:00
+const POLICY_DIGEST = { mode: "digest" as const, deliveryMinutes: [540] }; // 09:00
 const NOW = localInstant(2026, 8, 15, 8, 0);
 
 /** The service notice is the one planned entry not about a reminder; these two
@@ -86,7 +86,7 @@ describe("planNotifications", () => {
       dueDate: due({ year: 2026, month: 8, day: 20 }),
     });
     expect(
-      planNotifications([r], { mode: "off", deliveryMinute: 540 }, NOW),
+      planNotifications([r], { mode: "off", deliveryMinutes: [540] }, NOW),
     ).toEqual([]);
   });
 
@@ -106,12 +106,12 @@ describe("planNotifications", () => {
     const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
     expect(idsOf(result)).toEqual([
-      "digest:2026-08-16",
-      "digest:2026-08-17",
-      "digest:2026-08-18",
-      "digest:2026-08-20",
-      "digest:2026-08-21",
-      "digest:2026-08-22",
+      "digest:2026-08-16@0900",
+      "digest:2026-08-17@0900",
+      "digest:2026-08-18@0900",
+      "digest:2026-08-20@0900",
+      "digest:2026-08-21@0900",
+      "digest:2026-08-22@0900",
     ]);
     expect(result[0]).toMatchObject({
       fireAt: localInstant(2026, 8, 16, 9, 0),
@@ -148,12 +148,12 @@ describe("planNotifications — which days notify", () => {
     });
 
     expect(idsOf(planNotifications([r], POLICY_DIGEST, NOW))).toEqual([
-      "digest:2026-08-17",
-      "digest:2026-08-18",
-      "digest:2026-08-19",
-      "digest:2026-08-20",
-      "digest:2026-08-21",
-      "digest:2026-08-22",
+      "digest:2026-08-17@0900",
+      "digest:2026-08-18@0900",
+      "digest:2026-08-19@0900",
+      "digest:2026-08-20@0900",
+      "digest:2026-08-21@0900",
+      "digest:2026-08-22@0900",
     ]);
   });
 
@@ -163,10 +163,10 @@ describe("planNotifications — which days notify", () => {
     });
 
     expect(idsOf(planNotifications([r], POLICY_DIGEST, NOW))).toEqual([
-      "digest:2026-08-15",
-      "digest:2026-08-16",
-      "digest:2026-08-17",
-      "digest:2026-08-18",
+      "digest:2026-08-15@0900",
+      "digest:2026-08-16@0900",
+      "digest:2026-08-17@0900",
+      "digest:2026-08-18@0900",
     ]);
   });
 
@@ -175,7 +175,7 @@ describe("planNotifications — which days notify", () => {
 
     const ids = idsOf(planNotifications([r], POLICY_DIGEST, NOW));
 
-    expect(ids.at(-1)).toBe("digest:2026-08-22");
+    expect(ids.at(-1)).toBe("digest:2026-08-22@0900");
   });
 
   it("keeps notifying a row with no occasion until it is done", () => {
@@ -191,9 +191,9 @@ describe("planNotifications — which days notify", () => {
     );
 
     expect(ids.slice(0, 3)).toEqual([
-      "digest:2026-08-17",
-      "digest:2026-08-18",
-      "digest:2026-08-19",
+      "digest:2026-08-17@0900",
+      "digest:2026-08-18@0900",
+      "digest:2026-08-19@0900",
     ]);
     // Daily through the year the plan looks ahead, from 17 August on.
     expect(ids).toHaveLength(NOTIFICATION_WINDOW_DAYS - 1);
@@ -204,7 +204,10 @@ describe("planNotifications — which days notify", () => {
 
     const ids = idsOf(planNotifications([r], POLICY_DIGEST, NOW));
 
-    expect(ids.slice(0, 2)).toEqual(["digest:2026-08-15", "digest:2026-08-16"]);
+    expect(ids.slice(0, 2)).toEqual([
+      "digest:2026-08-15@0900",
+      "digest:2026-08-16@0900",
+    ]);
   });
 
   // The regression an earlier version had: a snoozed row was dropped outright,
@@ -216,11 +219,11 @@ describe("planNotifications — which days notify", () => {
     });
 
     expect(idsOf(planNotifications([r], POLICY_DIGEST, NOW))).toEqual([
-      "digest:2026-08-18",
-      "digest:2026-08-19",
-      "digest:2026-08-20",
-      "digest:2026-08-21",
-      "digest:2026-08-22",
+      "digest:2026-08-18@0900",
+      "digest:2026-08-19@0900",
+      "digest:2026-08-20@0900",
+      "digest:2026-08-21@0900",
+      "digest:2026-08-22@0900",
     ]);
   });
 
@@ -232,7 +235,7 @@ describe("planNotifications — which days notify", () => {
 
     const ids = idsOf(planNotifications([r], POLICY_DIGEST, NOW));
 
-    expect(ids[0]).toBe("digest:2026-08-18");
+    expect(ids[0]).toBe("digest:2026-08-18@0900");
   });
 
   it("ignores a snooze that has already ended", () => {
@@ -242,7 +245,7 @@ describe("planNotifications — which days notify", () => {
     });
 
     expect(idsOf(planNotifications([r], POLICY_DIGEST, NOW))[0]).toBe(
-      "digest:2026-08-15",
+      "digest:2026-08-15@0900",
     );
   });
 
@@ -258,8 +261,63 @@ describe("planNotifications — which days notify", () => {
 
     const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
-    expect(result[0].id).toBe("digest:2026-08-18");
+    expect(result[0].id).toBe("digest:2026-08-18@0900");
     expect(result[0].title).toBe("2 reminders today");
+  });
+});
+
+describe("planNotifications — several delivery times", () => {
+  const MORNING_AND_EVENING = {
+    mode: "digest" as const,
+    deliveryMinutes: [540, 1140], // 09:00 and 19:00
+  };
+
+  it("plans a digest at each time on every day", () => {
+    const r = occasion("wish", due({ year: 2026, month: 8, day: 20 }));
+
+    const ids = idsOf(planNotifications([r], MORNING_AND_EVENING, NOW));
+
+    expect(ids.slice(0, 4)).toEqual([
+      "digest:2026-08-20@0900",
+      "digest:2026-08-20@1900",
+      "digest:2026-08-21@0900",
+      "digest:2026-08-21@1900",
+    ]);
+  });
+
+  it("carries the same reminders at each of a day's times", () => {
+    const r = occasion("wish", due({ year: 2026, month: 8, day: 20 }));
+
+    const [morning, evening] = planNotifications([r], MORNING_AND_EVENING, NOW);
+
+    expect(evening).toMatchObject({
+      fireAt: localInstant(2026, 8, 20, 19, 0),
+      title: morning.title,
+      body: morning.body,
+      reminderId: "wish",
+    });
+  });
+
+  it("keeps today's later time once its earlier one has passed", () => {
+    const r = reminder({ id: "question" });
+    const afterNine = localInstant(2026, 8, 15, 10, 0);
+
+    const ids = idsOf(planNotifications([r], MORNING_AND_EVENING, afterNine));
+
+    expect(ids.slice(0, 2)).toEqual([
+      "digest:2026-08-15@1900",
+      "digest:2026-08-16@0900",
+    ]);
+  });
+
+  it("spends one slot of the budget per time", () => {
+    const r = reminder({ id: "question" });
+
+    const plan = planNotifications([r], MORNING_AND_EVENING, NOW);
+
+    // Thirty days of coverage: too short to warrant the running-out notice.
+    expect(plan).toHaveLength(NOTIFICATION_BUDGET);
+    expect(plan.at(-1)?.fireAt).toBe(localInstant(2026, 8, 15 + 29, 19, 0));
   });
 });
 
@@ -332,7 +390,11 @@ describe("planNotifications — the budget", () => {
     ];
 
     expect(
-      planNotifications(reminders, { mode: "each", deliveryMinute: 540 }, NOW),
+      planNotifications(
+        reminders,
+        { mode: "each", deliveryMinutes: [540] },
+        NOW,
+      ),
     ).toEqual(planNotifications(reminders, POLICY_DIGEST, NOW));
   });
 
@@ -342,7 +404,7 @@ describe("planNotifications — the budget", () => {
 
     const ids = idsOf(planNotifications([r], POLICY_DIGEST, afterNine));
 
-    expect(ids[0]).toBe("digest:2026-08-16");
+    expect(ids[0]).toBe("digest:2026-08-16@0900");
   });
 });
 
@@ -425,7 +487,7 @@ describe("planNotifications — the running-out notice", () => {
     expect(
       planNotifications(
         YEAR_OF_REMINDERS,
-        { mode: "off", deliveryMinute: 540 },
+        { mode: "off", deliveryMinutes: [540] },
         NOW,
       ),
     ).toEqual([]);
