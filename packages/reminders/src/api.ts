@@ -491,7 +491,9 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerId: string,
     kind: MilestoneKind,
   ): Promise<{ subjectIsSelf: boolean; shared: boolean; memorial: boolean }> {
-    const memorial = await isDeceased(bearerType, bearerId);
+    // A death's bearer has died, even while the form recording it is open.
+    const memorial =
+      kind === "death" || (await isDeceased(bearerType, bearerId));
     const isSelf = await milestoneIsSelf(bearerType, bearerId);
     const subjectIsSelf = !memorial && isSelf && bearerType === "person";
     return {

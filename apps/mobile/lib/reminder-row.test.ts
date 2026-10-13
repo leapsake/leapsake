@@ -8,6 +8,7 @@ import {
   REMOVAL_COPY,
   foldSnoozes,
   isAnsweredInline,
+  isInStopAskingSheet,
   offerFor,
   remindInLabel,
 } from "./reminder-row";
@@ -282,5 +283,17 @@ describe("REMOVAL_COPY", () => {
     expect(copy.title).toBe("Delete reminder");
     expect(copy.confirm).toBe("Delete");
     expect(copy.message("Call Ana")).toBe("Delete “Call Ana”?");
+  });
+});
+
+describe("isInStopAskingSheet", () => {
+  // Recording a death is a way out of the question, not something to do, so
+  // it waits behind "Don't ask again…" instead of drawing as a button.
+  it("keeps only the record of a death off the screen", () => {
+    expect(
+      actionsFor("prompt", null, planContext)
+        .filter(isInStopAskingSheet)
+        .map((a) => a.kind),
+    ).toEqual(["mark-deceased"]);
   });
 });

@@ -30,6 +30,7 @@ import {
   STOP_ASKING,
   foldSnoozes,
   isAnsweredInline,
+  isInStopAskingSheet,
   offerFor,
   remindInLabel,
 } from "../../../lib/reminder-row";
@@ -141,7 +142,10 @@ export default function ReminderDetailScreen() {
   });
   // On a prompt, the offers the inline form answers are not drawn;
   // `reminderRowOf` still reads the full set.
-  const offered = actions.filter((a) => !isPrompt || !isAnsweredInline(a));
+  const offered = actions.filter(
+    (a) => (!isPrompt || !isAnsweredInline(a)) && !isInStopAskingSheet(a),
+  );
+  const markDeceased = actions.find(isInStopAskingSheet);
   // A reminder offers at most one CTA; completion is filled only without one,
   // so two filled buttons never share a screen.
   const hasCta = offered.some((a) => offerFor(a).kind === "navigate");
@@ -414,6 +418,19 @@ export default function ReminderDetailScreen() {
                   danger: true,
                   onPress: () => stopAskingFor(stopAsking, true),
                 },
+                ...(markDeceased === undefined
+                  ? []
+                  : [
+                      {
+                        key: reminderActionKey(markDeceased),
+                        label: STOP_ASKING.deceased,
+                        onPress: () => {
+                          const offer = offerFor(markDeceased);
+                          if (offer.kind === "navigate")
+                            router.push(offer.path);
+                        },
+                      },
+                    ]),
               ]
         }
         onClose={() => setStopAsking(null)}

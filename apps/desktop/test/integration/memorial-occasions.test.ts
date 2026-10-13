@@ -413,3 +413,17 @@ describe("the people list", () => {
     expect(rows.find((r) => r.id === ma.id)?.deceased).toBe(false);
   });
 });
+
+describe("the form that records a death", () => {
+  it("offers what will happen once it is saved", async () => {
+    const { peter, ma } = await baileys();
+
+    const context = await core.milestones.scheduleContext(
+      "person",
+      peter.id,
+      "death",
+    );
+    expect(context.audience).toBe("memorial");
+    expect(context.reachable[0]).toBe(ma.id);
+  });
+});

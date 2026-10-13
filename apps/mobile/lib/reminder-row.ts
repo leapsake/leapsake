@@ -50,11 +50,13 @@ function remindMeLabel(days: number): string {
 /** The control that opens the “Remind me in…” sheet, and the sheet's title. */
 export const REMIND_ME_IN = { button: "Remind me in…", sheet: "Remind me" };
 
-/** The “Don’t ask again…” sheet: its title and its two lengths. */
+/** The “Don’t ask again…” sheet: its title, its two lengths, and the reason
+ *  that outlasts both. */
 export const STOP_ASKING = {
   sheet: "Don’t ask again",
   thisYear: "This year",
   ever: "Ever",
+  deceased: "They’ve passed away",
 };
 
 /** One length in the “Remind me in…” sheet, which already says “remind me”. */
@@ -187,6 +189,12 @@ export function isAnsweredInline(action: ReminderRowAction): boolean {
     (action.kind === "cta" &&
       (action.cta.kind === "plan" || action.cta.kind === "link-partner"))
   );
+}
+
+/** Whether an offer lives in the “Don’t ask again…” sheet rather than on the
+ *  screen: recording a death is a quiet way out, not an errand. */
+export function isInStopAskingSheet(action: ReminderRowAction): boolean {
+  return action.kind === "mark-deceased";
 }
 
 /** What the removal confirmation says; `message` takes the reminder's label. */
