@@ -5,7 +5,6 @@ import { RecordSection } from "../../../components/RecordSection";
 import { GiftsSection } from "../../../components/GiftsSection";
 import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
-import { MarkDeceasedLink } from "../../../components/MarkDeceasedLink";
 import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PetDetailFields } from "../../../components/PetDetailFields";
 import { RecordTimestamps } from "../../../components/RecordTimestamps";
@@ -111,12 +110,6 @@ export default function PetDetailScreen() {
       </RecordSection>
 
       <MentionedInSection reminders={mentionedIn} />
-
-      <MarkDeceasedLink
-        bearerType="pet"
-        bearerId={pet.id}
-        timeline={timeline}
-      />
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}
       <Button label="Delete pet" tone="destructive" onPress={confirmDelete} />

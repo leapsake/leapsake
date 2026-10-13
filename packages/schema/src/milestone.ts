@@ -31,13 +31,13 @@ export type MilestoneBearerType = z.infer<typeof milestoneBearerTypeSchema>;
  */
 export const milestoneKindSchema = z.enum([
   "birthday",
-  "death",
   "first-date",
   "wedding",
   "met",
   "graduation",
   "job-start",
   "moved",
+  "death",
   "other",
 ]);
 
@@ -165,26 +165,6 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     ],
     memorialNote: (subject) => `🕯️ It would have been ${subject}’s birthday`,
   },
-  death: {
-    label: "Death",
-    icon: "🕯️",
-    allowedBearerTypes: ["person", "pet"],
-    recursAnnually: true,
-    greeting: "a peaceful remembrance",
-    // Asked only in memory, which a death always is: its bearer has died.
-    prompt: { occasion: "passing" },
-    defaultReminderSchedule: [
-      { action: "remember", offsetDays: 0, enabledByDefault: false },
-    ],
-    memorialReminderSchedule: [
-      {
-        action: "visit:resting-place",
-        offsetDays: 0,
-        enabledByDefault: false,
-      },
-      { action: "remember", offsetDays: 0, enabledByDefault: true },
-    ],
-  },
   "first-date": {
     label: "First Date",
     icon: "💞",
@@ -291,6 +271,26 @@ export const kindDefs: Record<MilestoneKind, MilestoneKindDef> = {
     defaultReminderSchedule: [
       { action: "get:gift", offsetDays: 0, enabledByDefault: false },
       { action: "visit", offsetDays: 0, enabledByDefault: false },
+    ],
+  },
+  death: {
+    label: "Death",
+    icon: "🕯️",
+    allowedBearerTypes: ["person", "pet"],
+    recursAnnually: true,
+    greeting: "a peaceful remembrance",
+    // Asked only in memory, which a death always is: its bearer has died.
+    prompt: { occasion: "passing" },
+    defaultReminderSchedule: [
+      { action: "remember", offsetDays: 0, enabledByDefault: false },
+    ],
+    memorialReminderSchedule: [
+      {
+        action: "visit:resting-place",
+        offsetDays: 0,
+        enabledByDefault: false,
+      },
+      { action: "remember", offsetDays: 0, enabledByDefault: true },
     ],
   },
   other: {

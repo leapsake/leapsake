@@ -154,6 +154,15 @@ describe("kind registry", () => {
     expect(relKinds).not.toContain("birthday");
   });
 
+  it("lists Death last of all but Other", () => {
+    for (const bearer of ["person", "pet"] as const)
+      expect(
+        kindsForBearerType(bearer)
+          .slice(-2)
+          .map((k) => k.kind),
+      ).toEqual(["death", "other"]);
+  });
+
   it("reports the preferred bearer type per kind", () => {
     expect(preferredBearerType("birthday")).toBe("person");
     expect(preferredBearerType("first-date")).toBe("relationship");
