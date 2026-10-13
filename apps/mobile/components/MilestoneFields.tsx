@@ -74,6 +74,7 @@ export function MilestoneFields({
   onChange,
   errors,
   bearerType,
+  isSelf = false,
   offer,
   collapseSchedule = false,
   kindFixed = false,
@@ -83,6 +84,8 @@ export function MilestoneFields({
   onChange: (draft: MilestoneDraft) => void;
   errors: MilestoneDraftErrors;
   bearerType: MilestoneBearerType;
+  /** The bearer is the user, who can't record their own death. */
+  isSelf?: boolean;
   /** How the schedule's offers are worded; absent words them about someone
    *  else. */
   offer?: OfferContext;
@@ -95,7 +98,9 @@ export function MilestoneFields({
 }) {
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
-  const kinds = kindsForBearerType(bearerType);
+  const kinds = kindsForBearerType(bearerType).filter(
+    (k) => !isSelf || k.kind !== "death",
+  );
   const def = kindDefs[draft.kind];
   // Counted as drawn: a gift and its delivery are one line.
   const lines = promptItemsOf(draft.reminderSchedule);

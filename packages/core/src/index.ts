@@ -320,6 +320,9 @@ const PARTNER_ROLE: Partial<Record<MilestoneKind, RelationshipRole>> = {
   "first-date": "partner",
 };
 
+/** Why core refuses to record the user's own death. */
+const OWN_DEATH = "You can’t record your own death.";
+
 export function createCore(
   driver: SqliteDriver,
   /** `phoneRegion`: the device's ISO country, which a number written without
@@ -497,6 +500,18 @@ export function createCore(
       }
       if (answer !== undefined) await writePlanAnswer(milestoneId, answer);
     });
+  }
+
+  /** Throws rather than record the user's own death: you can't be the one
+   *  remembering yourself. */
+  async function refuseOwnDeath(
+    kind: MilestoneKind,
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<void> {
+    if (kind !== "death" || bearerType !== "person") return;
+    if ((await self.getSelf())?.personId === bearerId)
+      throw new Error(OWN_DEATH);
   }
 
   /** Drops what was chosen for someone's other occasions now they have died,
@@ -951,6 +966,7 @@ export function createCore(
       // Milestone and schedule commit together. A sent `reminderSchedule`
       // replaces the whole rule set; an omitted one leaves it as it is.
       create: async (input: CreateMilestoneInput): Promise<Milestone> => {
+        await refuseOwnDeath(input.kind, input.bearerType, input.bearerId);
         const { reminderSchedule, ...milestoneInput } = input;
         const milestone = await driver.transaction(async () => {
           const created = await milestones.create(milestoneInput);
@@ -978,6 +994,13 @@ export function createCore(
         input: UpdateMilestoneInput,
       ): Promise<Milestone | undefined> => {
         const { reminderSchedule, ...milestoneInput } = input;
+        const current = await milestones.get(id);
+        if (current !== undefined)
+          await refuseOwnDeath(
+            input.kind ?? current.kind,
+            current.bearerType,
+            current.bearerId,
+          );
         const milestone = await driver.transaction(async () => {
           const updated = await milestones.update(id, milestoneInput);
           // Only touch rules for a milestone that still exists (update returns
@@ -1061,6 +1084,10 @@ export function createCore(
     self: {
       get: (): Promise<SelfPerson | undefined> => self.getSelf(),
       set: async (personId: string): Promise<SelfPerson> => {
+        const died = (await milestones.listForBearer("person", personId)).some(
+          (m) => m.kind === "death",
+        );
+        if (died) throw new Error(OWN_DEATH);
         const row = await self.setSelf(personId);
         await regenerateSystem();
         return row;

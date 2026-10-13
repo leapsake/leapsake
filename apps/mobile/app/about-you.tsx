@@ -72,8 +72,11 @@ export default function AboutYouScreen() {
     return <LoadState error={error} header={{ title: TEXT.title }} />;
   }
 
-  // Only a person can be you, so a store of only pets counts as empty.
-  const people = entities.filter((entity) => entity.type === "person");
+  // Only a living person can be you, so a store of only pets, or of only the
+  // dead, counts as empty.
+  const people = entities.filter(
+    (entity) => entity.type === "person" && !entity.deceased,
+  );
 
   return (
     <FormScrollView contentContainerStyle={styles.screen}>

@@ -427,3 +427,35 @@ describe("the form that records a death", () => {
     expect(context.reachable[0]).toBe(ma.id);
   });
 });
+
+describe("your own death", () => {
+  it("can never be recorded", async () => {
+    const george = await person("George");
+    await core.self.set(george.id);
+
+    await expect(recordDeath(george.id)).rejects.toThrow();
+    const birthday = await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: george.id,
+      month: 1,
+      day: 1,
+    });
+    await expect(
+      core.milestones.update(birthday.id, { kind: "death" }),
+    ).rejects.toThrow();
+    expect(
+      (await core.milestones.listForBearer("person", george.id)).map(
+        (m) => m.kind,
+      ),
+    ).toEqual(["birthday"]);
+  });
+
+  it("rules out choosing someone who has died as you", async () => {
+    const peter = await person("Peter");
+    await recordDeath(peter.id);
+
+    await expect(core.self.set(peter.id)).rejects.toThrow();
+    expect(await core.self.get()).toBeUndefined();
+  });
+});

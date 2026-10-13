@@ -65,6 +65,18 @@ export function MilestoneForm({
     };
   }, [core, savedId, savedKind, update]);
 
+  const [isSelf, setIsSelf] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void core.self.get().then((self) => {
+      if (active)
+        setIsSelf(bearerType === "person" && self?.personId === bearerId);
+    });
+    return () => {
+      active = false;
+    };
+  }, [core, bearerType, bearerId]);
+
   // Whose occasion this kind would be, which words the schedule and, on a kind
   // the milestone was not saved as, seeds its own or memorial list.
   const kind = form.fields.kind;
@@ -119,6 +131,7 @@ export function MilestoneForm({
         onChange={(draft) => update(() => draft)}
         errors={form.errors}
         bearerType={bearerType}
+        isSelf={isSelf}
         offer={offer?.kind === kind ? offer.context : undefined}
         kindFixed={milestone === undefined && initialKind !== undefined}
       />
