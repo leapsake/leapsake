@@ -48,13 +48,18 @@ const REMOVE_TIME_LABEL = "Remove";
 const removeTimeA11yLabel = (time: string) => `Remove ${time}`;
 
 /** Before this device has a policy row: what it asked for, not to-dos. */
-const DEFAULT_CATEGORIES: readonly ReminderCategory[] = ["custom", "occasion"];
+const DEFAULT_CATEGORIES: readonly ReminderCategory[] = [
+  "custom",
+  "occasion",
+  "remembrance",
+];
 
 const GROUPS_HEADING = "Notify me about";
 
 /** Each switch's label, in the order shown. */
 const GROUP_LABELS: [NotificationGroup, string][] = [
   ["mine", "My reminders"],
+  ["remembrance", "Days of remembrance"],
   ["todos", "Leapsake to-dos"],
 ];
 

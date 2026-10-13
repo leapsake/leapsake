@@ -8,6 +8,9 @@ export type PartOfDay = "morning" | "day" | "evening";
 export interface DigestSituation {
   /** Whether an earlier delivery time comes before this one the same day. */
   followUp: boolean;
+  /** Whether it carries a note remembering someone who has died, so it is
+   *  worded quietly. */
+  remembering: boolean;
   partOfDay: PartOfDay;
   /** The reminders it carries, labelled; at least one. */
   labels: readonly string[];

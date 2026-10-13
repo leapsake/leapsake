@@ -35,6 +35,9 @@ const DIGEST_TITLES = {
   },
 } as const;
 
+/** A digest carrying a remembrance: no greeting, no urgency. */
+const REMEMBERING_TITLES = ["Today", "On this day"] as const;
+
 /** The English catalog; gender values come from `@leapsake/schema`'s table. */
 export const en: Messages = {
   common: {
@@ -439,8 +442,10 @@ export const en: Messages = {
   },
 
   notifications: {
-    digest: ({ followUp, partOfDay, labels, variant }) => {
-      const titles = DIGEST_TITLES[followUp ? "followUp" : "first"][partOfDay];
+    digest: ({ followUp, remembering, partOfDay, labels, variant }) => {
+      const titles = remembering
+        ? REMEMBERING_TITLES
+        : DIGEST_TITLES[followUp ? "followUp" : "first"][partOfDay];
       const [lead, ...rest] = labels;
       const body =
         rest.length === 0

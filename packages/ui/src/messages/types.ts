@@ -405,6 +405,8 @@ export interface Messages {
     digest: (situation: {
       /** An earlier delivery time comes before this one the same day. */
       followUp: boolean;
+      /** It carries a note remembering someone who has died. */
+      remembering: boolean;
       partOfDay: "morning" | "day" | "evening";
       /** At least one. */
       labels: readonly string[];

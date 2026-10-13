@@ -621,3 +621,43 @@ describe("planNotifications — the running-out notice", () => {
     ).toEqual([]);
   });
 });
+
+describe("planNotifications — a note remembering someone", () => {
+  const REMEMBERING = {
+    ...POLICY_DIGEST,
+    deliveryMinutes: [540, 1140], // 09:00 and 19:00
+    categories: [...MINE, "remembrance" as const],
+  };
+  const note = () =>
+    occasion("note", due({ year: 2026, month: 8, day: 20 }), {
+      category: "remembrance",
+    });
+
+  it("arrives once, on the day, at its first time, worded quietly", () => {
+    const plan = realOnly(planNotifications([note()], REMEMBERING, NOW));
+
+    expect(idsOf(plan)).toEqual(["digest:2026-08-20@0900"]);
+    expect(situationOf(plan[0]).remembering).toBe(true);
+  });
+
+  it("leaves a follow-up to the errands it shared the day with", () => {
+    const errand = occasion("wish", due({ year: 2026, month: 8, day: 20 }));
+
+    const [morning, evening] = planNotifications(
+      [note(), errand],
+      REMEMBERING,
+      NOW,
+    );
+
+    expect(morning.body).toBe("Reminder | Reminder");
+    expect(situationOf(morning).remembering).toBe(true);
+    expect(evening).toMatchObject({ body: "Reminder", reminderId: "wish" });
+    expect(situationOf(evening).remembering).toBe(false);
+  });
+
+  it("stays silent where the device has turned remembrances off", () => {
+    expect(realOnly(planNotifications([note()], POLICY_DIGEST, NOW))).toEqual(
+      [],
+    );
+  });
+});

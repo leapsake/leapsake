@@ -935,7 +935,10 @@ async function computeDesired(
           title: renderTitle(copy, false),
           copy,
           belated: days < 0,
-          category: "occasion",
+          category:
+            memorial && verbOf(rule.action) === "remember"
+              ? "remembrance"
+              : "occasion",
           dueDate,
           activeFrom: dueDate - runUp * DAY_MS,
           occurrenceDate: dueDateMs(occ),

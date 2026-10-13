@@ -4,6 +4,7 @@ import { en } from "../src/messages/index.js";
 const digest = en.notifications.digest;
 const situation = {
   followUp: false,
+  remembering: false,
   partOfDay: "day" as const,
   labels: ["Call Harry"],
   variant: 0,
@@ -48,6 +49,18 @@ describe("en.notifications.digest", () => {
     }
 
     expect([...followUps].filter((t) => firsts.has(t))).toEqual([]);
+  });
+
+  it("neither greets nor hurries a digest remembering someone", () => {
+    for (let variant = 0; variant < 10; variant++)
+      expect(
+        digest({
+          ...situation,
+          remembering: true,
+          partOfDay: "morning",
+          variant,
+        }).title,
+      ).not.toMatch(/morning|!|still|slip|call|time/i);
   });
 
   it("reads the same for the same variant, and differently across them", () => {

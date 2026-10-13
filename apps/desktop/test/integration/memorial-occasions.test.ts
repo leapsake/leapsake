@@ -103,6 +103,11 @@ describe("a birthday kept in memory", () => {
     expect(await titles()).toContain(
       `🕯️ It would have been ${mentionOf(peter)}’s birthday`,
     );
+    // Its own family, so it notifies once and quietly.
+    const note = (await core.reminders.listInWindow()).find((r) =>
+      r.title?.startsWith("🕯️"),
+    );
+    expect(note?.category).toBe("remembrance");
   });
 
   it("drops what was chosen for them before, without asking", async () => {

@@ -147,7 +147,8 @@ function notifyDaysOf(r: NotifiableReminder, now: number): CivilDate[] {
   const days: CivilDate[] = [];
   for (let day = lands; day <= leaves; day += DAY_MS)
     days.push(civilFromDueMs(day));
-  return days;
+  // A remembrance is not a task left undone, so it never comes back.
+  return r.category === "remembrance" ? days.slice(0, 1) : days;
 }
 
 /** One reminder on one of its days: what the digest plans from. */
@@ -183,22 +184,30 @@ function planDigest(
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .flatMap(([key, { day, reminders: dayReminders }]) => {
-      const labels = dayReminders.map((r) => reminderLabel(r));
       const first = Math.min(...policy.deliveryMinutes);
-      return policy.deliveryMinutes.map((minute) => {
+      return policy.deliveryMinutes.flatMap((minute) => {
+        const followUp = minute !== first;
+        // A remembrance is delivered once, at the day's first time.
+        const carried = followUp
+          ? dayReminders.filter((r) => r.category !== "remembrance")
+          : dayReminders;
+        if (carried.length === 0) return [];
         const id = `digest:${key}@${clockOf(minute)}`;
-        return {
-          id,
-          fireAt: fireAtFor(day, minute),
-          ...copy.digest({
-            followUp: minute !== first,
-            partOfDay: partOfDayOf(minute),
-            labels,
-            variant: variantOf(id),
-          }),
-          // A digest of one reminder opens it; of more, the list.
-          reminderId: dayReminders.length === 1 ? dayReminders[0].id : null,
-        };
+        return [
+          {
+            id,
+            fireAt: fireAtFor(day, minute),
+            ...copy.digest({
+              followUp,
+              remembering: carried.some((r) => r.category === "remembrance"),
+              partOfDay: partOfDayOf(minute),
+              labels: carried.map((r) => reminderLabel(r)),
+              variant: variantOf(id),
+            }),
+            // A digest of one reminder opens it; of more, the list.
+            reminderId: carried.length === 1 ? carried[0].id : null,
+          },
+        ];
       });
     });
 }

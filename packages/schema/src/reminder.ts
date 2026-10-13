@@ -10,9 +10,14 @@ export const reminderSourceSchema = z.enum(["user", "system"]);
 
 export type ReminderSource = z.infer<typeof reminderSourceSchema>;
 
-/** What a reminder is about, for choosing which ones notify: one the user
- *  wrote, one an occasion generates, or one the app asks of the user. */
-export const reminderCategorySchema = z.enum(["custom", "occasion", "todo"]);
+/** What a reminder is about, for choosing which ones notify: the user's, an
+ *  occasion's, a note remembering someone who has died, or the app's. */
+export const reminderCategorySchema = z.enum([
+  "custom",
+  "occasion",
+  "remembrance",
+  "todo",
+]);
 
 export type ReminderCategory = z.infer<typeof reminderCategorySchema>;
 
