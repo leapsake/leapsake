@@ -620,6 +620,12 @@ export function createCore(
     listTags: (type, id) => tags.listForEntity(type, id),
     getRelationship: (id) => relationships.get(id),
     listMilestones: (type, id) => milestones.listForBearer(type, id),
+    listDeceased: async () =>
+      new Set(
+        (
+          await milestones.listWhere({ where: "kind = ?", params: ["death"] })
+        ).map((m) => `${m.bearerType}:${m.bearerId}`),
+      ),
     orientedNeighbors: (type, id) =>
       relationshipsSvc.orientedNeighbors(type, id),
     neighborsFor: (type, id) => kinship.neighborsFor(type, id),

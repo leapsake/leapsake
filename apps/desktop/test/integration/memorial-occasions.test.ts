@@ -363,3 +363,14 @@ describe("reaching out to the people they were close to", () => {
     );
   });
 });
+
+describe("the people list", () => {
+  it("marks only those who have died", async () => {
+    const { peter, ma } = await baileys();
+    await recordDeath(peter.id);
+
+    const rows = await core.views.entityList();
+    expect(rows.find((r) => r.id === peter.id)?.deceased).toBe(true);
+    expect(rows.find((r) => r.id === ma.id)?.deceased).toBe(false);
+  });
+});

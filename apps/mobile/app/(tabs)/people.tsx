@@ -75,8 +75,11 @@ export default function PeoplePetsScreen() {
   );
 }
 
+/** Beside the name of someone who has died. */
+const DECEASED_MARK = "🕯️";
+
 /** One row, a link to its page and nothing else; the self-person wears
- *  a "(You)" badge. */
+ *  a "(You)" badge, and anyone who has died a candle. */
 function EntityListRow({
   entity,
   isSelf,
@@ -88,7 +91,9 @@ function EntityListRow({
     return (
       <Link href={entityRowHref(entity)} style={styles.row}>
         <Text style={[styles.rowText, { color: colors.accent }]}>
-          {entity.label} {isSelf && <Text style={styles.muted}>(You)</Text>}
+          {entity.label}
+          {entity.deceased && ` ${DECEASED_MARK}`}{" "}
+          {isSelf && <Text style={styles.muted}>(You)</Text>}
         </Text>
       </Link>
     );
@@ -96,7 +101,9 @@ function EntityListRow({
   return (
     <Link href={entityRowHref(entity)} style={styles.row}>
       <Text style={[styles.rowText, { color: colors.accent }]}>
-        {entity.label} <Text style={styles.muted}>(pet)</Text>
+        {entity.label}
+        {entity.deceased && ` ${DECEASED_MARK}`}{" "}
+        <Text style={styles.muted}>(pet)</Text>
       </Text>
     </Link>
   );

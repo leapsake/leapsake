@@ -60,6 +60,7 @@ const row = (type: "person" | "pet", entity: Person | Pet): EntityRow => ({
   type,
   id: entity.id,
   label: entityLabel(type, entity),
+  deceased: false,
 });
 
 const hit = (over: Partial<SearchHit>): SearchHit =>

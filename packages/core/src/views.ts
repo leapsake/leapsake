@@ -22,6 +22,8 @@ export interface EntityRow {
   type: EntityType;
   id: string;
   label: string;
+  /** They have a Death milestone. */
+  deceased: boolean;
 }
 
 /** A pickable other end for the add-relationship typeahead. */
@@ -139,6 +141,8 @@ export interface ViewsDeps {
   listTags(type: EntityType, id: string): Promise<Tag[]>;
   getRelationship(id: string): Promise<Relationship | undefined>;
   listMilestones(type: MilestoneBearerType, id: string): Promise<Milestone[]>;
+  /** Every person and pet with a Death milestone, as `type:id`. */
+  listDeceased(): Promise<ReadonlySet<string>>;
   /** The subject's explicit neighbors, oriented + label/role resolved. */
   orientedNeighbors(
     type: EntityType,
@@ -235,20 +239,23 @@ export function createViews(deps: ViewsDeps) {
   return {
     /** The combined People & Pets home list, sorted by display name. */
     entityList: async (): Promise<EntityRow[]> => {
-      const [people, pets] = await Promise.all([
+      const [people, pets, deceased] = await Promise.all([
         deps.people.list(),
         deps.pets.list(),
+        deps.listDeceased(),
       ]);
       const rows: EntityRow[] = [
         ...people.map((p) => ({
           type: "person" as const,
           id: p.id,
           label: entityLabel("person", p),
+          deceased: deceased.has(`person:${p.id}`),
         })),
         ...pets.map((p) => ({
           type: "pet" as const,
           id: p.id,
           label: entityLabel("pet", p),
+          deceased: deceased.has(`pet:${p.id}`),
         })),
       ];
       return [...rows].sort((a, b) => a.label.localeCompare(b.label));
