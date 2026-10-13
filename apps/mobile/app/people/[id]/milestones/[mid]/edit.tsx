@@ -33,6 +33,7 @@ export default function PersonMilestoneEditScreen() {
     <MilestoneForm
       title="Edit milestone"
       bearerType="person"
+      bearerId={id}
       milestone={milestone}
       onSubmit={async (value) => {
         await core.milestones.update(mid, value);

@@ -153,6 +153,7 @@ export {
   parseAction,
   planQuestion,
   YOUR_PARTNER,
+  offerContextForOthers,
   verbOf,
   formatAction,
   actionDefs,

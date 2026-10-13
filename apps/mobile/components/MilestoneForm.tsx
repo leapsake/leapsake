@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
-import type {
-  Milestone,
-  MilestoneBearerType,
-  MilestoneDraftResult,
-  MilestoneKind,
+import {
+  type Milestone,
+  type MilestoneBearerType,
+  type MilestoneDraftResult,
+  type MilestoneKind,
+  type OfferContext,
+  resolveReminderSchedule,
 } from "@leapsake/schema";
 import { useMilestoneForm } from "@leapsake/ui/headless";
 import { useHeaderSave } from "./HeaderSave";
@@ -18,6 +20,7 @@ type MilestoneSubmit = Extract<MilestoneDraftResult, { ok: true }>;
 export function MilestoneForm({
   title,
   bearerType,
+  bearerId,
   milestone,
   initialKind,
   onSubmit,
@@ -25,6 +28,7 @@ export function MilestoneForm({
   /** The native header title, set here so it's declared in one place. */
   title?: string;
   bearerType: MilestoneBearerType;
+  bearerId: string;
   milestone?: Milestone;
   /** The kind to open on when creating, where the caller knows which is
    *  wanted. */
@@ -61,6 +65,35 @@ export function MilestoneForm({
     };
   }, [core, savedId, savedKind, update]);
 
+  // Whose occasion this kind would be, which words the schedule and, on a kind
+  // the milestone was not saved as, seeds the user's own list.
+  const kind = form.fields.kind;
+  const [offer, setOffer] = useState<{
+    kind: MilestoneKind;
+    context: OfferContext;
+  }>();
+  useEffect(() => {
+    let active = true;
+    void core.milestones
+      .scheduleContext(bearerType, bearerId, kind)
+      .then(({ own, offer: context }) => {
+        if (!active) return;
+        setOffer({ kind, context });
+        if (!own || kind === savedKind) return;
+        update((draft) =>
+          draft.scheduleCustomized || draft.kind !== kind
+            ? draft
+            : {
+                ...draft,
+                reminderSchedule: resolveReminderSchedule(kind, [], true).rules,
+              },
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [core, bearerType, bearerId, kind, savedKind, update]);
+
   async function handleSubmit() {
     const shaped = form.submit();
     if (shaped === null || submitting) return;
@@ -81,6 +114,7 @@ export function MilestoneForm({
         onChange={(draft) => update(() => draft)}
         errors={form.errors}
         bearerType={bearerType}
+        offer={offer?.kind === kind ? offer.context : undefined}
         kindFixed={milestone === undefined && initialKind !== undefined}
       />
     </>

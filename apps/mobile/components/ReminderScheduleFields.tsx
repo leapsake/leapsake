@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type Handover,
+  type OfferContext,
   type ReminderAction,
   type ReminderRuleInput,
   SCHEDULABLE_ACTIONS,
@@ -63,15 +64,15 @@ const HANDOVER_OPTIONS: { value: Handover; label: string }[] = [
 ];
 
 /** A line's words: a gift or card as given, a wish with what it wishes. */
-function lineLabel(rule: ReminderRuleInput, greeting: string): string {
+function lineLabel(rule: ReminderRuleInput, offer: OfferContext): string {
   return isGivenItem(rule.action) || verbOf(rule.action) === "wish"
-    ? offerLabel(rule.action, { greeting, forSelf: false, partner: null })
+    ? offerLabel(rule.action, offer)
     : reminderRuleLabel(rule);
 }
 
-const optionOf = (a: ReminderAction, greeting: string) => ({
+const optionOf = (a: ReminderAction, offer: OfferContext) => ({
   value: a,
-  label: `${actionDefOf(a).icon ? `${actionDefOf(a).icon} ` : ""}${lineLabel({ action: a, label: null, offsetDays: 0, enabled: true }, greeting)}`,
+  label: `${actionDefOf(a).icon ? `${actionDefOf(a).icon} ` : ""}${lineLabel({ action: a, label: null, offsetDays: 0, enabled: true }, offer)}`,
 });
 
 /** The schedulable actions a row may become; a delivery goes with its item. */
@@ -88,15 +89,15 @@ const daysFrom = (text: string) => Math.max(0, Math.trunc(Number(text) || 0));
  */
 export function ReminderScheduleFields({
   value,
-  greeting,
+  offer,
   onChange,
 }: {
   value: ReminderRuleInput[];
-  /** The occasion's greeting, "a happy birthday", which a wish names. */
-  greeting: string;
+  /** The occasion and whose it is, which a wish names. */
+  offer: OfferContext;
   onChange: (next: ReminderRuleInput[]) => void;
 }) {
-  const actionOptions = PICKABLE_ACTIONS.map((a) => optionOf(a, greeting));
+  const actionOptions = PICKABLE_ACTIONS.map((a) => optionOf(a, offer));
   const [editing, setEditing] = useState<number | null>(null);
   // How an unticked gift or card would be given, kept while it is off.
   const [chosen, setChosen] = useState<Partial<Record<string, Handover>>>({});
@@ -140,7 +141,7 @@ export function ReminderScheduleFields({
       ) : null}
       {promptItemsOf(value).map(({ index: i, rule }) => {
         const given = isGivenItem(rule.action);
-        const label = lineLabel(rule, greeting);
+        const label = lineLabel(rule, offer);
         const timing = given
           ? TEXT.giveTiming(
               rule.offsetDays,
@@ -197,7 +198,7 @@ export function ReminderScheduleFields({
         visible={open !== undefined}
         onClose={() => setEditing(null)}
         close="done"
-        title={open === undefined ? undefined : lineLabel(open, greeting)}
+        title={open === undefined ? undefined : lineLabel(open, offer)}
         avoidKeyboard
       >
         {open !== undefined && editing !== null && isGivenItem(open.action) ? (
@@ -250,7 +251,7 @@ export function ReminderScheduleFields({
               options={
                 actionOptions.some((o) => o.value === open.action)
                   ? actionOptions
-                  : [optionOf(open.action, greeting), ...actionOptions]
+                  : [optionOf(open.action, offer), ...actionOptions]
               }
               onChange={(action) =>
                 // `other` needs a label; leaving it clears one.

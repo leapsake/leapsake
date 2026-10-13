@@ -176,6 +176,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "milestones.create": "write",
   "milestones.listForBearer": "read",
   "milestones.reminderSchedule": "read",
+  "milestones.scheduleContext": "read",
   "milestones.softDelete": "write",
   "milestones.timelineFor": "read",
   "milestones.update": "write",

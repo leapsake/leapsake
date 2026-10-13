@@ -18,6 +18,7 @@ export default function RelationshipMilestoneNewScreen() {
     <MilestoneForm
       title="Add milestone"
       bearerType="relationship"
+      bearerId={rid}
       initialKind={initialKind}
       onSubmit={async (value) => {
         await core.milestones.create({

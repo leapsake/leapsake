@@ -2,7 +2,10 @@ import { useCallback, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
-import type { ReminderRuleInput } from "@leapsake/schema";
+import {
+  type ReminderRuleInput,
+  offerContextForOthers,
+} from "@leapsake/schema";
 import { HeaderSave } from "../../../../../components/HeaderSave";
 import { ReminderScheduleFields } from "../../../../../components/ReminderScheduleFields";
 import { useCore } from "../../../../../lib/core-context";
@@ -91,7 +94,7 @@ export default function ObservanceScheduleScreen() {
 
       <ReminderScheduleFields
         value={schedule}
-        greeting={holiday.greeting}
+        offer={offerContextForOthers(holiday.greeting)}
         onChange={setRules}
       />
     </ScrollView>

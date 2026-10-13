@@ -392,4 +392,27 @@ describe("the plan prompt about an occasion of your own", () => {
 
     expect(plan?.offers.map((o) => o.action)).toContain("arrange:meal");
   });
+
+  it("tells the schedule editor whose occasion it is", async () => {
+    const me = await core.people.create({ firstName: "George" }, []);
+    await core.self.set(me.id);
+    const violet = await core.people.create({ firstName: "Violet" }, []);
+
+    expect(
+      await core.milestones.scheduleContext("person", me.id, "birthday"),
+    ).toEqual({
+      own: true,
+      offer: { greeting: "a happy birthday", forSelf: true, partner: null },
+    });
+    expect(
+      (await core.milestones.scheduleContext("person", me.id, "wedding")).offer
+        .partner,
+    ).toBe("your partner");
+    expect(
+      await core.milestones.scheduleContext("person", violet.id, "birthday"),
+    ).toEqual({
+      own: false,
+      offer: { greeting: "a happy birthday", forSelf: false, partner: null },
+    });
+  });
 });

@@ -35,6 +35,7 @@ export default function RelationshipMilestoneEditScreen() {
     <MilestoneForm
       title="Edit milestone"
       bearerType="relationship"
+      bearerId={rid}
       milestone={milestone}
       onSubmit={async (value) => {
         await core.milestones.update(mid, value);

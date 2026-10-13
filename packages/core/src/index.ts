@@ -104,6 +104,7 @@ export type {
   LinkPartnerReminderTarget,
   PartnershipReminderTarget,
   PlanReminderTarget,
+  MilestoneScheduleContext,
   ReminderInWindow,
   SystemReminderTargets,
 } from "@leapsake/reminders/api";
@@ -441,7 +442,11 @@ export function createCore(
         today: todayCivil(),
       }),
   });
-  const { isOwnOccasion: _isOwnOccasion, ...remindersSurface } = remindersApi;
+  const {
+    isOwnOccasion: _isOwnOccasion,
+    scheduleContext,
+    ...remindersSurface
+  } = remindersApi;
   // A couple's occasion on your partner was with you, so it is linked before
   // any reconcile rather than asked about.
   const regenerateSystem = async () => {
@@ -927,6 +932,7 @@ export function createCore(
         // business, so this keeps its narrower shape.
         return resolveReminderSchedule(kind, stored, own).rules;
       },
+      scheduleContext,
       // Milestone and schedule commit together. A sent `reminderSchedule`
       // replaces the whole rule set; an omitted one leaves it as it is.
       create: async (input: CreateMilestoneInput): Promise<Milestone> => {

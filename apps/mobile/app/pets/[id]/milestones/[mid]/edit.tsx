@@ -33,6 +33,7 @@ export default function PetMilestoneEditScreen() {
     <MilestoneForm
       title="Edit milestone"
       bearerType="pet"
+      bearerId={id}
       milestone={milestone}
       onSubmit={async (value) => {
         await core.milestones.update(mid, value);

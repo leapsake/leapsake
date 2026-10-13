@@ -5,6 +5,7 @@ import {
   type GiftPartyType,
   type MilestoneBearerType,
   type MilestoneKind,
+  type OfferContext,
   type Relationship,
   type Reminder,
   type ReminderAction,
@@ -26,6 +27,7 @@ import {
   resolveReminderSchedule,
   todayCivil,
   verbOf,
+  offerContextOf,
 } from "@leapsake/schema";
 import {
   type ContactMethodsRepo,
@@ -135,6 +137,14 @@ export interface PartnershipReminderTarget {
  *  has its own earlier errand, `send:card`. */
 function reachableMethods(methods: ContactMethod[]): ContactMethod[] {
   return methods.filter((entry) => entry.kind !== "postal");
+}
+
+/** Whose occasion a milestone is, for a schedule editor. */
+export interface MilestoneScheduleContext {
+  /** The occasion is the user's own, so it defaults to its kind's own list. */
+  own: boolean;
+  /** How the editor's offers are worded. */
+  offer: OfferContext;
 }
 
 /** A `plan` prompt and everything needed to answer it, including the offer set:
@@ -366,6 +376,20 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     return subjectIsSelf || shared;
   }
 
+  /** What a milestone's schedule editor needs to seed and word its rules. */
+  async function scheduleContext(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+    kind: MilestoneKind,
+  ): Promise<MilestoneScheduleContext> {
+    const phrasing = await planPhrasing(bearerType, bearerId, kind);
+    const subject = (await milestoneBearerLabel(bearerType, bearerId)) ?? "";
+    return {
+      own: phrasing.subjectIsSelf || phrasing.shared,
+      offer: offerContextOf({ ...phrasing, subject, kind }),
+    };
+  }
+
   // The engine's ports over the real repos, built per call so `today` is
   // re-read each time.
   const systemReminderDeps = (): ReminderEngineDeps => ({
@@ -509,6 +533,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
 
   return {
     isOwnOccasion,
+    scheduleContext,
     // Reads attach what each reminder's #tags and @mentions resolve to now; the
     // text stays the source of truth for which exist.
     list: async (): Promise<ReminderWithTags[]> => {

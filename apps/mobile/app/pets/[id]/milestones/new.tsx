@@ -12,6 +12,7 @@ export default function PetMilestoneNewScreen() {
     <MilestoneForm
       title="Add milestone"
       bearerType="pet"
+      bearerId={id}
       onSubmit={async (value) => {
         await core.milestones.create({
           ...value,

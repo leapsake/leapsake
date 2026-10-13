@@ -51,6 +51,7 @@ export const API_CHANNELS = [
   "milestones.listForBearer",
   "milestones.timelineFor",
   "milestones.reminderSchedule",
+  "milestones.scheduleContext",
   "milestones.create",
   "milestones.update",
   "milestones.answerPlan",

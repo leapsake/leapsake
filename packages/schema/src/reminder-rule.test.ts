@@ -21,7 +21,7 @@ import {
   leadTimeLabel,
   offerLabel,
   offerContextOf,
-  type OfferContext,
+  offerContextForOthers,
   planOffers,
   promptAnswerOf,
   handedOverInPerson,
@@ -467,12 +467,7 @@ describe("actionKeyOf", () => {
   });
 });
 
-/** How a prompt about someone else's occasion words its offers. */
-const theirs = (greeting: string): OfferContext => ({
-  greeting,
-  forSelf: false,
-  partner: null,
-});
+const theirs = offerContextForOthers;
 
 describe("offerLabel", () => {
   it("names the occasion where the action's label would not", () => {

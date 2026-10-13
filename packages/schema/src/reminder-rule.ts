@@ -120,6 +120,11 @@ export interface OfferContext {
 /** Stands in for a partner the user's own couple occasion has not named. */
 export const YOUR_PARTNER = "your partner";
 
+/** How offers are worded about someone else's occasion. */
+export function offerContextForOthers(greeting: string): OfferContext {
+  return { greeting, forSelf: false, partner: null };
+}
+
 /** Who the prompt's question is about, which decides how it is phrased. */
 export interface PlanQuestionContext {
   /** The bearer's label, mention-wrapped where applicable. */

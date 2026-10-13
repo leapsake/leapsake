@@ -12,6 +12,7 @@ export default function PersonMilestoneNewScreen() {
     <MilestoneForm
       title="Add milestone"
       bearerType="person"
+      bearerId={id}
       onSubmit={async (value) => {
         await core.milestones.create({
           ...value,

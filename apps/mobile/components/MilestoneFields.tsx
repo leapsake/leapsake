@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import {
   type MilestoneBearerType,
+  type OfferContext,
   type MilestoneDraft,
   type MilestoneDraftErrors,
   kindDefs,
   kindsForBearerType,
   milestoneDraftWithKind,
   milestoneDraftWithSchedule,
+  offerContextForOthers,
   promptItemsOf,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
@@ -72,6 +74,7 @@ export function MilestoneFields({
   onChange,
   errors,
   bearerType,
+  offer,
   collapseSchedule = false,
   kindFixed = false,
   scroll = false,
@@ -80,6 +83,9 @@ export function MilestoneFields({
   onChange: (draft: MilestoneDraft) => void;
   errors: MilestoneDraftErrors;
   bearerType: MilestoneBearerType;
+  /** How the schedule's offers are worded; absent words them about someone
+   *  else. */
+  offer?: OfferContext;
   /** Put the reminder schedule behind a disclosure. */
   collapseSchedule?: boolean;
   /** Show the kind without a picker, where the caller chose it. */
@@ -115,7 +121,7 @@ export function MilestoneFields({
       )}
       <ReminderScheduleFields
         value={draft.reminderSchedule}
-        greeting={def.greeting}
+        offer={offer ?? offerContextForOthers(def.greeting)}
         onChange={(rules) => onChange(milestoneDraftWithSchedule(draft, rules))}
       />
     </>
