@@ -41,8 +41,18 @@ waiting.
   year the caller looks ahead (`NOTIFICATION_WINDOW_DAYS`); the budget cuts it far sooner.
 
 This replaced notifying only on the due day and the day a row entered Today, once "Remind me
-in…" made it cheap to put a reminder off. Completed, deleted and onboarding rows stay silent.
+in…" made it cheap to put a reminder off. Completed and deleted rows stay silent.
 The rule is one function, `notifyDaysOf` in `src/planner.ts`.
+
+## Which reminders notify _(owner, 2026-10-12)_
+
+Each reminder carries a `category` from the engine: `custom` (the user wrote it), `occasion` (a
+milestone or holiday generated it) or `todo` (the app asks it of the user: onboarding steps, the
+duplicates nudge, partnership questions). A device notifies only about the categories in its
+policy. Mobile shows them as two switches, _My reminders_ (`custom` and `occasion`, on) and
+_Leapsake to-dos_ (`todo`, off by default), so regrouping the switches never touches a stored row.
+⚠️ A new category does need adding to the devices that should get it: a switch is on only while
+every category it covers is stored.
 
 ## The horizon is the caller's, the budget is this package's
 
@@ -79,9 +89,8 @@ The slot is taken back only if a notice is actually warranted — holding one un
 burn it on nothing whenever coverage is already too short to warn about, which is the
 heaviest-user case that can least afford it.
 
-This is the **one** app-generated notification allowed through; onboarding nudges are still barred
-(`onboardingRouteOf`). The distinction to hold: a service notice reports that something the user
-asked for is about to stop working; re-engagement tells them they'd get more out of coming back.
+It is the one notification that ignores a device's categories: it reports that something the
+user asked for is about to stop working, so a device that notifies about anything gets it.
 
 ## One mode: the digest _(owner, 2026-09-30)_
 
@@ -135,6 +144,6 @@ scheduler calls), and any drift cancels-then-reschedules rather than trying to p
   (`expo-notifications`), and a future desktop applier (Electron's `Notification`) can share this
   package unchanged.
 - **No device policy storage.** `notification_settings` (migration 29) and its repo are
-  `@leapsake/data`'s; this package only reads the `mode`/`deliveryMinutes` shape (`NotificationPolicy`)
+  `@leapsake/data`'s; this package only reads the `mode`/`deliveryMinutes`/`categories` shape (`NotificationPolicy`)
   off whatever row the caller passes.
 - **No permission handling.** Asking for OS permission, and what to do on denial, is Inc 3's.

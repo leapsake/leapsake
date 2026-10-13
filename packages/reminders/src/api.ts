@@ -440,9 +440,9 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     removed: number;
   }> => regenerateSystemReminders(systemReminderDeps());
 
-  /** The notification planner's input: a year of reminders, as bare rows, since
-   *  a notification renders plain text. */
-  const listNotifiable = (): Promise<Reminder[]> =>
+  /** The notification planner's input: a year of reminders with their window
+   *  facts, no tags or mentions, since a notification renders plain text. */
+  const listNotifiable = (): Promise<WindowedReminder[]> =>
     listNotifiableReminders(systemReminderDeps());
 
   /**

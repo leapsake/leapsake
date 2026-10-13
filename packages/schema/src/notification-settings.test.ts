@@ -11,6 +11,7 @@ const validSettings = {
   platform: "ios",
   mode: "digest" as const,
   deliveryMinutes: [540],
+  categories: ["custom", "occasion"],
   permissionState: "granted",
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -54,6 +55,22 @@ describe("notificationSettingsSchema", () => {
   it("rejects an invalid mode", () => {
     expect(() =>
       notificationSettingsSchema.parse({ ...validSettings, mode: "hourly" }),
+    ).toThrow();
+  });
+
+  it("accepts no categories at all", () => {
+    expect(
+      notificationSettingsSchema.parse({ ...validSettings, categories: [] })
+        .categories,
+    ).toEqual([]);
+  });
+
+  it("rejects an unknown category", () => {
+    expect(() =>
+      notificationSettingsSchema.parse({
+        ...validSettings,
+        categories: ["lookback"],
+      }),
     ).toThrow();
   });
 

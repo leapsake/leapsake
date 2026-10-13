@@ -7,12 +7,8 @@ import {
   reminderLabel,
   todayCivil,
 } from "@leapsake/schema";
-import type { CivilDate } from "@leapsake/schema";
-import {
-  BELATED_DAYS,
-  NOTIFICATION_WINDOW_DAYS,
-  onboardingRouteOf,
-} from "@leapsake/reminders";
+import type { CivilDate, ReminderCategory } from "@leapsake/schema";
+import { BELATED_DAYS, NOTIFICATION_WINDOW_DAYS } from "@leapsake/reminders";
 
 /** How a device wants its reminders to reach it. `each` is planned exactly
  *  like `digest`; v0.1 builds could still store it. */
@@ -33,6 +29,7 @@ export interface NotifiableReminder {
   /** Epoch-ms UTC midnight of the day a snooze ends; `null` if not snoozed. */
   snoozedUntil: number | null;
   deletedAt: number | null;
+  category: ReminderCategory;
 }
 
 /** The fields of a `notification_settings` row the planner reads. */
@@ -40,6 +37,8 @@ export interface NotificationPolicy {
   mode: NotificationMode;
   /** Minutes past local midnight, one digest each. */
   deliveryMinutes: readonly number[];
+  /** The reminder categories that notify; the rest stay silent. */
+  categories: readonly ReminderCategory[];
 }
 
 /** One notification that should be pending; its `id` is stable per mode and
@@ -79,9 +78,11 @@ export function planNotifications(
   if (policy.mode === "off") return [];
   const budget = options.budget ?? NOTIFICATION_BUDGET;
 
-  const days = reminders.flatMap((reminder) =>
-    notifyDaysOf(reminder, now).map((day) => ({ reminder, day })),
-  );
+  const days = reminders
+    .filter((reminder) => policy.categories.includes(reminder.category))
+    .flatMap((reminder) =>
+      notifyDaysOf(reminder, now).map((day) => ({ reminder, day })),
+    );
   // `each` falls through to the digest too; one-per-reminder was `planEach`.
   const planned = planDigest(days, policy, copy);
 
@@ -132,12 +133,7 @@ const DAY_MS = 86_400_000;
 /** The days a reminder notifies on: every day it sits in Today undone; see the
  *  README's _Which days notify_. */
 function notifyDaysOf(r: NotifiableReminder, now: number): CivilDate[] {
-  if (
-    r.completedAt !== null ||
-    r.deletedAt !== null ||
-    onboardingRouteOf(r.id) !== null
-  )
-    return [];
+  if (r.completedAt !== null || r.deletedAt !== null) return [];
 
   const today = dueDateMs(todayCivil(now));
   const lands = Math.max(today, r.activeFrom ?? today, r.snoozedUntil ?? today);

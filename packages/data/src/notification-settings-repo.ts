@@ -10,7 +10,12 @@ import { assignmentClause, resolveCodec } from "./syncable.js";
 type PolicyPatch = Partial<
   Pick<
     NotificationSettings,
-    "label" | "platform" | "mode" | "deliveryMinutes" | "permissionState"
+    | "label"
+    | "platform"
+    | "mode"
+    | "deliveryMinutes"
+    | "categories"
+    | "permissionState"
   >
 >;
 
@@ -19,10 +24,11 @@ const DEFAULTS = {
   platform: null,
   mode: "off",
   deliveryMinutes: [540],
+  categories: ["custom", "occasion"],
   permissionState: null,
 } as const satisfies PolicyPatch;
 
-const JSON_FIELDS = ["deliveryMinutes"] as const;
+const JSON_FIELDS = ["deliveryMinutes", "categories"] as const;
 
 /** Delivery times in the order they fire, each once. */
 function inFiringOrder(minutes: readonly number[]): number[] {

@@ -1,9 +1,5 @@
 import { type CivilDate, dueDateMs } from "@leapsake/schema";
-import {
-  BELATED_DAYS,
-  NOTIFICATION_WINDOW_DAYS,
-  ONBOARDING_REMINDERS,
-} from "@leapsake/reminders";
+import { BELATED_DAYS, NOTIFICATION_WINDOW_DAYS } from "@leapsake/reminders";
 import { describe, expect, it } from "vitest";
 import {
   type DesiredNotification,
@@ -63,6 +59,7 @@ function reminder(
     dueDate: null,
     activeFrom: overrides.dueDate ?? null,
     occurrenceDate: null,
+    category: "custom",
     completedAt: null,
     snoozedUntil: null,
     deletedAt: null,
@@ -82,6 +79,7 @@ function occasion(
     dueDate: dueMs,
     activeFrom: dueMs,
     occurrenceDate: dueMs,
+    category: "occasion",
     ...overrides,
   });
 }
@@ -90,7 +88,14 @@ function occasion(
 const idsOf = (plan: DesiredNotification[]) =>
   plan.filter((n) => n.id !== "tripwire").map((n) => n.id);
 
-const POLICY_DIGEST = { mode: "digest" as const, deliveryMinutes: [540] }; // 09:00
+/** What a device notifies about unless it opts into Leapsake's to-dos. */
+const MINE = ["custom", "occasion"] as const;
+
+const POLICY_DIGEST = {
+  mode: "digest" as const,
+  deliveryMinutes: [540], // 09:00
+  categories: MINE,
+};
 const NOW = localInstant(2026, 8, 15, 8, 0);
 
 /** The service notice is the one planned entry not about a reminder; these two
@@ -110,7 +115,11 @@ describe("planNotifications", () => {
       dueDate: due({ year: 2026, month: 8, day: 20 }),
     });
     expect(
-      planNotifications([r], { mode: "off", deliveryMinutes: [540] }, NOW),
+      planNotifications(
+        [r],
+        { ...POLICY_DIGEST, mode: "off", deliveryMinutes: [540] },
+        NOW,
+      ),
     ).toEqual([]);
   });
 
@@ -150,18 +159,58 @@ describe("planNotifications", () => {
     });
   });
 
-  it("stays silent for completed, deleted and onboarding rows", () => {
+  it("stays silent for completed and deleted rows", () => {
     const dueDay = due({ year: 2026, month: 8, day: 20 });
     const reminders: NotifiableReminder[] = [
       occasion("keep", dueDay),
       occasion("done", dueDay, { completedAt: NOW }),
       occasion("gone", dueDay, { deletedAt: NOW }),
-      reminder({ id: ONBOARDING_REMINDERS[0].id }),
     ];
 
     const result = planNotifications(reminders, POLICY_DIGEST, NOW);
 
     expect(new Set(result.map((n) => n.reminderId))).toEqual(new Set(["keep"]));
+  });
+});
+
+describe("planNotifications — categories", () => {
+  const dueDay = due({ year: 2026, month: 8, day: 20 });
+  const reminders = [
+    reminder({ id: "written", title: "written", dueDate: dueDay }),
+    occasion("birthday", dueDay, { title: "birthday" }),
+    reminder({ id: "set-up", title: "set-up", category: "todo" }),
+  ];
+  const notifiedIn = (categories: NotificationPolicy["categories"]) =>
+    new Set(
+      planNotifications(reminders, { ...POLICY_DIGEST, categories }, NOW).map(
+        (n) => n.body,
+      ),
+    );
+
+  it("leaves Leapsake's to-dos out unless the device opts in", () => {
+    const bodies = planNotifications(reminders, POLICY_DIGEST, NOW).map(
+      (n) => n.body,
+    );
+
+    expect(bodies.some((body) => body.includes("set-up"))).toBe(false);
+    expect(bodies[0]).toBe("written | birthday");
+  });
+
+  it("notifies a to-do every day until it is done, once opted in", () => {
+    const ids = planNotifications(
+      [reminder({ id: "set-up", category: "todo" })],
+      { ...POLICY_DIGEST, categories: ["todo"] },
+      NOW,
+    ).map((n) => n.id);
+
+    expect(ids.slice(0, 2)).toEqual([
+      "digest:2026-08-15@0900",
+      "digest:2026-08-16@0900",
+    ]);
+  });
+
+  it("plans nothing when every category is off", () => {
+    expect(notifiedIn([])).toEqual(new Set());
   });
 });
 
@@ -292,7 +341,7 @@ describe("planNotifications — which days notify", () => {
 
 describe("planNotifications — several delivery times", () => {
   const MORNING_AND_EVENING = {
-    mode: "digest" as const,
+    ...POLICY_DIGEST,
     deliveryMinutes: [540, 1140], // 09:00 and 19:00
   };
 
@@ -326,7 +375,7 @@ describe("planNotifications — several delivery times", () => {
 
     const [morning, evening] = planNotifications(
       [r],
-      { mode: "digest", deliveryMinutes: [540, 1140] },
+      { ...POLICY_DIGEST, mode: "digest", deliveryMinutes: [540, 1140] },
       NOW,
     );
 
@@ -346,7 +395,7 @@ describe("planNotifications — several delivery times", () => {
 
     const [first] = planNotifications(
       [r],
-      { mode: "digest", deliveryMinutes: [minute] },
+      { ...POLICY_DIGEST, mode: "digest", deliveryMinutes: [minute] },
       NOW,
     );
 
@@ -463,7 +512,7 @@ describe("planNotifications — the budget", () => {
     expect(
       planNotifications(
         reminders,
-        { mode: "each", deliveryMinutes: [540] },
+        { ...POLICY_DIGEST, mode: "each", deliveryMinutes: [540] },
         NOW,
       ),
     ).toEqual(planNotifications(reminders, POLICY_DIGEST, NOW));
@@ -566,7 +615,7 @@ describe("planNotifications — the running-out notice", () => {
     expect(
       planNotifications(
         YEAR_OF_REMINDERS,
-        { mode: "off", deliveryMinutes: [540] },
+        { ...POLICY_DIGEST, mode: "off", deliveryMinutes: [540] },
         NOW,
       ),
     ).toEqual([]);

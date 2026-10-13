@@ -37,6 +37,7 @@ describe("notificationSettingsRepo", () => {
       platform: null,
       mode: "off",
       deliveryMinutes: [540],
+      categories: ["custom", "occasion"],
       permissionState: null,
       deletedAt: null,
     });
@@ -116,12 +117,45 @@ describe("notificationSettingsRepo", () => {
     expect((await repo.get(deviceId))?.deliveryMinutes).toEqual([540, 1140]);
   });
 
+  it("stores the categories a device opts into", async () => {
+    const deviceId = crypto.randomUUID();
+    await repo.setPolicy(deviceId, { categories: ["todo"] });
+
+    expect((await repo.get(deviceId))?.categories).toEqual(["todo"]);
+  });
+
   it("rejects more than three delivery times", async () => {
     await expect(
       repo.setPolicy(crypto.randomUUID(), {
         deliveryMinutes: [480, 720, 1020, 1140],
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("migration 45", () => {
+  it("notifies an existing device about the reminders it asked for, not to-dos", async () => {
+    const fresh = makeEncryptedTestDriver();
+    try {
+      await runMigrations(
+        fresh.driver,
+        migrations.filter((step) => step.version <= 44),
+      );
+      await fresh.driver.run(
+        `INSERT INTO notification_settings
+           (id, mode, created_at, updated_at)
+         VALUES ('device-1', 'digest', 1, 1)`,
+      );
+
+      await runMigrations(fresh.driver);
+
+      const migrated = await createNotificationSettingsRepo(fresh.driver).get(
+        "device-1",
+      );
+      expect(migrated?.categories).toEqual(["custom", "occasion"]);
+    } finally {
+      fresh.cleanup();
+    }
   });
 });
 

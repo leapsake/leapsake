@@ -416,6 +416,7 @@ describe("core.export.archive — data.json", () => {
       id: "device-1",
       mode: "digest",
       deliveryMinutes: [480, 1140],
+      categories: ["custom", "occasion"],
       label: "George's laptop",
     });
     // A fact about one machine, not a preference: restoring it onto another

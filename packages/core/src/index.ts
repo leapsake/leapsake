@@ -57,6 +57,7 @@ import type {
   SocialProfile,
   MilestoneKind,
   NotificationMode,
+  ReminderCategory,
   NotificationSettings,
   ObservanceBearerType,
   Relationship,
@@ -163,7 +164,11 @@ export type { ExportData } from "@leapsake/export";
 
 // The local-notification policy row shape, re-exported so the settings UI can
 // type what `notificationSettings` reads and writes.
-export type { NotificationMode, NotificationSettings } from "@leapsake/schema";
+export type {
+  NotificationMode,
+  NotificationSettings,
+  ReminderCategory,
+} from "@leapsake/schema";
 
 // Key custody: the device master key, the password and recovery doors, and
 // `lockThisDevice` (sign out).
@@ -1038,6 +1043,7 @@ export function createCore(
         patch: Partial<{
           mode: NotificationMode;
           deliveryMinutes: number[];
+          categories: ReminderCategory[];
           label: string | null;
           platform: string | null;
         }>,

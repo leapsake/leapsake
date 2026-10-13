@@ -10,12 +10,17 @@ import {
 } from "react-native";
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
-import type { NotificationMode } from "@leapsake/core";
+import type { NotificationMode, ReminderCategory } from "@leapsake/core";
 import { MAX_DELIVERY_TIMES } from "@leapsake/schema";
 import { CheckboxBox } from "../components/Checkbox";
 import { SelectField } from "../components/SelectField";
 import { useCore, useDeviceId } from "../lib/core-context";
 import { nextDeliveryTime } from "../lib/delivery-times";
+import {
+  type NotificationGroup,
+  isGroupOn,
+  withGroup,
+} from "../lib/notification-groups";
 import { requestNotificationPermissionOnThisDevice } from "../lib/notification-permission";
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
@@ -41,6 +46,17 @@ const LATER_TIME_LABEL = "And again at";
 const ADD_TIME_LABEL = "Add another time";
 const REMOVE_TIME_LABEL = "Remove";
 const removeTimeA11yLabel = (time: string) => `Remove ${time}`;
+
+/** Before this device has a policy row: what it asked for, not to-dos. */
+const DEFAULT_CATEGORIES: readonly ReminderCategory[] = ["custom", "occasion"];
+
+const GROUPS_HEADING = "Notify me about";
+
+/** Each switch's label, in the order shown. */
+const GROUP_LABELS: [NotificationGroup, string][] = [
+  ["mine", "My reminders"],
+  ["todos", "Leapsake to-dos"],
+];
 
 /** What every time shares, shown while another can be added. */
 const TIMES_HINT = "Each comes only if something is still waiting for you.";
@@ -82,6 +98,7 @@ export default function NotificationsScreen() {
     return {
       mode: mine?.mode ?? ("off" as NotificationMode),
       deliveryMinutes: mine?.deliveryMinutes ?? DEFAULT_DELIVERY_MINUTES,
+      categories: mine?.categories ?? DEFAULT_CATEGORIES,
       others: others.filter((row) => row.id !== deviceId),
     };
   }, [core, deviceId]);
@@ -91,6 +108,7 @@ export default function NotificationsScreen() {
   const [pendingMine, setPendingMine] = useState<{
     mode?: NotificationMode;
     deliveryMinutes?: readonly number[];
+    categories?: readonly ReminderCategory[];
   }>({});
   const [pendingOthers, setPendingOthers] = useState<
     Record<string, NotificationMode>
@@ -121,6 +139,7 @@ export default function NotificationsScreen() {
   async function setMine(patch: {
     mode?: NotificationMode;
     deliveryMinutes?: readonly number[];
+    categories?: readonly ReminderCategory[];
   }) {
     const wasMode = data?.mode ?? "off";
     setPendingMine((current) => ({ ...current, ...patch }));
@@ -129,10 +148,11 @@ export default function NotificationsScreen() {
       else if (patch.mode !== undefined) {
         await requestPermissionIfOptingIn(patch.mode, wasMode);
       }
-      const { deliveryMinutes: times, ...rest } = patch;
+      const { deliveryMinutes: times, categories, ...rest } = patch;
       await core.notificationSettings.setPolicy(deviceId, {
         ...rest,
         ...(times === undefined ? {} : { deliveryMinutes: [...times] }),
+        ...(categories === undefined ? {} : { categories: [...categories] }),
         label: Platform.OS === "ios" ? "iPhone" : "Android phone",
         platform: Platform.OS,
       });
@@ -146,6 +166,7 @@ export default function NotificationsScreen() {
         const next = { ...current };
         if ("mode" in patch) delete next.mode;
         if ("deliveryMinutes" in patch) delete next.deliveryMinutes;
+        if ("categories" in patch) delete next.categories;
         return next;
       });
     }
@@ -173,6 +194,8 @@ export default function NotificationsScreen() {
     pendingMine.deliveryMinutes ??
     data?.deliveryMinutes ??
     DEFAULT_DELIVERY_MINUTES;
+  const categories =
+    pendingMine.categories ?? data?.categories ?? DEFAULT_CATEGORIES;
 
   return (
     <>
@@ -195,6 +218,23 @@ export default function NotificationsScreen() {
                 minutes={deliveryMinutes}
                 onChange={(next) => void setMine({ deliveryMinutes: next })}
               />
+            )}
+            {mode !== "off" && (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                <Text style={styles.sectionTitle}>{GROUPS_HEADING}</Text>
+                {GROUP_LABELS.map(([group, label]) => (
+                  <CheckboxRow
+                    key={group}
+                    label={label}
+                    checked={isGroupOn(categories, group)}
+                    onToggle={(on) =>
+                      void setMine({
+                        categories: withGroup(categories, group, on),
+                      })
+                    }
+                  />
+                ))}
+              </View>
             )}
             {permissionNotice !== null && (
               <View style={{ gap: 8 }}>

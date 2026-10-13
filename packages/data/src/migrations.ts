@@ -790,6 +790,16 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 45,
+    async up(driver) {
+      // The reminder categories that notify on a device, as a JSON list.
+      await driver.exec(`
+        ALTER TABLE notification_settings
+          ADD COLUMN categories TEXT NOT NULL DEFAULT '["custom","occasion"]';
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,
