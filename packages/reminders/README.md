@@ -533,7 +533,7 @@ the occasion, not a setting the user writes:
 
 A memorial list also offers to **reach** up to three living people closest to whoever died:
 `reach:<personId>`, one per person, their partner first, then their children, siblings and
-parents. A couple's survivor comes before anyone else, and neither you nor anyone who has died is
+parents; a pet's are its owners. A couple's survivor comes before anyone else, and neither you nor anyone who has died is
 ever offered. The reminder carries that person's ways to be reached, as a wish does.
 
 ### There are no per-person and no per-kind defaults _(owner, 2026-09-05)_

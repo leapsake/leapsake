@@ -145,13 +145,15 @@ function reachableMethods(methods: ContactMethod[]): ContactMethod[] {
 /** The most people a memorial occasion offers to reach. */
 const MAX_REACHABLE = 3;
 
-/** The ties a memorial occasion offers to reach, closest first. */
+/** The ties a memorial occasion offers to reach, closest first; a pet's
+ *  people are its owners. */
 const KIN_ORDER: readonly RelationshipRole[] = [
   "spouse",
   "partner",
   "child",
   "sibling",
   "parent",
+  "owner",
 ];
 
 /** The audience `planQuestion`'s shapes add up to. */
@@ -346,39 +348,44 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string[]> {
-    const departed: string[] = [];
+    const departed: { type: EntityType; id: string }[] = [];
     const candidates: string[] = [];
     if (bearerType === "relationship") {
       for (const end of endpointsOf(await relationships.get(bearerId))) {
         if (end.type !== "person") continue;
-        if (await isDeceased("person", end.id)) departed.push(end.id);
+        if (await isDeceased("person", end.id)) departed.push(end);
         else candidates.push(end.id);
       }
-    } else if (bearerType === "person") departed.push(bearerId);
-    for (const personId of departed)
-      candidates.push(...(await closestKinOf(personId)));
+    } else departed.push({ type: bearerType, id: bearerId });
+    for (const end of departed)
+      candidates.push(...(await closestKinOf(end.type, end.id)));
 
     const selfId = (await self.getSelf())?.personId;
     const reachable: string[] = [];
     for (const id of candidates) {
       if (reachable.length === MAX_REACHABLE) break;
-      if (id === selfId || reachable.includes(id) || departed.includes(id))
+      if (
+        id === selfId ||
+        reachable.includes(id) ||
+        departed.some((end) => end.id === id)
+      )
         continue;
       if (!(await isDeceased("person", id))) reachable.push(id);
     }
     return reachable;
   }
 
-  /** A person's partners, children, siblings and parents, in that order. */
-  async function closestKinOf(personId: string): Promise<string[]> {
+  /** The people closest to a person or pet, in {@link KIN_ORDER}. */
+  async function closestKinOf(type: EntityType, id: string): Promise<string[]> {
     const ranked: { id: string; rank: number }[] = [];
-    for (const rel of await relationships.listForEntity("person", personId)) {
-      const personIsA = rel.aType === "person" && rel.aId === personId;
-      if ((personIsA ? rel.bType : rel.aType) !== "person") continue;
+    for (const rel of await relationships.listForEntity(type, id)) {
+      const subjectIsA = rel.aType === type && rel.aId === id;
+      if ((subjectIsA ? rel.bType : rel.aType) !== "person") continue;
       const rank = KIN_ORDER.indexOf(
-        baseRole(personIsA ? rel.bRole : rel.aRole),
+        baseRole(subjectIsA ? rel.bRole : rel.aRole),
       );
-      if (rank !== -1) ranked.push({ id: personIsA ? rel.bId : rel.aId, rank });
+      if (rank !== -1)
+        ranked.push({ id: subjectIsA ? rel.bId : rel.aId, rank });
     }
     return ranked.sort((a, b) => a.rank - b.rank).map((k) => k.id);
   }

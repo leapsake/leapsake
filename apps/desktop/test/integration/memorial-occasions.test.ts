@@ -321,6 +321,45 @@ describe("reaching out to the people they were close to", () => {
     ).toEqual([ma.id]);
   });
 
+  it("offers a pet's other owners, never you", async () => {
+    const george = await person("George");
+    const billy = await person("Billy");
+    const harry = await person("Harry");
+    await core.self.set(george.id);
+    const jimmy = await core.pets.create({ name: "Jimmy" }, []);
+    for (const owner of [george, billy, harry])
+      await core.relationships.create({
+        aType: "person",
+        aId: owner.id,
+        aRole: "owner",
+        bType: "pet",
+        bId: jimmy.id,
+        bRole: "pet",
+      });
+    const occ = civilDaysFromToday(asked("birthday"));
+    const birthday = await core.milestones.create({
+      kind: "birthday",
+      bearerType: "pet",
+      bearerId: jimmy.id,
+      month: occ.month,
+      day: occ.day,
+    });
+    await core.milestones.create({
+      kind: "death",
+      bearerType: "pet",
+      bearerId: jimmy.id,
+      year: null,
+      month: null,
+      day: null,
+    });
+
+    expect(
+      (await planFor(birthday.id))?.offers
+        .filter((o) => o.action.startsWith("reach:"))
+        .map((o) => o.action),
+    ).toEqual([`reach:${billy.id}`, `reach:${harry.id}`]);
+  });
+
   it("remembers a couple's anniversary, reaching the one still living first", async () => {
     const { peter, ma, george, harry, marriage } = await baileys();
     await recordDeath(peter.id);
