@@ -15,7 +15,11 @@ import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
-import { personTitle } from "../../../lib/record-title";
+import {
+  deceasedTitle,
+  isDeceased,
+  personTitle,
+} from "../../../lib/record-title";
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LoadState } from "../../../components/LoadState";
@@ -70,7 +74,11 @@ export default function PersonDetailScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* `personTitle`, which every link to this page also sends ahead. */}
-      <Stack.Screen options={{ title: personTitle(person) }} />
+      <Stack.Screen
+        options={{
+          title: deceasedTitle(personTitle(person), isDeceased(timeline)),
+        }}
+      />
 
       {/* Until the pair is merged or marked "not the same". */}
       {duplicateCandidates.length > 0 && (

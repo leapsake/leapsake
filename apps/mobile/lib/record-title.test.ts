@@ -3,6 +3,8 @@ import type { Person, Pet, SearchHit, Tag } from "@leapsake/schema";
 import { entityLabel } from "@leapsake/schema";
 import { describe, expect, it } from "vitest";
 import {
+  deceasedTitle,
+  isDeceased,
   entityHref,
   entityRowHref,
   headerTitle,
@@ -278,5 +280,20 @@ describe("headerTitle", () => {
 
   it("copes with a route carrying no parameters at all", () => {
     expect(headerTitle({}, route("data"))).toBe("");
+  });
+});
+
+describe("the title of someone who has died", () => {
+  const death = { origin: "own", milestone: { kind: "death" } };
+  const theirs = { origin: "relationship", milestone: { kind: "death" } };
+
+  it("gains a candle once their own timeline holds a death", () => {
+    expect(deceasedTitle("Peter Bailey", isDeceased([death]))).toBe(
+      "Peter Bailey 🕯️",
+    );
+  });
+
+  it("stays plain for a death on a relationship they are in", () => {
+    expect(deceasedTitle("Ma Bailey", isDeceased([theirs]))).toBe("Ma Bailey");
   });
 });

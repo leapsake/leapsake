@@ -5,7 +5,7 @@ import type { EntityRow } from "@leapsake/core";
 import { useMessages } from "@leapsake/ui/messages";
 import { EmptyState } from "../../components/EmptyState";
 import { useCore } from "../../lib/core-context";
-import { entityRowHref } from "../../lib/record-title";
+import { DECEASED_MARK, entityRowHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
 import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
@@ -74,9 +74,6 @@ export default function PeoplePetsScreen() {
     </View>
   );
 }
-
-/** Beside the name of someone who has died. */
-const DECEASED_MARK = "🕯️";
 
 /** One row, a link to its page and nothing else; the self-person wears
  *  a "(You)" badge, and anyone who has died a candle. */

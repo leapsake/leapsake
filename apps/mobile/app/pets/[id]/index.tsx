@@ -12,7 +12,7 @@ import { RelationshipsSection } from "../../../components/RelationshipsSection";
 import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
-import { petTitle } from "../../../lib/record-title";
+import { deceasedTitle, isDeceased, petTitle } from "../../../lib/record-title";
 import { styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LoadState } from "../../../components/LoadState";
@@ -61,7 +61,11 @@ export default function PetDetailScreen() {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {/* `petTitle`, which every link to this page also sends ahead. */}
-      <Stack.Screen options={{ title: petTitle(pet) }} />
+      <Stack.Screen
+        options={{
+          title: deceasedTitle(petTitle(pet), isDeceased(timeline)),
+        }}
+      />
 
       <RecordSection
         title="Details"

@@ -23,6 +23,24 @@ export function petTitle(pet: { name: string }): string {
   return pet.name;
 }
 
+/** Beside the name of someone who has died. */
+export const DECEASED_MARK = "🕯️";
+
+/** A record page's title once it is known they have died. Links cannot know,
+ *  so the candle arrives as the page loads. */
+export function deceasedTitle(title: string, deceased: boolean): string {
+  return deceased ? `${title} ${DECEASED_MARK}` : title;
+}
+
+/** Whether a page's own timeline holds a Death milestone. */
+export function isDeceased(
+  timeline: readonly { origin: string; milestone: { kind: string } }[],
+): boolean {
+  return timeline.some(
+    (entry) => entry.origin === "own" && entry.milestone.kind === "death",
+  );
+}
+
 /** With the "#", as a tag is shown everywhere it is named. */
 export function tagTitle(tag: { name: string }): string {
   return tagLabel(tag.name);
