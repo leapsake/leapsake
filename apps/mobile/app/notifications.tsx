@@ -58,9 +58,6 @@ const GROUP_LABELS: [NotificationGroup, string][] = [
   ["todos", "Leapsake to-dos"],
 ];
 
-/** What every time shares, shown while another can be added. */
-const TIMES_HINT = "Each comes only if something is still waiting for you.";
-
 /** "9:00 AM" for minute 540, counted from local midnight. */
 function formatDeliveryTime(minute: number): string {
   const hour24 = Math.floor(minute / 60);
@@ -313,14 +310,11 @@ function DeliveryTimes({
         </View>
       ))}
       {minutes.length < MAX_DELIVERY_TIMES && (
-        <>
-          <Button
-            label={ADD_TIME_LABEL}
-            tone="secondary"
-            onPress={() => onChange([...minutes, nextDeliveryTime(minutes)])}
-          />
-          <Text style={styles.muted}>{TIMES_HINT}</Text>
-        </>
+        <Button
+          label={ADD_TIME_LABEL}
+          tone="secondary"
+          onPress={() => onChange([...minutes, nextDeliveryTime(minutes)])}
+        />
       )}
     </View>
   );
