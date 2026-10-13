@@ -28,8 +28,9 @@ const DIGEST_TITLES = {
     day: ["Still on your list", "Still waiting for you", "Still to do today"],
     evening: [
       "Before your day ends",
-      "Still on your list",
-      "Still to do today",
+      "Last call for today",
+      "Don’t let today slip by",
+      "Time’s nearly up for today",
     ],
   },
 } as const;
