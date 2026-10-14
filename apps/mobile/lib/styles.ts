@@ -87,6 +87,11 @@ export const styles = StyleSheet.create({
   danger: {
     color: colors.danger,
   },
+  /** A sentence saying what went wrong: {@link danger} in the prose face. */
+  error: {
+    fontFamily: fonts.serif,
+    color: colors.danger,
+  },
   muted: {
     fontFamily: fonts.serif,
     color: colors.muted,
@@ -229,6 +234,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    fontFamily: fonts.serif,
     fontSize: 17,
     color: colors.text,
     // Lighter than its ground, so it reads as a well cut into the page.

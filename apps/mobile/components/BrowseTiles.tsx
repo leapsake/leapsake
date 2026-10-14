@@ -3,7 +3,7 @@ import {
   SEARCH_CATEGORIES,
   type SearchCategory,
 } from "../lib/search-categories";
-import { colors, radius } from "../lib/styles";
+import { colors, fonts, radius } from "../lib/styles";
 
 /**
  * Search before anything is typed: a tile per catalog, People included, and a
@@ -53,6 +53,7 @@ const local = StyleSheet.create({
     fontSize: 26,
   },
   label: {
+    fontFamily: fonts.serif,
     fontSize: 17,
     fontWeight: "600",
     color: colors.text,

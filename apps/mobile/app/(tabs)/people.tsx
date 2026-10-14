@@ -43,7 +43,10 @@ export default function PeoplePetsScreen() {
         keyExtractor={(entity) => `${entity.type}:${entity.id}`}
         ListHeaderComponent={
           duplicateCount > 0 ? (
-            <Link href="/duplicates" style={[styles.row, styles.link]}>
+            <Link
+              href="/duplicates"
+              style={[styles.row, styles.rowText, { color: colors.accent }]}
+            >
               {m.people.reviewDuplicates(duplicateCount)}
             </Link>
           ) : null

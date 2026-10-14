@@ -87,7 +87,7 @@ export function StagedGiftsSection({
 
             {/* A name, said where it is missing, not only at Save. */}
             {!giftDraftValid(row.draft) && (
-              <Text style={styles.danger}>This gift needs a name.</Text>
+              <Text style={styles.error}>This gift needs a name.</Text>
             )}
           </DraftRow>
         );

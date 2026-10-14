@@ -24,13 +24,13 @@ export function LoadState({
     <View style={styles.screen}>
       {header !== undefined && <Stack.Screen options={header} />}
       {error !== null ? (
-        <Text style={styles.danger} accessibilityRole="alert">
+        <Text style={styles.error} accessibilityRole="alert">
           {error}
         </Text>
       ) : loading || missing === undefined ? (
         <ActivityIndicator />
       ) : (
-        <Text style={styles.danger}>{missing}</Text>
+        <Text style={styles.error}>{missing}</Text>
       )}
     </View>
   );

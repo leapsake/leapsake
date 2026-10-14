@@ -9,7 +9,7 @@ import {
   setPromptItem,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
-import { colors, styles } from "../lib/styles";
+import { colors, fonts, styles } from "../lib/styles";
 
 /**
  * The prompt's answer: a tick per thing to do. Hands back the whole set, so
@@ -58,6 +58,7 @@ export function ReminderPromptFields({
 
 const local = StyleSheet.create({
   lead: {
+    fontFamily: fonts.serif,
     fontSize: 13,
     color: colors.muted,
   },

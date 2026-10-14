@@ -87,7 +87,7 @@ export default function PersonDetailScreen() {
           onPress={() => router.push(`/duplicates?for=${person.id}`)}
           style={styles.row}
         >
-          <Text style={[styles.link, { color: colors.accent }]}>
+          <Text style={[styles.rowText, { color: colors.accent }]}>
             {m.person.duplicates(duplicateCandidates.length)}{" "}
             {m.person.reviewDuplicates}
           </Text>

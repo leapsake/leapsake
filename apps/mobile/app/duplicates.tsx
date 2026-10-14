@@ -11,7 +11,7 @@ import { useDateFormat } from "../lib/date-format";
 import { personFacts } from "../lib/duplicate-pair";
 import { personHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
-import { styles } from "../lib/styles";
+import { colors, styles } from "../lib/styles";
 import { Button } from "../components/Button";
 import { LoadState } from "../components/LoadState";
 
@@ -246,7 +246,9 @@ function PairComparison({ pair, position }: { pair: Pair; position: string }) {
       <View style={[styles.row, local.columns]}>
         {[a.person, b.person].map((person) => (
           <Link key={person.id} href={personHref(person)} style={local.column}>
-            <Text style={styles.link}>{fullName(person)} ›</Text>
+            <Text style={[styles.rowText, { color: colors.accent }]}>
+              {fullName(person)} ›
+            </Text>
           </Link>
         ))}
       </View>

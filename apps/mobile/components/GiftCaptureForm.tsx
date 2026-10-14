@@ -107,7 +107,7 @@ export function GiftCaptureForm({
         onRecipientGiven={form.setRecipientGiven}
       />
       {error !== null && (
-        <Text style={styles.danger}>{TEXT.saveFailed(error)}</Text>
+        <Text style={styles.error}>{TEXT.saveFailed(error)}</Text>
       )}
     </View>
   );

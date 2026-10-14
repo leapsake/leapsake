@@ -239,7 +239,7 @@ export default function NotificationsScreen() {
             )}
             {permissionNotice !== null && (
               <View style={{ gap: 8 }}>
-                <Text style={styles.danger} accessibilityRole="alert">
+                <Text style={styles.error} accessibilityRole="alert">
                   Leapsake doesn't have permission to notify you on this phone,
                   so these won't be delivered here.
                 </Text>

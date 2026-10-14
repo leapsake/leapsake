@@ -83,7 +83,7 @@ export default function FactoryResetScreen() {
           onPress={() => void reset()}
         />
         {error !== null && (
-          <Text style={styles.danger} accessibilityRole="alert">
+          <Text style={styles.error} accessibilityRole="alert">
             {error}
           </Text>
         )}

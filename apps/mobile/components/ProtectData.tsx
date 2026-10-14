@@ -127,7 +127,7 @@ export function CreateAccountForm({
         />
       </View>
       {error !== null && (
-        <Text style={styles.danger} accessibilityRole="alert">
+        <Text style={styles.error} accessibilityRole="alert">
           {error}
         </Text>
       )}

@@ -116,7 +116,7 @@ function SignOutSection() {
       </Text>
       <Button label="Sign out" onPress={signOut} />
       {error !== null && (
-        <Text style={styles.danger} accessibilityRole="alert">
+        <Text style={styles.error} accessibilityRole="alert">
           {error}
         </Text>
       )}
@@ -207,7 +207,7 @@ function RecoveryPhraseSection({
         </>
       )}
       {error !== null && (
-        <Text style={styles.danger} accessibilityRole="alert">
+        <Text style={styles.error} accessibilityRole="alert">
           {error}
         </Text>
       )}

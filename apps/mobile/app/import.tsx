@@ -234,7 +234,7 @@ export default function ImportScreen() {
   if (state.phase === "error") {
     return (
       <Screen title="Import from Contacts">
-        <Text style={styles.danger}>{state.message}</Text>
+        <Text style={styles.error}>{state.message}</Text>
       </Screen>
     );
   }
@@ -259,7 +259,7 @@ export default function ImportScreen() {
       </Text>
       {result.errors.length > 0 && (
         <View style={{ gap: 4 }}>
-          <Text style={styles.danger}>
+          <Text style={styles.error}>
             Couldn’t import {result.errors.length}:
           </Text>
           {/* Keyed by position: `err.index` is per run, and this list can

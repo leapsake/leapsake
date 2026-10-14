@@ -127,7 +127,7 @@ export default function ForgetAccountScreen() {
           </>
         )}
         {error !== null && (
-          <Text style={styles.danger} accessibilityRole="alert">
+          <Text style={styles.error} accessibilityRole="alert">
             {error}
           </Text>
         )}
