@@ -10,8 +10,8 @@ import { mentionHref, tagHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
 /**
- * Reminder text as one wrapping `<Text>`, resolved `#tags` and `@mentions`
- * highlighted; RN nests no `<Link>` in text, so links are pressable runs.
+ * Reminder text as one wrapping `<Text>`, `#tags` as links and mentions as
+ * bare names on a chip tint; every link is a pressable run, not a `<Link>`.
  */
 export function ReminderText({
   text,
@@ -37,18 +37,23 @@ export function ReminderText({
   );
 
   /** One run; `href` is `null` for prose and for a gone target alike. */
-  function run(key: number, content: string, href: string | null) {
+  function run(
+    key: number,
+    content: string,
+    href: string | null,
+    linkStyle: StyleProp<TextStyle> = styles.link,
+  ) {
     if (href === null) return <Text key={key}>{content}</Text>;
     if (!linkAnnotations)
       return (
-        <Text key={key} style={styles.link}>
+        <Text key={key} style={linkStyle}>
           {content}
         </Text>
       );
     return (
       <Text
         key={key}
-        style={styles.link}
+        style={linkStyle}
         accessibilityRole="link"
         onPress={() => router.push(href)}
       >
@@ -69,9 +74,8 @@ export function ReminderText({
             `${segment.targetType}:${segment.targetId}`,
           );
           if (mention === undefined || typeof mention.label !== "string")
-            return run(i, `@${segment.displayName}`, null);
-          // The sigil is punctuation here; the link carries the bare label.
-          return run(i, `@${mention.label}`, mentionHref(mention));
+            return run(i, segment.displayName, null);
+          return run(i, mention.label, mentionHref(mention), styles.chip);
         }
         return run(i, segment.text, null);
       })}

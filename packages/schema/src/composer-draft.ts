@@ -8,13 +8,13 @@ import {
 } from "./mention.js";
 
 /**
- * A run of composer text that acts as one unit, sigil included. A mention's
- * text is fixed; a tag re-fits to its run, so typing at its end extends it.
+ * A run of composer text that acts as one unit: a mention is its bare name, a
+ * tag keeps its `#`. A mention's text is fixed; a tag re-fits to its run.
  */
 export type ChipSpan =
   | {
       kind: "mention";
-      /** Index of the `@`. */
+      /** Index of the display name's first character. */
       start: number;
       /** Exclusive end, just past the last character of the display name. */
       end: number;
@@ -118,7 +118,7 @@ function withTagSpans(
 
 /**
  * A reminder's stored text as its composer shows it: each mention token becomes
- * `@Name` with a chip, and every saved `#tag` opens as a chip.
+ * its bare name as a chip, and every saved `#tag` opens as a chip.
  */
 export function draftFromMarkup(markup: string): ComposerDraft {
   let text = "";
@@ -129,7 +129,7 @@ export function draftFromMarkup(markup: string): ComposerDraft {
       continue;
     }
     const start = text.length;
-    text += `@${segment.displayName}`;
+    text += segment.displayName;
     spans.push({
       kind: "mention",
       start,
@@ -148,7 +148,7 @@ export function draftFromMarkup(markup: string): ComposerDraft {
 
 /**
  * The inverse of {@link draftFromMarkup}. A mention chip whose text no longer
- * reads `@displayName` is dropped, and its characters stay as prose.
+ * reads its `displayName` is dropped, and its characters stay as prose.
  */
 export function markupFromDraft(draft: ComposerDraft): string {
   let markup = "";
@@ -156,7 +156,7 @@ export function markupFromDraft(draft: ComposerDraft): string {
   for (const span of draft.spans) {
     if (span.kind !== "mention") continue;
     if (span.start < last) continue; // overlapping; cannot be emitted
-    if (draft.text.slice(span.start, span.end) !== `@${span.displayName}`) {
+    if (draft.text.slice(span.start, span.end) !== span.displayName) {
       continue;
     }
     markup += draft.text.slice(last, span.start);
@@ -298,7 +298,7 @@ export function insertMentionInDraft(
     draft,
     caret,
     active?.start ?? caret,
-    `@${mention.displayName}`,
+    mention.displayName,
     (start, end) => ({
       kind: "mention",
       start,

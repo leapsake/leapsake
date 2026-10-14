@@ -122,14 +122,11 @@ describe("activeMentionQuery", () => {
     expect(activeMentionQuery("", 0)).toBeNull();
   });
 
-  // In the composer's displayed text a mention already taken reads "@Violet Bick",
-  // which is indistinguishable from a name being typed — the spans are what tell
-  // the two apart.
   it("returns null when the caret sits inside or just past a placed mention", () => {
     const { text, spans } = draftFromMarkup(
       `${mentionToken("Violet Bick", "person", VIOLET)} `,
     );
-    expect(text).toBe("@Violet Bick ");
+    expect(text).toBe("Violet Bick ");
     // Caret at the very end, after the whole mention + trailing space.
     expect(activeMentionQuery(text, text.length, spans)).toBeNull();
     // Caret parked in the middle of the name also reads as not-a-query.
@@ -140,24 +137,24 @@ describe("activeMentionQuery", () => {
     const { spans } = draftFromMarkup(
       mentionToken("Violet Bick", "person", VIOLET),
     );
-    const text = "@Violet Bick @re";
+    const text = "Violet Bick @re";
     expect(activeMentionQuery(text, text.length, spans)).toEqual({
       query: "re",
-      start: 13,
+      start: 12,
     });
   });
 });
 
 describe("plainMentionText", () => {
-  it("replaces each token with the '@name' a reader sees", () => {
+  it("replaces each token with the bare name a reader sees", () => {
     const text = `🎂 ${mentionToken("Violet Bick", "person", VIOLET)}'s birthday`;
-    expect(plainMentionText(text)).toBe("🎂 @Violet Bick's birthday");
+    expect(plainMentionText(text)).toBe("🎂 Violet Bick's birthday");
   });
 
   it("is idempotent and leaves token-free text untouched", () => {
     const once = plainMentionText(`hi ${mentionToken("Jimmy", "pet", JIMMY)}`);
-    expect(once).toBe("hi @Jimmy");
-    expect(plainMentionText(once)).toBe("hi @Jimmy");
+    expect(once).toBe("hi Jimmy");
+    expect(plainMentionText(once)).toBe("hi Jimmy");
     expect(plainMentionText("just prose #tag")).toBe("just prose #tag");
   });
 });

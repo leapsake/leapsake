@@ -13,7 +13,7 @@ export const colors = {
   /** The hairline between list rows, lighter than {@link border}. */
   divider: "#eae1d3",
   accent: "#1f6feb",
-  /** A wash of `accent` — the mention chip behind `@Name` in a composer. */
+  /** A wash of `accent` — the chip behind a mentioned name. */
   accentTint: "rgba(31, 111, 235, 0.14)",
   danger: "#b00020",
   selectedBg: "#1f6feb",
@@ -69,6 +69,10 @@ export const styles = StyleSheet.create({
   link: {
     fontSize: 16,
     color: colors.accent,
+  },
+  /** A mention or tag run inside text, in the composer and when read. */
+  chip: {
+    backgroundColor: colors.accentTint,
   },
   /** The chosen one, where a row of links is really a single-choice picker. */
   linkSelected: {

@@ -52,12 +52,12 @@ function typeAt(draft: ComposerDraft, caret: number, typed: string) {
 }
 
 describe("draftFromMarkup", () => {
-  it("shows '@name' in place of the token and records where it sits", () => {
+  it("shows the bare name in place of the token and records where it sits", () => {
     const draft = draftFromMarkup(`🎂 ${violetToken}'s day`);
-    expect(draft.text).toBe("🎂 @Violet Bick's day");
-    expect(draft.spans).toEqual([{ start: 3, end: 15, ...violetChip }]);
-    // The chip covers exactly the run a reader sees, sigil included.
-    expect(draft.text.slice(3, 15)).toBe("@Violet Bick");
+    expect(draft.text).toBe("🎂 Violet Bick's day");
+    expect(draft.spans).toEqual([{ start: 3, end: 14, ...violetChip }]);
+    // The chip covers exactly the run a reader sees, with no '@'.
+    expect(draft.text.slice(3, 14)).toBe("Violet Bick");
   });
 
   it("opens every saved #tag as a chip — saved text has committed tags", () => {
@@ -70,7 +70,7 @@ describe("draftFromMarkup", () => {
 
   it("leaves a '#' inside a mention's name to that mention", () => {
     const draft = draftFromMarkup(mentionToken("Team #1", "person", VIOLET));
-    expect(chips(draft)).toEqual([["@Team #1", "mention"]]);
+    expect(chips(draft)).toEqual([["Team #1", "mention"]]);
   });
 
   it("copies prose through untouched", () => {
@@ -123,11 +123,11 @@ describe("markupFromDraft", () => {
 
   it("drops a mention chip whose text no longer says the name", () => {
     const draft = {
-      text: "@Violet Bic",
-      spans: [{ start: 0, end: 12, ...violetChip }],
+      text: "Violet Bic",
+      spans: [{ start: 0, end: 11, ...violetChip }],
       grammar: "prose" as const,
     };
-    expect(markupFromDraft(draft)).toBe("@Violet Bic");
+    expect(markupFromDraft(draft)).toBe("Violet Bic");
   });
 });
 
@@ -135,8 +135,8 @@ describe("applyDraftEdit — chips are atomic", () => {
   const withMention = () => draftFromMarkup(`call ${violetToken} today`);
 
   it("deletes the whole chip when backspace lands at its end", () => {
-    // "call @Violet Bick today" with the caret at the mention's end.
-    const next = applyDraftEdit(withMention(), "call @Violet Bic today");
+    // "call Violet Bick today" with the caret at the mention's end.
+    const next = applyDraftEdit(withMention(), "call Violet Bic today");
     expect(next.draft.text).toBe("call  today");
     expect(next.draft.spans).toEqual([]);
     // The caret goes where the chip began — more was removed than was typed.
@@ -145,28 +145,25 @@ describe("applyDraftEdit — chips are atomic", () => {
   });
 
   it("takes the whole chip when a selection covering part of it is replaced", () => {
-    const next = applyDraftEdit(withMention(), "call @Violet X today");
+    const next = applyDraftEdit(withMention(), "call Violet X today");
     expect(next.draft.text).toBe("call X today");
     expect(next.draft.spans).toEqual([]);
   });
 
   it("leaves a chip alone when the edit lands after it", () => {
-    const next = applyDraftEdit(withMention(), "call @Violet Bick today!");
-    expect(next.draft.spans).toEqual([{ start: 5, end: 17, ...violetChip }]);
+    const next = applyDraftEdit(withMention(), "call Violet Bick today!");
+    expect(next.draft.spans).toEqual([{ start: 5, end: 16, ...violetChip }]);
     expect(markupFromDraft(next.draft)).toBe(`call ${violetToken} today!`);
   });
 
   it("keeps a chip when a character is typed immediately after it", () => {
-    const next = applyDraftEdit(withMention(), "call @Violet Bick, today");
-    expect(next.draft.spans).toEqual([{ start: 5, end: 17, ...violetChip }]);
+    const next = applyDraftEdit(withMention(), "call Violet Bick, today");
+    expect(next.draft.spans).toEqual([{ start: 5, end: 16, ...violetChip }]);
   });
 
   it("shifts a chip when text is inserted before it", () => {
-    const next = applyDraftEdit(
-      withMention(),
-      "please call @Violet Bick today",
-    );
-    expect(next.draft.spans).toEqual([{ start: 12, end: 24, ...violetChip }]);
+    const next = applyDraftEdit(withMention(), "please call Violet Bick today");
+    expect(next.draft.spans).toEqual([{ start: 12, end: 23, ...violetChip }]);
     expect(markupFromDraft(next.draft)).toBe(
       `please call ${violetToken} today`,
     );
@@ -174,10 +171,10 @@ describe("applyDraftEdit — chips are atomic", () => {
 
   it("takes only the chip the edit touched", () => {
     const two = draftFromMarkup(`${violetToken} & ${jimmyToken}`);
-    // Backspace at the end of "@Violet Bick".
-    const next = applyDraftEdit(two, "@Violet Bic & @Jimmy");
-    expect(next.draft.text).toBe(" & @Jimmy");
-    expect(chips(next.draft)).toEqual([["@Jimmy", "mention"]]);
+    // Backspace at the end of "Violet Bick".
+    const next = applyDraftEdit(two, "Violet Bic & Jimmy");
+    expect(next.draft.text).toBe(" & Jimmy");
+    expect(chips(next.draft)).toEqual([["Jimmy", "mention"]]);
   });
 
   it("survives a wholesale replacement (select-all and retype)", () => {
@@ -236,11 +233,11 @@ describe("applyDraftEdit — when a tag becomes a chip", () => {
       VIOLET_MENTION,
     );
     const next = typeAt(picked.draft, picked.caret, " about #fam");
-    expect(next.draft.text).toBe("call @Violet Bick about #fam ");
-    expect(chips(next.draft)).toEqual([["@Violet Bick", "mention"]]);
+    expect(next.draft.text).toBe("call Violet Bick about #fam ");
+    expect(chips(next.draft)).toEqual([["Violet Bick", "mention"]]);
     expect(activeTagQuery(next.draft, next.caret)).toEqual({
       query: "fam",
-      start: 24,
+      start: 23,
     });
   });
 
@@ -287,16 +284,16 @@ describe("activeTagQuery", () => {
 });
 
 describe("insertMentionInDraft", () => {
-  it("replaces the active fragment with '@name' plus a trailing space", () => {
+  it("replaces the '@' fragment with the bare name plus a trailing space", () => {
     const result = insertMentionInDraft(
       { text: "email @vio", spans: [], grammar: "prose" },
       10,
       VIOLET_MENTION,
     );
-    expect(result.draft.text).toBe("email @Violet Bick ");
+    expect(result.draft.text).toBe("email Violet Bick ");
     // Caret sits at the chip's end, before the trailing space.
-    expect(result.caret).toBe(18);
-    expect(result.draft.spans).toEqual([{ start: 6, end: 18, ...violetChip }]);
+    expect(result.caret).toBe(17);
+    expect(result.draft.spans).toEqual([{ start: 6, end: 17, ...violetChip }]);
   });
 
   it("preserves text after the caret and does not double a space", () => {
@@ -306,7 +303,7 @@ describe("insertMentionInDraft", () => {
         7,
         VIOLET_MENTION,
       ).draft.text,
-    ).toBe("hi @Violet Bick there");
+    ).toBe("hi Violet Bick there");
   });
 
   it("shifts the chips that follow the insertion", () => {
@@ -315,11 +312,11 @@ describe("insertMentionInDraft", () => {
       3,
       JIMMY_MENTION,
     );
-    const both = insertMentionInDraft(start.draft, 14, VIOLET_MENTION);
-    expect(both.draft.text).toBe("@Jimmy and @Violet Bick ");
+    const both = insertMentionInDraft(start.draft, 13, VIOLET_MENTION);
+    expect(both.draft.text).toBe("Jimmy and Violet Bick ");
     expect(both.draft.spans).toEqual([
-      { start: 0, end: 6, ...jimmyChip },
-      { start: 11, end: 23, ...violetChip },
+      { start: 0, end: 5, ...jimmyChip },
+      { start: 10, end: 21, ...violetChip },
     ]);
   });
 
@@ -414,7 +411,7 @@ describe("splitDraft", () => {
     const draft = draftFromMarkup(`call ${violetToken} about #family soon`);
     expect(splitDraft(draft).map((r) => [r.text, r.kind])).toEqual([
       ["call ", "text"],
-      ["@Violet Bick", "mention"],
+      ["Violet Bick", "mention"],
       [" about ", "text"],
       ["#family", "tag"],
       [" soon", "text"],

@@ -160,7 +160,7 @@ export const snoozeDaysSchema = z.number().int().min(1);
 
 /**
  * A reminder as one plain string: its title, else its body's first line, with
- * mention tokens shown as `@name`.
+ * mention tokens shown as bare names.
  */
 export function reminderLabel(r: {
   title: string | null;

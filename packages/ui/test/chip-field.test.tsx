@@ -103,14 +103,14 @@ function moveCaret(field: HTMLElement, from: number, to: number) {
 }
 
 describe("ChipTextField — mentions", () => {
-  it("shows a picked mention as '@Name' while storing the token", async () => {
+  it("shows a picked mention as its bare name while storing the token", async () => {
     const { container } = renderWithUi(<Host />);
     const field = screen.getByLabelText("Title");
 
     type(field, "call @dav");
     clickOption(await screen.findByRole("option"), field);
 
-    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
@@ -121,7 +121,7 @@ describe("ChipTextField — mentions", () => {
 
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call @Ernie Bishop today",
+      "call Ernie Bishop today",
     );
     // Untouched: what came in is what would go back out.
     expect(stored(container)).toBe(`call ${ernieToken} today`);
@@ -131,7 +131,7 @@ describe("ChipTextField — mentions", () => {
     const { container } = renderWithUi(
       <Host initial={`hi ${ernieToken} #family!`} />,
     );
-    expect(chips(container)).toEqual(["@Ernie Bishop", "#family"]);
+    expect(chips(container)).toEqual(["Ernie Bishop", "#family"]);
   });
 
   it("keeps the mirrored text out of the label", () => {
@@ -139,7 +139,7 @@ describe("ChipTextField — mentions", () => {
     // Would throw if the backdrop's copy of the text counted as label text.
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call @Ernie Bishop",
+      "call Ernie Bishop",
     );
   });
 
@@ -147,7 +147,7 @@ describe("ChipTextField — mentions", () => {
     const { container } = renderWithUi(<Host initial={`call ${ernieToken}`} />);
     const field = screen.getByLabelText("Title");
 
-    type(field, "call @Ernie Bisho"); // backspace at the end of the name
+    type(field, "call Ernie Bisho"); // backspace at the end of the name
 
     expect(stored(container)).toBe("call ");
     await waitFor(() => expect(chips(container)).toEqual([]));
@@ -157,10 +157,8 @@ describe("ChipTextField — mentions", () => {
     renderWithUi(<Host initial={ernieToken} />);
     const field = screen.getByLabelText("Title");
 
-    // Carry on typing after the mention. Read as raw text, everything back to
-    // the leading "@" looks like one long fragment — "Ernie Bishop and" — and
-    // the picker would open again on it; the chip is what says otherwise.
-    type(field, "@Ernie Bishop and");
+    // Carry on typing after the mention; the picker must stay shut.
+    type(field, "Ernie Bishop and");
 
     // Past the search debounce, so "no picker" means it never opened rather
     // than that we looked too early.
@@ -259,7 +257,7 @@ describe("ChipTextField — completing from the keyboard", () => {
     await screen.findByRole("option");
 
     expect(press(field, "Enter")).toBe(true);
-    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
@@ -272,7 +270,7 @@ describe("ChipTextField — completing from the keyboard", () => {
 
     // Swallowed, so focus stays put rather than moving on to the next control.
     expect(press(field, "Tab")).toBe(true);
-    expect(field).toHaveProperty("value", "call @Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 

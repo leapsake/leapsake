@@ -116,11 +116,11 @@ export function repointMentionTokens(
   );
 }
 
-/** Replace each mention token with the `@Violet Bick` a reader sees. */
+/** Replace each mention token with the bare `Violet Bick` a reader sees. */
 export function plainMentionText(text: string): string {
   return text.replace(
     /@\[([^\]]+)\]\((?:person|pet):[0-9a-fA-F-]{36}\)/gu,
-    (_match, display: string) => `@${display}`,
+    (_match, display: string) => display,
   );
 }
 

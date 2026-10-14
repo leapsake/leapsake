@@ -107,7 +107,7 @@ appId: com.leapsake.app
     visible: ".*Send a card.*"
     timeout: 120000
 - tapOn: ".*Send a card.*"
-- assertVisible: "@Mary Bailey"
+- assertVisible: "Mary Bailey"
 - assertVisible: ".*#birthday.*"
 
 - openLink: "leapsake://"

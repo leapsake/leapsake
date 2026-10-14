@@ -45,7 +45,7 @@ describe("useChipDraft", () => {
   it("shows a prose value's mentions as names, keeping the stored tokens", () => {
     const { result } = host(`call ${violetToken} #family`);
 
-    expect(result.current.chips.live.text).toBe("call @Violet Bick #family");
+    expect(result.current.chips.live.text).toBe("call Violet Bick #family");
     expect(result.current.value).toBe(`call ${violetToken} #family`);
     // Untouched, nothing is being typed, so nothing is searched for.
     expect(result.current.chips.activeQuery).toBeNull();
@@ -56,7 +56,7 @@ describe("useChipDraft", () => {
 
     act(() => result.current.setValue(`see ${violetToken}`));
 
-    expect(result.current.chips.live.text).toBe("see @Violet Bick");
+    expect(result.current.chips.live.text).toBe("see Violet Bick");
     expect(result.current.chips.live.spans).toHaveLength(1);
   });
 
@@ -93,8 +93,8 @@ describe("useChipDraft", () => {
     act(() => result.current.chips.pick(violetHit));
 
     expect(result.current.value).toBe(`call ${violetToken} `);
-    expect(result.current.chips.live.text).toBe("call @Violet Bick ");
-    expect(placeCaret).toHaveBeenCalledWith("call @Violet Bick".length);
+    expect(result.current.chips.live.text).toBe("call Violet Bick ");
+    expect(placeCaret).toHaveBeenCalledWith("call Violet Bick".length);
   });
 
   it("offers tags for a #tag typed after a picked mention, before its space", async () => {
@@ -104,7 +104,7 @@ describe("useChipDraft", () => {
     act(() => result.current.chips.pick(violetHit));
 
     // The caret sits at the mention's end, before the space the pick added.
-    let caret = "call @Violet Bick".length;
+    let caret = "call Violet Bick".length;
     for (const ch of " about #fam") {
       const text = result.current.chips.live.text;
       act(() =>
@@ -136,7 +136,7 @@ describe("useChipDraft", () => {
   it("moves the field's caret only when an edit takes a whole chip", () => {
     const { result, placeCaret } = host(`hi ${violetToken}`);
 
-    type(result, "hi @Violet Bic");
+    type(result, "hi Violet Bic");
     expect(result.current.value).toBe("hi ");
     expect(placeCaret).toHaveBeenCalledWith(3);
 
@@ -147,34 +147,34 @@ describe("useChipDraft", () => {
 
   it("snaps a caret inside a chip the way it was travelling", () => {
     const { result } = host(`hi ${violetToken} ok`);
-    // "hi @Violet Bick ok": the chip spans 3–15.
+    // "hi Violet Bick ok": the chip spans 3–14.
 
-    act(() => result.current.chips.moveCaret(15));
-    expect(result.current.chips.snap({ start: 14, end: 14 })).toEqual({
+    act(() => result.current.chips.moveCaret(14));
+    expect(result.current.chips.snap({ start: 13, end: 13 })).toEqual({
       start: 3,
       end: 3,
     });
 
     act(() => result.current.chips.moveCaret(3));
     expect(result.current.chips.snap({ start: 4, end: 4 })).toEqual({
-      start: 15,
-      end: 15,
+      start: 14,
+      end: 14,
     });
     expect(result.current.chips.snap({ start: 1, end: 5 })).toEqual({
       start: 1,
-      end: 15,
+      end: 14,
     });
   });
   it("snaps a caret reported before the edit re-renders against the edit's chips", () => {
     const { result } = host(`see ${violetToken} `);
-    // "see @Violet Bick ": the chip spans 4–16.
+    // "see Violet Bick ": the chip spans 4–15.
     act(() => result.current.chips.moveCaret(4));
 
     // iOS reports the caret an edit moved before React renders the edit.
     let snapped = { start: -1, end: -1 };
     act(() => {
       const { chips } = result.current;
-      chips.edit("see x@Violet Bick ");
+      chips.edit("see xViolet Bick ");
       snapped = chips.snap({ start: 5, end: 5 });
     });
 
