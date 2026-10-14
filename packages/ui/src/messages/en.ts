@@ -441,6 +441,25 @@ export const en: Messages = {
     of: (type) => (type === "pet" ? "Pet" : "Person"),
   },
 
+  display: {
+    title: "Display",
+    intro: "How Leapsake writes things out, on every device you use.",
+    dateFormat: "Date format",
+    dateFormatLabel: {
+      "Month D, YYYY": "Month D, YYYY",
+      "D Month YYYY": "D Month YYYY",
+      "MM/DD/YYYY": "MM/DD/YYYY",
+      "DD/MM/YYYY": "DD/MM/YYYY",
+      "DD.MM.YYYY": "DD.MM.YYYY",
+      "DD-MM-YYYY": "DD-MM-YYYY",
+      "YYYY-MM-DD": "YYYY-MM-DD",
+      "YYYY/MM/DD": "YYYY/MM/DD",
+      "YYYY.MM.DD": "YYYY.MM.DD",
+    },
+    dateFormatOption: (label, example) => `${label}  ·  ${example}`,
+    saveFailed: "Your display settings couldn’t be saved. Please try again.",
+  },
+
   notifications: {
     digest: ({ followUp, remembering, partOfDay, labels, variant }) => {
       const titles = remembering

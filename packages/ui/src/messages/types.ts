@@ -1,5 +1,6 @@
 import type {
   ContactMethodKind,
+  DateFormat,
   GiftPartyType,
   ObservanceBearerType,
 } from "@leapsake/schema";
@@ -396,6 +397,18 @@ export interface Messages {
     person: string;
     pet: string;
     of: (type: GiftPartyType) => string;
+  };
+
+  /** Settings → Display: how the app writes things out. */
+  display: {
+    title: string;
+    intro: string;
+    dateFormat: string;
+    /** Each date format's name: its placeholder, in the reader's letters. */
+    dateFormatLabel: Record<DateFormat, string>;
+    /** A choice in the picker: the format's name and today written in it. */
+    dateFormatOption: (label: string, example: string) => string;
+    saveFailed: string;
   };
 
   /** What reaches a device while the app is closed. */
