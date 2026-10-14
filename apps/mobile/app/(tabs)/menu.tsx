@@ -6,10 +6,11 @@ import { colors, styles } from "../../lib/styles";
 
 /** The Settings tab's rows, the same whether or not an account exists. */
 const ROWS = [
+  // First: who you are. Then alphabetical.
   { href: "/settings", glyph: "👤", label: "Account" },
   { href: "/data", glyph: "💾", label: "Data" },
-  { href: "/notifications", glyph: "🔔", label: "Notifications" },
   { href: "/display", glyph: "🎨", label: "Display" },
+  { href: "/notifications", glyph: "🔔", label: "Notifications" },
   // Last: about the app, and a licence obligation as well as a screen.
   { href: "/acknowledgements", glyph: "💚", label: "Acknowledgements" },
 ] as const;

@@ -76,7 +76,7 @@ appId: com.leapsake.app
 
 # Settings offers to create an account. Two hops, because the fourth tab is a *menu*
 # (`app/(tabs)/menu.tsx`) rather than the account screen itself: the tab lists Account,
-# Data, Notifications, Acknowledgements, and `app/settings.tsx` is the row behind
+# Data, Display, Notifications, Acknowledgements, and `app/settings.tsx` is the row behind
 # "Account". Its rows read "<glyph> <label>", so the selector cannot be the bare word.
 #
 # The tab is `tab-settings` in both custody states. It used to rename itself to "Account"
