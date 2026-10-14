@@ -107,7 +107,8 @@ appId: com.leapsake.app
     visible: ".*Send a card.*"
     timeout: 120000
 - tapOn: ".*Send a card.*"
-- assertVisible: "Mary Bailey"
+# A mention chip joins the name with a non-breaking space.
+- assertVisible: "Mary.Bailey"
 - assertVisible: ".*#birthday.*"
 
 - openLink: "leapsake://"
