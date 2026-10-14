@@ -3,6 +3,8 @@ import { phoneE164 } from "@leapsake/phone";
 import {
   type ContactMethod,
   fold,
+  type DateFormat,
+  FALLBACK_DATE_FORMAT,
   formatMilestoneDate,
   formatPostalAddress,
   fullName,
@@ -46,6 +48,7 @@ function contactKey(entry: ContactMethod, region: string | null): string {
 export function personFacts(
   view: PersonView,
   region: string | null,
+  dateFormat: DateFormat = FALLBACK_DATE_FORMAT,
 ): PairFact[] {
   const name = fullName(view.person);
   const facts: PairFact[] = [
@@ -66,7 +69,7 @@ export function personFacts(
     facts.push({
       field: milestoneLabel(milestone),
       key: `${year}-${month}-${day}`,
-      text: formatMilestoneDate(milestone) || NO_DATE,
+      text: formatMilestoneDate(milestone, dateFormat) || NO_DATE,
     });
   }
   for (const tag of view.tags)

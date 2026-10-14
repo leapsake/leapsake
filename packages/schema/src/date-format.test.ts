@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   DATE_FORMATS,
   type DateFormat,
+  datePartOrder,
   defaultDateFormat,
   formatDate,
+  formatDateTime,
   formatPartialDate,
 } from "./date-format.js";
 
@@ -25,6 +27,13 @@ describe("formatDate", () => {
     for (const format of DATE_FORMATS) {
       expect(formatDate(NOV_9, format)).toBe(expected[format]);
     }
+  });
+});
+
+describe("formatDateTime", () => {
+  it("writes the local date in the format, then the time", () => {
+    const at = new Date(2026, 10, 9, 11, 41).getTime();
+    expect(formatDateTime(at, "DD.MM.YYYY")).toMatch(/^09\.11\.2026, \S/);
   });
 });
 
@@ -61,6 +70,16 @@ describe("formatPartialDate", () => {
 
   it("writes a whole date as formatDate does", () => {
     expect(formatPartialDate(NOV_9, "DD.MM.YYYY")).toBe("09.11.2026");
+  });
+});
+
+describe("datePartOrder", () => {
+  it("follows the format's order, words or digits", () => {
+    expect(datePartOrder("Month D, YYYY")).toEqual(["month", "day", "year"]);
+    expect(datePartOrder("MM/DD/YYYY")).toEqual(["month", "day", "year"]);
+    expect(datePartOrder("D Month YYYY")).toEqual(["day", "month", "year"]);
+    expect(datePartOrder("DD-MM-YYYY")).toEqual(["day", "month", "year"]);
+    expect(datePartOrder("YYYY.MM.DD")).toEqual(["year", "month", "day"]);
   });
 });
 

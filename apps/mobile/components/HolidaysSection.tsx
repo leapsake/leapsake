@@ -9,6 +9,7 @@ import { rowMenuItem } from "./RowMenu";
 import { RecordSection } from "./RecordSection";
 import { SummaryRow } from "./SummaryRow";
 import { useCore } from "../lib/core-context";
+import { useDateFormat } from "../lib/date-format";
 import { styles } from "../lib/styles";
 
 /**
@@ -28,6 +29,7 @@ export function HolidaysSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const router = useRouter();
   // Only what this bearer keeps; what is addable is the picker's business.
   const { observed } = splitBearerHolidays(holidays);
@@ -75,7 +77,7 @@ export function HolidaysSection({
           detail={
             holiday.nextOccurrence === null
               ? "—"
-              : formatOccurrence(holiday.nextOccurrence)
+              : formatOccurrence(holiday.nextOccurrence, dateFormat)
           }
           menu={{
             subject: holiday.name,

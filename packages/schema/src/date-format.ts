@@ -79,6 +79,18 @@ function dayFirst(format: DateFormat): boolean {
   return format.startsWith("D");
 }
 
+/** The order a format writes a date's parts in, for fields to follow. */
+export function datePartOrder(
+  format: DateFormat,
+): readonly [
+  "month" | "day" | "year",
+  "month" | "day" | "year",
+  "month" | "day" | "year",
+] {
+  if (format.startsWith("Y")) return ["year", "month", "day"];
+  return dayFirst(format) ? ["day", "month", "year"] : ["month", "day", "year"];
+}
+
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** A whole date in `format`: "November 9, 2026", "09.11.2026", "2026/11/09". */
@@ -108,6 +120,21 @@ export function formatDate(
     case "YYYY.MM.DD":
       return `${year}.${mm}.${dd}`;
   }
+}
+
+/** An instant as its local date in `format` and its time, for a footer or a
+ *  receipt: "November 9, 2026, 11:41 AM". */
+export function formatDateTime(ms: number, format: DateFormat): string {
+  const at = new Date(ms);
+  const date = formatDate(
+    { year: at.getFullYear(), month: at.getMonth() + 1, day: at.getDate() },
+    format,
+  );
+  const time = at.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${date}, ${time}`;
 }
 
 /** A date missing parts, in words so it never reads ambiguously ("March 9" or

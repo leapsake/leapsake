@@ -5,7 +5,8 @@ import {
   type ReminderRuleInput,
   formatDueIn,
   isReminderEditable,
-  isoFromDueMs,
+  civilFromDueMs,
+  formatDate,
   kindDefs,
   offerContextOf,
   reminderLabel,
@@ -35,6 +36,7 @@ import {
   offerFor,
   remindInLabel,
 } from "../../../lib/reminder-row";
+import { useDateFormat } from "../../../lib/date-format";
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LinkButton } from "../../../components/LinkButton";
@@ -62,6 +64,7 @@ const HEADER = { title: "" } as const;
  */
 export default function ReminderDetailScreen() {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   // Null until a tick is touched, so the offered set stays the source and a
@@ -247,7 +250,7 @@ export default function ReminderDetailScreen() {
           <Text style={styles.promptOccasion}>
             {kindDefs[planTarget.milestoneKind].label} ·{" "}
             {formatDueIn(planTarget.occurrenceDate)} (
-            {isoFromDueMs(planTarget.occurrenceDate)})
+            {formatDate(civilFromDueMs(planTarget.occurrenceDate), dateFormat)})
           </Text>
         )}
       </View>
@@ -277,7 +280,8 @@ export default function ReminderDetailScreen() {
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Due</Text>
           <Text style={styles.fieldValue}>
-            {isoFromDueMs(reminder.dueDate)} ({formatDueIn(reminder.dueDate)})
+            {formatDate(civilFromDueMs(reminder.dueDate), dateFormat)} (
+            {formatDueIn(reminder.dueDate)})
           </Text>
         </View>
       )}

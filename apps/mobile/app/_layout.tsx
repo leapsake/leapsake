@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppHeader } from "../components/AppHeader";
 import { ShareIntoGift } from "../components/ShareIntoGift";
 import { CoreProvider } from "../lib/core-context";
+import { DateFormatProvider } from "../lib/date-format";
 import { headerTitle, headerTitleColor } from "../lib/record-title";
 import { colors } from "../lib/styles";
 
@@ -22,42 +23,44 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <MessagesProvider messages={en}>
         <CoreProvider>
-          <Stack
-            screenOptions={{
-              header: ({ options, route, back, navigation }) => (
-                <AppHeader
-                  // Until a screen's data names it, the name its link sent.
-                  title={headerTitle(options, route)}
-                  titleColor={headerTitleColor(
-                    route,
-                    headerTitle(options, route),
-                  )}
-                  left={options.headerLeft?.({
-                    canGoBack: back !== undefined,
-                    tintColor: colors.accent,
-                  })}
-                  right={options.headerRight?.({
-                    canGoBack: back !== undefined,
-                    tintColor: colors.accent,
-                  })}
-                  // No `back` at a stack's root; a screen with its own single
-                  // way on also opts out with `headerBackVisible: false`.
-                  onBack={
-                    back === undefined || options.headerBackVisible === false
-                      ? undefined
-                      : () => navigation.goBack()
-                  }
-                />
-              ),
-              // What shows when a ScrollView bounces past its own content.
-              contentStyle: { backgroundColor: colors.surface },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-          <ShareIntoGift />
-          {/* Dark, not "auto": the app is light whatever the OS theme. */}
-          <StatusBar style="dark" />
+          <DateFormatProvider>
+            <Stack
+              screenOptions={{
+                header: ({ options, route, back, navigation }) => (
+                  <AppHeader
+                    // Until a screen's data names it, the name its link sent.
+                    title={headerTitle(options, route)}
+                    titleColor={headerTitleColor(
+                      route,
+                      headerTitle(options, route),
+                    )}
+                    left={options.headerLeft?.({
+                      canGoBack: back !== undefined,
+                      tintColor: colors.accent,
+                    })}
+                    right={options.headerRight?.({
+                      canGoBack: back !== undefined,
+                      tintColor: colors.accent,
+                    })}
+                    // No `back` at a stack's root; a screen with its own single
+                    // way on also opts out with `headerBackVisible: false`.
+                    onBack={
+                      back === undefined || options.headerBackVisible === false
+                        ? undefined
+                        : () => navigation.goBack()
+                    }
+                  />
+                ),
+                // What shows when a ScrollView bounces past its own content.
+                contentStyle: { backgroundColor: colors.surface },
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            </Stack>
+            <ShareIntoGift />
+            {/* Dark, not "auto": the app is light whatever the OS theme. */}
+            <StatusBar style="dark" />
+          </DateFormatProvider>
         </CoreProvider>
       </MessagesProvider>
       {ConsoleErrorMarker && <ConsoleErrorMarker />}

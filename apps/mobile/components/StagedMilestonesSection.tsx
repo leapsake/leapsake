@@ -9,6 +9,7 @@ import {
 } from "@leapsake/schema";
 import { MilestoneFields, milestoneDraftEmpty } from "./MilestoneFields";
 import { DraftRow } from "./DraftRow";
+import { useDateFormat } from "../lib/date-format";
 import { RecordSection } from "./RecordSection";
 
 /** A milestone being created on the form; the key survives earlier removals. */
@@ -41,6 +42,7 @@ export function StagedMilestonesSection({
   entries: StagedMilestone[];
   onChange: (entries: StagedMilestone[]) => void;
 }) {
+  const dateFormat = useDateFormat();
   return (
     <RecordSection
       title="Milestones"
@@ -66,7 +68,9 @@ export function StagedMilestonesSection({
           note: entry.draft.note.trim() || null,
         });
         const icon = kindDefs[entry.draft.kind].icon;
-        const date = shaped.ok ? formatMilestoneDate(shaped.input) : "";
+        const date = shaped.ok
+          ? formatMilestoneDate(shaped.input, dateFormat)
+          : "";
         return (
           <DraftRow
             key={entry.key}

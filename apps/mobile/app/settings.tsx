@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
+import { formatDateTime } from "@leapsake/schema";
 import { useAccount } from "../lib/core-context";
+import { useDateFormat } from "../lib/date-format";
 import { PasswordInput } from "../components/PasswordInput";
 import {
   CreateAccountForm,
@@ -73,13 +75,15 @@ export default function SettingsScreen() {
 
 /** Shown once this device has an account: what it is, and where it lives. */
 function AccountEnabled({ status }: { status: SyncStatus }) {
+  const dateFormat = useDateFormat();
   return (
     <View style={styles.section}>
       <Text style={styles.fieldValue}>Your account is set up.</Text>
       <Text style={styles.muted}>
         This device is protected by your password and recovery key.
         {status.username !== undefined && ` Username ${status.username}.`}{" "}
-        Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
+        Account created{" "}
+        {formatDateTime(new Date(status.createdAt ?? 0).getTime(), dateFormat)}.
       </Text>
       <Text style={styles.muted}>
         This account is on this device only. Nothing is sent anywhere, and

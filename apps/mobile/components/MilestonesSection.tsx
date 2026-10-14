@@ -11,6 +11,7 @@ import { entityBasePath } from "@leapsake/ui/headless";
 import { rowMenuItem } from "./RowMenu";
 import { RecordSection } from "./RecordSection";
 import { SummaryRow } from "./SummaryRow";
+import { useDateFormat } from "../lib/date-format";
 import { useCore } from "../lib/core-context";
 
 /**
@@ -29,6 +30,7 @@ export function MilestonesSection({
   onChanged: () => void;
 }) {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const router = useRouter();
   const basePath = `${entityBasePath(bearerType)}/${bearerId}`;
 
@@ -63,7 +65,7 @@ export function MilestonesSection({
       {entries.map((entry) => {
         const milestone = entry.milestone;
         const icon = kindDefs[milestone.kind].icon;
-        const date = formatMilestoneDate(milestone);
+        const date = formatMilestoneDate(milestone, dateFormat);
         const fromRelationship = entry.origin === "relationship";
         const heading =
           (icon ? `${icon} ` : "") +

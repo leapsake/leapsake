@@ -5,6 +5,7 @@ import type { HolidayListItem } from "@leapsake/core";
 import { useCore } from "../../lib/core-context";
 import { holidayHref } from "../../lib/record-title";
 import { useFocusedData } from "../../lib/useFocusedData";
+import { useDateFormat } from "../../lib/date-format";
 import { colors, styles } from "../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
@@ -14,6 +15,7 @@ import { LoadState } from "../../components/LoadState";
 // this is the only screen that can unhide one.
 export default function HolidaysScreen() {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const m = useMessages();
   const load = useCallback(() => core.holidays.list(), [core]);
   const { data, error } = useFocusedData(load);
@@ -51,7 +53,7 @@ export default function HolidaysScreen() {
                   {m.holidays.rowMeta(
                     holiday.nextOccurrence === null
                       ? null
-                      : formatOccurrence(holiday.nextOccurrence),
+                      : formatOccurrence(holiday.nextOccurrence, dateFormat),
                     holiday.observerCount,
                   )}
                 </Text>

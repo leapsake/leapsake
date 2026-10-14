@@ -7,6 +7,7 @@ import { comparePair } from "@leapsake/view-models";
 import { HeaderBack } from "../components/AppHeader";
 import { useCore } from "../lib/core-context";
 import { deviceRegion } from "../lib/device-region";
+import { useDateFormat } from "../lib/date-format";
 import { personFacts } from "../lib/duplicate-pair";
 import { personHref } from "../lib/record-title";
 import { useFocusedData } from "../lib/useFocusedData";
@@ -228,9 +229,10 @@ export default function DuplicatesScreen() {
 function PairComparison({ pair, position }: { pair: Pair; position: string }) {
   const { candidate, a, b } = pair;
   const region = deviceRegion();
+  const dateFormat = useDateFormat();
   const { shared, differing } = comparePair(
-    personFacts(a, region),
-    personFacts(b, region),
+    personFacts(a, region, dateFormat),
+    personFacts(b, region, dateFormat),
   );
 
   return (

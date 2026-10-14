@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
-import { formatTimestampCompact } from "@leapsake/ui/headless";
+import { formatDateTime } from "@leapsake/schema";
+import { useDateFormat } from "../lib/date-format";
 import { styles } from "../lib/styles";
 
 /** When a record was made and last changed: one small muted line, not
@@ -11,13 +12,14 @@ export function RecordTimestamps({
   createdAt: number;
   updatedAt: number;
 }) {
+  const dateFormat = useDateFormat();
   return (
     <View style={styles.metaRow}>
       <Text style={styles.metaText}>
-        Created {formatTimestampCompact(createdAt)}
+        Created {formatDateTime(createdAt, dateFormat)}
       </Text>
       <Text style={styles.metaText}>
-        Updated {formatTimestampCompact(updatedAt)}
+        Updated {formatDateTime(updatedAt, dateFormat)}
       </Text>
     </View>
   );

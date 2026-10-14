@@ -8,6 +8,7 @@ import { rowMenuItem } from "./RowMenu";
 import { SummaryRow } from "./SummaryRow";
 import { RecordSection } from "./RecordSection";
 import { useCore } from "../lib/core-context";
+import { useDateFormat } from "../lib/date-format";
 import { styles } from "../lib/styles";
 
 /** A staged holiday: what the catalog and a bearer's candidates agree on. */
@@ -30,6 +31,7 @@ export function StagedHolidaysSection({
   onChange: (entries: StagedHoliday[]) => void;
 }) {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const [catalog, setCatalog] = useState<HolidayListItem[] | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -85,7 +87,7 @@ export function StagedHolidaysSection({
           detail={
             holiday.nextOccurrence === null
               ? "—"
-              : formatOccurrence(holiday.nextOccurrence)
+              : formatOccurrence(holiday.nextOccurrence, dateFormat)
           }
           menu={{
             subject: holiday.name,

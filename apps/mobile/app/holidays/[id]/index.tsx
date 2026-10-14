@@ -9,6 +9,7 @@ import { Typeahead } from "../../../components/Typeahead";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { holidayTitle } from "../../../lib/record-title";
+import { useDateFormat } from "../../../lib/date-format";
 import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
@@ -18,6 +19,7 @@ import { LoadState } from "../../../components/LoadState";
 // (`@leapsake/holidays` README).
 export default function HolidayDetailScreen() {
   const core = useCore();
+  const dateFormat = useDateFormat();
   const m = useMessages();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,7 +102,7 @@ export default function HolidayDetailScreen() {
           holiday.upcoming.map((iso) => (
             <Text key={iso} style={styles.rowText}>
               {m.holidays.occurrence(
-                formatOccurrence(iso),
+                formatOccurrence(iso, dateFormat),
                 holiday.durationDays,
               )}
             </Text>

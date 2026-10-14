@@ -6,15 +6,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import type { DateParts } from "@leapsake/schema";
+import { type DateParts, datePartOrder } from "@leapsake/schema";
+import { useDateFormat } from "../lib/date-format";
 import { datePartFinished } from "../lib/date-parts";
 import { colors, styles } from "../lib/styles";
 
 const PART_LABELS = { month: "Month", day: "Day", year: "Year" } as const;
 
-const PARTS = ["month", "day", "year"] as const;
-
-type Part = (typeof PARTS)[number];
+type Part = keyof DateParts;
 
 /** A date as month, day and year under one heading; the caller's error
  *  shows once focus has left all three. */
@@ -39,11 +38,13 @@ export function DatePartsFields({
   const showError = error !== null && blurred && focused === null;
   const inputs = useRef<Partial<Record<Part, TextInput | null>>>({});
   const screenReader = useScreenReader();
+  // The fields run in the order the user's date format writes a date.
+  const order = datePartOrder(useDateFormat());
 
   // Without a screen reader, typing flows on and Backspace flows back.
   const edit = (part: Part, text: string) => {
     onChange({ ...value, [part]: text });
-    const next = PARTS[PARTS.indexOf(part) + 1];
+    const next = order[order.indexOf(part) + 1];
     const grew = text.length > value[part].length;
     if (screenReader || next === undefined || !grew) return;
     if (datePartFinished(part, text) && value[next] === "") {
@@ -52,7 +53,7 @@ export function DatePartsFields({
   };
 
   const stepBack = (part: Part) => {
-    const previous = PARTS[PARTS.indexOf(part) - 1];
+    const previous = order[order.indexOf(part) - 1];
     if (screenReader || previous === undefined || value[part] !== "") return;
     onChange({ ...value, [previous]: value[previous].slice(0, -1) });
     inputs.current[previous]?.focus();
@@ -62,7 +63,7 @@ export function DatePartsFields({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={local.row}>
-        {PARTS.map((part) => (
+        {order.map((part) => (
           <View key={part} style={part === "year" ? local.wide : local.narrow}>
             {/* Hidden: the input below carries these words as its name. */}
             <Text
