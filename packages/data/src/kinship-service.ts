@@ -150,6 +150,7 @@ export function createKinshipService(
       const o = orient(rel, type, id);
       const other = await getEntity(o.otherType, o.otherId);
       if (other === undefined) continue; // other end gone — skip
+      if (other.standing === "draft") continue; // not theirs to show yet
       if (!isPublished(other.standing)) {
         inertNeighbors.add(key(o.otherType, o.otherId));
       }

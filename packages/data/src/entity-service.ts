@@ -59,6 +59,8 @@ export interface EntityService {
   /** An entity's display label, from the shared formatter; `undefined` when
    *  it is gone. */
   label(type: EntityType, id: string): Promise<string | undefined>;
+  /** Whether an entity is a draft: being added, and not yet the user's own. */
+  isDraft(type: EntityType, id: string): Promise<boolean>;
   softDelete(type: EntityType, id: string): Promise<void>;
   removeFacts(type: EntityType, id: string): Promise<void>;
   attachedUnpublished(
@@ -201,7 +203,7 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
         id: subjectIsA ? rel.bId : rel.aId,
       };
       const other = await resolve(end.type, end.id);
-      if (other !== undefined && !isPublished(other.standing)) {
+      if (other !== undefined && other.standing === "unpublished") {
         attached.push(end);
       }
     }
@@ -230,7 +232,7 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
     id: string,
   ): Promise<void> {
     const entity = await resolve(type, id);
-    if (entity === undefined || isPublished(entity.standing)) return;
+    if (entity === undefined || entity.standing !== "unpublished") return;
     if (type === "person") {
       await people.update(id, { standing: "published" });
     } else {
@@ -241,6 +243,8 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
   return {
     resolve,
     label,
+    isDraft: async (type, id) =>
+      (await resolve(type, id))?.standing === "draft",
     softDelete,
     removeFacts,
     attachedUnpublished,

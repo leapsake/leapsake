@@ -98,6 +98,7 @@ export function createRelationshipService(
       const otherRoleNote = subjectIsA ? rel.bRoleNote : rel.aRoleNote;
       const other = await entities.resolve(otherType, otherId);
       if (other === undefined) continue; // other end gone — skip
+      if (other.standing === "draft") continue; // not theirs to show yet
       neighbors.push({
         relationshipId: rel.id,
         otherType,

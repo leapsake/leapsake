@@ -79,6 +79,9 @@ export const API_CHANNELS = [
   "self.set",
   "self.clear",
 
+  "drafts.discard",
+  "drafts.publish",
+  "drafts.discardAll",
   "preferences.getDateFormat",
   "preferences.setDateFormat",
   "notificationSettings.get",

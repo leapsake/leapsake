@@ -216,7 +216,9 @@ export {
 
 // The syncable allowlist plus a one-call cycle for an enabled account, so each
 // client drives sync the same way.
-export { syncableRepos } from "./sync.js";
+import { syncableRepos } from "./sync.js";
+
+export { syncableRepos };
 export {
   createAccountSyncEngine,
   lookupAccount,
@@ -661,6 +663,21 @@ export function createCore(
     resolveLabel: entities.label,
   });
 
+  /** Delete a draft and all it gathered. With no account nothing has left the
+   *  device, so the cascade's tombstones are removed outright. */
+  async function discardDraft(type: EntityType, id: string): Promise<void> {
+    if (!(await entities.isDraft(type, id))) return;
+    const purge = !(await getSyncStatus({ driver })).hasAccount;
+    await driver.transaction(async () => {
+      const since = Date.now();
+      await entities.softDeleteCascade(type, id);
+      if (!purge) return;
+      for (const { table } of syncableRepos(driver)) {
+        await driver.run(`DELETE FROM ${table} WHERE deleted_at >= ?`, [since]);
+      }
+    });
+  }
+
   return {
     people: {
       list: (): Promise<Person[]> => people.list(),
@@ -1098,6 +1115,38 @@ export function createCore(
       clear: async (): Promise<void> => {
         await self.clearSelf();
         await regenerateSystem();
+      },
+    },
+
+    // A person or pet being added: a draft until saved, invisible until then.
+    drafts: {
+      /** Save a draft: its final details, and into the user's lists. */
+      publish: async (
+        type: EntityType,
+        id: string,
+        details: UpdatePersonInput | UpdatePetInput,
+      ): Promise<void> => {
+        const patch = { ...details, standing: "published" as const };
+        await (type === "person"
+          ? people.update(id, patch as UpdatePersonInput)
+          : pets.update(id, patch as UpdatePetInput));
+        await regenerateSystem();
+      },
+      discard: async (type: EntityType, id: string): Promise<void> => {
+        await discardDraft(type, id);
+        await regenerateSystem();
+      },
+      /** Every draft left behind, as by an app closed mid-add. */
+      discardAll: async (): Promise<void> => {
+        const left = await driver.all<{ type: EntityType; id: string }>(
+          `SELECT 'person' AS type, id FROM people
+            WHERE standing = 'draft' AND deleted_at IS NULL
+           UNION ALL
+           SELECT 'pet' AS type, id FROM pets
+            WHERE standing = 'draft' AND deleted_at IS NULL`,
+        );
+        for (const draft of left) await discardDraft(draft.type, draft.id);
+        if (left.length > 0) await regenerateSystem();
       },
     },
 

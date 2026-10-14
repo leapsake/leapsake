@@ -425,6 +425,14 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     bearerType: MilestoneBearerType,
     bearerId: string,
   ): Promise<string | null> {
+    // A draft's occasions wait, unnamed, until it is saved.
+    const ends =
+      bearerType === "relationship"
+        ? endpointsOf(await relationships.get(bearerId))
+        : [{ type: bearerType, id: bearerId }];
+    for (const end of ends) {
+      if (await entities.isDraft(end.type, end.id)) return null;
+    }
     return bearerType === "relationship"
       ? relationshipLabel(bearerId)
       : ((await entities.label(bearerType, bearerId)) ?? null);

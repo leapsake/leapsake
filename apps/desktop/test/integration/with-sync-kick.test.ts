@@ -85,7 +85,7 @@ describe("withSyncKick — kick after mutations", () => {
 // Mirror of the predicate in sync-scheduler.ts; kept here so this test fails
 // loudly if the source predicate and the real surface ever diverge.
 const isMutating = (name: string) =>
-  /^(create|update|edit|softDelete|merge|dismiss|undismiss|reject|set|clear|snooze|capture|commit|regenerate|answer|link(?=[A-Z]))/.test(
+  /^(create|update|edit|softDelete|merge|dismiss|undismiss|discard|publish|reject|set|clear|snooze|capture|commit|regenerate|answer|link(?=[A-Z]))/.test(
     name,
   );
 
@@ -143,6 +143,9 @@ const SURFACE: Record<string, "read" | "write"> = {
   "duplicates.findFor": "read",
   "duplicates.nudgeId": "read",
   "duplicates.reject": "write",
+  "drafts.discard": "write",
+  "drafts.discardAll": "write",
+  "drafts.publish": "write",
   // An export is a snapshot: it reads every person and writes nothing, so it
   // must not kick a sync.
   "export.archive": "read",
