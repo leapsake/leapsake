@@ -13,6 +13,7 @@ import { useChipDraft, useTypeahead } from "@leapsake/ui/headless";
 import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
 import { colors, styles } from "../lib/styles";
+import { tagColor } from "../lib/tag-color";
 
 const TEXT = {
   matchedOn: "matched on",
@@ -129,7 +130,14 @@ export function ChipTextField({
         placeholderTextColor={colors.muted}
       >
         {splitDraft(live).map((run, i) => (
-          <Text key={i} style={runStyles[run.kind]}>
+          <Text
+            key={i}
+            style={
+              run.kind === "tag"
+                ? [styles.tag, { color: tagColor(run.text) }]
+                : runStyles[run.kind]
+            }
+          >
             {run.text}
           </Text>
         ))}
@@ -181,7 +189,6 @@ export function ChipTextField({
 const runStyles = {
   text: undefined,
   mention: styles.mention,
-  tag: styles.tag,
 };
 
 const chipStyles = {

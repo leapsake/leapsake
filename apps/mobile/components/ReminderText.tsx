@@ -9,10 +9,11 @@ import {
 } from "@leapsake/schema";
 import { mentionHref, tagHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
+import { tagColor } from "../lib/tag-color";
 
 /**
  * Reminder text as one wrapping `<Text>`, `#tags` as links and mentions as
- * bare names in a tinted chip; every link is a pressable run, not a `<Link>`.
+ * bare names, each styled; every link is a pressable run, not a `<Link>`.
  */
 export function ReminderText({
   text,
@@ -36,19 +37,17 @@ export function ReminderText({
   const mentionByTarget = new Map(
     mentions.map((m) => [`${m.targetType}:${m.targetId}`, m]),
   );
-  // A mention keeps a bold parent's weight rather than lightening it.
+  // An annotation keeps a bold parent's weight rather than lightening it.
   const parentWeight = StyleSheet.flatten(style)?.fontWeight;
-  const mentionStyle =
-    parentWeight === undefined
-      ? styles.mention
-      : [styles.mention, { fontWeight: parentWeight }];
+  const keepWeight =
+    parentWeight === undefined ? undefined : { fontWeight: parentWeight };
 
   /** One run; `href` is `null` for prose and for a gone target alike. */
   function run(
     key: number,
     content: string,
     href: string | null,
-    linkStyle: StyleProp<TextStyle> = styles.link,
+    linkStyle?: StyleProp<TextStyle>,
   ) {
     if (href === null) return <Text key={key}>{content}</Text>;
     if (!linkAnnotations)
@@ -74,7 +73,12 @@ export function ReminderText({
       {splitAnnotatedText(text).map((segment, i) => {
         if (segment.kind === "hashtag") {
           const tag = tagByName.get(normalizeTagName(segment.tagName));
-          return run(i, segment.text, tag === undefined ? null : tagHref(tag));
+          if (tag === undefined) return run(i, segment.text, null);
+          return run(i, segment.text, tagHref(tag), [
+            styles.tag,
+            { color: tagColor(tag.normalized) },
+            keepWeight,
+          ]);
         }
         if (segment.kind === "mention") {
           const mention = mentionByTarget.get(
@@ -82,12 +86,10 @@ export function ReminderText({
           );
           if (mention === undefined || typeof mention.label !== "string")
             return run(i, segment.displayName, null);
-          return run(
-            i,
-            chipName(mention.label),
-            mentionHref(mention),
-            mentionStyle,
-          );
+          return run(i, chipName(mention.label), mentionHref(mention), [
+            styles.mention,
+            keepWeight,
+          ]);
         }
         return run(i, segment.text, null);
       })}
