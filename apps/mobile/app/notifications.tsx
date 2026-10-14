@@ -59,7 +59,6 @@ const GROUPS_HEADING = "Notify me about";
 /** Each switch's label, in the order shown. */
 const GROUP_LABELS: [NotificationGroup, string][] = [
   ["mine", "My reminders"],
-  ["remembrance", "Days of remembrance"],
   ["todos", "Leapsake to-dos"],
 ];
 

@@ -1,14 +1,13 @@
 import type { ReminderCategory } from "@leapsake/core";
 
 /** The switches the notifications screen offers, each covering categories. */
-export type NotificationGroup = "mine" | "remembrance" | "todos";
+export type NotificationGroup = "mine" | "todos";
 
 export const NOTIFICATION_GROUPS: Record<
   NotificationGroup,
   readonly ReminderCategory[]
 > = {
-  mine: ["custom", "occasion"],
-  remembrance: ["remembrance"],
+  mine: ["custom", "occasion", "remembrance"],
   todos: ["todo"],
 };
 
