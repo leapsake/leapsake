@@ -14,6 +14,7 @@ import { deviceRegion } from "./device-region";
 // `contact-actions.ts`, shared by every surface that reaches a person.
 
 const COPIED = "Copied";
+const callTitle = (name: string) => (name === "" ? "Call?" : `Call ${name}?`);
 
 /** Put a value on the clipboard and say so: the last fallback. */
 async function copyToClipboard(text: string) {
@@ -73,7 +74,7 @@ export function useContactReach(subjectName: string): {
 
     // The one action that interrupts somebody, so the one that asks first.
     if (action.confirm) {
-      Alert.alert(`Call ${subjectName}?`, methodValue(entry), [
+      Alert.alert(callTitle(subjectName), methodValue(entry), [
         { text: "Cancel", style: "cancel" },
         { text: "Call", onPress: () => void open() },
       ]);

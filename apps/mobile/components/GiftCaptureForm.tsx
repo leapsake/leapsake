@@ -149,7 +149,7 @@ export function GiftCaptureFields({
       {fixedRecipient ? (
         <GiftGivenCheckbox
           testID="gift-given"
-          label={fixedRecipient.label}
+          label={fixedRecipient.label === "" ? undefined : fixedRecipient.label}
           value={fields.given}
           onChange={(given) => onIdentityChange({ ...fields, given })}
         />

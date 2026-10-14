@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { styles } from "../lib/styles";
@@ -7,6 +8,11 @@ const LABEL = {
   add: (what: string) => `Add ${what}`,
   edit: (what: string) => `Edit ${what}`,
 } as const;
+
+/** Run before a ➕ or ⋯ opens its screen, as to create what that links to. */
+export const BeforeSectionOpen = createContext<() => Promise<void>>(
+  async () => {},
+);
 
 export type SectionLinkProps = {
   what: string;
@@ -23,12 +29,15 @@ export function SectionLink({
   ...target
 }: SectionLinkProps) {
   const router = useRouter();
+  const beforeOpen = useContext(BeforeSectionOpen);
+  const open = () =>
+    "href" in target ? router.push(target.href) : target.onPress();
   return (
     <Text
       accessibilityRole="button"
       accessibilityLabel={LABEL[action](what)}
       onPress={() =>
-        "href" in target ? router.push(target.href) : target.onPress()
+        void beforeOpen().then(open, (cause) => console.error(cause))
       }
       style={action === "add" ? local.add : [styles.link, local.edit]}
     >

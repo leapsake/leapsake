@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import {
-  type EntityType,
-  type CreatePersonInput,
-  type CreatePetInput,
-  entityLabel,
-} from "@leapsake/schema";
+import { type EntityType, joinNameParts } from "@leapsake/schema";
 import { FormScrollView } from "../components/FormScrollView";
 import { useHeaderSave } from "../components/HeaderSave";
 import { PersonFields } from "../components/PersonFields";
 import { PetFields } from "../components/PetFields";
-import { RecordFacts } from "../components/RecordFacts";
+import { type RecordFactsView, RecordFacts } from "../components/RecordFacts";
+import { BeforeSectionOpen } from "../components/SectionLink";
 import { useCore } from "../lib/core-context";
 import {
   type EntityFormValue,
   emptyEntityForm,
   entityDetailsOf,
+  entityDraftDetailsOf,
   entityFormProblem,
   switchedEntityForm,
 } from "../lib/entity-form";
@@ -35,7 +32,6 @@ const TEXT = {
     switchLink: "Adding a person instead?",
     switchConfirm: "Switch to a person?",
   },
-  nameFirst: "Add a name to add birthdays, contacts and more.",
   switchConfirmBody:
     "The name and gender come with you. Everything added below them will be cleared.",
   switchConfirmAction: "Switch",
@@ -51,9 +47,24 @@ const OTHER_TYPE: Record<EntityType, EntityType> = {
 /** How long typing pauses before the draft takes the new details. */
 const DRAFT_DELAY_MS = 400;
 
+/** The sections' contents before the first ➕ creates the draft. */
+const NOTHING_GATHERED: RecordFactsView = {
+  tags: [],
+  timeline: [],
+  relationships: [],
+  contactMethods: [],
+};
+
+/** The name as typed so far, which may still be blank. */
+function subjectNameOf(type: EntityType, value: EntityFormValue): string {
+  if (type === "pet") return value.pet.name.trim();
+  const { firstName, middleName, lastName } = value.person;
+  return joinNameParts(firstName.trim(), middleName.trim(), lastName.trim());
+}
+
 /**
- * Add a person, or a pet with `?type=pet`. Once named it is a draft, gathering
- * facts through the same screens a saved record uses, until Save publishes it.
+ * Add a person, or a pet with `?type=pet`. The first ➕ makes it a draft, which
+ * gathers facts through the same screens a saved record uses until Save.
  */
 export default function AddScreen() {
   const params = useLocalSearchParams<{ type?: string }>();
@@ -92,96 +103,95 @@ function AddEntityForm({
 
   const [value, setValue] = useState<EntityFormValue>(initial);
   const [saving, setSaving] = useState(false);
-  const [draftId, setDraftId] = useState<string | null>(null);
-  // The draft's creation, shared by everything that needs its id, and whether
-  // it was saved, so leaving does not discard it.
-  const draft = useRef<{ creating: Promise<string> | null; saved: boolean }>({
+  // Picked up front, so the sections link to the draft before it exists.
+  const [draftId] = useState(() => crypto.randomUUID());
+  const [created, setCreated] = useState(false);
+  // The draft's creation, shared by everything that needs it, and whether it
+  // was saved, so leaving does not discard it.
+  const draft = useRef<{ creating: Promise<void> | null; saved: boolean }>({
     creating: null,
     saved: false,
   });
 
   const details = entityDetailsOf(type, value);
   const problem = entityFormProblem(type, value);
+  const typed = entityDraftDetailsOf(type, value);
+  const latest = useRef(typed);
+  latest.current = typed;
 
-  const ensureDraft = useCallback(
-    (fields: CreatePersonInput | CreatePetInput): Promise<string> => {
-      draft.current.creating ??= (
-        type === "person"
-          ? core.people.create(
-              { ...(fields as CreatePersonInput), standing: "draft" },
-              [],
-            )
-          : core.pets.create(
-              { ...(fields as CreatePetInput), standing: "draft" },
-              [],
-            )
-      ).then((record) => {
-        setDraftId(record.id);
-        return record.id;
-      });
-      return draft.current.creating;
-    },
-    [core, type],
-  );
+  // The first ➕ creates the draft, with whatever details are typed by then.
+  const ensureDraft = useCallback((): Promise<void> => {
+    draft.current.creating ??= core.drafts
+      .create(type, draftId, latest.current)
+      .then(
+        () => setCreated(true),
+        (cause: unknown) => {
+          draft.current.creating = null;
+          throw cause;
+        },
+      );
+    return draft.current.creating;
+  }, [core, type, draftId]);
 
-  // A moment after typing stops, the draft takes the details as typed.
-  const detailsKey = JSON.stringify(details);
+  // A moment after typing stops, a draft takes the details as typed.
+  const typedKey = JSON.stringify(typed);
   useEffect(() => {
-    if (details === null) return;
     const timer = setTimeout(() => {
       if (draft.current.saved) return;
-      const creating = draft.current.creating;
-      if (creating === null) {
-        ensureDraft(details).catch((cause) => console.error(cause));
-      } else {
-        creating
-          .then((id) => core.drafts.edit(type, id, details))
-          .catch((cause) => console.error(cause));
-      }
+      void draft.current.creating
+        ?.then(() => core.drafts.edit(type, draftId, latest.current))
+        .catch((cause) => console.error(cause));
     }, DRAFT_DELAY_MS);
     return () => clearTimeout(timer);
-    // `detailsKey` stands for `details`, which is a new object every render.
-  }, [detailsKey, ensureDraft, core, type]);
+  }, [typedKey, core, type, draftId]);
 
   // Leaving without saving takes the draft, and all it gathered, with it.
   useEffect(
     () => () => {
       if (draft.current.saved) return;
       void draft.current.creating
-        ?.then((id) => core.drafts.discard(type, id))
+        ?.then(() => core.drafts.discard(type, draftId))
         .catch((cause) => console.error(cause));
     },
-    [core, type],
+    [core, type, draftId],
   );
 
   const load = useCallback(async () => {
-    if (draftId === null) return null;
     const [view, holidays, gifts] = await Promise.all([
-      type === "person" ? core.views.person(draftId) : core.views.pet(draftId),
+      !created
+        ? null
+        : type === "person"
+          ? core.views.person(draftId)
+          : core.views.pet(draftId),
       core.holidays.listForBearer(type, draftId),
-      core.gifts.recipients.listForRecipient(type, draftId),
+      created ? core.gifts.recipients.listForRecipient(type, draftId) : [],
     ]);
-    return view === null ? null : { view, holidays, gifts };
-  }, [core, type, draftId]);
+    const facts: RecordFactsView = view ?? NOTHING_GATHERED;
+    return { view: facts, holidays, gifts };
+  }, [core, type, draftId, created]);
   const { data, reload } = useFocusedData(load);
 
   async function save() {
     if (details === null || saving) return;
     setSaving(true);
     try {
-      const id = await ensureDraft(details);
+      await ensureDraft();
       draft.current.saved = true;
-      await core.drafts.publish(type, id, details);
+      await core.drafts.publish(type, draftId, details);
       const record =
-        type === "person" ? await core.people.get(id) : await core.pets.get(id);
+        type === "person"
+          ? await core.people.get(draftId)
+          : await core.pets.get(draftId);
       if (record === undefined) throw new Error("The record went missing.");
       // Replaced either way, so Back never returns to a filled-in form.
       const matches =
         type === "person"
-          ? await core.duplicates.findFor(id).catch(() => [])
+          ? await core.duplicates.findFor(draftId).catch(() => [])
           : [];
       router.replace(
-        matches.length > 0 ? `/duplicates?for=${id}` : entityHref(type, record),
+        matches.length > 0
+          ? `/duplicates?for=${draftId}`
+          : entityHref(type, record),
       );
     } catch (e) {
       draft.current.saved = false;
@@ -203,7 +213,7 @@ function AddEntityForm({
     (data.view.tags.length > 0 ||
       data.view.timeline.length > 0 ||
       data.view.relationships.length > 0 ||
-      ("contactMethods" in data.view && data.view.contactMethods.length > 0) ||
+      (data.view.contactMethods ?? []).length > 0 ||
       data.holidays.some((h) => h.observes) ||
       data.gifts.length > 0);
 
@@ -250,20 +260,18 @@ function AddEntityForm({
           />
         )}
 
-        {details === null && <Text style={styles.muted}>{TEXT.nameFirst}</Text>}
-        {details !== null && data !== null && draftId !== null && (
-          <RecordFacts
-            type={type}
-            id={draftId}
-            subjectName={entityLabel(
-              type,
-              "person" in data.view ? data.view.person : data.view.pet,
-            )}
-            view={data.view}
-            holidays={data.holidays}
-            gifts={data.gifts}
-            onChanged={() => void reload()}
-          />
+        {data !== null && (
+          <BeforeSectionOpen.Provider value={ensureDraft}>
+            <RecordFacts
+              type={type}
+              id={draftId}
+              subjectName={subjectNameOf(type, value)}
+              view={data.view}
+              holidays={data.holidays}
+              gifts={data.gifts}
+              onChanged={() => void reload()}
+            />
+          </BeforeSectionOpen.Provider>
         )}
       </FormScrollView>
     </>

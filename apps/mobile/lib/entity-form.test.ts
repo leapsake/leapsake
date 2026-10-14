@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emptyEntityForm,
   entityDetailsOf,
+  entityDraftDetailsOf,
   entityFormProblem,
   switchedEntityForm,
 } from "./entity-form";
@@ -34,6 +35,27 @@ describe("entityDetailsOf", () => {
       middleName: null,
       lastName: null,
       gender: "male",
+    });
+  });
+});
+
+describe("entityDraftDetailsOf", () => {
+  it("keeps the details as typed, with or without a name", () => {
+    const value = emptyEntityForm();
+    expect(entityDraftDetailsOf("person", value)).toEqual({
+      firstName: null,
+      middleName: null,
+      lastName: null,
+      gender: null,
+    });
+    expect(entityDraftDetailsOf("pet", value)).toEqual({
+      name: "",
+      gender: null,
+    });
+    value.pet.name = " Jimmy ";
+    expect(entityDraftDetailsOf("pet", value)).toEqual({
+      name: "Jimmy",
+      gender: null,
     });
   });
 });

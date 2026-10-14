@@ -4,6 +4,8 @@ import {
   type PetDraft,
   type CreatePersonInput,
   type CreatePetInput,
+  type UpdatePersonInput,
+  type UpdatePetInput,
   personDraftOf,
   personInputOf,
   petDraftOf,
@@ -53,6 +55,25 @@ export function entityDetailsOf(
   const shaped =
     type === "person" ? personInputOf(value.person) : petInputOf(value.pet);
   return shaped.ok ? shaped.input : null;
+}
+
+const blankToNull = (text: string) => (text.trim() === "" ? null : text.trim());
+
+/** The details as a draft keeps them, which may yet lack a name. */
+export function entityDraftDetailsOf(
+  type: EntityType,
+  value: EntityFormValue,
+): UpdatePersonInput | UpdatePetInput {
+  if (type === "pet") {
+    return { name: value.pet.name.trim(), gender: value.pet.gender };
+  }
+  const { firstName, middleName, lastName, gender } = value.person;
+  return {
+    firstName: blankToNull(firstName),
+    middleName: blankToNull(middleName),
+    lastName: blankToNull(lastName),
+    gender,
+  };
 }
 
 /** Why the form can't be saved yet, or undefined once it can. */

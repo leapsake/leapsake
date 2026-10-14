@@ -15,6 +15,13 @@ import { TagsField } from "./TagsField";
 
 const PATH: Record<EntityType, string> = { person: "people", pet: "pets" };
 
+/** What the sections show: a person's or pet's view, or a draft's blanks. */
+export type RecordFactsView = Pick<
+  PersonView | PetView,
+  "tags" | "timeline" | "relationships"
+> &
+  Partial<Pick<PersonView, "contactMethods">>;
+
 /**
  * Everything a person or pet gathers, each part with its own ➕: the same on
  * their page and while they are being added.
@@ -31,7 +38,7 @@ export function RecordFacts({
   type: EntityType;
   id: string;
   subjectName: string;
-  view: PersonView | PetView;
+  view: RecordFactsView;
   holidays: BearerHolidayCandidate[];
   gifts: GiftForRecipient[];
   onChanged: () => void;
@@ -39,11 +46,11 @@ export function RecordFacts({
   const { tags, timeline, relationships } = view;
   return (
     <>
-      {"contactMethods" in view && (
+      {type === "person" && (
         <ContactsSection
           ownerId={id}
           subjectName={subjectName}
-          methods={view.contactMethods}
+          methods={view.contactMethods ?? []}
           onChanged={onChanged}
         />
       )}
