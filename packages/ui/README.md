@@ -119,9 +119,9 @@ later, on the posting reminder, when the user actually knows. The schedule rules
 independent, so `ReminderScheduleFields` can still post one item and hand over
 another.
 
-Rows staged on mobile's create form (a person's contacts, milestones, relationships)
-call the shaping functions directly rather than through hooks, since they live in one
-shared value; that form's Save names the first unfinished section.
+Mobile's create form holds only the record's own details. Once named, the record is a
+`draft` and gathers everything else through the same screens a saved one uses, so there
+is no second, staged copy of any of those forms.
 
 ## Text
 

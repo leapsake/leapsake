@@ -80,6 +80,7 @@ export const API_CHANNELS = [
   "self.clear",
 
   "drafts.discard",
+  "drafts.edit",
   "drafts.publish",
   "drafts.discardAll",
   "preferences.getDateFormat",

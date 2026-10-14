@@ -3,16 +3,11 @@ import { Alert, Pressable, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
-import { ContactsSection } from "../../../components/ContactsSection";
+import { RecordFacts } from "../../../components/RecordFacts";
 import { RecordSection } from "../../../components/RecordSection";
-import { GiftsSection } from "../../../components/GiftsSection";
-import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
-import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PersonDetailFields } from "../../../components/PersonDetailFields";
 import { RecordTimestamps } from "../../../components/RecordTimestamps";
-import { RelationshipsSection } from "../../../components/RelationshipsSection";
-import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import {
@@ -50,8 +45,7 @@ export default function PersonDetailScreen() {
   const [view, mentionedIn, holidays, gifts, duplicateCandidates] = data;
   if (view === null) return <LoadState error={null} />;
 
-  const { person, gender, tags, timeline, relationships, contactMethods } =
-    view;
+  const { person, gender, timeline } = view;
 
   function confirmDelete() {
     Alert.alert("Delete person", `Delete ${fullName(person)}?`, [
@@ -101,51 +95,15 @@ export default function PersonDetailScreen() {
         <PersonDetailFields person={person} gender={gender.value} />
       </RecordSection>
 
-      <ContactsSection
-        ownerId={person.id}
+      <RecordFacts
+        type="person"
+        id={person.id}
         subjectName={fullName(person)}
-        methods={contactMethods}
-        onChanged={reload}
-      />
-
-      <MilestonesSection
-        bearerType="person"
-        bearerId={person.id}
-        entries={timeline}
-        onChanged={reload}
-      />
-
-      <RelationshipsSection
-        subjectType="person"
-        subjectId={person.id}
-        relationships={relationships}
-        onChanged={reload}
-      />
-
-      <HolidaysSection
-        bearerType="person"
-        bearerId={person.id}
+        view={view}
         holidays={holidays}
-        onChanged={reload}
-      />
-
-      <GiftsSection
-        recipientType="person"
-        recipientId={person.id}
         gifts={gifts}
         onChanged={reload}
       />
-
-      <RecordSection
-        title="Tags"
-        link={{
-          href: `/people/${id}/tags/edit`,
-          what: "tags",
-          action: tags.length === 0 ? "add" : "edit",
-        }}
-      >
-        <TagsField tags={tags} />
-      </RecordSection>
 
       <MentionedInSection reminders={mentionedIn} />
 

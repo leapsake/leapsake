@@ -1,21 +1,10 @@
-import { contactMethodDraftOf } from "@leapsake/contact-links";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   emptyEntityForm,
+  entityDetailsOf,
   entityFormProblem,
-  hasStagedRows,
   switchedEntityForm,
 } from "./entity-form";
-
-// The form's row helpers live beside their components; these stand in for what those import.
-vi.mock("react-native", () => ({
-  Platform: { select: (o: { default: unknown }) => o.default },
-  StyleSheet: { create: (s: unknown) => s },
-}));
-vi.mock("@react-native-picker/picker", () => ({ Picker: {} }));
-vi.mock("expo-router", () => ({}));
-vi.mock("expo-localization", () => ({ getLocales: () => [] }));
-vi.mock("./core-context", () => ({ useCore: () => null }));
 
 describe("entityFormProblem", () => {
   it("asks a person for some part of a name, and a pet for its name", () => {
@@ -27,55 +16,48 @@ describe("entityFormProblem", () => {
     );
   });
 
-  it("has nothing to say once the name is there and no row is half-filled", () => {
+  it("has nothing to say once the name is there", () => {
     const value = emptyEntityForm();
     value.person.lastName = "Bailey";
-    value.contacts = [{ key: "c-1", draft: contactMethodDraftOf("phone") }];
     expect(entityFormProblem("person", value)).toBeUndefined();
   });
+});
 
-  it("names a staged row that is half-filled", () => {
+describe("entityDetailsOf", () => {
+  it("gives the details a record takes, once there is a name", () => {
     const value = emptyEntityForm();
-    value.person.lastName = "Bailey";
-    value.contacts = [
-      {
-        key: "c-1",
-        draft: { ...contactMethodDraftOf("phone"), label: "", number: "555" },
-      },
-    ];
-    expect(entityFormProblem("person", value)).toBe(
-      "Finish or remove the unfinished contact method before saving.",
-    );
+    expect(entityDetailsOf("person", value)).toBeNull();
+    value.person.firstName = " George ";
+    value.person.gender = "male";
+    expect(entityDetailsOf("person", value)).toEqual({
+      firstName: "George",
+      middleName: null,
+      lastName: null,
+      gender: "male",
+    });
   });
 });
 
 describe("switchedEntityForm", () => {
-  it("brings a person's name, gender and tags to the pet", () => {
+  it("brings a person's name and gender to the pet", () => {
     const value = emptyEntityForm();
     value.person = {
       firstName: "Mary",
       middleName: " ",
       lastName: "Hatch",
       gender: "female",
-      tags: "family",
+      tags: "",
     };
     expect(switchedEntityForm("person", value).pet).toEqual({
       name: "Mary Hatch",
       gender: "female",
-      tags: "family",
+      tags: "",
     });
   });
 
   it("brings a pet's name to the person's first name", () => {
     const value = emptyEntityForm();
-    value.pet = { name: "Buffalo", gender: null, tags: "" };
-    expect(switchedEntityForm("pet", value).person.firstName).toBe("Buffalo");
-  });
-
-  it("drops every staged row", () => {
-    const value = emptyEntityForm();
-    value.contacts = [{ key: "c-1", draft: contactMethodDraftOf("phone") }];
-    expect(hasStagedRows(value)).toBe(true);
-    expect(hasStagedRows(switchedEntityForm("person", value))).toBe(false);
+    value.pet = { name: "Jimmy", gender: null, tags: "" };
+    expect(switchedEntityForm("pet", value).person.firstName).toBe("Jimmy");
   });
 });

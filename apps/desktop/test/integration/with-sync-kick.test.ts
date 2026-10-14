@@ -145,6 +145,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "duplicates.reject": "write",
   "drafts.discard": "write",
   "drafts.discardAll": "write",
+  "drafts.edit": "write",
   "drafts.publish": "write",
   // An export is a snapshot: it reads every person and writes nothing, so it
   // must not kick a sync.

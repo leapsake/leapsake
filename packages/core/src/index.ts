@@ -663,6 +663,18 @@ export function createCore(
     resolveLabel: entities.label,
   });
 
+  /** Write a draft's details; a record that is no longer a draft is left be. */
+  async function writeDraft(
+    type: EntityType,
+    id: string,
+    patch: UpdatePersonInput | UpdatePetInput,
+  ): Promise<void> {
+    if (!(await entities.isDraft(type, id))) return;
+    await (type === "person"
+      ? people.update(id, patch as UpdatePersonInput)
+      : pets.update(id, patch as UpdatePetInput));
+  }
+
   /** Delete a draft and all it gathered. With no account nothing has left the
    *  device, so the cascade's tombstones are removed outright. */
   async function discardDraft(type: EntityType, id: string): Promise<void> {
@@ -1120,16 +1132,19 @@ export function createCore(
 
     // A person or pet being added: a draft until saved, invisible until then.
     drafts: {
+      /** Keep a draft's details as typed, leaving its tags alone. */
+      edit: (
+        type: EntityType,
+        id: string,
+        details: UpdatePersonInput | UpdatePetInput,
+      ): Promise<void> => writeDraft(type, id, details),
       /** Save a draft: its final details, and into the user's lists. */
       publish: async (
         type: EntityType,
         id: string,
         details: UpdatePersonInput | UpdatePetInput,
       ): Promise<void> => {
-        const patch = { ...details, standing: "published" as const };
-        await (type === "person"
-          ? people.update(id, patch as UpdatePersonInput)
-          : pets.update(id, patch as UpdatePetInput));
+        await writeDraft(type, id, { ...details, standing: "published" });
         await regenerateSystem();
       },
       discard: async (type: EntityType, id: string): Promise<void> => {

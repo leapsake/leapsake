@@ -112,6 +112,21 @@ describe("a draft person", () => {
   });
 });
 
+describe("editing a draft", () => {
+  it("keeps the details as typed, and leaves a saved record be", async () => {
+    const draft = await core.people.create(
+      { ...name("Zuzu"), standing: "draft" },
+      [],
+    );
+    await core.drafts.edit("person", draft.id, { firstName: "Zuzanna" });
+    expect((await core.people.get(draft.id))?.firstName).toBe("Zuzanna");
+
+    await core.drafts.publish("person", draft.id, {});
+    await core.drafts.edit("person", draft.id, { firstName: "Z" });
+    expect((await core.people.get(draft.id))?.firstName).toBe("Zuzanna");
+  });
+});
+
 describe("discarding a draft", () => {
   it("removes every trace of it when there is no account", async () => {
     const other = await core.people.create(name("Harry"), []);

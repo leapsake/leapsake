@@ -1,18 +1,8 @@
-# Stage a birthday milestone, dated by its YEAR.
+# Add a birthday milestone, dated by its YEAR, from the add form.
 #
-# "Add milestone" appends a row that is already open and live — there is no
-# sub-form and no second "Add" to press — so staging one is a matter of filling
-# it in. The row opens under the section's heading, but its fields run below the
-# fold, so the year is scrolled to rather than assumed on screen.
-#
-# **The year is not decoration.** A row nobody has typed into is treated as the
-# tap nobody followed through on and is never written (`milestoneRowPending`), so
-# a milestone that is only its default kind would silently not exist after Save.
-# Month and day are typed the same way (`milestone-month`, `milestone-day`); a
-# year alone is all this subflow needs.
-#
-# The kind is left alone, which makes this a Birthday — the first kind either
-# bearer type offers, and what the picker opens on.
+# The form's Milestones ➕ opens the same milestone screen a saved person's does,
+# once the record has a name; it saves and comes straight back. The kind is left
+# alone, which makes this a Birthday, the first kind either bearer type offers.
 appId: com.leapsake.app
 ---
 - scrollUntilVisible:
@@ -20,23 +10,11 @@ appId: com.leapsake.app
       text: "Add milestone"
     direction: DOWN
 - tapOn: "Add milestone"
-- scrollUntilVisible:
-    element:
-      id: "milestone-year"
-    direction: DOWN
 - tapOn:
     id: "milestone-year"
 - inputText: "${YEAR}"
-# Back to the section heading before dropping the keyboard: `dismiss-keyboard`
-# taps "Milestones" and `tapOn` does not scroll, so the heading has to be on
-# screen — and typing into the last field of an open row is exactly where it
-# isn't.
+- tapOn: "Save"
 - scrollUntilVisible:
     element:
-      text: "Milestones"
-    direction: UP
-- runFlow:
-    file: dismiss-keyboard.yaml
-    env:
-      ANCHOR: "Milestones"
-- assertVisible: ".*Birthday.*"
+      text: ".*Birthday.*"
+    direction: DOWN

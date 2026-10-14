@@ -319,7 +319,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       setCore(bootedCore);
       // Sequenced: planning before the regenerate lands schedules off a stale
       // `dueDate`, a day wrong after a rollover or a milestone edit.
-      void bringInNewContacts(bootedCore)
+      void bootedCore.drafts
+        .discardAll() // any draft left by an app closed mid-add
+        .catch((cause) => console.error("discarding drafts failed:", cause))
+        .then(() => bringInNewContacts(bootedCore))
         .then(() => regenerateSystemReminders(bootedCore))
         .then(() => reconcileNotifications(bootedCore));
       /**

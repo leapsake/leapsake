@@ -365,12 +365,6 @@ export interface Messages {
     reviewDuplicates: (count: number) => string;
   };
 
-  addRecord: {
-    /** The record saved but some of its staged rows did not. */
-    partialSaveTitle: string;
-    partialSaveBody: (failed: readonly string[]) => string;
-  };
-
   dataExport: {
     /** What left the device, in one line. */
     summary: (counts: {

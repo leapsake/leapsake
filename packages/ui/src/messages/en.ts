@@ -401,14 +401,6 @@ export const en: Messages = {
         : `Review ${count} possible duplicates`,
   },
 
-  addRecord: {
-    partialSaveTitle: "Saved, but not everything",
-    partialSaveBody: (failed) =>
-      failed.length === 1
-        ? `Couldn’t save ${failed[0]}. You can add it again from the page you’re about to land on.`
-        : `Couldn’t save ${list(failed)}. You can add them again from the page you’re about to land on.`,
-  },
-
   dataExport: {
     summary: (counts) => {
       const { pets, contactMethods, otherRecords, bytes } = counts;

@@ -1,22 +1,28 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { type EntityType, personInputOf, petInputOf } from "@leapsake/schema";
-import { useMessages } from "@leapsake/ui/messages";
-import { EntityFormSections } from "../components/EntityFormSections";
+import {
+  type EntityType,
+  type CreatePersonInput,
+  type CreatePetInput,
+  entityLabel,
+} from "@leapsake/schema";
 import { FormScrollView } from "../components/FormScrollView";
 import { useHeaderSave } from "../components/HeaderSave";
+import { PersonFields } from "../components/PersonFields";
+import { PetFields } from "../components/PetFields";
+import { RecordFacts } from "../components/RecordFacts";
 import { useCore } from "../lib/core-context";
 import {
   type EntityFormValue,
   emptyEntityForm,
+  entityDetailsOf,
   entityFormProblem,
-  hasStagedRows,
   switchedEntityForm,
 } from "../lib/entity-form";
-import { applyEntityForm } from "../lib/entity-form-apply";
 import { entityHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
+import { useFocusedData } from "../lib/useFocusedData";
 
 const TEXT = {
   person: {
@@ -29,10 +35,12 @@ const TEXT = {
     switchLink: "Adding a person instead?",
     switchConfirm: "Switch to a person?",
   },
+  nameFirst: "Add a name to add birthdays, contacts and more.",
   switchConfirmBody:
-    "The name, gender and tags come with you. Everything added below them will be cleared.",
+    "The name and gender come with you. Everything added below them will be cleared.",
   switchConfirmAction: "Switch",
   cancel: "Cancel",
+  saveFailed: "Couldn't save",
 } as const;
 
 const OTHER_TYPE: Record<EntityType, EntityType> = {
@@ -40,9 +48,12 @@ const OTHER_TYPE: Record<EntityType, EntityType> = {
   pet: "person",
 };
 
+/** How long typing pauses before the draft takes the new details. */
+const DRAFT_DELAY_MS = 400;
+
 /**
- * Add a person, or a pet with `?type=pet`, staging every section until the
- * record exists; the one whole-record form, as a saved one is edited in parts.
+ * Add a person, or a pet with `?type=pet`. Once named it is a draft, gathering
+ * facts through the same screens a saved record uses, until Save publishes it.
  */
 export default function AddScreen() {
   const params = useLocalSearchParams<{ type?: string }>();
@@ -51,7 +62,7 @@ export default function AddScreen() {
     return { type, initial: emptyEntityForm() };
   });
 
-  // Keyed on the type, so a switch starts a fresh form from what it carries.
+  // Keyed on the type, so a switch starts a fresh form, and discards the draft.
   return (
     <AddEntityForm
       key={form.type}
@@ -77,59 +88,104 @@ function AddEntityForm({
   onSwitch: (value: EntityFormValue) => void;
 }) {
   const core = useCore();
-  const m = useMessages();
   const router = useRouter();
 
   const [value, setValue] = useState<EntityFormValue>(initial);
   const [saving, setSaving] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  // The draft's creation, shared by everything that needs its id, and whether
+  // it was saved, so leaving does not discard it.
+  const draft = useRef<{ creating: Promise<string> | null; saved: boolean }>({
+    creating: null,
+    saved: false,
+  });
 
-  const isPerson = type === "person";
+  const details = entityDetailsOf(type, value);
   const problem = entityFormProblem(type, value);
 
-  /** The person or pet itself, or null while its draft is invalid. */
-  async function createRecord() {
-    if (isPerson) {
-      const shaped = personInputOf(value.person);
-      return shaped.ok ? core.people.create(shaped.input, shaped.tags) : null;
-    }
-    const shaped = petInputOf(value.pet);
-    return shaped.ok ? core.pets.create(shaped.input, shaped.tags) : null;
-  }
+  const ensureDraft = useCallback(
+    (fields: CreatePersonInput | CreatePetInput): Promise<string> => {
+      draft.current.creating ??= (
+        type === "person"
+          ? core.people.create(
+              { ...(fields as CreatePersonInput), standing: "draft" },
+              [],
+            )
+          : core.pets.create(
+              { ...(fields as CreatePetInput), standing: "draft" },
+              [],
+            )
+      ).then((record) => {
+        setDraftId(record.id);
+        return record.id;
+      });
+      return draft.current.creating;
+    },
+    [core, type],
+  );
+
+  // A moment after typing stops, the draft takes the details as typed.
+  const detailsKey = JSON.stringify(details);
+  useEffect(() => {
+    if (details === null) return;
+    const timer = setTimeout(() => {
+      if (draft.current.saved) return;
+      const creating = draft.current.creating;
+      if (creating === null) {
+        ensureDraft(details).catch((cause) => console.error(cause));
+      } else {
+        creating
+          .then((id) => core.drafts.edit(type, id, details))
+          .catch((cause) => console.error(cause));
+      }
+    }, DRAFT_DELAY_MS);
+    return () => clearTimeout(timer);
+    // `detailsKey` stands for `details`, which is a new object every render.
+  }, [detailsKey, ensureDraft, core, type]);
+
+  // Leaving without saving takes the draft, and all it gathered, with it.
+  useEffect(
+    () => () => {
+      if (draft.current.saved) return;
+      void draft.current.creating
+        ?.then((id) => core.drafts.discard(type, id))
+        .catch((cause) => console.error(cause));
+    },
+    [core, type],
+  );
+
+  const load = useCallback(async () => {
+    if (draftId === null) return null;
+    const [view, holidays, gifts] = await Promise.all([
+      type === "person" ? core.views.person(draftId) : core.views.pet(draftId),
+      core.holidays.listForBearer(type, draftId),
+      core.gifts.recipients.listForRecipient(type, draftId),
+    ]);
+    return view === null ? null : { view, holidays, gifts };
+  }, [core, type, draftId]);
+  const { data, reload } = useFocusedData(load);
 
   async function save() {
-    if (problem !== undefined || saving) return;
+    if (details === null || saving) return;
     setSaving(true);
     try {
-      // The whole record, which titles the page this is replaced with.
-      const created = await createRecord();
-      if (created === null) {
-        setSaving(false);
-        return;
-      }
-      const id = created.id;
-
-      const failed = await applyEntityForm(core, type, id, value);
-      if (failed.length > 0) {
-        Alert.alert(
-          m.addRecord.partialSaveTitle,
-          m.addRecord.partialSaveBody(failed),
-        );
-      }
-
-      if (isPerson) {
-        // After the staged rows land, so the review compares finished records.
-        // Replaced either way, so Back never returns to a filled-in form.
-        const matches = await core.duplicates.findFor(id).catch(() => []);
-        router.replace(
-          matches.length > 0
-            ? `/duplicates?for=${id}`
-            : entityHref(type, created),
-        );
-      } else {
-        router.replace(entityHref(type, created));
-      }
+      const id = await ensureDraft(details);
+      draft.current.saved = true;
+      await core.drafts.publish(type, id, details);
+      const record =
+        type === "person" ? await core.people.get(id) : await core.pets.get(id);
+      if (record === undefined) throw new Error("The record went missing.");
+      // Replaced either way, so Back never returns to a filled-in form.
+      const matches =
+        type === "person"
+          ? await core.duplicates.findFor(id).catch(() => [])
+          : [];
+      router.replace(
+        matches.length > 0 ? `/duplicates?for=${id}` : entityHref(type, record),
+      );
     } catch (e) {
-      Alert.alert("Couldn't save", String(e));
+      draft.current.saved = false;
+      Alert.alert(TEXT.saveFailed, String(e));
       setSaving(false);
     }
   }
@@ -140,8 +196,19 @@ function AddEntityForm({
     saving,
     onPress: () => void save(),
   });
+
+  // Whether the draft has gathered anything a switch would throw away.
+  const gathered =
+    data !== null &&
+    (data.view.tags.length > 0 ||
+      data.view.timeline.length > 0 ||
+      data.view.relationships.length > 0 ||
+      ("contactMethods" in data.view && data.view.contactMethods.length > 0) ||
+      data.holidays.some((h) => h.observes) ||
+      data.gifts.length > 0);
+
   function switchType() {
-    if (!hasStagedRows(value)) {
+    if (!gathered) {
       onSwitch(value);
       return;
     }
@@ -171,7 +238,33 @@ function AddEntityForm({
           <Text style={styles.link}>{TEXT[type].switchLink}</Text>
         </Pressable>
 
-        <EntityFormSections type={type} value={value} onChange={setValue} />
+        {type === "person" ? (
+          <PersonFields
+            draft={value.person}
+            onChange={(person) => setValue((v) => ({ ...v, person }))}
+          />
+        ) : (
+          <PetFields
+            draft={value.pet}
+            onChange={(pet) => setValue((v) => ({ ...v, pet }))}
+          />
+        )}
+
+        {details === null && <Text style={styles.muted}>{TEXT.nameFirst}</Text>}
+        {details !== null && data !== null && draftId !== null && (
+          <RecordFacts
+            type={type}
+            id={draftId}
+            subjectName={entityLabel(
+              type,
+              "person" in data.view ? data.view.person : data.view.pet,
+            )}
+            view={data.view}
+            holidays={data.holidays}
+            gifts={data.gifts}
+            onChanged={() => void reload()}
+          />
+        )}
       </FormScrollView>
     </>
   );

@@ -1,15 +1,11 @@
 import { useCallback } from "react";
 import { Alert, ScrollView } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { RecordFacts } from "../../../components/RecordFacts";
 import { RecordSection } from "../../../components/RecordSection";
-import { GiftsSection } from "../../../components/GiftsSection";
-import { HolidaysSection } from "../../../components/HolidaysSection";
 import { MentionedInSection } from "../../../components/MentionedInSection";
-import { MilestonesSection } from "../../../components/MilestonesSection";
 import { PetDetailFields } from "../../../components/PetDetailFields";
 import { RecordTimestamps } from "../../../components/RecordTimestamps";
-import { RelationshipsSection } from "../../../components/RelationshipsSection";
-import { TagsField } from "../../../components/TagsField";
 import { useCore } from "../../../lib/core-context";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { deceasedTitle, isDeceased, petTitle } from "../../../lib/record-title";
@@ -39,7 +35,7 @@ export default function PetDetailScreen() {
   const [view, mentionedIn, holidays, gifts] = data;
   if (view === null) return <LoadState error={null} />;
 
-  const { pet, gender, tags, timeline, relationships } = view;
+  const { pet, gender, timeline } = view;
 
   function confirmDelete() {
     Alert.alert("Delete pet", `Delete ${pet.name}?`, [
@@ -74,44 +70,15 @@ export default function PetDetailScreen() {
         <PetDetailFields pet={pet} gender={gender.value} />
       </RecordSection>
 
-      <MilestonesSection
-        bearerType="pet"
-        bearerId={pet.id}
-        entries={timeline}
-        onChanged={reload}
-      />
-
-      <RelationshipsSection
-        subjectType="pet"
-        subjectId={pet.id}
-        relationships={relationships}
-        onChanged={reload}
-      />
-
-      <HolidaysSection
-        bearerType="pet"
-        bearerId={pet.id}
+      <RecordFacts
+        type="pet"
+        id={pet.id}
+        subjectName={pet.name}
+        view={view}
         holidays={holidays}
-        onChanged={reload}
-      />
-
-      <GiftsSection
-        recipientType="pet"
-        recipientId={pet.id}
         gifts={gifts}
         onChanged={reload}
       />
-
-      <RecordSection
-        title="Tags"
-        link={{
-          href: `/pets/${id}/tags/edit`,
-          what: "tags",
-          action: tags.length === 0 ? "add" : "edit",
-        }}
-      >
-        <TagsField tags={tags} />
-      </RecordSection>
 
       <MentionedInSection reminders={mentionedIn} />
 

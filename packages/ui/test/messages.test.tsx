@@ -103,15 +103,6 @@ describe("the English counts", () => {
     expect(en.holidays.occurrence("Dec 25", 1)).toBe("Dec 25");
     expect(en.holidays.occurrence("Dec 14", 8)).toBe("Dec 14 (8 days)");
   });
-
-  it("names what didn’t save as it, or as them", () => {
-    expect(en.addRecord.partialSaveBody(["Birthday"])).toBe(
-      "Couldn’t save Birthday. You can add it again from the page you’re about to land on.",
-    );
-    expect(en.addRecord.partialSaveBody(["Birthday", "Home"])).toBe(
-      "Couldn’t save Birthday, Home. You can add them again from the page you’re about to land on.",
-    );
-  });
 });
 
 /** An export's counts, overridable per test. */
