@@ -110,6 +110,12 @@ export {
   monthName,
 } from "./date-format.js";
 export type { DateFormat } from "./date-format.js";
+export {
+  PREFERENCES_ID_NAME,
+  PREFERENCES_NAMESPACE,
+  preferencesSchema,
+} from "./preferences.js";
+export type { Preferences } from "./preferences.js";
 export type { SelfPerson, SetSelfInput } from "./self-person.js";
 export {
   notificationModeSchema,

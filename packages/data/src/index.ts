@@ -39,6 +39,11 @@ export {
   createSelfPersonRepo,
 } from "./self-person-repo.js";
 export {
+  PREFERENCES_ID,
+  type PreferencesRepo,
+  createPreferencesRepo,
+} from "./preferences-repo.js";
+export {
   type NotificationSettingsRepo,
   createNotificationSettingsRepo,
 } from "./notification-settings-repo.js";

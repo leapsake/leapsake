@@ -39,6 +39,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "pets",
       "phone_numbers",
       "postal_addresses",
+      "preferences",
       "relationship_dismissals",
       "relationships",
       "reminder_rules",

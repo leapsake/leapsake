@@ -800,6 +800,21 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 46,
+    async up(driver) {
+      // The user's synced preferences: one fixed-id row, a column per setting.
+      await driver.exec(`
+        CREATE TABLE preferences (
+          id          TEXT    PRIMARY KEY,
+          date_format TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

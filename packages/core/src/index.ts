@@ -19,6 +19,7 @@ import {
   createNotificationSettingsRepo,
   createPeopleRepo,
   createPetsRepo,
+  createPreferencesRepo,
   createRelationshipService,
   createRelationshipsRepo,
   createGiftIdeasRepo,
@@ -56,6 +57,7 @@ import type {
   PostalAddress,
   SocialProfile,
   MilestoneKind,
+  DateFormat,
   NotificationMode,
   ReminderCategory,
   NotificationSettings,
@@ -344,6 +346,7 @@ export function createCore(
   const deviceContactLinks = createDeviceContactLinksRepo(driver);
   const deviceContactsState = createSyncStateRepo(driver);
   const notificationSettings = createNotificationSettingsRepo(driver);
+  const preferences = createPreferencesRepo(driver);
   const giftIdeas = createGiftIdeasRepo(driver);
   const giftRecipients = createGiftRecipientsRepo(driver);
   const mentions = createMentionsRepo(driver);
@@ -1096,6 +1099,14 @@ export function createCore(
         await self.clearSelf();
         await regenerateSystem();
       },
+    },
+
+    // The user's synced preferences; a `null` setting means the default.
+    preferences: {
+      getDateFormat: (): Promise<DateFormat | null> =>
+        preferences.getDateFormat(),
+      setDateFormat: (format: DateFormat | null): Promise<void> =>
+        preferences.setDateFormat(format),
     },
 
     // Per-device notification policy. Every method takes an explicit deviceId,

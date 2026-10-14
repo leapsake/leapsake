@@ -79,6 +79,8 @@ export const API_CHANNELS = [
   "self.set",
   "self.clear",
 
+  "preferences.getDateFormat",
+  "preferences.setDateFormat",
   "notificationSettings.get",
   "notificationSettings.list",
   "notificationSettings.setPolicy",
