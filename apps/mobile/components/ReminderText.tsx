@@ -9,6 +9,11 @@ import {
 import { mentionHref, tagHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
 
+/** `name` with no-break spaces, so a chip never wraps across lines. */
+function unbroken(name: string): string {
+  return name.replace(/ /g, "\u00A0");
+}
+
 /**
  * Reminder text as one wrapping `<Text>`, `#tags` as links and mentions as
  * bare names on a chip tint; every link is a pressable run, not a `<Link>`.
@@ -75,7 +80,12 @@ export function ReminderText({
           );
           if (mention === undefined || typeof mention.label !== "string")
             return run(i, segment.displayName, null);
-          return run(i, mention.label, mentionHref(mention), styles.chip);
+          return run(
+            i,
+            unbroken(mention.label),
+            mentionHref(mention),
+            styles.chip,
+          );
         }
         return run(i, segment.text, null);
       })}
