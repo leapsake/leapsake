@@ -9,6 +9,7 @@ const ROWS = [
   { href: "/settings", glyph: "👤", label: "Account" },
   { href: "/data", glyph: "💾", label: "Data" },
   { href: "/notifications", glyph: "🔔", label: "Notifications" },
+  { href: "/date-format", glyph: "📅", label: "Date format" },
   // Last: about the app, and a licence obligation as well as a screen.
   { href: "/acknowledgements", glyph: "💚", label: "Acknowledgements" },
 ] as const;
