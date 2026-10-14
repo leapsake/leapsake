@@ -37,10 +37,11 @@ export function ReminderText({
   const mentionByTarget = new Map(
     mentions.map((m) => [`${m.targetType}:${m.targetId}`, m]),
   );
-  // An annotation keeps a bold parent's weight rather than lightening it.
-  const parentWeight = StyleSheet.flatten(style)?.fontWeight;
-  const keepWeight =
-    parentWeight === undefined ? undefined : { fontWeight: parentWeight };
+  // Inside an already-weighted parent, an annotation goes heavier still.
+  const heavier =
+    StyleSheet.flatten(style)?.fontWeight === undefined
+      ? undefined
+      : { fontWeight: "800" as const };
 
   /** One run; `href` is `null` for prose and for a gone target alike. */
   function run(
@@ -77,7 +78,7 @@ export function ReminderText({
           return run(i, segment.text, tagHref(tag), [
             styles.tag,
             { color: tagColor(tag.normalized) },
-            keepWeight,
+            heavier,
           ]);
         }
         if (segment.kind === "mention") {
@@ -88,7 +89,7 @@ export function ReminderText({
             return run(i, segment.displayName, null);
           return run(i, chipName(mention.label), mentionHref(mention), [
             styles.mention,
-            keepWeight,
+            heavier,
           ]);
         }
         return run(i, segment.text, null);

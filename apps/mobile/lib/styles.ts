@@ -73,11 +73,11 @@ export const styles = StyleSheet.create({
   /** A mentioned name inside text, in the composer and when read. */
   mention: {
     color: colors.accent,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   /** A `#tag` inside text, coloured per tag by `tagColor`. */
   tag: {
-    fontWeight: "600",
+    fontWeight: "700",
   },
   /** The chosen one, where a row of links is really a single-choice picker. */
   linkSelected: {
