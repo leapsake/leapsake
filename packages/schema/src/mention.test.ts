@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { draftFromMarkup } from "./composer-draft.js";
 import {
   activeMentionQuery,
+  chipName,
   mentionToken,
   parseMentions,
   plainMentionText,
@@ -126,7 +127,7 @@ describe("activeMentionQuery", () => {
     const { text, spans } = draftFromMarkup(
       `${mentionToken("Violet Bick", "person", VIOLET)} `,
     );
-    expect(text).toBe("Violet Bick ");
+    expect(text).toBe("Violet\u00A0Bick ");
     // Caret at the very end, after the whole mention + trailing space.
     expect(activeMentionQuery(text, text.length, spans)).toBeNull();
     // Caret parked in the middle of the name also reads as not-a-query.
@@ -137,11 +138,19 @@ describe("activeMentionQuery", () => {
     const { spans } = draftFromMarkup(
       mentionToken("Violet Bick", "person", VIOLET),
     );
-    const text = "Violet Bick @re";
+    const text = "Violet\u00A0Bick @re";
     expect(activeMentionQuery(text, text.length, spans)).toEqual({
       query: "re",
       start: 12,
     });
+  });
+});
+
+describe("chipName", () => {
+  it("leaves no space or hyphen a line could break at, at the same length", () => {
+    const name = "Mary Hatch-Bailey";
+    expect(chipName(name)).toBe("Mary\u00A0Hatch\u2011Bailey");
+    expect(chipName(name)).toHaveLength(name.length);
   });
 });
 

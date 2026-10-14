@@ -198,6 +198,7 @@ export type {
 } from "./reminder-rule.js";
 export {
   MENTION_NAMESPACE,
+  chipName,
   mentionToken,
   repointMentionTokens,
   activeMentionQuery,

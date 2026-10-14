@@ -110,7 +110,7 @@ describe("ChipTextField — mentions", () => {
     type(field, "call @dav");
     clickOption(await screen.findByRole("option"), field);
 
-    expect(field).toHaveProperty("value", "call Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie\u00A0Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
@@ -121,7 +121,7 @@ describe("ChipTextField — mentions", () => {
 
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call Ernie Bishop today",
+      "call Ernie\u00A0Bishop today",
     );
     // Untouched: what came in is what would go back out.
     expect(stored(container)).toBe(`call ${ernieToken} today`);
@@ -131,7 +131,7 @@ describe("ChipTextField — mentions", () => {
     const { container } = renderWithUi(
       <Host initial={`hi ${ernieToken} #family!`} />,
     );
-    expect(chips(container)).toEqual(["Ernie Bishop", "#family"]);
+    expect(chips(container)).toEqual(["Ernie\u00A0Bishop", "#family"]);
   });
 
   it("keeps the mirrored text out of the label", () => {
@@ -139,7 +139,7 @@ describe("ChipTextField — mentions", () => {
     // Would throw if the backdrop's copy of the text counted as label text.
     expect(screen.getByLabelText("Title")).toHaveProperty(
       "value",
-      "call Ernie Bishop",
+      "call Ernie\u00A0Bishop",
     );
   });
 
@@ -147,7 +147,7 @@ describe("ChipTextField — mentions", () => {
     const { container } = renderWithUi(<Host initial={`call ${ernieToken}`} />);
     const field = screen.getByLabelText("Title");
 
-    type(field, "call Ernie Bisho"); // backspace at the end of the name
+    type(field, "call Ernie\u00A0Bisho"); // backspace at the end of the name
 
     expect(stored(container)).toBe("call ");
     await waitFor(() => expect(chips(container)).toEqual([]));
@@ -158,7 +158,7 @@ describe("ChipTextField — mentions", () => {
     const field = screen.getByLabelText("Title");
 
     // Carry on typing after the mention; the picker must stay shut.
-    type(field, "Ernie Bishop and");
+    type(field, "Ernie\u00A0Bishop and");
 
     // Past the search debounce, so "no picker" means it never opened rather
     // than that we looked too early.
@@ -257,7 +257,7 @@ describe("ChipTextField — completing from the keyboard", () => {
     await screen.findByRole("option");
 
     expect(press(field, "Enter")).toBe(true);
-    expect(field).toHaveProperty("value", "call Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie\u00A0Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 
@@ -270,7 +270,7 @@ describe("ChipTextField — completing from the keyboard", () => {
 
     // Swallowed, so focus stays put rather than moving on to the next control.
     expect(press(field, "Tab")).toBe(true);
-    expect(field).toHaveProperty("value", "call Ernie Bishop ");
+    expect(field).toHaveProperty("value", "call Ernie\u00A0Bishop ");
     expect(stored(container)).toBe(`call ${ernieToken} `);
   });
 

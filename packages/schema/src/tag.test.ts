@@ -208,7 +208,7 @@ describe("activeHashtagQuery", () => {
     const { text, spans } = draftFromMarkup(
       `${mentionToken("Team #1", "person", VIOLET)} `,
     );
-    expect(text).toBe("Team #1 ");
+    expect(text).toBe("Team\u00A0#1 ");
     // Caret parked just after the "#1" inside the name — not a live hashtag.
     expect(activeHashtagQuery(text, text.indexOf("#1") + 2, spans)).toBeNull();
     // Caret at the very end (after the whole name + space) is also not a query.
@@ -219,7 +219,7 @@ describe("activeHashtagQuery", () => {
     const { spans } = draftFromMarkup(
       mentionToken("Violet Bick", "person", VIOLET),
     );
-    const text = "Violet Bick #par";
+    const text = "Violet\u00A0Bick #par";
     expect(activeHashtagQuery(text, text.length, spans)).toEqual({
       query: "par",
       start: 12,

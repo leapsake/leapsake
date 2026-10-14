@@ -17,6 +17,12 @@ export interface Mention {
   targetId: string;
 }
 
+/** `name` as a chip shows it: no-break spaces and hyphens, so it never wraps
+ *  across lines. Same length, so composer offsets are unchanged. */
+export function chipName(name: string): string {
+  return name.replace(/ /gu, "\u00A0").replace(/-/gu, "\u2011");
+}
+
 /** The inline token for a mention, shaped like a Markdown link. */
 export function mentionToken(
   displayName: string,

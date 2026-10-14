@@ -3,6 +3,7 @@ import {
   type Mention,
   activeHashtagQuery,
   activeMentionQuery,
+  chipName,
   mentionToken,
   splitAnnotatedText,
 } from "./mention.js";
@@ -118,7 +119,7 @@ function withTagSpans(
 
 /**
  * A reminder's stored text as its composer shows it: each mention token becomes
- * its bare name as a chip, and every saved `#tag` opens as a chip.
+ * its {@link chipName} as a chip, and every saved `#tag` opens as a chip.
  */
 export function draftFromMarkup(markup: string): ComposerDraft {
   let text = "";
@@ -129,7 +130,7 @@ export function draftFromMarkup(markup: string): ComposerDraft {
       continue;
     }
     const start = text.length;
-    text += segment.displayName;
+    text += chipName(segment.displayName);
     spans.push({
       kind: "mention",
       start,
@@ -148,7 +149,7 @@ export function draftFromMarkup(markup: string): ComposerDraft {
 
 /**
  * The inverse of {@link draftFromMarkup}. A mention chip whose text no longer
- * reads its `displayName` is dropped, and its characters stay as prose.
+ * reads its {@link chipName} is dropped, and its characters stay as prose.
  */
 export function markupFromDraft(draft: ComposerDraft): string {
   let markup = "";
@@ -156,7 +157,7 @@ export function markupFromDraft(draft: ComposerDraft): string {
   for (const span of draft.spans) {
     if (span.kind !== "mention") continue;
     if (span.start < last) continue; // overlapping; cannot be emitted
-    if (draft.text.slice(span.start, span.end) !== span.displayName) {
+    if (draft.text.slice(span.start, span.end) !== chipName(span.displayName)) {
       continue;
     }
     markup += draft.text.slice(last, span.start);
@@ -298,7 +299,7 @@ export function insertMentionInDraft(
     draft,
     caret,
     active?.start ?? caret,
-    mention.displayName,
+    chipName(mention.displayName),
     (start, end) => ({
       kind: "mention",
       start,
