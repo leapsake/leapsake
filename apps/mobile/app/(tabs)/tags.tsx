@@ -6,8 +6,9 @@ import { tagLabel } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
 import { useCore } from "../../lib/core-context";
 import { tagHref } from "../../lib/record-title";
+import { tagColor } from "../../lib/tag-color";
 import { useFocusedData } from "../../lib/useFocusedData";
-import { colors, styles } from "../../lib/styles";
+import { styles } from "../../lib/styles";
 import { LoadState } from "../../components/LoadState";
 
 // Every tag in use, alphabetically. None is created here: a tag exists only
@@ -46,7 +47,7 @@ export default function TagsScreen() {
               )}
             >
               <View>
-                <Text style={[styles.rowText, { color: colors.accent }]}>
+                <Text style={[styles.rowText, { color: tagColor(tag.name) }]}>
                   {tagLabel(tag.name)}
                 </Text>
                 <Text style={styles.rowMeta}>

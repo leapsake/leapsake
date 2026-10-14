@@ -28,6 +28,8 @@ export interface AppHeaderProps {
   onBack?: () => void;
   /** The app's mark before the title: Home only, whose title is the name. */
   showLogo?: boolean;
+  /** Overrides the title's colour, as a tag page does with its tag's. */
+  titleColor?: string;
 }
 
 export function AppHeader({
@@ -36,6 +38,7 @@ export function AppHeader({
   right,
   onBack,
   showLogo = false,
+  titleColor,
 }: AppHeaderProps) {
   const insets = useSafeAreaInsets();
   // With Back, both sides take the wider one's width, so the title centres.
@@ -101,6 +104,7 @@ export function AppHeader({
                 local.title,
                 centred && local.titleTextCentred,
                 { fontSize },
+                titleColor !== undefined && { color: titleColor },
               ]}
             >
               {title}

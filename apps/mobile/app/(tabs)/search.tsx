@@ -15,6 +15,7 @@ import { SearchInput } from "../../components/SearchInput";
 import { highlightBirthday, highlightMatch } from "../../lib/highlightMatch";
 import { useCore } from "../../lib/core-context";
 import { searchHitHref } from "../../lib/record-title";
+import { tagColor } from "../../lib/tag-color";
 import {
   type SearchFacet,
   facetParam,
@@ -193,7 +194,15 @@ function ResultRow({ hit, term }: { hit: SearchHit; term: string }) {
   const reasons = hit.reasons.filter((r) => r.facet !== "name");
   return (
     <View>
-      <Text style={[styles.rowText, { color: colors.accent }]}>
+      <Text
+        style={[
+          styles.rowText,
+          {
+            color:
+              hit.entityType === "tag" ? tagColor(hit.title) : colors.accent,
+          },
+        ]}
+      >
         {/* Tag results render with the "#" sigil; it's never part of the match,
             so it sits outside the highlighted run. */}
         {hit.entityType === "tag" && "#"}

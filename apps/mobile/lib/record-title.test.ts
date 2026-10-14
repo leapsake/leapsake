@@ -8,6 +8,7 @@ import {
   entityHref,
   entityRowHref,
   headerTitle,
+  headerTitleColor,
   holidayHref,
   holidayTitle,
   mentionHref,
@@ -20,6 +21,7 @@ import {
   tagTitle,
   titleFromLink,
 } from "./record-title";
+import { tagColor } from "./tag-color";
 
 /**
  * How expo-router turns a path into `route.params` — `new URL(href, "file:")`,
@@ -226,6 +228,26 @@ describe("the name survives the trip", () => {
     expect(titleFromLink({ id: "p1" })).toBe("");
     // Repeated in the path, so react-navigation hands over an array.
     expect(titleFromLink({ title: ["Mary", "Henry"] })).toBe("");
+  });
+});
+
+describe("headerTitleColor", () => {
+  it("colours a tag page's title as the tag is coloured everywhere else", () => {
+    const tag = { name: "family" };
+    const title = headerTitle(
+      {},
+      route("tags/[id]/index", paramsFromHref(tagHref({ id: "t1", ...tag }))),
+    );
+    expect(headerTitleColor(route("tags/[id]/index"), title)).toBe(
+      tagColor("family"),
+    );
+  });
+
+  it("leaves every other title, and an untitled tag page, alone", () => {
+    expect(headerTitleColor(route("people/[id]/index"), "Mary Bailey")).toBe(
+      undefined,
+    );
+    expect(headerTitleColor(route("tags/[id]/index"), "")).toBe(undefined);
   });
 });
 

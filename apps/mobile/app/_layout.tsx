@@ -6,7 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppHeader } from "../components/AppHeader";
 import { ShareIntoGift } from "../components/ShareIntoGift";
 import { CoreProvider } from "../lib/core-context";
-import { headerTitle } from "../lib/record-title";
+import { headerTitle, headerTitleColor } from "../lib/record-title";
 import { colors } from "../lib/styles";
 
 // Decided when the bundle is built, so a store bundle leaves the module out.
@@ -28,6 +28,10 @@ export default function RootLayout() {
                 <AppHeader
                   // Until a screen's data names it, the name its link sent.
                   title={headerTitle(options, route)}
+                  titleColor={headerTitleColor(
+                    route,
+                    headerTitle(options, route),
+                  )}
                   left={options.headerLeft?.({
                     canGoBack: back !== undefined,
                     tintColor: colors.accent,

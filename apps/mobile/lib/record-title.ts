@@ -7,6 +7,7 @@ import type {
   SearchHit,
 } from "@leapsake/schema";
 import { entityLabel, fullName, tagLabel } from "@leapsake/schema";
+import { tagColor } from "./tag-color";
 
 /** The query parameter a link uses to tell a record screen its name. */
 const PARAM = "title";
@@ -132,6 +133,17 @@ export function headerTitle(
   route: { params?: object },
 ): string {
   return options.title ?? titleFromLink(route.params);
+}
+
+/** A tag page's title in its tag's colour, from the first frame; any other
+ *  screen's title keeps the header's own. */
+export function headerTitleColor(
+  route: { name: string },
+  title: string,
+): string | undefined {
+  return route.name === "tags/[id]/index" && title !== ""
+    ? tagColor(title)
+    : undefined;
 }
 
 // `withTitle` encodes and `titleFromLink` does not decode: expo-router's

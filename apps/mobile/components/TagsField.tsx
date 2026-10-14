@@ -4,11 +4,12 @@ import { useRouter } from "expo-router";
 import type { Tag } from "@leapsake/schema";
 import { tagLabel } from "@leapsake/schema";
 import { tagHref } from "../lib/record-title";
-import { colors, styles } from "../lib/styles";
+import { styles } from "../lib/styles";
+import { tagColor } from "../lib/tag-color";
 
 /**
  * The read-only Tags row, each tag a pressable run linking to its page, in
- * one wrapping `<Text>`. Colour alone marks them, keeping the line's size.
+ * one wrapping `<Text>`, styled as tags are inside reminder text.
  */
 export function TagsField({ tags }: { tags: readonly Tag[] }) {
   const router = useRouter();
@@ -21,7 +22,7 @@ export function TagsField({ tags }: { tags: readonly Tag[] }) {
             <Fragment key={tag.id}>
               {i > 0 ? " " : null}
               <Text
-                style={{ color: colors.accent }}
+                style={[styles.tag, { color: tagColor(tag.name) }]}
                 accessibilityRole="link"
                 onPress={() => router.push(tagHref(tag))}
               >
