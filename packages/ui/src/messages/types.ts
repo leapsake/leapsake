@@ -406,8 +406,8 @@ export interface Messages {
     dateFormat: string;
     /** Each date format's name: its placeholder, in the reader's letters. */
     dateFormatLabel: Record<DateFormat, string>;
-    /** A choice in the picker: the format's name and today written in it. */
-    dateFormatOption: (label: string, example: string) => string;
+    /** Under the picker: today's date written in the chosen format. */
+    dateFormatExample: (example: string) => string;
     saveFailed: string;
   };
 

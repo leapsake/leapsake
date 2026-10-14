@@ -35,14 +35,14 @@ export default function DisplayScreen() {
         value={dateFormat}
         options={DATE_FORMATS.map((format) => ({
           value: format,
-          label: m.display.dateFormatOption(
-            m.display.dateFormatLabel[format],
-            formatDate(today, format),
-          ),
+          label: m.display.dateFormatLabel[format],
         }))}
         onChange={pick}
         testID="display-date-format"
       />
+      <Text style={styles.muted}>
+        {m.display.dateFormatExample(formatDate(today, dateFormat))}
+      </Text>
     </ScrollView>
   );
 }

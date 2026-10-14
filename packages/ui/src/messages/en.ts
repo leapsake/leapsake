@@ -456,7 +456,7 @@ export const en: Messages = {
       "YYYY/MM/DD": "YYYY/MM/DD",
       "YYYY.MM.DD": "YYYY.MM.DD",
     },
-    dateFormatOption: (label, example) => `${label}  ·  ${example}`,
+    dateFormatExample: (example) => `Example: ${example}`,
     saveFailed: "Your display settings couldn’t be saved. Please try again.",
   },
 
