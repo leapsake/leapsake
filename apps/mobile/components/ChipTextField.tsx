@@ -129,7 +129,7 @@ export function ChipTextField({
         placeholderTextColor={colors.muted}
       >
         {splitDraft(live).map((run, i) => (
-          <Text key={i} style={run.kind === "text" ? undefined : styles.chip}>
+          <Text key={i} style={runStyles[run.kind]}>
             {run.text}
           </Text>
         ))}
@@ -178,8 +178,13 @@ export function ChipTextField({
   );
 }
 
+const runStyles = {
+  text: undefined,
+  mention: styles.mention,
+  tag: styles.tag,
+};
+
 const chipStyles = {
-  // Background only, to match desktop's backdrop, which cannot change weight.
   // A bordered dropdown beneath the field, echoing the desktop listbox overlay.
   listbox: {
     borderWidth: 1,

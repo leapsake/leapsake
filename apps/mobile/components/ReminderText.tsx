@@ -1,4 +1,4 @@
-import { type StyleProp, Text, type TextStyle } from "react-native";
+import { type StyleProp, StyleSheet, Text, type TextStyle } from "react-native";
 import { useRouter } from "expo-router";
 import {
   type ResolvedMention,
@@ -12,7 +12,7 @@ import { styles } from "../lib/styles";
 
 /**
  * Reminder text as one wrapping `<Text>`, `#tags` as links and mentions as
- * bare names on a chip tint; every link is a pressable run, not a `<Link>`.
+ * bare names in a tinted chip; every link is a pressable run, not a `<Link>`.
  */
 export function ReminderText({
   text,
@@ -36,6 +36,12 @@ export function ReminderText({
   const mentionByTarget = new Map(
     mentions.map((m) => [`${m.targetType}:${m.targetId}`, m]),
   );
+  // A mention keeps a bold parent's weight rather than lightening it.
+  const parentWeight = StyleSheet.flatten(style)?.fontWeight;
+  const mentionStyle =
+    parentWeight === undefined
+      ? styles.mention
+      : [styles.mention, { fontWeight: parentWeight }];
 
   /** One run; `href` is `null` for prose and for a gone target alike. */
   function run(
@@ -80,7 +86,7 @@ export function ReminderText({
             i,
             chipName(mention.label),
             mentionHref(mention),
-            styles.chip,
+            mentionStyle,
           );
         }
         return run(i, segment.text, null);
