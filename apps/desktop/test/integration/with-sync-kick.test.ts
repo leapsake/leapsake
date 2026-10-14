@@ -143,6 +143,7 @@ const SURFACE: Record<string, "read" | "write"> = {
   "duplicates.findFor": "read",
   "duplicates.nudgeId": "read",
   "duplicates.reject": "write",
+  "drafts.create": "write",
   "drafts.discard": "write",
   "drafts.discardAll": "write",
   "drafts.edit": "write",

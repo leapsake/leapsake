@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * `unpublished` entities exist only as a fact about a published one, and no
- * list or picker offers them. `draft` is reserved and unused.
+ * list or picker offers them. A `draft` is one still being added.
  */
 export const standingSchema = z.enum(["draft", "unpublished", "published"]);
 

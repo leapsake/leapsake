@@ -4,8 +4,8 @@ import { standingColumnSchema, standingSchema } from "./standing.js";
 import { parseTagNames } from "./tag.js";
 
 /**
- * A name's three parts, each optional; a person needs at least one. `min(1)`
- * keeps `""` from being a second way to spell absent.
+ * A name's three parts, each optional; a saved person needs at least one.
+ * `min(1)` keeps `""` from being a second way to spell absent.
  */
 const nameParts = {
   firstName: z.string().min(1).nullable(),
@@ -49,6 +49,16 @@ export function splitName(text: string): {
   };
 }
 
+/** Whether a person has the name they need: any part, unless a draft. */
+function namedUnlessDraft(person: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  standing?: string;
+}): boolean {
+  return person.standing === "draft" || hasAnyName(person);
+}
+
 /** Reported against `firstName`, so a form shows it on the field you'd fix. */
 const nameRequired = {
   error: "A person needs at least one name",
@@ -67,7 +77,7 @@ export const personSchema = z
     updatedAt: z.number().int(), // epoch ms, UTC
     deletedAt: z.number().int().nullable(),
   })
-  .refine(hasAnyName, nameRequired);
+  .refine(namedUnlessDraft, nameRequired);
 
 export type Person = z.infer<typeof personSchema>;
 
@@ -83,7 +93,7 @@ const personInputBase = z.object({
 
 /** Input accepted when creating a Person; the repository fills the rest. */
 export const createPersonInputSchema = personInputBase.refine(
-  hasAnyName,
+  namedUnlessDraft,
   nameRequired,
 );
 

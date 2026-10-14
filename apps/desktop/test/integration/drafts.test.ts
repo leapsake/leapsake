@@ -112,6 +112,37 @@ describe("a draft person", () => {
   });
 });
 
+describe("a nameless draft", () => {
+  it("starts under the id it is given, and gathers facts", async () => {
+    const id = crypto.randomUUID();
+    await core.drafts.create("person", id, {});
+    await core.milestones.create({
+      kind: "birthday",
+      bearerType: "person",
+      bearerId: id,
+      month: 3,
+      day: 9,
+    });
+    expect((await core.views.person(id))?.timeline).toHaveLength(1);
+    expect(await core.people.list()).toEqual([]);
+  });
+
+  it("cannot be saved until it has a name", async () => {
+    const id = crypto.randomUUID();
+    await core.drafts.create("pet", id, {});
+    await expect(core.drafts.publish("pet", id, {})).rejects.toThrow();
+    expect((await core.pets.get(id))?.standing).toBe("draft");
+
+    await core.drafts.publish("pet", id, { name: "Jimmy" });
+    expect((await core.pets.list()).map((p) => p.name)).toEqual(["Jimmy"]);
+  });
+
+  it("is the only person without a name", async () => {
+    await expect(core.people.create({}, [])).rejects.toThrow();
+    await expect(core.pets.create({ name: "" }, [])).rejects.toThrow();
+  });
+});
+
 describe("editing a draft", () => {
   it("keeps the details as typed, and leaves a saved record be", async () => {
     const draft = await core.people.create(

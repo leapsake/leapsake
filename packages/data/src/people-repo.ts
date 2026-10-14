@@ -11,7 +11,8 @@ import type { SqliteDriver } from "./driver.js";
 import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
 
 export interface PeopleRepo extends EntityRepo<Person> {
-  create(input: CreatePersonInput): Promise<Person>;
+  /** A fresh `id` unless given one, as a draft its screens link to is. */
+  create(input: CreatePersonInput, id?: string): Promise<Person>;
   update(id: string, input: UpdatePersonInput): Promise<Person | undefined>;
 }
 
@@ -31,7 +32,7 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
   return {
     ...base,
 
-    async create(input) {
+    async create(input, id = crypto.randomUUID()) {
       const {
         firstName = null,
         middleName = null,
@@ -43,7 +44,7 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
       } = createPersonInputSchema.parse(input);
       const now = Date.now();
       return base.insert({
-        id: crypto.randomUUID(),
+        id,
         firstName,
         middleName,
         lastName,

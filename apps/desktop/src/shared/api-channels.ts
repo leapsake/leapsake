@@ -79,6 +79,7 @@ export const API_CHANNELS = [
   "self.set",
   "self.clear",
 
+  "drafts.create",
   "drafts.discard",
   "drafts.edit",
   "drafts.publish",

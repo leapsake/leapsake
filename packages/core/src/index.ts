@@ -1132,6 +1132,22 @@ export function createCore(
 
     // A person or pet being added: a draft until saved, invisible until then.
     drafts: {
+      /** Start a draft under the id its screens already link to. */
+      create: async (
+        type: EntityType,
+        id: string,
+        details: UpdatePersonInput | UpdatePetInput,
+      ): Promise<void> => {
+        await (type === "person"
+          ? people.create(
+              { ...(details as UpdatePersonInput), standing: "draft" },
+              id,
+            )
+          : pets.create(
+              { name: "", ...(details as UpdatePetInput), standing: "draft" },
+              id,
+            ));
+      },
       /** Keep a draft's details as typed, leaving its tags alone. */
       edit: (
         type: EntityType,
