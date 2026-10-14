@@ -110,7 +110,7 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
       `🎉 Wish ${mentionToken("Violet Bick", "person", violet.id)} a happy birthday`,
     );
     expect(reminderLabel(reminder)).toBe(
-      "🎉 Wish @Violet Bick a happy birthday",
+      "🎉 Wish Violet Bick a happy birthday",
     );
     // Core resolves the mention to the person's current label for the renderer.
     expect(reminder.mentions).toEqual([
@@ -148,12 +148,12 @@ describe("core.reminders.regenerateSystem (birthday engine)", () => {
     const rows = await systemReminders();
     const byTitle = new Map(rows.map((r) => [reminderLabel(r), r]));
     expect([...byTitle.keys()].sort()).toEqual([
-      "🎁 Get @Zuzu Bailey a gift",
-      "💌 Send @Zuzu Bailey a card",
+      "🎁 Get Zuzu Bailey a gift",
+      "💌 Send Zuzu Bailey a card",
     ]);
     // Each due its own lead time before the birthday.
-    const gift = byTitle.get("🎁 Get @Zuzu Bailey a gift")!;
-    const card = byTitle.get("💌 Send @Zuzu Bailey a card")!;
+    const gift = byTitle.get("🎁 Get Zuzu Bailey a gift")!;
+    const card = byTitle.get("💌 Send Zuzu Bailey a card")!;
     expect(daysUntil(todayCivil(), civilFromDueMs(gift.dueDate!))).toBe(8);
     expect(daysUntil(todayCivil(), civilFromDueMs(card.dueDate!))).toBe(13);
     // Both link back to Zuzu's page, beside this year's question.
@@ -738,7 +738,7 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
     );
   }
 
-  it("previews a reminder that is not a row yet, and joins nothing to it", async () => {
+  it("previews a reminder that is not a row yet, its mention resolved from the text", async () => {
     const clarence = await birthdayIn(20);
 
     // Nothing materialized: a wish is day-of, so twenty days out there is no row.
@@ -749,11 +749,11 @@ describe("core.reminders.listInWindow (what the list shows)", () => {
     expect(preview.title).toBe(
       `🎉 Wish ${mentionToken("Clarence Odbody", "person", clarence.id)} a happy birthday`,
     );
-    // The name still renders: it is in the text, which is the source of truth.
-    // The join only ever supplied *current* labels, and a preview has no row to
-    // have stale ones on.
+    // No join rows exist yet, but the name must still link to its person.
     expect(preview.tags).toEqual([]);
-    expect(preview.mentions).toEqual([]);
+    expect(preview.mentions).toEqual([
+      { targetType: "person", targetId: clarence.id, label: "Clarence Odbody" },
+    ]);
     // The two dates the stored row cannot say.
     expect(preview.occurrenceDate).toBe(preview.dueDate);
     expect(preview.activeFrom).toBe(preview.dueDate);

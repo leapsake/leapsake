@@ -517,7 +517,7 @@ function civilDaysFromToday(days: number): CivilDate {
 
 /**
  * The reminder loop: the `🎁 gift` action has
- * always minted "Get @Violet a gift"; `reminders.targets().gifts` is what tells a client which
+ * always minted "Get Violet a gift"; `reminders.targets().gifts` is what tells a client which
  * reminders those are and who they're for, so it can link to the recipient's
  * gifts and — once done — to ticking off what was given.
  */
@@ -556,7 +556,7 @@ describe("core.reminders.targets — the gift half", () => {
 
     // The named reminder is the gift one — not the birthday wish beside it.
     const reminder = await core.reminders.get(targets[0].reminderId);
-    expect(reminderLabel(reminder!)).toBe("🎁 Get @Violet X a gift");
+    expect(reminderLabel(reminder!)).toBe("🎁 Get Violet X a gift");
   });
 
   it("excludes the wish reminder minted alongside it", async () => {
@@ -567,7 +567,7 @@ describe("core.reminders.targets — the gift half", () => {
         reminderLabel((await core.reminders.get(t.reminderId))!),
       ),
     );
-    expect(labels).toEqual(["🎁 Get @Violet X a gift"]);
+    expect(labels).toEqual(["🎁 Get Violet X a gift"]);
   });
 
   it("keeps naming the reminder once it's completed, so the gift can be recorded", async () => {

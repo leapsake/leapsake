@@ -84,7 +84,7 @@ describe("the plan prompt, end to end through core", () => {
     const rows = await systemReminders();
     expect(rows).toHaveLength(1);
     expect(reminderLabel(rows[0])).toBe(
-      "🗓 What do you want to do for @Violet Bick’s birthday?",
+      "🗓 What do you want to do for Violet Bick’s birthday?",
     );
   });
 
@@ -133,7 +133,7 @@ describe("the plan prompt, end to end through core", () => {
       (r) => r.source === "system" && !r.materialized,
     );
     expect(reminderLabel(shown)).toBe(
-      "🗓 What do you want to do for @Violet Bick’s birthday?",
+      "🗓 What do you want to do for Violet Bick’s birthday?",
     );
     const [target] = (await core.reminders.targets()).plans;
     expect(target).toMatchObject({
@@ -203,8 +203,8 @@ describe("the plan prompt, end to end through core", () => {
         daysUntil(todayCivil(), civilFromDueMs(r.dueDate!)),
       ]),
     ).toEqual([
-      ["🛒 Get a card for @Violet Bick", 8],
-      ["💌 Send @Violet Bick a card", 13],
+      ["🛒 Get a card for Violet Bick", 8],
+      ["💌 Send Violet Bick a card", 13],
     ]);
   });
 
@@ -256,7 +256,7 @@ describe("the plan prompt, end to end through core", () => {
       })),
     });
     expect((await systemReminders()).map(reminderLabel)).toEqual([
-      "🎁 Get @Violet Bick a gift",
+      "🎁 Get Violet Bick a gift",
     ]);
 
     await core.milestones.update(milestone.id, {
@@ -265,7 +265,7 @@ describe("the plan prompt, end to end through core", () => {
       ],
     });
     expect((await systemReminders()).map(reminderLabel)).toEqual([
-      "🛒 Get a card for @Violet Bick",
+      "🛒 Get a card for Violet Bick",
     ]);
   });
 
@@ -300,9 +300,9 @@ describe("the plan prompt, end to end through core", () => {
         daysUntil(todayCivil(), civilFromDueMs(r.dueDate!)),
       ]),
     ).toEqual([
-      ["🎁 Get @Violet Bick a gift", 3],
-      ["🎉 Wish @Violet Bick a happy birthday", 15],
-      ["🎁 Give @Violet Bick a gift", 15],
+      ["🎁 Get Violet Bick a gift", 3],
+      ["🎉 Wish Violet Bick a happy birthday", 15],
+      ["🎁 Give Violet Bick a gift", 15],
     ]);
     expect(
       await core.milestones.reminderSchedule(milestone.id, "birthday"),
@@ -344,7 +344,7 @@ describe("the plan prompt, end to end through core", () => {
     await personWithBirthday(0);
 
     const labels = (await systemReminders()).map(reminderLabel);
-    expect(labels).toEqual(["🎉 Wish @Violet Bick a happy birthday"]);
+    expect(labels).toEqual(["🎉 Wish Violet Bick a happy birthday"]);
   });
 });
 

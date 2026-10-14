@@ -262,19 +262,22 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     relationshipLabel,
   } = deps;
 
-  // A reminder's @mention targets, each with the label it goes by now.
-  const resolveMentions = async (
-    reminderId: string,
-  ): Promise<ResolvedMention[]> => {
-    const rows = await mentions.listForBearer("reminder", reminderId);
-    return Promise.all(
-      rows.map(async (m) => ({
+  // Each @mention target with the label it goes by now.
+  const labelTargets = (
+    targets: { targetType: EntityType; targetId: string }[],
+  ): Promise<ResolvedMention[]> =>
+    Promise.all(
+      targets.map(async (m) => ({
         targetType: m.targetType,
         targetId: m.targetId,
         label: (await entities.label(m.targetType, m.targetId)) ?? null,
       })),
     );
-  };
+
+  const resolveMentions = async (
+    reminderId: string,
+  ): Promise<ResolvedMention[]> =>
+    labelTargets(await mentions.listForBearer("reminder", reminderId));
 
   /** Whether a milestone is about you: the self-person, or a relationship they
    *  are one end of. */
@@ -645,14 +648,18 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   const withTagsAndMentions = async (
     row: WindowedReminder,
   ): Promise<ReminderInWindow> => {
-    if (!row.materialized) return { ...row, tags: [], mentions: [] };
+    if (!row.materialized) {
+      // No join rows yet, so its mentions resolve from the text.
+      const previewMentions = await labelTargets(mentionTargetsOf(row));
+      return { ...row, tags: [], mentions: previewMentions };
+    }
     const rowTags = await tags.listForEntity("reminder", row.id);
     const rowMentions = await resolveMentions(row.id);
     return { ...row, tags: rowTags, mentions: rowMentions };
   };
 
-  /** What the reminder list shows: every reminder inside `DISPLAY_WINDOW_DAYS`.
-   *  A preview gets no joins; its title already carries the mention token. */
+  /** What the reminder list shows: every reminder inside `DISPLAY_WINDOW_DAYS`,
+   *  with tags and mentions resolved. */
   const listInWindow = async (): Promise<ReminderInWindow[]> => {
     const rows = await listRemindersInWindow(
       systemReminderDeps(),
