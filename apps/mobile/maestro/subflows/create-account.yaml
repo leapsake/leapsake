@@ -1,7 +1,7 @@
 # Create an account: username + password, submitted, through to the one-time reveal.
 # Ends with the reveal on screen and asserts nothing about it; the caller reads it.
 #
-#   USERNAME, PASSWORD — the account to create. PASSWORD must be ≥12 characters or the
+#   USERNAME, PASSWORD — the account to create. PASSWORD must be ≥8 characters or the
 #   form refuses itself and the guard below fires.
 #
 # Preconditions: an Unauthenticated app, on any screen (this deep-links to Settings).
@@ -16,7 +16,7 @@ appId: com.leapsake.app
 #
 # iOS draws no dots in a `newPassword` field under automation, so do not judge these by
 # looking: the evidence they landed is the submit below getting past validation, which
-# refuses a password under 12 characters or a mismatched confirmation. That evidence is now
+# refuses a password under 8 characters or a mismatched confirmation. That evidence is now
 # an assertion of its own rather than an inference — see "the form was accepted" below.
 - runFlow:
     file: type-checked.yaml
@@ -30,7 +30,7 @@ appId: com.leapsake.app
 # hierarchy Maestro reads: `assertVisible`/`runFlow: when:` cannot see it, and there is no
 # selector to dismiss it by. What it does see is the keyboard, and the characters after the
 # first few land in the card instead of the field — leaving the password short, the form
-# refusing itself with "Password must be at least 12 characters", and the calling flow
+# refusing itself with "Password must be at least 8 characters", and the calling flow
 # reporting a red that has nothing to do with what it was testing.
 #
 # **It is the machine-local toggle coming back that puts it there.** `../README.md` says to

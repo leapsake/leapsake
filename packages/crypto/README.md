@@ -160,7 +160,7 @@ here because they are the reason a future change is safe or unsafe — not histo
 - **Lost password + lost recovery key = unrecoverable data.** By design
   (`plans/encryption/model.md` §6). Server-side escrow exists only as a future opt-in
   dial for people who want it.
-- **Password strength is the encryption strength** — floored, not solved. A 12-character
+- **Password strength is the encryption strength** — floored, not solved. An 8-character
   minimum with length-over-complexity guidance (`MIN_PASSWORD_LENGTH`, per NIST) plus
   Argon2id stretching, with the recovery key as the genuine backstop and a UI that says
   plainly there is no reset. A user may still choose something long and weak; accepted.

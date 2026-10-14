@@ -31,7 +31,7 @@ export interface KeySession {
 
 /** The minimum account-password length, re-exported through core so both
  *  clients check one number. */
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 8;
 
 /** KeyStore id holding this device's stable UUID (UTF-8 bytes). */
 const DEVICE_ID_KEY = "device-id";

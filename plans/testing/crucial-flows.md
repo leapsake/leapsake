@@ -177,7 +177,7 @@ surface no lower tier reaches).
   store is replaced underneath it.
 - **Preconditions:** an Unauthenticated store **with data** (Flows 1–2). Converting an empty
   store proves nothing; the data is the point.
-- **Steps:** Settings → create an account → username + password (≥12 chars) → submit. The
+- **Steps:** Settings → create an account → username + password (≥8 chars) → submit. The
   24-word phrase is shown once: capture it, then tick **I've saved my recovery phrase** →
   **Done**. Then the two door acts, each starting from a simulated OS key-store reset that loses
   the db-key alone (desktop: delete it from `keystore.json`; mobile: the `dev-clear-dbkey`

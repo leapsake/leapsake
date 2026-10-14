@@ -548,11 +548,14 @@ deterministically.
   hygiene. At-rest encryption, not wiping, is the device-theft mitigation. The short-lived KEK
   and transient wrap keys _are_ wiped after use, since they are derived, used once, and cost
   nothing to clear.
-- **The password floor is `MIN_PASSWORD_LENGTH` (12), defined once in `session.ts`.** It is higher
-  than a typical login floor because the password derives the KEK that protects both the master
-  key and the at-rest db-key, in a zero-knowledge design with no server-side reset: an offline
-  guess against a weak password is the whole attack. `session.ts` holds every path that consumes
-  a password, and core re-exports the constant so neither client keeps a copy.
+- **The password floor is `MIN_PASSWORD_LENGTH` (8), defined once in `session.ts`.** It is
+  NIST's floor for a user-chosen password, the familiar SaaS minimum, and deliberately no
+  higher: a longer floor is a layperson hoop. It is still the weak point, because the password
+  derives the KEK that protects both the master key and the at-rest db-key, in a zero-knowledge
+  design with no server-side reset: an offline guess against a weak password is the whole
+  attack, slowed only by Argon2id. The form's hint steers toward a passphrase rather than raising
+  the floor. `session.ts` holds every path that consumes a password, and core re-exports the
+  constant so neither client keeps a copy.
 - **`KEYSTORE_SECRET_IDS` lists every keychain id the app writes.** A factory reset clears by
   that list, because the mobile `KeyStore` has no bulk clear. A new `setSecret` id that is not
   added there survives the reset.
