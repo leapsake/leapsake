@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  type DateFormat,
+  FALLBACK_DATE_FORMAT,
+  formatPartialDate,
+} from "./date-format.js";
+import {
   type KnownReminderAction,
   type OfferContext,
   type PlanQuestionContext,
@@ -929,36 +934,15 @@ export function datePrecisionOf(m: {
   return hasYear ? "year" : "none";
 }
 
-/** Localized month names, January first. */
-const MONTH_NAMES = Array.from({ length: 12 }, (_, i) =>
-  new Date(Date.UTC(2001, i, 1)).toLocaleDateString(undefined, {
-    month: "long",
-    timeZone: "UTC",
-  }),
-);
-
 /**
- * A partial date in words, built from its parts so it never implies more than
- * is known: "March 9, 1992", "March 1992", "1992", "March 9", or "".
+ * A milestone's date, built from its parts so it never implies more than is
+ * known: "March 9, 1992", "March 1992", "1992", "March 9", or "".
  */
-export function formatMilestoneDate(m: {
-  year: number | null;
-  month: number | null;
-  day: number | null;
-}): string {
-  const monthName = m.month !== null ? MONTH_NAMES[m.month - 1] : null;
-  switch (datePrecisionOf(m)) {
-    case "full":
-      return `${monthName} ${m.day}, ${m.year}`;
-    case "recurring":
-      return `${monthName} ${m.day}`;
-    case "year-month":
-      return m.year !== null ? `${monthName} ${m.year}` : (monthName ?? "");
-    case "year":
-      return String(m.year);
-    default:
-      return "";
-  }
+export function formatMilestoneDate(
+  m: { year: number | null; month: number | null; day: number | null },
+  format: DateFormat = FALLBACK_DATE_FORMAT,
+): string {
+  return formatPartialDate(m, format);
 }
 
 /** A milestone's display label: the kind's, or for `other` its note. */

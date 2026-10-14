@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  type DateFormat,
+  FALLBACK_DATE_FORMAT,
+  formatDate,
+} from "./date-format.js";
 import type { DefaultReminderRule } from "./milestone.js";
 import type { ReminderRule, ReminderRuleInput } from "./reminder-rule.js";
 
@@ -143,15 +148,16 @@ export function resolveObservanceReminderSchedule(
 }
 
 /**
- * Format a `YYYY-MM-DD` occurrence. Built in local time, since `new Date(iso)`
- * reads UTC midnight and shows the day before west of Greenwich.
+ * Format a `YYYY-MM-DD` occurrence with its weekday. Built in local time, since
+ * `new Date(iso)` reads UTC midnight: the day before west of Greenwich.
  */
-export function formatOccurrence(iso: string): string {
+export function formatOccurrence(
+  iso: string,
+  format: DateFormat = FALLBACK_DATE_FORMAT,
+): string {
   const [year, month, day] = iso.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+  const weekday = new Date(year, month - 1, day).toLocaleDateString(undefined, {
     weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
   });
+  return `${weekday}, ${formatDate({ year, month, day }, format)}`;
 }
