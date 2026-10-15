@@ -349,6 +349,21 @@ the catalog becomes a release _check_ rather than a `manual:` sentence when the 
 pipeline lands (`plans/fable-investigation/remote-releases.md`); see
 [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → _The E2E release gate_ for the rung table.
 
+### What no tier checks: look at it after changing it
+
+The logic behind these screens is tested below E2E; their rendering and wiring are not. After
+a change to one, check it once on the simulator with a scratch flow, and do not commit the flow:
+
+- **Forget account**: the Settings button and its DELETE confirmation
+  (`lib/forget-active-account.ts` is the tested half).
+- **Navigation**: react-navigation's Back (absent on tab roots, present on pushes), the browse
+  tile's push, and the search chips' rendering (`lib/tab-screens.ts` is the tested half).
+- **A party field**: the row and its question's wording (`usePartyField` in `packages/ui` is
+  the tested half).
+- **A gift row's tick**: one `core.gifts.recipients.update` call, with no state of its own.
+- **Unpublished people**: a screen calling the wrong query, or rendering a match's reason
+  wrongly (the queries are `apps/desktop/test/integration/unpublished-people.test.ts`'s).
+
 ### The out-of-band half: what the bytes say, not the screen
 
 Every assertion in a `.yaml` here reads the accessibility tree, which means **a build that

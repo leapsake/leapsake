@@ -733,6 +733,13 @@ These exist in the dev client and in a build made with `EXPO_PUBLIC_E2E=1`, wher
 bundle time, so the screen's module (under `test/screens/`) is left out, and
 `scripts/release/test-only.mjs` refuses to upload a bundle that has one.
 
+**Keep each route's condition written inline** (`__DEV__ || process.env.EXPO_PUBLIC_E2E ===
+"1"`). Metro removes the screen only while it can fold the condition in place; a shared
+constant imported from another module would ship the screen. To check a change to it in about
+ten seconds, run `pnpm exec expo export --clear --platform <p>` with and without
+`EXPO_PUBLIC_E2E=1` and grep the `.hbc` for `TEST_ONLY_MARKER`'s value. Without `--clear`,
+Metro's cache returns the first bundle for both.
+
 ```sh
 leapsake://dev-selftest       # driver contract + the custody suite, on device
 leapsake://dev-clear-dbkey    # simulate keychain loss
