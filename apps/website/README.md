@@ -49,8 +49,16 @@ resolve it.
 Obfuscation_ (on by default for a new zone; it rewrites the privacy policy's contact address and
 injects a decoder script, so a reader without JavaScript sees no address) and _Web Analytics /
 RUM_ (injects a `static.cloudflareinsights.com` beacon that browsers report as a tracker). Both
-are edge rewrites the build tests cannot see; the byte-for-byte live check that would catch the
-next one is `plans/v0-2.md` → _The website's edge is untested_.
+are edge rewrites the build tests cannot see.
+
+**`pnpm test:live` is the check that catches the next one.** It builds the site, fetches every
+file in `dist/` from `leapsake.com`, and fails on any byte that differs, so it needs no list of
+features to watch. Run it after changing a zone setting, and now and then besides. Two traps it
+is shaped around: the RUM beacon was injected **only for browser-shaped requests** (`Accept:
+text/html` plus `Sec-Fetch-Dest: document`), so a plain `curl` passed while every visitor got
+the script, and it appeared only on the custom domain, never on `*.pages.dev`. It puts the
+network in the test path, so it never joins `pnpm test`. A site change not yet deployed fails it
+too, since the live site is built from the remote's `main`.
 
 **Every push to `main` builds — deliberately no path filter.** Scoping the build to
 `apps/website/**` looks obviously right and is wrong here: a `slug` publishes a

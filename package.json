@@ -24,6 +24,7 @@
     "test:icons": "node scripts/icons.mjs --check",
     "test:integration": "node scripts/ensure-sqlite-abi.mjs node && vitest run apps",
     "test:lint": "oxlint",
+    "test:live": "node scripts/website-live.mjs",
     "test:native": "node scripts/test-native.mjs",
     "test:node": "node scripts/ensure-sqlite-abi.mjs node && vitest run",
     "test:secrets": "node scripts/secret-scan.mjs",
