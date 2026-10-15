@@ -16,7 +16,7 @@ ports).
 
 | #   | Doc                                                | What it removes or simplifies                                                                                                                                                                                                                              | Owner's call                                                                                                                                                                                                                                                                                     |
 | --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md)   | E2E flows proving what a lower tier should: door negatives, form state, query behaviour, navigation config. Steps 1–3, 4a, 4b, 5, 6 and 6a landed (the arc is three flows; Forget account is proven in Vitest); 7 landed, retiring all four one-off flows. | **Do it.** Admission rule in `testing/crucial-flows.md`; step 4 decided 2026-09-24 (release build, iOS then Android); 4a, 4b, 5, 6, 6a, 7a, 7b and 7d landed 2026-09-24; 7c 2026-09-28.                                                                                                          |
+| 3   | [`ci-and-test-tiers.md`](./ci-and-test-tiers.md) | E2E drives the dev client, not what `rc` uploads. Left: steps 4c–4e, switching the arc to a release-configuration build, iOS then Android. | **Do it.** Admission rule in `testing/crucial-flows.md`. |
 | 4   | [`remote-releases.md`](./remote-releases.md)       | Releases run from a local machine. A tag pushed to the remote becomes the trigger; the pipeline builds every platform before uploading any; alpha/beta/rc become channels.                                                                                 | **Built.** Workflows and scripts landed 2026-09-27; left: the owner's go/no-go on hosted runners, the secrets, and a first real run.                                                                                                                                                             |
 
 The repo is public, so 4 has no gate left outside itself.
@@ -24,12 +24,9 @@ The repo is public, so 4 has no gate left outside itself.
 ### Where 3 and 4 pull on each other
 
 They are separate docs on purpose (different decisions, different lifetimes: 4 is deleted when
-its step 8 lands, 3 outlives it). But four couplings are real, and doing them out of order costs
+its step 8 lands, 3 outlives it). But three couplings are real, and doing them out of order costs
 work:
 
-- **3's steps 1–3 landed 2026-09-24**, which is what makes 4's step 7 gate cheaper: the
-  unlock loop and gate state are tested below it, and **3's step 6 (landed) shrank the arc** to
-  01 → smoke → 04, with both doors as 04's closing acts, so `ci.yml` never pays for a longer one.
 - **3's step 4 (decided: E2E drives a release build) should land before 4's step 7 wires the gate into `ci.yml`.** Step 7 runs the
   device tiers on every push to `main`; whatever the gate costs and however often it flakes,
   that is what the repo pays from then on. The release-configuration build deletes the dev
