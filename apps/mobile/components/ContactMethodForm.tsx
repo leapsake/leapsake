@@ -17,7 +17,8 @@ const TEXT = {
   labelRequired: "Give it a label before saving, like “Home”.",
   addressRequired: "Enter the email address before saving.",
   numberRequired: "Enter the phone number before saving.",
-  line1Required: "Enter the first line of the address before saving.",
+  postalRequired:
+    "Enter part of the address, or pick a country, before saving.",
   platformRequired: "Name the platform before saving.",
   handleRequired: "Enter a handle or a profile link before saving.",
 } as const;
@@ -79,7 +80,7 @@ function contactMethodProblem(
   if (errors.label) return TEXT.labelRequired;
   if (errors.address) return TEXT.addressRequired;
   if (errors.number) return TEXT.numberRequired;
-  if (errors.line1) return TEXT.line1Required;
+  if (errors.postal) return TEXT.postalRequired;
   if (errors.platform) return TEXT.platformRequired;
   if (errors.handle) return TEXT.handleRequired;
   return undefined;

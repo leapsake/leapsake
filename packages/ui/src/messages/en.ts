@@ -301,7 +301,8 @@ export const en: Messages = {
     labelRequired: "Give it a label before saving, like “Home”.",
     addressRequired: "Enter the email address before saving.",
     numberRequired: "Enter the phone number before saving.",
-    line1Required: "Enter the first line of the address before saving.",
+    postalRequired:
+      "Enter part of the address, or pick a country, before saving.",
     platformRequired: "Name the platform before saving.",
     handleRequired: "Enter a handle or a profile link before saving.",
   },

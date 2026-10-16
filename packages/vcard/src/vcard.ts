@@ -2,6 +2,7 @@ import {
   type Gender,
   type MilestoneKind,
   type RelationshipRole,
+  isEmptyPostalAddress,
   isMilestoneKind,
   kindDefs,
   roleDefs,
@@ -650,9 +651,9 @@ function mapAddress(
   const postalCode = component(parts, 5);
   const countryRaw = component(parts, 6);
 
-  // line1 must be non-empty (schema requires it); fall back through the parts.
-  const line1 = street || poBox || extended;
-  if (line1 === "") return null;
+  // The first line falls back through the parts, so a street-less PO box or
+  // extended line still leads.
+  const line1 = nullIfEmpty(street || poBox || extended);
   const line2 = street ? nullIfEmpty(extended || poBox) : null;
 
   const country = countryCode(countryRaw, isoHint);
@@ -661,7 +662,7 @@ function mapAddress(
     dropField(dropped, "ADR country", countryRaw);
   }
 
-  return {
+  const postal: ParsedPostal = {
     label: postalLabel(types, groupLabel),
     line1,
     line2,
@@ -670,6 +671,8 @@ function mapAddress(
     postalCode: nullIfEmpty(postalCode),
     country,
   };
+  // Any one field makes an address, a country alone included.
+  return isEmptyPostalAddress(postal) ? null : postal;
 }
 
 /** An address's ISO 3166-1 alpha-2 country: `ADR`'s own if it is a code, else

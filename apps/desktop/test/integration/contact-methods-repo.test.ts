@@ -4,12 +4,14 @@ import type {
   CreatePostalInput,
   CreateSocialInput,
 } from "@leapsake/schema";
+import { formatPostalAddress } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ContactMethodsRepo,
   type SqliteDriver,
   createContactMethodsRepo,
   listContactMethods,
+  migrations,
   runMigrations,
 } from "@leapsake/data";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -221,12 +223,26 @@ describe("postals", () => {
     expect(minimal.postalCode).toBeNull();
     expect(minimal.country).toBeNull();
 
+    // Any one field makes an address, but none at all is not one.
     await expect(
-      repo.postals.create(
-        // @ts-expect-error line1 is required
-        { ownerType: "person", ownerId: crypto.randomUUID(), label: "home" },
-      ),
+      repo.postals.create({
+        ownerType: "person",
+        ownerId: crypto.randomUUID(),
+        label: "home",
+      }),
     ).rejects.toThrow();
+  });
+
+  // Someone known to live in France, nobody knows where.
+  it("stores an address that is only a country", async () => {
+    const created = await repo.postals.create({
+      ownerType: "person",
+      ownerId: crypto.randomUUID(),
+      label: "home",
+      country: "FR",
+    });
+    expect(created).toMatchObject({ line1: null, country: "FR" });
+    expect(formatPostalAddress(created)).toBe("FR");
   });
 
   it("updates structured fields", async () => {
@@ -343,5 +359,36 @@ describe("removeAllForOwner", () => {
     expect(
       await listContactMethods(repo, { type: "person", id: other }),
     ).toHaveLength(1);
+  });
+});
+
+describe("migration 48", () => {
+  // Rebuilt so `line1` can be null; an address saved before keeps every field.
+  it("keeps every existing address as it was", async () => {
+    const fresh = makeEncryptedTestDriver();
+    try {
+      await runMigrations(
+        fresh.driver,
+        migrations.filter((step) => step.version <= 47),
+      );
+      const before = await createContactMethodsRepo(
+        fresh.driver,
+      ).postals.create(postal(crypto.randomUUID()));
+
+      await runMigrations(fresh.driver);
+
+      const repo = createContactMethodsRepo(fresh.driver);
+      expect(await repo.postals.get(before.id)).toEqual(before);
+      expect(
+        await repo.postals.create({
+          ownerType: "person",
+          ownerId: crypto.randomUUID(),
+          label: "home",
+          country: "FR",
+        }),
+      ).toMatchObject({ line1: null });
+    } finally {
+      fresh.cleanup();
+    }
   });
 });

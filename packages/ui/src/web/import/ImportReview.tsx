@@ -1,4 +1,5 @@
 import type { ParsedBirthday, ParsedContact } from "@leapsake/vcard";
+import { formatPostalAddress } from "@leapsake/schema";
 import { useEffect, useMemo, useState } from "react";
 import { useMessages } from "../../messages/index.js";
 import type { Messages } from "../../messages/index.js";
@@ -352,7 +353,7 @@ function ContactDetail({
   for (const p of contact.phones)
     bits.push(m.import.labelledValue(p.label, p.number));
   for (const a of contact.postals)
-    bits.push(m.import.labelledValue(a.label, a.line1));
+    bits.push(m.import.labelledValue(a.label, formatPostalAddress(a)));
   if (contact.birthday) {
     bits.push(m.import.birthday(formatBirthday(contact.birthday)));
   }

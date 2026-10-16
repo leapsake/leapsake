@@ -287,10 +287,32 @@ describe("ContactMethodForm", () => {
       "postalCode",
       "country",
     ]);
+    // Any one part makes an address, so no single field is required.
     expect(screen.getByLabelText("Address line 1")).toHaveProperty(
       "required",
-      true,
+      false,
     );
+  });
+
+  it("asks an address for any one part, a country being enough", () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const stopped = recordSubmits();
+    const { container } = renderWithUi(
+      <ContactMethodForm kind="postal" cancelTo="/back" submitting={false} />,
+    );
+
+    fireEvent.click(submitButton());
+    expect(alert).toHaveBeenCalledWith(
+      "Enter part of the address, or pick a country, before saving.",
+    );
+    fireEvent.change(screen.getByLabelText("Country"), {
+      target: { value: "FR" },
+    });
+    fireEvent.click(submitButton());
+    expect(stopped()).toEqual([true, false]);
+    const posted = new FormData(container.querySelector("form")!);
+    expect(posted.get("country")).toBe("FR");
+    alert.mockRestore();
   });
 
   it("asks a social profile for a handle or a link, which HTML can't", () => {

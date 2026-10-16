@@ -195,7 +195,7 @@ export function createContactMethodsRepo(
         ownerType: parsed.ownerType,
         ownerId: parsed.ownerId,
         label: parsed.label,
-        line1: parsed.line1,
+        line1: parsed.line1 ?? null,
         line2: parsed.line2 ?? null,
         locality: parsed.locality ?? null,
         region: parsed.region ?? null,

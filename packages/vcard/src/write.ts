@@ -252,7 +252,7 @@ function adrLine(
     value: joinStructured([
       "",
       postal.line2 ?? "",
-      postal.line1,
+      postal.line1 ?? "",
       postal.locality ?? "",
       postal.region ?? "",
       postal.postalCode ?? "",

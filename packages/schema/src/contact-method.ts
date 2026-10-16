@@ -126,13 +126,11 @@ export function normalizePhone(raw: string): string {
 
 // Postal addresses
 
-/**
- * A postal address as structured fields, so it can be formatted per country.
- * Only `line1` is required; the owner is the recipient.
- */
+/** A postal address as structured fields, owned by its recipient. Any field
+ *  makes one, "France" alone included; only `line1` makes it mailable. */
 export const postalAddressSchema = z.object({
   ...spine,
-  line1: z.string().min(1), // street / PO box
+  line1: z.string().min(1).nullable(), // street / PO box
   line2: z.string().min(1).nullable(), // apt / unit / suite
   locality: z.string().min(1).nullable(), // city / town
   region: z.string().min(1).nullable(), // state / province / county
@@ -143,7 +141,7 @@ export const postalAddressSchema = z.object({
 export type PostalAddress = z.infer<typeof postalAddressSchema>;
 
 const postalInputShape = {
-  line1: z.string().min(1),
+  line1: z.string().min(1).nullable().optional(),
   line2: z.string().min(1).nullable().optional(),
   locality: z.string().min(1).nullable().optional(),
   region: z.string().min(1).nullable().optional(),
@@ -151,16 +149,36 @@ const postalInputShape = {
   country: countryCodeSchema.nullable().optional(),
 };
 
-export const createPostalInputSchema = z.object({
-  ...inputSpine,
-  ...postalInputShape,
-});
+const POSTAL_FIELDS = [
+  "line1",
+  "line2",
+  "locality",
+  "region",
+  "postalCode",
+  "country",
+] as const;
+
+/** Whether an address has none of its fields filled. */
+export function isEmptyPostalAddress(
+  addr: Partial<PostalAddressParts>,
+): boolean {
+  return POSTAL_FIELDS.every((field) => (addr[field] ?? null) === null);
+}
+
+export const createPostalInputSchema = z
+  .object({
+    ...inputSpine,
+    ...postalInputShape,
+  })
+  .refine((input) => !isEmptyPostalAddress(input), {
+    message: "an address needs at least one field",
+  });
 
 export type CreatePostalInput = z.infer<typeof createPostalInputSchema>;
 
 export const updatePostalInputSchema = z.object({
   label: z.string().min(1).optional(),
-  line1: z.string().min(1).optional(),
+  line1: z.string().min(1).nullable().optional(),
   line2: z.string().min(1).nullable().optional(),
   locality: z.string().min(1).nullable().optional(),
   region: z.string().min(1).nullable().optional(),
@@ -234,7 +252,7 @@ export type ContactMethod =
 
 /** The fields a postal address is rendered from, by either formatter below. */
 interface PostalAddressParts {
-  line1: string;
+  line1: string | null;
   line2: string | null;
   locality: string | null;
   region: string | null;

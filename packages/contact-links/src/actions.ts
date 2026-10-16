@@ -20,7 +20,7 @@ export type ContactMethodLike =
   | {
       kind: "postal";
       method: {
-        line1: string;
+        line1: string | null;
         line2: string | null;
         locality: string | null;
         region: string | null;

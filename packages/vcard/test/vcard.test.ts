@@ -134,6 +134,21 @@ describe("parseVCards — contact methods", () => {
     expect(c.dropped).toEqual([]);
   });
 
+  // Any one part makes an address: a street-less one is kept, not dropped.
+  it("keeps an address with no street", () => {
+    const [c] = parseVCards(
+      card("FN:Jane Wainwright", "item1.ADR:;;;Paris;;;", "item1.X-ABADR:fr"),
+    );
+    expect(c.postals).toMatchObject([
+      { line1: null, locality: "Paris", country: "FR" },
+    ]);
+  });
+
+  it("drops an address with nothing in it", () => {
+    const [c] = parseVCards(card("FN:Jane Wainwright", "ADR:;;;;;;"));
+    expect(c.postals).toEqual([]);
+  });
+
   it("pairs each address with the code from its own group", () => {
     const [c] = parseVCards(
       card(

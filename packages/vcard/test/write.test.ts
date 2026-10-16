@@ -396,6 +396,19 @@ describe("writeVCards — contact methods", () => {
     expectRoundTrip([contact({ postals: [postal({ country: "US" })] })]);
   });
 
+  // Someone known to live in France, nobody knows where.
+  it("round-trips an address that is only a country", () => {
+    const franceOnly = postal({
+      line1: null,
+      line2: null,
+      locality: null,
+      region: null,
+      postalCode: null,
+      country: "FR",
+    });
+    expectRoundTrip([contact({ postals: [franceOnly] })]);
+  });
+
   it("groups two countried addresses separately", () => {
     const text = write([
       contact({

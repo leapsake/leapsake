@@ -347,7 +347,7 @@ describe("deviceContactToParsed", () => {
           { id: "2", label: "", address: "keep@example.com" },
         ],
         phones: [{ id: "3", number: undefined }],
-        addresses: [{ id: "4", city: "Nowhere" }], // no street ⇒ dropped
+        addresses: [{ id: "4", street: " " }],
       }),
     );
     expect(parsed.emails).toEqual([
@@ -355,5 +355,13 @@ describe("deviceContactToParsed", () => {
     ]);
     expect(parsed.phones).toEqual([]);
     expect(parsed.postals).toEqual([]);
+  });
+
+  // Any one field makes an address: a town with no street is kept.
+  it("keeps an address with no street", () => {
+    const parsed = deviceContactToParsed(
+      device({ addresses: [{ id: "4", label: "home", city: "Paris" }] }),
+    );
+    expect(parsed.postals).toMatchObject([{ line1: null, locality: "Paris" }]);
   });
 });

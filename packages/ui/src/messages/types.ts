@@ -262,7 +262,7 @@ export interface Messages {
     labelRequired: string;
     addressRequired: string;
     numberRequired: string;
-    line1Required: string;
+    postalRequired: string;
     platformRequired: string;
     handleRequired: string;
   };

@@ -189,7 +189,19 @@ describe("contactMethodInputOf", () => {
     });
     expect(contactMethodInputOf(contactMethodDraftOf("postal"))).toEqual({
       ok: false,
-      errors: { line1: "required" },
+      errors: { postal: "required" },
+    });
+  });
+
+  // Someone known to live in France, nobody knows where.
+  it("takes an address that is only a country", () => {
+    const result = contactMethodInputOf({
+      ...contactMethodDraftOf("postal"),
+      country: "fr",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      input: { kind: "postal", line1: null, country: "FR" },
     });
   });
 

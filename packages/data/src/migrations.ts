@@ -872,6 +872,41 @@ export const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 48,
+    async up(driver) {
+      // Rebuild `postal_addresses` so `line1` is nullable: an address may be
+      // as little as a country. SQLite cannot drop NOT NULL in place.
+      await driver.exec(`
+        CREATE TABLE postal_addresses_new (
+          id          TEXT    PRIMARY KEY,
+          owner_type  TEXT    NOT NULL,
+          owner_id    TEXT    NOT NULL,
+          label       TEXT    NOT NULL,
+          line1       TEXT,
+          line2       TEXT,
+          locality    TEXT,
+          region      TEXT,
+          postal_code TEXT,
+          country     TEXT,
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL,
+          deleted_at  INTEGER
+        );
+        INSERT INTO postal_addresses_new
+          (id, owner_type, owner_id, label, line1, line2, locality, region,
+           postal_code, country, created_at, updated_at, deleted_at)
+        SELECT
+           id, owner_type, owner_id, label, line1, line2, locality, region,
+           postal_code, country, created_at, updated_at, deleted_at
+          FROM postal_addresses;
+        DROP TABLE postal_addresses;
+        ALTER TABLE postal_addresses_new RENAME TO postal_addresses;
+        CREATE INDEX ix_postal_addresses_owner
+          ON postal_addresses(owner_type, owner_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

@@ -402,6 +402,7 @@ export {
   normalizePhone,
   normalizeHandle,
   formatPostalAddress,
+  isEmptyPostalAddress,
   postalAddressLines,
 } from "./contact-method.js";
 export type { SearchHit, SearchResultType } from "./search.js";

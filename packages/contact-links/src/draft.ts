@@ -2,6 +2,7 @@ import {
   type ContactMethod,
   type ContactMethodKind,
   emailLabelSuggestions,
+  isEmptyPostalAddress,
   phoneLabelSuggestions,
   postalLabelSuggestions,
   socialLabelSuggestions,
@@ -49,7 +50,7 @@ export type ContactMethodValue =
   | {
       kind: "postal";
       label: string;
-      line1: string;
+      line1: string | null;
       line2: string | null;
       locality: string | null;
       region: string | null;
@@ -68,7 +69,7 @@ export type ContactMethodValue =
 /** The fields a draft can be refused on; `handle` means handle or URL. */
 export type ContactMethodDraftErrors = Partial<
   Record<
-    "label" | "address" | "number" | "line1" | "platform" | "handle",
+    "label" | "address" | "number" | "postal" | "platform" | "handle",
     "required"
   >
 >;
@@ -135,7 +136,7 @@ export function contactMethodDraftOf(
       start.method;
     return {
       ...draft,
-      line1,
+      line1: line1 ?? "",
       line2: line2 ?? "",
       locality: locality ?? "",
       region: region ?? "",
@@ -174,7 +175,10 @@ export function contactMethodDraftWithKind(
 export function contactMethodDraftFilled(draft: ContactMethodDraft): boolean {
   if (draft.kind === "email") return draft.address.trim() !== "";
   if (draft.kind === "phone") return draft.number.trim() !== "";
-  if (draft.kind === "postal") return draft.line1.trim() !== "";
+  if (draft.kind === "postal") {
+    const value = valueOf(draft, draft.label);
+    return value.kind === "postal" && !isEmptyPostalAddress(value);
+  }
   return draft.handle.trim() !== "" || draft.url.trim() !== "";
 }
 
@@ -197,8 +201,8 @@ export function contactMethodInputOf(
     errors.address = "required";
   } else if (input.kind === "phone" && input.number === "") {
     errors.number = "required";
-  } else if (input.kind === "postal" && input.line1 === "") {
-    errors.line1 = "required";
+  } else if (input.kind === "postal" && isEmptyPostalAddress(input)) {
+    errors.postal = "required";
   } else if (input.kind === "social") {
     if (input.platform === "") errors.platform = "required";
     if (input.handle === "" && input.url === null) errors.handle = "required";
@@ -227,7 +231,7 @@ function valueOf(draft: ContactMethodDraft, label: string): ContactMethodValue {
     return {
       kind: "postal",
       label,
-      line1: draft.line1.trim(),
+      line1: blankToNull(draft.line1),
       line2: blankToNull(draft.line2),
       locality: blankToNull(draft.locality),
       region: blankToNull(draft.region),

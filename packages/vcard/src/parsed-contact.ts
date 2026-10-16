@@ -69,7 +69,7 @@ export interface ParsedPhone {
 /** One parsed postal address, structured to match `postalAddressSchema`. */
 export interface ParsedPostal {
   label: string;
-  line1: string;
+  line1: string | null;
   line2: string | null;
   locality: string | null;
   region: string | null;
@@ -185,7 +185,7 @@ export const parsedContactSchema = z.object({
   postals: z.array(
     z.object({
       label: z.string().min(1),
-      line1: z.string().min(1),
+      line1: z.string().min(1).nullable(),
       line2: z.string().min(1).nullable(),
       locality: z.string().min(1).nullable(),
       region: z.string().min(1).nullable(),

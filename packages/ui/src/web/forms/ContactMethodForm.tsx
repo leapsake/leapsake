@@ -65,7 +65,7 @@ function contactMethodProblem(
   if (errors.label) return text.labelRequired;
   if (errors.address) return text.addressRequired;
   if (errors.number) return text.numberRequired;
-  if (errors.line1) return text.line1Required;
+  if (errors.postal) return text.postalRequired;
   if (errors.platform) return text.platformRequired;
   if (errors.handle) return text.handleRequired;
   return undefined;
@@ -230,7 +230,6 @@ export function ContactMethodFields({
                 value={fields.line1}
                 onChange={(e) => set("line1", e.target.value)}
                 placeholder={m.contactMethodForm.line1Placeholder}
-                required
               />
             </Field>
           </p>

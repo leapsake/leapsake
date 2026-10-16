@@ -9,6 +9,7 @@ import {
   type ParsedPhone,
   type ParsedPostal,
 } from "@leapsake/vcard";
+import { isEmptyPostalAddress } from "@leapsake/schema";
 import type { ContactDate, ContactDetails } from "expo-contacts";
 
 /** The fields of `expo-contacts`' `ContactDetails` the mapper reads. */
@@ -123,19 +124,17 @@ export function deviceContactToParsed(contact: DeviceContact): ParsedContact {
   });
 
   const postals: ParsedPostal[] = (contact.addresses ?? []).flatMap((addr) => {
-    const line1 = clean(addr.street);
-    if (line1 === null) return []; // no street ⇒ nothing the schema can store
-    return [
-      {
-        label: label(addr.label),
-        line1,
-        line2: null,
-        locality: clean(addr.city),
-        region: clean(addr.state) ?? clean(addr.region),
-        postalCode: clean(addr.postcode),
-        country: isoCountry(addr.country),
-      },
-    ];
+    const postal: ParsedPostal = {
+      label: label(addr.label),
+      line1: clean(addr.street),
+      line2: null,
+      locality: clean(addr.city),
+      region: clean(addr.state) ?? clean(addr.region),
+      postalCode: clean(addr.postcode),
+      country: isoCountry(addr.country),
+    };
+    // Any one field makes an address, a country alone included.
+    return isEmptyPostalAddress(postal) ? [] : [postal];
   });
 
   // iOS's dedicated birthday field wins; Android has none and keeps it in
