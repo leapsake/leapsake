@@ -18,7 +18,7 @@ import { storeFileState } from "../src/main/db/sqlite-header.js";
 import { openAppDatabase } from "../src/main/db/open.js";
 
 /**
- * The plaintext → encrypted conversion (`model.md` §8.1) — the one irreversible
+ * The plaintext → encrypted conversion — the one irreversible
  * step of account creation. These pin the three details that are easy to get
  * wrong and expensive to discover late: the real schema survives, the migration
  * watermark comes across, and the plaintext original is gone afterwards.

@@ -205,7 +205,7 @@ Things that will otherwise cost you an hour each:
 ## Database: SQLite with an encrypted backend
 
 A store that belongs to an account is **encrypted at rest**
-(`plans/encryption/model.md` §8): the file on disk is ciphertext, decrypted into
+([`@leapsake/crypto`](../../packages/crypto/README.md) → _The at-rest doors_): the file on disk is ciphertext, decrypted into
 memory page-by-page only while the process holds the whole-DB key. The backend is `better-sqlite3-multiple-ciphers`
 (SQLite3-Multiple-Ciphers, SQLCipher-compatible), chosen over a WASM build because
 it is the only maintained, batteries-included encrypted SQLite for Node/Electron,

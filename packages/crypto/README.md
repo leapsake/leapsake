@@ -30,6 +30,15 @@ did — declare a dependency on the security package. The rule now: **depend on
 
 ## The at-rest doors
 
+**At rest is whole-database encryption, SQLCipher-style.** The file on disk is ciphertext and the
+engine decrypts pages into memory as it queries, so search folding, kinship and timelines keep
+running on plaintext SQL. Field-level encryption was rejected because the data layer's `WHERE`s,
+`JOIN`s and indexes all assume plaintext columns. Desktop runs `better-sqlite3-multiple-ciphers`
+(whose native-module cost is the ABI dance in [`AGENTS.md`](../../AGENTS.md)) and mobile
+`expo-sqlite` with SQLCipher. Only an account's store has it; an Unauthenticated store is
+plaintext ([`@leapsake/key-custody`](../key-custody/README.md) → _Custody states_). It protects
+the file and nothing that leaves the device, which is the sync envelope's job.
+
 **The db-key** is a random 256-bit key minted at account creation and held only in the OS
 keychain, which each client hands to SQLCipher in its raw `x'<hex>'` form (no KDF: it is already
 random). It is **not** a `key_wrap` row, because that table lives inside the database the key

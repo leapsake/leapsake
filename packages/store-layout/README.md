@@ -86,10 +86,11 @@ of a key or a sidecar. **An install predating the custody work must be recreated
 **A store in the wrong custody state is refused, never silently fixed.** Encrypted where an
 Unauthenticated store belongs, or plaintext where an account's store belongs, both raise. The
 alternative — converting on the fly — is what the old boot path did, and it is precisely
-what §8.1 reserves for the deliberate conversion at account creation.
+what is reserved for the deliberate conversion at account creation
+([`@leapsake/key-custody`](../key-custody/README.md) → _Before you change the conversion_).
 
 ## What is deliberately _not_ here
 
-Minting keys, converting a plaintext store to an encrypted one (§8.1), and the
+Minting keys, converting a plaintext store to an encrypted one, and the
 account-creation flow. This package decides _which_ store and _whether_ it is encrypted;
 `@leapsake/key-custody` and the clients' boot paths do the work that follows.

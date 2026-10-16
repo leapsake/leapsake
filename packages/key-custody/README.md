@@ -111,7 +111,7 @@ A password is never required to _start_ using Leapsake on one device.
 **Every device ends up encrypted at rest.** That is the invariant, and the mechanism is
 conversion — not a second store-creation path. Account creation runs **convert → password door
 → roster entry → destroy the original**, because that ordering is what makes a crash survivable
-(`model.md` §8.1), and a join's adoption must run the same one. Mobile's `adoptStoreForAccount`
+(_Before you change the conversion_, below), and a join's adoption must run the same one. Mobile's `adoptStoreForAccount`
 (`core-context.tsx`) is that sequence today, called by account creation; desktop's join-side
 `adoptAccountOnThisDevice` was deleted with the clients' relay flows and is at the tag
 `relay-clients-final`.
@@ -146,7 +146,7 @@ and it is fully local: no relay, no email, nothing leaves the device.
    several accounts to share one client.
 2. Mint db-key, master key, and recovery key; write the password- and recovery-wrapped
    sidecars beside the store.
-3. **Convert the Unauthenticated store to Authenticated** (`model.md` §8.1) and destroy the
+3. **Convert the Unauthenticated store to Authenticated** (_Before you change the conversion_) and destroy the
    plaintext original.
 4. Show the **recovery phrase once**, as the forgot-password backstop.
 

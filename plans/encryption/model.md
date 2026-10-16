@@ -188,7 +188,7 @@ together.
 
 Tier 3 is not a weaker *encryption* setting — it is the **absence of custody**, and it
 exists only before the user has created an account. Moving 3 → 2 is the one transition
-that is not "add another wrapping": it mints the keys and rewrites the database (§8.1).
+that is not "add another wrapping": it mints the keys and rewrites the database (§8).
 Every other transition is additive, as below.
 
 Dialing down = **adding another wrapping** of the master key (under a server key).
@@ -268,29 +268,13 @@ that are still unbuilt:
   what the server knows (§9).
 
 
-## 8. Encryption at rest
+## 8. Encryption at rest — specified in the code, not here
 
-Layer 1 is **whole-database encryption**, SQLCipher-style: the file on disk is ciphertext, the
-engine decrypts pages into memory as you query, and a key is supplied at open time. It keeps the
-file unqueryable-until-unlocked **while preserving everything built on plaintext queries**:
-search-folding, kinship and timelines all run on in-memory plaintext, untouched. Field-level
-encryption was rejected for the same reason (§3). Desktop runs `better-sqlite3-multiple-ciphers`
-and mobile `expo-sqlite` with SQLCipher; the price of that native module on desktop is the ABI
-dance in [`../../AGENTS.md`](../../AGENTS.md), and its exit is [`../v0-2.md`](../v0-2.md) → *The
-N-API exit*. Under §7 this layer is **conditional on custody**: it protects an Authenticated store
-and is simply absent from an Unauthenticated one.
-
-At-rest and per-item keys **compose cleanly and are orthogonal**: they are layers 1 and 3 of §2,
-and neither is what protects sync (that is layer 2).
-
-### 8.1 Converting an Unauthenticated store to Authenticated
-
-Built on both clients and specified with the code: the two `convert-store.ts` files carry the
-invariants a change must preserve, and
+Layer 1 is built on both clients. What it is and why whole-database rather than field-level is
+[`@leapsake/crypto`](../../packages/crypto/README.md) → *The at-rest doors*; converting an
+Unauthenticated store to an encrypted one, and what a change to that must preserve, is
 [`@leapsake/key-custody`](../../packages/key-custody/README.md) → *Before you change the
-conversion* says how they are gated. The shape is plain-SQL attach-and-copy on both platforms,
-because neither platform's native shortcut works on the other; and **no plaintext copy may survive
-the account-creation path**, because such a copy is exactly what the user just asked to encrypt.
+conversion*.
 
 ## 9. Zero-knowledge sync, and safe server-side decryption
 

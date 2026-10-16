@@ -93,8 +93,8 @@ describe("account creation", () => {
     expect(
       existsSync(join(userData, "stores", UNAUTHENTICATED_STORE_SLOT)),
     ).toBe(false);
-    // `.plaintext.bak` cannot exist — the code that wrote it was deleted with the
-    // pre-Stage-2 migration — but assert it, since §8.1 calls it out by name.
+    // No plaintext copy of the store may survive account creation, under any
+    // name; `.plaintext.bak` is the one a past build wrote.
     expect(existsSync(`${openPath}.plaintext.bak`)).toBe(false);
   });
 
