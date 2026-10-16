@@ -30,7 +30,7 @@ const SQLITE_MAGIC = "SQLite format 3";
  *  has no read verb. */
 export const KEY_STORE_NOTE =
   "key store: not asserted — `simctl keychain` has no read verb " +
-  "(plans/testing/crucial-flows.md → Asserting on custody)";
+  "(apps/mobile/maestro/e2e/README.md → Asserting on custody)";
 
 /** What sits at a store path, from its header alone, as desktop's
  *  `sqlite-header.ts` does; `empty` stays distinct. */

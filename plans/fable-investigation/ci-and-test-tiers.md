@@ -3,7 +3,7 @@
 The repo moved the proof E2E was carrying for lower tiers down into hook and integration tests;
 what is left is making the E2E arc drive the artifact `rc` actually uploads. "Crucial" is
 defined by an **admission rule**, written once in
-[`../testing/crucial-flows.md`](../testing/crucial-flows.md) → _What earns a flow here_; read
+[`apps/mobile/maestro/e2e/README.md`](../../apps/mobile/maestro/e2e/README.md) → _What earns a flow here_; read
 it before any step below.
 
 **Before starting, read [`README.md`](./README.md) → _Where 3 and 4 pull on each other_**:
@@ -116,7 +116,7 @@ off the screen, and the arc already shares state, so the typing left is what eac
 ### 8. Desktop, when it ships
 
 Not now. When `desktop-packaging.md` lands, the desktop E2E harness is Playwright over the
-packaged app, running the same catalog (`crucial-flows.md` is tool-agnostic on purpose), keyed
+packaged app, running the same catalog (the catalog is tool-agnostic on purpose), keyed
 `mac` in the tier registry, and gated by [`remote-releases.md`](./remote-releases.md)'s
 per-cell readiness. Before that, the cheapest confidence for desktop is the same move as
 mobile: the router's inline loaders and actions become named functions that call `CoreApi`, and

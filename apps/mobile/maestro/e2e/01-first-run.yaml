@@ -1,5 +1,5 @@
 # Flow 1 — First run reaches a usable empty state, and mints nothing.
-# plans/testing/crucial-flows.md → Flow 1. Runs at the `beta` rung, on-screen half only.
+# README.md → Flow 1. Runs at the `beta` rung, on-screen half only.
 #
 # **What this proves that no lower tier can:** the Unauthenticated boot path, whose
 # defining property is an absence. Every tier below this injects a fake key store, so
@@ -48,7 +48,7 @@
 # exists, and that the roster names nobody. The one row with no answer is the **key store**
 # — `simctl keychain` has no read verb — so "mints nothing" is asserted for everything
 # except the keys themselves, and that deferral is recorded in
-# `plans/testing/crucial-flows.md` → *Where these run on mobile*.
+# `README.md` → *Asserting on custody*.
 appId: com.leapsake.app
 ---
 # The precondition. Everything below is a claim about a store with nothing in it, so the

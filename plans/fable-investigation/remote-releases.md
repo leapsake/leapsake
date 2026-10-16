@@ -64,4 +64,4 @@ section, and unblocks `ci-and-test-tiers.md` step 4c.
 
 Delete this doc, and the pointers to it: its row in `README.md`, `plans/README.md`,
 `plans/status.md`, `plans/android-pipeline.md`, `plans/desktop-packaging.md`,
-`plans/testing/crucial-flows.md` and `ci-and-test-tiers.md`.
+`apps/mobile/maestro/e2e/README.md` and `ci-and-test-tiers.md`.

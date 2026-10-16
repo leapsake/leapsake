@@ -1,5 +1,5 @@
 # Flow 4 — create an account, then open the store again by each door.
-# plans/testing/crucial-flows.md → Flow 4.
+# README.md → Flow 4.
 #
 # Act 1 converts Flow 2's plaintext store into an encrypted one in place and captures the
 # phrase. Acts 2 and 3 lose the db-key and unlock by the password, then by the phrase.

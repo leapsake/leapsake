@@ -6,7 +6,7 @@ the in-app self-test on an emulator/simulator and asserts **PASS** from the comm
 so the mobile driver leg is a _terminal, automated_ gate — not a human opening
 `leapsake://dev-selftest` and reading the screen (principle #1: automate over manual).
 
-**Before adding a flow here**, read [`plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
+**Before adding a flow here**, read [`e2e/README.md`](./e2e/README.md)
 → _What earns a flow here_.
 
 - **`driver-selftest.yaml`** — the Maestro flow: deep-link to the self-test route, wait
@@ -325,7 +325,7 @@ under the bug for free.
 
 ## `e2e/` — the crucial-flow catalog
 
-`e2e/` holds the [crucial-flow catalog](../../../plans/testing/crucial-flows.md) — the tier
+`e2e/` holds the [crucial-flow catalog](./e2e/README.md) — the tier
 that proves a real user can complete the journeys, as opposed to `driver-selftest.yaml`
 which proves the driver contract. It is run by `pnpm test:e2e`
 (`scripts/test-e2e.mjs`), a sibling of `pnpm test:native`; both sit on the shared harness
@@ -372,7 +372,7 @@ and 4 carry a second half that runs in Node the moment the flow goes green:
 [`scripts/lib/custody-assertions.mjs`](../../../scripts/lib/custody-assertions.mjs), wired in
 [`scripts/test-e2e.mjs`](../../../scripts/test-e2e.mjs). It reads the store's first sixteen
 bytes, the roster and the doors out of the simulator's own container — never through the app,
-which is the point (`plans/testing/crucial-flows.md` → _Asserting on custody_). You will see
+which is the point ([`e2e/README.md`](./e2e/README.md) → _Asserting on custody_). You will see
 one line per flow:
 
 ```
@@ -819,8 +819,8 @@ recovery reveal's **Copy** button, say — is invisible to it (verified against
 
 Together those two decide the shape of any flow that needs a secret the app shows **once**: it
 has to be the same flow that watched the secret appear. That is why the door acts live inside
-`04`, which watches the reveal, rather than in flows of their own — see [`../../../plans/testing/crucial-flows.md`](../../../plans/testing/crucial-flows.md)
-→ _The phrase-capture rule_.
+`04`, which watches the reveal, rather than in flows of their own — see [`e2e/README.md`](./e2e/README.md)
+→ _What earns a flow here_.
 
 ### Capturing a secret the app shows once: `repeat` + `copyTextFrom` + `output`
 
