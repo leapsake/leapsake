@@ -584,6 +584,11 @@ deterministically.
   is gone (their wrap row is inside the encrypted store), and clearing them would make the next
   `ensureDeviceMasterKey` mint a new master key. Signing out and back in must change nothing
   above the at-rest layer.
+- **The phrase is shown twice in its life, and replaced rather than revealed**: at account
+  creation and at rotation, nowhere else. A "reveal" control would put a long-lived secret one
+  tap from an unlocked app and still leave a leaked phrase with no answer; rotation is that
+  answer. It is **compromise response, not recovery**: it needs the password, so it cannot help
+  someone who lost theirs, and the UI must say so wherever rotation is offered.
 - **Rotating the phrase takes the master key from the password door, never the enclave.** A
   device that came back through a door after a keychain loss may hold a stray enclave key, and
   an escrow wrapped around it would stop the phrase recovering the account anywhere. Rotation is
