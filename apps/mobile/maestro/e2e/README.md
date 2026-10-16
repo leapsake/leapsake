@@ -93,8 +93,7 @@ of one. Every other flow asserts purely on visible text.
 the one surface that would answer it, an in-app inspection screen, is refused on principle: an
 app reporting "I am encrypted" is the evidence an encrypting-nothing build would also produce.
 What stands in for it is Flow 1's on-screen absence of the gate and Flow 4's **ciphertext
-store**, which a build that minted no keys could not produce. Revisit if a read verb appears or
-the harness gains a host-side keychain reader. The mobile implementation and its negative cases
+store**, which a build that minted no keys could not produce. The mobile implementation and its negative cases
 are `scripts/lib/custody-assertions.mjs` and [`../README.md`](../README.md) → _The out-of-band
 half_.
 

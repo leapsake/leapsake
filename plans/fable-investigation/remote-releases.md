@@ -54,6 +54,9 @@ section, and unblocks `ci-and-test-tiers.md` step 4c.
      pushed receipts note;
    - a deliberately broken build (a bad `--build-number`) ends with the tag deleted and
      nothing uploaded.
+6. **Once that run is green, retire the iOS `rc` rung's sentence about the catalog**: the
+   `manual:` line "the crucial-flow catalog green on a real device" in
+   `scripts/release/targets/ios.mjs`, since the pipeline now runs the catalog itself.
 
 ## Not blocking
 
