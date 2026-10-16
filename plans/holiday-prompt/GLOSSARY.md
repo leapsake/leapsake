@@ -9,11 +9,6 @@ The one question per holiday occurrence asking what you will do for it, covering
 errands and those for the people who observe it.
 _Avoid_: per-observance prompt, holiday nudge
 
-**Schedule**:
-The one set of errands an occasion (a milestone or an observance) gets every year. The prompt
-and the Person or Holiday screen are two ways of editing it.
-_Avoid_: standing schedule, this year's answer
-
 **Hidden holiday**:
 A holiday you've told Leapsake to keep out of sight because it's painful or objectionable to
 you. It is suppressed everywhere.
