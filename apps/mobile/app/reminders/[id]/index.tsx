@@ -10,6 +10,7 @@ import {
   kindDefs,
   offerContextOf,
   reminderLabel,
+  withSomethingElse,
 } from "@leapsake/schema";
 import { type InPersonAnswer, type PlanAnswer } from "@leapsake/core";
 import type { PartyChoice } from "@leapsake/ui/headless";
@@ -70,6 +71,7 @@ export default function ReminderDetailScreen() {
   // Null until a tick is touched, so the offered set stays the source and a
   // reload cannot clobber a tick already made.
   const [draft, setDraft] = useState<ReminderRuleInput[] | null>(null);
+  const [somethingElse, setSomethingElse] = useState("");
   // Who the anniversary is with; `undefined` until chosen or pre-filled.
   const [partner, setPartner] = useState<PartyChoice | null | undefined>(
     undefined,
@@ -316,13 +318,18 @@ export default function ReminderDetailScreen() {
               kind: planTarget.milestoneKind,
             })}
             onChange={setDraft}
+            somethingElse={somethingElse}
+            onSomethingElseChange={setSomethingElse}
           />
           <Button
             label="Save"
             onPress={() =>
               answer(planTarget.milestoneId, {
                 year: planTarget.occurrenceYear,
-                rules: draft ?? planTarget.offers,
+                rules: withSomethingElse(
+                  draft ?? planTarget.offers,
+                  somethingElse,
+                ),
               })
             }
           />

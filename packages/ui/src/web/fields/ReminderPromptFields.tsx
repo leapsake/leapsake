@@ -10,8 +10,8 @@ import {
 import { useMessages } from "../../messages/index.js";
 
 /**
- * The prompt's answer form: a checkbox per offer with its lead time. Hands back
- * the whole set, so “chose nothing” stays visible.
+ * The prompt's answer form: a checkbox per offer with its lead time, and a
+ * named `somethingElse` field for an errand of the user's own.
  */
 export function ReminderPromptFields({
   value,
@@ -51,6 +51,12 @@ export function ReminderPromptFields({
           );
         })}
       </ul>
+      <input
+        type="text"
+        name="somethingElse"
+        aria-label={m.reminderPrompt.somethingElse}
+        placeholder={m.reminderPrompt.somethingElse}
+      />
     </fieldset>
   );
 }

@@ -640,6 +640,32 @@ export function promptAnswerOf(
   });
 }
 
+/** Days before the occasion an errand typed into the prompt comes due. */
+export const SOMETHING_ELSE_OFFSET_DAYS = 7;
+
+/** The prompt's answer with the errand typed into _Something else…_, if any;
+ *  one already on the schedule under that name is ticked instead. */
+export function withSomethingElse(
+  rules: readonly ReminderRuleInput[],
+  text: string,
+): ReminderRuleInput[] {
+  const label = text.trim();
+  if (label === "") return [...rules];
+  const errand: ReminderRuleInput = {
+    action: "other",
+    label,
+    offsetDays: SOMETHING_ELSE_OFFSET_DAYS,
+    enabled: true,
+  };
+  const key = actionKeyOf(errand);
+  const existing = rules.find((rule) => actionKeyOf(rule) === key);
+  return existing === undefined
+    ? [...rules, errand]
+    : rules.map((rule) =>
+        rule === existing ? { ...rule, enabled: true } : rule,
+      );
+}
+
 /**
  * The schedule after answering its prompt: each answered rule replaces its own,
  * and a rule the prompt did not offer is kept as it was.

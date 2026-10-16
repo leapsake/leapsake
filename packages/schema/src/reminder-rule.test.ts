@@ -26,6 +26,7 @@ import {
   promptAnswerOf,
   promptItemLabel,
   scheduleWithAnswer,
+  withSomethingElse,
   handedOverInPerson,
   handoverOf,
   isGivenItem,
@@ -629,6 +630,40 @@ describe("promptItemLabel", () => {
     expect(
       promptItemLabel({ action: "get:gift" }, theirs("a happy birthday")),
     ).toBe("Give a gift");
+  });
+});
+
+describe("withSomethingElse", () => {
+  const wish: ReminderRuleInput = {
+    action: "wish",
+    label: null,
+    offsetDays: 0,
+    enabled: true,
+  };
+
+  it("adds what was typed as an errand of the user's own", () => {
+    expect(withSomethingElse([wish], "  Bake a cake ")).toEqual([
+      wish,
+      { action: "other", label: "Bake a cake", offsetDays: 7, enabled: true },
+    ]);
+  });
+
+  it("adds nothing for a blank", () => {
+    expect(withSomethingElse([wish], "  ")).toEqual([wish]);
+  });
+
+  // Typing a name the schedule already has would otherwise be a duplicate,
+  // which the schedule's own validation refuses.
+  it("ticks an errand already on the schedule under that name", () => {
+    const cake: ReminderRuleInput = {
+      action: "other",
+      label: "Bake a cake",
+      offsetDays: 1,
+      enabled: false,
+    };
+    expect(withSomethingElse([cake], "bake a cake")).toEqual([
+      { ...cake, enabled: true },
+    ]);
   });
 });
 

@@ -274,6 +274,8 @@ export interface Messages {
     editFull: string;
     /** What ticking anything buys: a reminder at a time, not a to-do. */
     caption: string;
+    /** The field for an errand of the user's own, typed into the prompt. */
+    somethingElse: string;
   };
 
   reminderSchedule: {

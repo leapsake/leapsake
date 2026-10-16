@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type OfferContext,
   type ReminderRuleInput,
@@ -11,19 +11,26 @@ import {
 import { CheckboxBox } from "./Checkbox";
 import { colors, fonts, styles } from "../lib/styles";
 
+const SOMETHING_ELSE = "Something else…";
+
 /**
- * The prompt's answer: a tick per thing to do. Hands back the whole set, so
- * "chose nothing" is recorded.
+ * The prompt's answer: a tick per thing to do, and a field for an errand of
+ * the user's own. Hands back the whole set, so "chose nothing" is recorded.
  */
 export function ReminderPromptFields({
   value,
   offer,
   onChange,
+  somethingElse,
+  onSomethingElseChange,
 }: {
   value: readonly ReminderRuleInput[];
   /** The occasion and whose it is, which the labels may name. */
   offer: OfferContext;
   onChange: (next: ReminderRuleInput[]) => void;
+  /** What is typed into _Something else…_. */
+  somethingElse: string;
+  onSomethingElseChange: (text: string) => void;
 }) {
   return (
     <View>
@@ -52,6 +59,14 @@ export function ReminderPromptFields({
           </Pressable>
         );
       })}
+      <TextInput
+        accessibilityLabel={SOMETHING_ELSE}
+        placeholder={SOMETHING_ELSE}
+        placeholderTextColor={colors.muted}
+        style={styles.input}
+        value={somethingElse}
+        onChangeText={onSomethingElseChange}
+      />
     </View>
   );
 }

@@ -313,6 +313,7 @@ export const en: Messages = {
     save: "Save",
     editFull: "Set exact timings",
     caption: "We’ll remind you in time for each one.",
+    somethingElse: "Something else…",
   },
 
   reminderSchedule: {

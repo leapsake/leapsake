@@ -189,6 +189,7 @@ export {
   promptDraftOf,
   promptAnswerOf,
   scheduleWithAnswer,
+  withSomethingElse,
   handedOverInPerson,
   isGivenItem,
   handoverOf,

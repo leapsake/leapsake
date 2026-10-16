@@ -27,6 +27,7 @@ import {
   relationshipRoleSchema,
   reminderInputOf,
   updateRelationshipInputSchema,
+  withSomethingElse,
 } from "@leapsake/schema";
 import {
   type ContactMethodDraft,
@@ -904,7 +905,10 @@ async function milestonePlanAction({ request, params }: ActionFunctionArgs) {
   const formData = await request.formData();
   await window.api.milestones.answerPlan(params.milestoneId as string, {
     year: Number(formData.get("year")),
-    rules: readReminderSchedule(formData) ?? [],
+    rules: withSomethingElse(
+      readReminderSchedule(formData) ?? [],
+      String(formData.get("somethingElse") ?? ""),
+    ),
   });
   return redirect("/reminders");
 }
