@@ -10,11 +10,11 @@ import {
   actionDefs,
   civilFromDueMs,
   daysUntil,
+  planOffers,
   promptAnswerOf,
   promptOffsetDays,
   setPromptItem,
   reminderLabel,
-  resolveReminderSchedule,
   todayCivil,
 } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -225,23 +225,68 @@ describe("the plan prompt, end to end through core", () => {
     expect((await core.reminders.targets()).plans).toEqual([]);
   });
 
-  // The answer is this year's alone: the Person screen's schedule is untouched.
-  it("leaves the standing schedule as it was", async () => {
+  // The prompt is a window into the schedule: what it is answered with is what
+  // the Person screen shows, and what next year's question arrives ticked with.
+  it("makes the answer the schedule, for next year's question too", async () => {
     const { milestone } = await personWithBirthday(APPEARS_DAYS);
-    const before = await core.milestones.reminderSchedule(
-      milestone.id,
-      "birthday",
-    );
     const [target] = (await core.reminders.targets()).plans;
+    const answer = setPromptItem(
+      target.offers,
+      target.offers.findIndex((offer) => offer.action === "get:gift"),
+      true,
+    );
 
     await core.milestones.answerPlan(milestone.id, {
       year: target.occurrenceYear,
-      rules: target.offers.map((offer) => ({ ...offer, enabled: true })),
+      rules: answer,
+    });
+
+    const enabled = (rules: { action: string; enabled: boolean }[]) =>
+      rules
+        .filter((r) => r.enabled)
+        .map((r) => r.action)
+        .sort();
+    expect(
+      enabled(await core.milestones.reminderSchedule(milestone.id, "birthday")),
+    ).toEqual(enabled(promptAnswerOf(answer)));
+    expect(
+      enabled(
+        planOffers(
+          "birthday",
+          await core.milestones.reminderSchedule(milestone.id, "birthday"),
+          APPEARS_DAYS,
+        ),
+      ),
+    ).toEqual(["get:gift", "send:gift", "wish"]);
+  });
+
+  // An errand added on the Person screen is offered like any other, and an
+  // answer that leaves it ticked keeps it.
+  it("offers an errand of your own, and keeps it", async () => {
+    const { milestone } = await personWithBirthday(APPEARS_DAYS);
+    const cake = {
+      action: "other" as const,
+      label: "Bake a cake",
+      offsetDays: 1,
+      enabled: true,
+    };
+    await core.milestones.update(milestone.id, {
+      reminderSchedule: [
+        cake,
+        { action: "wish", label: null, offsetDays: 0, enabled: true },
+      ],
+    });
+    const [target] = (await core.reminders.targets()).plans;
+    expect(target.offers).toContainEqual(cake);
+
+    await core.milestones.answerPlan(milestone.id, {
+      year: target.occurrenceYear,
+      rules: target.offers,
     });
 
     expect(
       await core.milestones.reminderSchedule(milestone.id, "birthday"),
-    ).toEqual(before);
+    ).toContainEqual(cake);
   });
 
   // A save on the Person screen is the user's last word, this year included.
@@ -304,9 +349,12 @@ describe("the plan prompt, end to end through core", () => {
       ["🎉 Wish Violet Bick a happy birthday", 15],
       ["🎁 Give Violet Bick a gift", 15],
     ]);
+    // The handover is this year's alone: the schedule still posts the gift.
     expect(
-      await core.milestones.reminderSchedule(milestone.id, "birthday"),
-    ).toEqual(resolveReminderSchedule("birthday", []).rules);
+      (await core.milestones.reminderSchedule(milestone.id, "birthday")).find(
+        (r) => r.action === "send:gift",
+      )?.enabled,
+    ).toBe(true);
   });
 
   // “Don’t ask again… → Ever”: the occasion keeps its schedule and stops asking.

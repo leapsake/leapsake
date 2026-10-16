@@ -131,8 +131,8 @@ is that reminder's entire content, and the reason the derived cases must stay ou
 
 A per-row schema cannot see one, and there is no unique constraint on `reminder_rules`. So
 `reminderScheduleInputSchema` validates the whole set, on the one write path everything goes
-through — `reminderRulesRepo.replaceForBearer`, which both schedule editors reach, and its
-one-year twin `replaceAnswer`, which the prompt's answer reaches.
+through — `reminderRulesRepo.replaceForBearer`, which both schedule editors and the prompt reach, and its
+one-year twin `replaceForYear`, which handing a posting over in person reaches.
 
 ### Five name-spaces, each keyed on what makes a reminder new
 
@@ -316,13 +316,20 @@ mints is a row you have to learn to ignore, and a list you have learned to ignor
 well it is bucketed.
 
 So an occasion mints exactly one reminder a year, and that reminder is a **question**. Answering
-it writes `reminder_rules` stamped with the occurrence year (`occurrence_year`), and for that
-occurrence they stand in for the schedule; the engine takes it from there.
+it edits the occasion's `reminder_rules`, the same schedule the Person screen edits, and
+tombstones that year's question; the engine takes it from there.
 
-⚠️ **It is asked every year** _(owner, 2026-10-01)_. Some years a gift is handed over, some years
-posted, some years nothing — so no answer is carried forward. What the Person screen saves is the
-**standing** schedule: what a year nobody answered gets, and what next year's question arrives
-pre-ticked with. Saving it also drops every year's answer, since it is the user's last word.
+⚠️ **It is asked every year, and the answer carries forward** _(owner, 2026-10-15)_. Some years a
+gift is handed over, some years posted, some years nothing, so the question comes back each year
+as the chance to change it. It arrives pre-ticked with what was chosen last time, and ignored, it
+repeats that. The prompt is a window into the one schedule, not a copy of it: an earlier design
+kept a standing schedule plus per-year answers, which made "what you did last year" invisible to
+next year's question. Answering keeps any rule the prompt did not offer (`scheduleWithAnswer`),
+such as an errand of your own or an offer too late to fit this year.
+
+The one write that covers a single year is **handing a posting over in person**, from a posting
+whose post date has gone: missing the post is a circumstance, not a preference. It is stored as
+that year's override (`occurrence_year`), and a save from the Person screen drops it.
 
 A kind asks only if its `kindDefs` entry has a `prompt`, and `death` must never have one: a
 checklist of ways to mark a death anniversary is the wrong object, and its one quiet `remember` is
@@ -405,17 +412,17 @@ being read as the birthday.
 
 ### Answered, unanswered, and answered-with-nothing
 
-- **Unanswered is not silence.** An ignored prompt leaves the occasion riding its kind defaults,
-  which is `wish` day-of. You never lose the birthday, and that guarantee is what makes the question
-  safe to ignore.
+- **Unanswered is not silence.** An ignored prompt leaves the occasion riding its schedule: last
+  time's answer, or, never answered, its kind defaults, which is `wish` day-of. You never lose the
+  birthday, and that guarantee is what makes the question safe to ignore.
 - **An ignored prompt stays answerable** past its own deadline, as belated, for as long as it has
   more than the wish to offer; then it retires and the wish rides on. A late answer works; the
   chosen actions materialise with compressed windows, and any that could no longer make their own
   deadline slide (see _You can't be late…_ above).
 - ⚠️ **Ticking nothing must be distinguishable from never being asked**, or the question returns
-  every year. So an answer writes the **full offer set**, `enabled: false` rows included, and
-  rows-existing is the "answered" marker. No new column — and it doubles as the record of _what was
-  offered_, which a future offer-set differ will need.
+  the same year. Answering tombstones that year's question whatever the answer says, and the
+  answer writes the **full offer set**, `enabled: false` rows included, so "nothing" is pre-ticked
+  next year rather than read as never answered.
 
 ### An unanswered question must never become a wall
 
@@ -491,8 +498,8 @@ Same writes, different presentation. **Do not ship per-observance prompts in the
 ### Known limitations
 
 - **Deleting an occasion's rules does not restore the prompt within the same year.** Answering
-  retires the row by soft delete, `reconcile` never resurrects a tombstone, and the id is keyed on
-  the occurrence year. Undoing that needs a runtime hard delete, which no repo has and which a
+  tombstones the row, `reconcile` never resurrects a tombstone, and the id is keyed on the
+  occurrence year. Undoing that needs a runtime hard delete, which no repo has and which a
   peer's tombstone would re-pull on the next sync. The prompt returns next year.
 - **Every schedule save re-stamps `writtenAt`.** `replaceForBearer` rewrites the whole set, so
   saving from the schedule editor inside an occasion's late window counts as a late answer: errands

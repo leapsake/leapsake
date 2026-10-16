@@ -4,6 +4,7 @@ import {
   type ReminderRulesRepo,
   type SqliteDriver,
   createReminderRulesRepo,
+  migrations,
   runMigrations,
 } from "@leapsake/data";
 import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
@@ -129,5 +130,41 @@ describe("reminderRulesRepo", () => {
       "call",
       "other",
     ]);
+  });
+});
+
+describe("migration 47", () => {
+  // Before it, a prompt's answer covered its own year alone; after it, the
+  // latest answer is the occasion's schedule, and that year keeps its rows.
+  it("makes each occasion's latest answer its schedule", async () => {
+    const fresh = makeEncryptedTestDriver();
+    try {
+      await runMigrations(
+        fresh.driver,
+        migrations.filter((step) => step.version <= 46),
+      );
+      const old = createReminderRulesRepo(fresh.driver);
+      await old.replaceForBearer("milestone", MILESTONE, schedule);
+      await old.replaceForYear("milestone", MILESTONE, 2025, [
+        { action: "get:card", label: null, offsetDays: 12, enabled: true },
+      ]);
+      await old.replaceForYear("milestone", MILESTONE, 2026, [
+        { action: "get:gift", label: null, offsetDays: 12, enabled: true },
+      ]);
+
+      await runMigrations(fresh.driver);
+
+      const rows = await createReminderRulesRepo(fresh.driver).listForBearer(
+        "milestone",
+        MILESTONE,
+      );
+      const standing = rows.filter((r) => r.occurrenceYear === null);
+      expect(standing.map((r) => r.action)).toEqual(["get:gift"]);
+      expect(
+        rows.filter((r) => r.occurrenceYear === 2026).map((r) => r.action),
+      ).toEqual(["get:gift"]);
+    } finally {
+      fresh.cleanup();
+    }
   });
 });

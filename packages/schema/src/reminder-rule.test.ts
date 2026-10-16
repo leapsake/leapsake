@@ -24,6 +24,8 @@ import {
   offerContextForOthers,
   planOffers,
   promptAnswerOf,
+  promptItemLabel,
+  scheduleWithAnswer,
   handedOverInPerson,
   handoverOf,
   isGivenItem,
@@ -359,7 +361,7 @@ describe("resolveReminderSchedule", () => {
     expect(source).toBe("stored");
   });
 
-  it("keeps the prompt's answers apart, by the year each covers", () => {
+  it("keeps one-year overrides apart, by the year each covers", () => {
     const stored = [
       rule({ action: "wish", offsetDays: 0, enabled: true }),
       rule({
@@ -377,16 +379,16 @@ describe("resolveReminderSchedule", () => {
         createdAt: 5,
       }),
     ];
-    const { rules, answers } = resolveReminderSchedule("birthday", stored);
+    const { rules, overrides } = resolveReminderSchedule("birthday", stored);
     expect(rules.map((r) => r.action)).toEqual(["wish"]);
-    expect(answers.get(2026)).toEqual({
+    expect(overrides.get(2026)).toEqual({
       rules: [
         { action: "get:gift", label: null, offsetDays: 12, enabled: true },
         { action: "wish", label: null, offsetDays: 0, enabled: false },
       ],
       writtenAt: 5,
     });
-    expect(answers.get(2027)).toBeUndefined();
+    expect(overrides.get(2027)).toBeUndefined();
   });
 
   // An all-disabled set is a schedule — "remind me of nothing" — and has to be
@@ -613,6 +615,55 @@ describe("the prompt's draft and answer", () => {
       "wish",
     ]);
     expect(writtenOf(orphan)).toEqual(["send:card", "wish"]);
+  });
+});
+
+describe("promptItemLabel", () => {
+  it("names an errand of the user's own by its own words", () => {
+    expect(
+      promptItemLabel(
+        { action: "other", label: "Bake a cake" },
+        theirs("a happy birthday"),
+      ),
+    ).toBe("Bake a cake");
+    expect(
+      promptItemLabel({ action: "get:gift" }, theirs("a happy birthday")),
+    ).toBe("Give a gift");
+  });
+});
+
+describe("scheduleWithAnswer", () => {
+  const rule = (
+    action: ReminderRuleInput["action"],
+    enabled: boolean,
+    label: string | null = null,
+  ): ReminderRuleInput => ({ action, label, offsetDays: 7, enabled });
+
+  it("takes each answered rule in place of its own", () => {
+    expect(
+      scheduleWithAnswer([rule("wish", true)], [rule("wish", false)]),
+    ).toEqual([rule("wish", false)]);
+  });
+
+  // An offer too late to fit this year was not asked about, so it stays as the
+  // schedule had it rather than being dropped for good.
+  it("keeps a rule the prompt did not offer", () => {
+    const cake = rule("other", true, "Bake a cake");
+    expect(
+      scheduleWithAnswer(
+        [rule("send:card", true), cake, rule("wish", true)],
+        [rule("wish", false)],
+      ),
+    ).toEqual([rule("send:card", true), cake, rule("wish", false)]);
+  });
+
+  it("delivers only what the answer ticks", () => {
+    expect(
+      scheduleWithAnswer(
+        [],
+        [rule("get:gift", false), rule("send:gift", true)],
+      ).find((r) => r.action === "send:gift")?.enabled,
+    ).toBe(false);
   });
 });
 

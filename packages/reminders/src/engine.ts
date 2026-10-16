@@ -71,8 +71,8 @@ export interface ReminderEngineDeps {
   /** The system-reminder store (see {@link SystemReminderStore}). */
   reminders: SystemReminderStore;
   /**
-   * The milestone's schedule and its yearly answers; one reminder per enabled
-   * entry. A year with no answer mints a `plan` prompt for a kind that asks.
+   * The milestone's schedule and one-year overrides; one reminder per enabled
+   * entry. A year with no override asks, for a kind that asks.
    */
   resolveSchedule(
     milestone: RemindEligibleMilestone,
@@ -451,6 +451,14 @@ export function duplicatesReminderId(pairKeys: readonly string[]): string {
   );
 }
 
+/** The id of a milestone's question for the occurrence in `year`. */
+export function planReminderId(milestoneId: string, year: number): string {
+  return deterministicUuid(
+    SYSTEM_REMINDER_NAMESPACE,
+    occurrenceName(milestoneId, year, "plan"),
+  );
+}
+
 /** A partnership question's id. Carries the kind, since a dismissal is of one
  *  question; carries no year, so the dismissal is permanent. */
 export function partnershipNudgeId(
@@ -575,17 +583,24 @@ export async function regenerateSystemReminders(
   return reconcile(deps, await computeDesired(deps, ownActiveDays));
 }
 
-/** What each `system` reminder on the list is about, previews included: the
- *  same walk as {@link listRemindersInWindow} at `DISPLAY_WINDOW_DAYS`. */
+/** What each `system` reminder on the list is about, previews included and
+ *  tombstones skipped: the walk {@link listRemindersInWindow} takes. */
 export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
 ): Promise<SystemReminderTarget[]> {
   const desired = await computeDesired(deps, () => DISPLAY_WINDOW_DAYS);
-  return [...desired.values()].flatMap((row) =>
-    row.target === undefined
-      ? []
-      : [{ id: row.id, occurrenceDate: row.occurrenceDate, ...row.target }],
-  );
+  const targets: SystemReminderTarget[] = [];
+  for (const row of desired.values()) {
+    if (row.target === undefined) continue;
+    const existing = await deps.reminders.getIncludingDeleted(row.id);
+    if (existing !== undefined && existing.deletedAt !== null) continue;
+    targets.push({
+      id: row.id,
+      occurrenceDate: row.occurrenceDate,
+      ...row.target,
+    });
+  }
+  return targets;
 }
 
 /** How far ahead {@link listNotifiableReminders} looks: every tracked occasion
@@ -807,7 +822,7 @@ async function computeDesired(
     // Deadlines run from when the app learned of the occasion and its answer:
     // you can't be late for something it has only just learned.
     const learned = todayCivil(m.createdAt);
-    const standingAnswered =
+    const scheduleWritten =
       resolved.writtenAt === null ? learned : todayCivil(resolved.writtenAt);
     // An occasion that asks gets a `plan` question every year it is not
     // answered, made a rule so it shares the window, id, copy and prune paths.
@@ -820,9 +835,11 @@ async function computeDesired(
       // birthday the day before an import — was never the user's to act on.
       if (learnedDaysOut < 0) continue;
       const days = daysUntil(deps.today, occ);
-      const answer = resolved.answers.get(occ.year);
+      const override = resolved.overrides.get(occ.year);
       const answered =
-        answer === undefined ? standingAnswered : todayCivil(answer.writtenAt);
+        override === undefined
+          ? scheduleWritten
+          : todayCivil(override.writtenAt);
 
       // Each enabled rule, with the deadline and run-up it actually has for
       // this occurrence — not always the ones it was written with.
@@ -838,7 +855,7 @@ async function computeDesired(
       // behind is already on the schedule. An import asks only in time.
       if (
         asks &&
-        answer === undefined &&
+        override === undefined &&
         !(timing.late && m.imported) &&
         planOffers(m.kind, resolved.rules, days, audience, reachable).length >=
           2
@@ -861,10 +878,10 @@ async function computeDesired(
             : ownActiveDays("plan"),
         });
       }
-      // The enabled set at once: a late answer slides deadlines, and
+      // The enabled set at once: a late choice slides deadlines, and
       // `effectiveOffsets` keeps the order the offsets encode.
       for (const { rule, offsetDays } of effectiveOffsets(
-        (answer?.rules ?? resolved.rules).filter((r) => r.enabled),
+        (override?.rules ?? resolved.rules).filter((r) => r.enabled),
         daysUntil(answered, occ),
       ))
         timed.push({ rule, offsetDays, runUp: ownActiveDays(rule.action) });

@@ -543,6 +543,16 @@ export function offerLabel(
   return def.offer?.(context, parseAction(action).qualifier) ?? def.label;
 }
 
+/** A prompt row's label: an errand of the user's own by its own name. */
+export function promptItemLabel(
+  rule: { action: ReminderAction; label?: string | null },
+  context: OfferContext,
+): string {
+  return verbOf(rule.action) === "other"
+    ? reminderRuleLabel(rule)
+    : offerLabel(rule.action, context);
+}
+
 /**
  * A lead time in words, always in days so a list reads in one unit: "12 days
  * before".
@@ -628,6 +638,21 @@ export function promptAnswerOf(
       ? rule
       : { ...rule, enabled: false };
   });
+}
+
+/**
+ * The schedule after answering its prompt: each answered rule replaces its own,
+ * and a rule the prompt did not offer is kept as it was.
+ */
+export function scheduleWithAnswer(
+  schedule: readonly ReminderRuleInput[],
+  answer: readonly ReminderRuleInput[],
+): ReminderRuleInput[] {
+  const answered = new Set(answer.map(actionKeyOf));
+  return [
+    ...schedule.filter((rule) => !answered.has(actionKeyOf(rule))),
+    ...promptAnswerOf(answer),
+  ];
 }
 
 /** A schedule that hands over on the day, in person, what `send` would post. */

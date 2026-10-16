@@ -87,11 +87,11 @@ import {
   kindAllowsBearer,
   handedOverInPerson,
   kindDefs,
-  promptAnswerOf,
   resolveReminderSchedule,
+  scheduleWithAnswer,
   todayCivil,
 } from "@leapsake/schema";
-import { duplicatesReminderId } from "@leapsake/reminders";
+import { duplicatesReminderId, planReminderId } from "@leapsake/reminders";
 import { createRemindersApi } from "@leapsake/reminders/api";
 // Re-exported so a client can map a Home reminder's id to its CTA route
 // without depending on `@leapsake/reminders` directly.
@@ -297,7 +297,7 @@ export type CoreApi = ReturnType<typeof createCore>;
  * Wire the repositories over a {@link SqliteDriver} into a {@link CoreApi}; run
  * {@link runMigrations} on it first. Trust boundaries parse before calling in.
  */
-/** The prompt's answer, for the one occurrence year it covers. */
+/** The prompt's answer, and the occurrence year it was asked about. */
 export interface PlanAnswer {
   year: number;
   rules: ReminderRuleInput[];
@@ -505,6 +505,7 @@ export function createCore(
       }
       if (answer !== undefined) await writePlanAnswer(milestoneId, answer);
     });
+    if (answer !== undefined) await retirePlan(milestoneId, answer);
   }
 
   /** Throws rather than record the user's own death: you can't be the one
@@ -530,17 +531,35 @@ export function createCore(
         await reminderRules.removeAllForBearer("milestone", m.id);
   }
 
-  /** Answer a milestone's prompt for one year. Transaction-free. */
-  function writePlanAnswer(
+  /** Answer a milestone's prompt: the answer becomes its schedule, for this
+   *  year and every year after. Transaction-free. */
+  async function writePlanAnswer(
     milestoneId: string,
     answer: PlanAnswer,
   ): Promise<void> {
-    return reminderRules.replaceAnswer(
+    const milestone = await milestones.get(milestoneId);
+    if (milestone === undefined) return;
+    const { audience, reachable } = await occasionDefaults(
+      milestone.bearerType,
+      milestone.bearerId,
+      milestone.kind,
+    );
+    const { rules } = resolveReminderSchedule(
+      milestone.kind,
+      await reminderRules.listForBearer("milestone", milestoneId),
+      audience,
+      reachable,
+    );
+    await reminderRules.replaceForBearer(
       "milestone",
       milestoneId,
-      answer.year,
-      promptAnswerOf(answer.rules),
+      scheduleWithAnswer(rules, answer.rules),
     );
+  }
+
+  /** Retires the answered year's question; its own transaction. */
+  function retirePlan(milestoneId: string, answer: PlanAnswer): Promise<void> {
+    return remindersApi.softDelete(planReminderId(milestoneId, answer.year));
   }
 
   /** Links every couple's occasion held by the user's romantic partner to
@@ -1050,12 +1069,13 @@ export function createCore(
         await regenerateSystem();
         return milestone;
       },
-      // The whole offer set, so “chose nothing” still answers the year.
+      // The whole offer set, so “chose nothing” is a choice next year too.
       answerPlan: async (
         milestoneId: string,
         answer: PlanAnswer,
       ): Promise<void> => {
         await driver.transaction(() => writePlanAnswer(milestoneId, answer));
+        await retirePlan(milestoneId, answer);
         await regenerateSystem();
       },
       // That year's rules, posting swapped for handing over; still as written
@@ -1078,13 +1098,13 @@ export function createCore(
             audience,
             reachable,
           );
-          const answer = resolved.answers.get(year);
-          await reminderRules.replaceAnswer(
+          const override = resolved.overrides.get(year);
+          await reminderRules.replaceForYear(
             "milestone",
             milestoneId,
             year,
-            handedOverInPerson(answer?.rules ?? resolved.rules, action),
-            answer?.writtenAt ?? resolved.writtenAt ?? milestone.createdAt,
+            handedOverInPerson(override?.rules ?? resolved.rules, action),
+            override?.writtenAt ?? resolved.writtenAt ?? milestone.createdAt,
           );
         });
         await regenerateSystem();

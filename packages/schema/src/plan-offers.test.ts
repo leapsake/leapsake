@@ -104,6 +104,18 @@ describe("planOffers", () => {
     expect(planOffers("birthday", [stored], 60)[0]).toEqual(stored);
   });
 
+  it("offers an errand of the user's own alongside the kind's", () => {
+    const cake: ReminderRuleInput = {
+      action: "other",
+      label: "Bake a cake",
+      offsetDays: 1,
+      enabled: true,
+    };
+    expect(planOffers("birthday", [cake], 60)).toContainEqual(cake);
+    // Under the same notice as any other offer.
+    expect(planOffers("birthday", [cake], 2)).not.toContainEqual(cake);
+  });
+
   it("offers your own birthday a party, not a gift for yourself", () => {
     expect(actionsOf(planOffers("birthday", [], 60, "own"))).toEqual([
       "arrange:party",

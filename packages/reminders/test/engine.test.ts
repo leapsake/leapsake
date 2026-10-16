@@ -35,8 +35,8 @@ function daysOut(days: number): CivilDate {
  * around a mutable milestone list and label map — the whole point of the separate
  * package: exercise the reconcile with no native sqlite driver.
  */
-/** Answers every year with `rules`, as for an occasion that is never asked. */
-function answeredEveryYear(rules: ReminderRuleInput[], writtenAt: number) {
+/** Overrides every year with `rules`, as for an occasion that is never asked. */
+function overriddenEveryYear(rules: ReminderRuleInput[], writtenAt: number) {
   return new Map(
     Array.from({ length: 201 }, (_, i) => [1950 + i, { rules, writtenAt }]),
   );
@@ -70,7 +70,7 @@ function makeHarness() {
             rules: custom,
             source: "stored" as const,
             writtenAt: null,
-            answers: answeredEveryYear(custom, m.createdAt),
+            overrides: overriddenEveryYear(custom, m.createdAt),
           };
     },
     reminders: {

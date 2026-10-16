@@ -37,8 +37,8 @@ function daysOut(days: number): CivilDate {
 const VIOLET = mentionToken("Violet", "person", "p1");
 
 /** As {@link makeHarness} in `engine.test.ts`, narrowed to what copy needs. */
-/** Answers every year with `rules`, as for an occasion that is never asked. */
-function answeredEveryYear(rules: ReminderRuleInput[], writtenAt: number) {
+/** Overrides every year with `rules`, as for an occasion that is never asked. */
+function overriddenEveryYear(rules: ReminderRuleInput[], writtenAt: number) {
   return new Map(
     Array.from({ length: 201 }, (_, i) => [1950 + i, { rules, writtenAt }]),
   );
@@ -63,7 +63,7 @@ function makeHarness() {
             rules: custom,
             source: "stored" as const,
             writtenAt: null,
-            answers: answeredEveryYear(custom, m.createdAt),
+            overrides: overriddenEveryYear(custom, m.createdAt),
           };
     },
     reminders: {

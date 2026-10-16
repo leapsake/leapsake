@@ -34,7 +34,7 @@ function makeHarness() {
       rules: [],
       source: "stored" as const,
       writtenAt: null,
-      answers: new Map(),
+      overrides: new Map(),
     }),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),

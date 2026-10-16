@@ -33,7 +33,7 @@ function makeHarness() {
       rules: [],
       source: "kind-default",
       writtenAt: null,
-      answers: new Map(),
+      overrides: new Map(),
     }),
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),

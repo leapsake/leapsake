@@ -98,10 +98,9 @@ buttons, labels and metadata keep the system sans, which holds up better at smal
   2026-09-13)_. _Next 7 days_ and _Later_ start closed and wear the quiet secondary button, with
   the count inside the label; Belated, Today and Completed are headings over rows. A tappable
   heading gives no sign that it opens anything.
-- **A `🗓 plan` prompt is answered on its detail screen**, inline. Its offers arrive with the wish
-  already ticked, so Save untouched is "just the day". Save writes this year's answer as the
-  whole offer set, disabled rows included, because rows existing is what tells "asked, and chose
-  nothing" from "never asked".
+- **A `🗓 plan` prompt is answered on its detail screen**, inline. Its offers arrive ticked as
+  last time (the wish alone, if never answered), so Save untouched keeps things as they are. Save writes the whole offer set into the occasion's schedule, disabled rows included, so
+  "chose nothing" carries forward as a choice.
 - **Only an errand can be completed.** A prompt retires by being answered, and a first-run nudge
   when its condition is met. Completing a nudge would leave it in Completed with the condition
   still unmet, so the control is withheld rather than the write refused.

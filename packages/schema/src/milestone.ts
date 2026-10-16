@@ -360,16 +360,17 @@ export function kindsForBearerType(
  */
 export type ReminderScheduleSource = "stored" | "kind-default";
 
-/** The prompt's answer for one occurrence, which stands in for the schedule. */
-export interface PromptAnswer {
+/** One occurrence's own rules, standing in for the schedule that year: a
+ *  posting turned into a handover once its post date had gone. */
+export interface YearOverride {
   rules: ReminderRuleInput[];
-  /** When it was given (epoch ms, UTC). */
+  /** When it was written (epoch ms, UTC). */
   writtenAt: number;
 }
 
 /** A milestone's effective schedule, and which level supplied it. */
 export interface ResolvedReminderSchedule {
-  /** The standing schedule: what any year the prompt was not answered gets. */
+  /** The schedule every year gets, unless that year has an override. */
   rules: ReminderRuleInput[];
   source: ReminderScheduleSource;
   /**
@@ -377,8 +378,8 @@ export interface ResolvedReminderSchedule {
    * default. Every save replaces the whole set, so the newest row says when.
    */
   writtenAt: number | null;
-  /** The prompt's answers, by the occurrence year each covers. */
-  answers: ReadonlyMap<number, PromptAnswer>;
+  /** One-year overrides, by the occurrence year each covers. */
+  overrides: ReadonlyMap<number, YearOverride>;
 }
 
 const ruleInputOf = (r: ReminderRule): ReminderRuleInput => ({
@@ -422,8 +423,8 @@ export function kindDefaultSchedule(
 }
 
 /**
- * A milestone's standing rules, or its kind's defaults when it has none, and
- * its answers by year, furthest lead first. A stored `plan` row is ignored.
+ * A milestone's schedule, or its kind's defaults when it has none, and its
+ * one-year overrides, furthest lead first. A stored `plan` row is ignored.
  */
 export function resolveReminderSchedule(
   kind: MilestoneKind,
@@ -453,9 +454,9 @@ export function resolveReminderSchedule(
         ...(byYear.get(r.occurrenceYear) ?? []),
         r,
       ]);
-  const answers = new Map<number, PromptAnswer>();
+  const overrides = new Map<number, YearOverride>();
   for (const [year, rows] of byYear)
-    answers.set(year, {
+    overrides.set(year, {
       rules: furthestFirst(rows.map(ruleInputOf)),
       writtenAt: Math.max(...rows.map((r) => r.createdAt)),
     });
@@ -465,7 +466,7 @@ export function resolveReminderSchedule(
     source,
     writtenAt:
       stored.length > 0 ? Math.max(...stored.map((r) => r.createdAt)) : null,
-    answers,
+    overrides,
   };
 }
 
@@ -521,8 +522,8 @@ export function fitsAt(
 }
 
 /**
- * What a kind's question offers `daysUntilOccurrence` days out: its offers that
- * still fit, with any stored answer's offset and tick, furthest lead first.
+ * What a kind's question offers `daysUntilOccurrence` days out: its offers and
+ * any other stored rule, as stored, that still fit, furthest lead first.
  */
 export function planOffers(
   kind: MilestoneKind,
@@ -533,8 +534,10 @@ export function planOffers(
   reachable: readonly string[] = [],
 ): ReminderRuleInput[] {
   const stored = new Map(storedRules.map((r) => [r.action, r]));
-  return kindDefaultSchedule(kind, audience, reachable)
-    .map(
+  const defaults = kindDefaultSchedule(kind, audience, reachable);
+  const offered = new Set<ReminderAction>(defaults.map((d) => d.action));
+  return [
+    ...defaults.map(
       (d): ReminderRuleInput =>
         stored.get(d.action) ?? {
           action: d.action,
@@ -542,7 +545,9 @@ export function planOffers(
           offsetDays: d.offsetDays,
           enabled: d.enabledByDefault,
         },
-    )
+    ),
+    ...storedRules.filter((r) => !offered.has(r.action)),
+  ]
     .filter((r) => fitsAt(r.action, r.offsetDays, daysUntilOccurrence))
     .filter((r, _, offered) => {
       // A delivery goes with what it delivers: nothing to hand over unbought.

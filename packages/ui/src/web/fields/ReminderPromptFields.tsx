@@ -3,7 +3,7 @@ import {
   type ReminderRuleInput,
   actionDefOf,
   leadTimeLabel,
-  offerLabel,
+  promptItemLabel,
   promptItemsOf,
   setPromptItem,
 } from "@leapsake/schema";
@@ -32,7 +32,7 @@ export function ReminderPromptFields({
       <ul>
         {promptItemsOf(value).map(({ index, rule }) => {
           const def = actionDefOf(rule.action);
-          const label = offerLabel(rule.action, offer);
+          const label = promptItemLabel(rule, offer);
           return (
             // Positional, like the schedule editor: no stable id until saved.
             <li key={index}>

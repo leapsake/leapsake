@@ -13,14 +13,14 @@ import {
 } from "./entity-repo.js";
 
 export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
-  /** A bearer's active rules, standing and one-year alike, furthest lead
-   *  first, stable within a lead. */
+  /** A bearer's active rules, its schedule and one-year overrides alike,
+   *  furthest lead first, stable within a lead. */
   listForBearer(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
   ): Promise<ReminderRule[]>;
 
-  /** Replace a bearer's standing schedule, dropping every one-year answer too.
+  /** Replace a bearer's schedule, dropping every one-year override too.
    *  Validated as a set; empty means kind defaults. Transaction-free. */
   replaceForBearer(
     bearerType: ReminderRuleBearerType,
@@ -28,9 +28,9 @@ export interface ReminderRulesRepo extends EntityRepo<ReminderRule> {
     rules: ReminderRuleInput[],
   ): Promise<void>;
 
-  /** Replace a bearer's answer for one occurrence year, validated as a set,
+  /** Replace a bearer's override for one occurrence year, validated as a set,
    *  as given at `writtenAt` (default now). Transaction-free. */
-  replaceAnswer(
+  replaceForYear(
     bearerType: ReminderRuleBearerType,
     bearerId: string,
     occurrenceYear: number,
@@ -108,7 +108,7 @@ export function createReminderRulesRepo(
       await insertAll(bearerType, bearerId, null, parsed);
     },
 
-    async replaceAnswer(
+    async replaceForYear(
       bearerType,
       bearerId,
       occurrenceYear,

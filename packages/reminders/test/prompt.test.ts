@@ -2,7 +2,7 @@ import { deterministicUuid } from "@leapsake/bytes";
 import {
   type CivilDate,
   type MilestoneKind,
-  type PromptAnswer,
+  type YearOverride,
   type RemindEligibleMilestone,
   type Reminder,
   type ReminderRuleInput,
@@ -21,6 +21,7 @@ import {
   type ReminderEngineDeps,
   SYSTEM_REMINDER_NAMESPACE,
   listRemindersInWindow,
+  planReminderId,
   regenerateSystemReminders,
 } from "../src/index.js";
 
@@ -68,7 +69,7 @@ function makeHarness() {
   const labels = new Map<string, string>([["p1", "Violet"]]);
   const schedules = new Map<string, ReminderRuleInput[]>();
   const writtenAts = new Map<string, number>();
-  const answers = new Map<string, Map<number, PromptAnswer>>();
+  const overrides = new Map<string, Map<number, YearOverride>>();
 
   const deps: ReminderEngineDeps = {
     milestones: { listRemindEligible: async () => milestones },
@@ -83,7 +84,7 @@ function makeHarness() {
               source: "stored" as const,
               writtenAt: writtenAts.get(m.id) ?? null,
             };
-      return { ...standing, answers: answers.get(m.id) ?? new Map() };
+      return { ...standing, overrides: overrides.get(m.id) ?? new Map() };
     },
     reminders: {
       getIncludingDeleted: async (id) => rows.get(id),
@@ -128,16 +129,28 @@ function makeHarness() {
       schedules.set(milestoneId, rules);
       if (writtenAt !== undefined) writtenAts.set(milestoneId, writtenAt);
     },
-    /** Stand in for the prompt's answer for one occurrence year. */
+    /** Stand in for answering one year's prompt: the answer becomes the
+     *  schedule, and that year's question is tombstoned. */
     setAnswer: (
       milestoneId: string,
       year: number,
       rules: ReminderRuleInput[],
       writtenAt: number = 0,
     ) => {
-      const byYear = answers.get(milestoneId) ?? new Map();
-      byYear.set(year, { rules, writtenAt });
-      answers.set(milestoneId, byYear);
+      schedules.set(milestoneId, rules);
+      writtenAts.set(milestoneId, writtenAt);
+      const id = planReminderId(milestoneId, year);
+      rows.set(id, { id, source: "system", deletedAt: 1 } as Reminder);
+    },
+    /** Stand in for a one-year override, such as a handover in person. */
+    setOverride: (
+      milestoneId: string,
+      year: number,
+      rules: ReminderRuleInput[],
+    ) => {
+      const byYear = overrides.get(milestoneId) ?? new Map();
+      byYear.set(year, { rules, writtenAt: 0 });
+      overrides.set(milestoneId, byYear);
     },
     setSelf: (personId: string | null) => {
       selfPersonId = personId;
@@ -250,7 +263,7 @@ describe("the plan prompt", () => {
   });
 
   // Some years a gift is handed over, some years it is posted, some years
-  // nothing: a schedule set on the Person screen is what an unanswered year gets.
+  // nothing: the schedule is only what the question arrives pre-ticked with.
   it("is still asked when the occasion has a schedule of its own", async () => {
     h.setMilestones([birthday("m1", "p1", daysOut(APPEARS_DAYS))]);
     h.setSchedule("m1", [
@@ -276,8 +289,7 @@ describe("the plan prompt", () => {
   });
 
   // ⚠️ Ticking nothing has to be distinguishable from never being asked, or the
-  // question returns that same year. The answer writes the *full* offer set,
-  // disabled rows included, so an all-off set still counts as answered.
+  // question returns that same year: answering tombstones it, whatever it says.
   it("is not minted for an answer of `nothing`", async () => {
     const occ = daysOut(APPEARS_DAYS);
     h.setMilestones([birthday("m1", "p1", occ)]);
@@ -290,24 +302,24 @@ describe("the plan prompt", () => {
     expect(h.activeSystem()).toHaveLength(0);
   });
 
-  it("replaces the schedule for the year it answers, and only that year", async () => {
+  it("lets an override replace the schedule for its own year alone", async () => {
     const occ = daysOut(20);
     h.setMilestones([birthday("m1", "p1", occ)]);
     h.setSchedule("m1", [
       { action: "get:gift", offsetDays: 12, enabled: true },
       { action: "wish", offsetDays: 0, enabled: true },
     ]);
-    h.setAnswer("m1", occ.year + 1, [
+    h.setOverride("m1", occ.year + 1, [
       { action: "wish", offsetDays: 0, enabled: false },
     ]);
     await regenerateSystemReminders(h.deps);
-    // Unanswered, this year is still asked about, on the standing schedule.
+    // Without one, this year is still asked about, on the schedule.
     expect(h.activeSystem().map((r) => r.title)).toEqual([
       `🗓 What do you want to do for ${mentionToken("Violet", "person", "p1")}’s birthday?`,
       `🎁 Get ${mentionToken("Violet", "person", "p1")} a gift`,
     ]);
 
-    h.setAnswer("m1", occ.year, [
+    h.setOverride("m1", occ.year, [
       { action: "get:card", offsetDays: 12, enabled: true },
     ]);
     await regenerateSystemReminders(h.deps);
@@ -617,7 +629,7 @@ describe("an answer given late", () => {
     expect(card.dueDate!).toBeLessThan(post.dueDate!);
   });
 
-  // An answer covers its own year; the question comes back for the next, eight
+  // An answer retires its own year's question; the next year's comes back eight
   // weeks ahead, with everything on offer.
   it("asks again the next year, however it was answered", async () => {
     for (const days of [5, APPEARS_DAYS]) {

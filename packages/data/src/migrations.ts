@@ -815,6 +815,63 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 47,
+    async up(driver) {
+      // Each occasion's latest answered year becomes its schedule; the year's
+      // own rows stay, standing in for that year as before.
+      const latest = await driver.all<{
+        bearer_type: string;
+        bearer_id: string;
+        year: number;
+      }>(
+        `SELECT bearer_type, bearer_id, MAX(occurrence_year) AS year
+           FROM reminder_rules
+          WHERE deleted_at IS NULL AND occurrence_year IS NOT NULL
+          GROUP BY bearer_type, bearer_id`,
+      );
+      const now = Date.now();
+      for (const { bearer_type, bearer_id, year } of latest) {
+        await driver.run(
+          `UPDATE reminder_rules SET deleted_at = ?, updated_at = ?
+            WHERE bearer_type = ? AND bearer_id = ?
+              AND occurrence_year IS NULL AND deleted_at IS NULL`,
+          [now, now, bearer_type, bearer_id],
+        );
+        const answer = await driver.all<{
+          action: string;
+          label: string | null;
+          offset_days: number;
+          enabled: number;
+          created_at: number;
+        }>(
+          `SELECT action, label, offset_days, enabled, created_at
+             FROM reminder_rules
+            WHERE bearer_type = ? AND bearer_id = ?
+              AND occurrence_year = ? AND deleted_at IS NULL`,
+          [bearer_type, bearer_id, year],
+        );
+        for (const rule of answer)
+          await driver.run(
+            `INSERT INTO reminder_rules (id, bearer_type, bearer_id, action,
+               label, offset_days, enabled, occurrence_year, created_at,
+               updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`,
+            [
+              crypto.randomUUID(),
+              bearer_type,
+              bearer_id,
+              rule.action,
+              rule.label,
+              rule.offset_days,
+              rule.enabled,
+              rule.created_at,
+              now,
+            ],
+          );
+      }
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

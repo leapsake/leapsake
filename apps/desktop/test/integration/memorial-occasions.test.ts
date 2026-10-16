@@ -9,6 +9,7 @@ import {
   type CivilDate,
   actionDefs,
   mentionToken,
+  planOffers,
   promptOffsetDays,
   todayCivil,
 } from "@leapsake/schema";
@@ -302,16 +303,13 @@ describe("reaching out to the people they were close to", () => {
       month: occ.month,
       day: occ.day,
     });
+    // The whole offer set, as the prompt answers: only reaching Ma ticked.
     await core.milestones.answerPlan(death.id, {
       year: occ.year,
-      rules: [
-        {
-          action: `reach:${ma.id}`,
-          label: null,
-          offsetDays: 0,
-          enabled: true,
-        },
-      ],
+      rules: planOffers("death", [], 0, "memorial", [ma.id]).map((offer) => ({
+        ...offer,
+        enabled: offer.action === `reach:${ma.id}`,
+      })),
     });
 
     const maMention = mentionToken("Ma Bailey", "person", ma.id);
