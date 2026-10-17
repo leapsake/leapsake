@@ -37,10 +37,11 @@ export interface PreferencesRepo extends EntityRepo<Preferences> {
   getDateFormat(): Promise<DateFormat | null>;
   /** Choose a date format, or `null` to go back to the region's default. */
   setDateFormat(format: DateFormat | null): Promise<void>;
-  /** Your country as stored, chosen or seeded, or `null` before either. */
-  getCountry(): Promise<string | null>;
-  /** Choose your country, an ISO alpha-2 code. */
-  setCountry(code: string): Promise<void>;
+  /** Your country as stored, and whether it is only a seed. */
+  getCountry(): Promise<{ country: string | null; seeded: boolean }>;
+  /** Choose your country, an ISO alpha-2 code, or `null` to drop the choice
+   *  so the next {@link seedCountry} fills it again. */
+  setCountry(code: string | null): Promise<void>;
   /** Store `region` as your country only while none is stored. A seed loses
    *  to any choice made on another device. Ignores a non-country region. */
   seedCountry(region: string | null): Promise<void>;
@@ -91,7 +92,13 @@ export function createPreferencesRepo(driver: SqliteDriver): PreferencesRepo {
     );
   }
 
-  const country = async () => (await base.get(PREFERENCES_ID))?.country ?? null;
+  async function country() {
+    const row = await base.get(PREFERENCES_ID);
+    return {
+      country: row?.country ?? null,
+      seeded: row?.countrySeeded ?? false,
+    };
+  }
 
   return {
     ...base,
@@ -107,11 +114,14 @@ export function createPreferencesRepo(driver: SqliteDriver): PreferencesRepo {
     getCountry: country,
 
     setCountry: async (code) =>
-      write({ country: countryCodeSchema.parse(code), countrySeeded: false }),
+      write({
+        country: code === null ? null : countryCodeSchema.parse(code),
+        countrySeeded: false,
+      }),
 
     async seedCountry(region) {
       const parsed = countryCodeSchema.safeParse(region);
-      if (!parsed.success || (await country()) !== null) return;
+      if (!parsed.success || (await country()).country !== null) return;
       await write({ country: parsed.data, countrySeeded: true });
     },
   };

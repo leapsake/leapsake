@@ -439,8 +439,12 @@ export const en: Messages = {
     title: "Your country",
     intro:
       "Where Leapsake takes you to live, on every device you use. It also stands in for anyone whose address doesn’t say where they live.",
-    fromAddress: (country) =>
-      `Your own address is in ${country}, so Leapsake uses that. To change it, edit your address.`,
+    source: {
+      chosen:
+        "You picked this. Clear it to go back to your address or your device’s region.",
+      address: "From your own address. Pick a country to use another.",
+      device: "From your device’s region. Pick a country to use another.",
+    },
     saveFailed: "Your country couldn’t be saved. Please try again.",
   },
 

@@ -32,19 +32,28 @@ export function preferencesHaveHistory(row: Preferences): boolean {
   );
 }
 
-/** Where Leapsake takes you to live, and whether your own address says so. */
+/** Where your country came from: picked, your own address, or a region. */
+export type YourCountrySource = "chosen" | "address" | "device";
+
+/** Where Leapsake takes you to live, and why. */
 export interface YourCountry {
   country: string | null;
-  fromAddress: boolean;
+  source: YourCountrySource | null;
 }
 
-/** Your first address with a country, else the setting. */
+/** A choice, else your first address with a country, else the seed. */
 export function yourCountry(
-  setting: string | null,
+  stored: { country: string | null; seeded: boolean },
   ownAddresses: readonly { country: string | null }[],
 ): YourCountry {
+  if (stored.country !== null && !stored.seeded) {
+    return { country: stored.country, source: "chosen" };
+  }
   const addressed = ownAddresses.find((a) => a.country !== null)?.country;
-  return addressed === undefined || addressed === null
-    ? { country: setting, fromAddress: false }
-    : { country: addressed, fromAddress: true };
+  if (addressed !== undefined && addressed !== null) {
+    return { country: addressed, source: "address" };
+  }
+  return stored.country === null
+    ? { country: null, source: null }
+    : { country: stored.country, source: "device" };
 }

@@ -3,6 +3,7 @@ import type {
   DateFormat,
   GiftPartyType,
   ObservanceBearerType,
+  YourCountrySource,
 } from "@leapsake/schema";
 
 /** Every user-visible string the package renders. */
@@ -399,8 +400,8 @@ export interface Messages {
   yourCountry: {
     title: string;
     intro: string;
-    /** In place of the picker while your own address names a country. */
-    fromAddress: (country: string) => string;
+    /** Under the picker: where the country on it came from. */
+    source: Record<YourCountrySource, string>;
     saveFailed: string;
   };
 

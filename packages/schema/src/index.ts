@@ -119,7 +119,11 @@ export {
   preferencesSchema,
   yourCountry,
 } from "./preferences.js";
-export type { Preferences, YourCountry } from "./preferences.js";
+export type {
+  Preferences,
+  YourCountry,
+  YourCountrySource,
+} from "./preferences.js";
 export type { SelfPerson, SetSelfInput } from "./self-person.js";
 export {
   notificationModeSchema,

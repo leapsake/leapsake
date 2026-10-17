@@ -31,32 +31,62 @@ async function addAddress(ownerId: string, country: string | null) {
   });
 }
 
+async function you(): Promise<string> {
+  const george = await core.people.create(
+    { firstName: "George", lastName: "Bailey" },
+    [],
+  );
+  await core.self.set(george.id);
+  return george.id;
+}
+
 describe("your country", () => {
   it("starts as this device's region", async () => {
     expect(await core.preferences.getYourCountry()).toEqual({
       country: "US",
-      fromAddress: false,
+      source: "device",
     });
   });
 
-  it("is what you choose", async () => {
-    await core.preferences.setCountry("CA");
-    expect((await core.preferences.getYourCountry()).country).toBe("CA");
-  });
-
-  it("is your own address's country, whatever the setting", async () => {
-    const george = await core.people.create(
-      { firstName: "George", lastName: "Bailey" },
-      [],
-    );
-    await core.self.set(george.id);
-    await addAddress(george.id, null);
-    await addAddress(george.id, "IE");
-    await core.preferences.setCountry("CA");
+  it("is your own address's country over the device's region", async () => {
+    const george = await you();
+    await addAddress(george, null);
+    await addAddress(george, "IE");
 
     expect(await core.preferences.getYourCountry()).toEqual({
       country: "IE",
-      fromAddress: true,
+      source: "address",
+    });
+  });
+
+  it("is what you choose, whatever your address says", async () => {
+    await addAddress(await you(), "IE");
+    await core.preferences.setCountry("CA");
+
+    expect(await core.preferences.getYourCountry()).toEqual({
+      country: "CA",
+      source: "chosen",
+    });
+  });
+
+  it("goes back to your address when the choice is cleared", async () => {
+    await addAddress(await you(), "IE");
+    await core.preferences.setCountry("CA");
+    await core.preferences.setCountry(null);
+
+    expect(await core.preferences.getYourCountry()).toEqual({
+      country: "IE",
+      source: "address",
+    });
+  });
+
+  it("goes back to the device's region with no address to go on", async () => {
+    await core.preferences.setCountry("CA");
+    await core.preferences.setCountry(null);
+
+    expect(await core.preferences.getYourCountry()).toEqual({
+      country: "US",
+      source: "device",
     });
   });
 

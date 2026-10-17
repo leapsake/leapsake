@@ -1219,7 +1219,8 @@ export function createCore(
             : await contactMethods.postals.listForOwner("person", selfId);
         return yourCountry(await preferences.getCountry(), own);
       },
-      setCountry: (code: string): Promise<void> => preferences.setCountry(code),
+      setCountry: (code: string | null): Promise<void> =>
+        preferences.setCountry(code),
     },
 
     // Per-device notification policy. Every method takes an explicit deviceId,

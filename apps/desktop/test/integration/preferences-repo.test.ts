@@ -79,23 +79,32 @@ describe("preferencesRepo — date format", () => {
 
 describe("preferencesRepo — your country", () => {
   it("has no country until one is seeded or chosen", async () => {
-    expect(await repo.getCountry()).toBeNull();
+    expect((await repo.getCountry()).country).toBeNull();
   });
 
   it("takes the device region as a seed only while none is stored", async () => {
     await repo.seedCountry("CA");
     await repo.seedCountry("FR");
-    expect(await repo.getCountry()).toBe("CA");
+    expect((await repo.getCountry()).country).toBe("CA");
 
     await repo.setCountry("IE");
     await repo.seedCountry("FR");
-    expect(await repo.getCountry()).toBe("IE");
+    expect((await repo.getCountry()).country).toBe("IE");
   });
 
   it("ignores a region that is not a country", async () => {
     await repo.seedCountry("419");
     await repo.seedCountry(null);
-    expect(await repo.getCountry()).toBeNull();
+    expect((await repo.getCountry()).country).toBeNull();
+  });
+
+  it("drops a choice when cleared, so a seed fills it again", async () => {
+    await repo.setCountry("IE");
+    await repo.setCountry(null);
+    expect(await repo.getCountry()).toEqual({ country: null, seeded: false });
+
+    await repo.seedCountry("CA");
+    expect(await repo.getCountry()).toEqual({ country: "CA", seeded: true });
   });
 
   it("refuses a country that is not a code", async () => {
@@ -106,7 +115,7 @@ describe("preferencesRepo — your country", () => {
     await repo.setDateFormat("DD.MM.YYYY");
     await repo.seedCountry("DE");
     expect(await repo.getDateFormat()).toBe("DD.MM.YYYY");
-    expect(await repo.getCountry()).toBe("DE");
+    expect((await repo.getCountry()).country).toBe("DE");
   });
 
   it("lets a choice on one device beat a later seed on another", async () => {
@@ -121,8 +130,8 @@ describe("preferencesRepo — your country", () => {
       await repo.upsertFromRemote(theirs);
       await phone.repo.upsertFromRemote(mine);
 
-      expect(await repo.getCountry()).toBe("FR");
-      expect(await phone.repo.getCountry()).toBe("FR");
+      expect((await repo.getCountry()).country).toBe("FR");
+      expect((await phone.repo.getCountry()).country).toBe("FR");
     } finally {
       phone.cleanup();
     }
@@ -140,8 +149,8 @@ describe("preferencesRepo — your country", () => {
       await repo.upsertFromRemote(theirs);
       await phone.repo.upsertFromRemote(mine);
 
-      expect(await repo.getCountry()).toBe("US");
-      expect(await phone.repo.getCountry()).toBe("US");
+      expect((await repo.getCountry()).country).toBe("US");
+      expect((await phone.repo.getCountry()).country).toBe("US");
     } finally {
       phone.cleanup();
     }
