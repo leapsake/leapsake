@@ -314,6 +314,13 @@ The suggestions are few (two at most), neutral, and absent where unsure; Memoria
   been pruned while someone was adding people, it could not come back that year.
 - **Don't ask again** (`unasked_holidays`) is not hiding: what's already scheduled still happens.
 
+**Wishes stay one reminder per person; grouping is only on screen.** Forty people keeping
+Christmas means forty wish rows, each with its own deterministic id and tick. Before the day the
+list folds them into "Wish people a Merry Christmas", and the digest says the same, never a count;
+on the day they're rows under Today. One aggregate "wish everyone" reminder was rejected: its id
+would differ from the per-person ones, so moving between the two would lose completion state,
+whereas changing how individual rows are shown costs nothing.
+
 ## Invariants a change here must preserve
 
 - **`canonicalRecurrenceJson` is the only way a rule becomes bytes.** Whole-row LWW tie-breaks on
