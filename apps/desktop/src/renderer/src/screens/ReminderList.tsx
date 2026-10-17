@@ -16,11 +16,13 @@ import {
   formatDueIn,
   isReminderEditable,
 } from "@leapsake/schema";
+import { useMessages } from "@leapsake/ui/messages";
 import { ReminderText } from "@leapsake/ui/web";
 import {
   type ReminderCountdown,
   type ReminderSection,
   bucketReminders,
+  foldWishes,
   reminderActionKey,
   reminderActionsOf,
   reminderCountdownOf,
@@ -246,6 +248,7 @@ export function ReminderList() {
       /** Today's duplicates nudge id, or null when there are no pairs. */
       duplicatesNudgeId: string | null;
     };
+  const messages = useMessages();
   const giftTargetById = new Map(targets.gifts.map((t) => [t.reminderId, t]));
   const planTargetById = new Map(targets.plans.map((t) => [t.reminderId, t]));
   const holidayPromptById = new Map(
@@ -298,13 +301,35 @@ export function ReminderList() {
       </section>
     );
 
+  // Before the day, an occasion's wishes are one line that opens to them.
+  const foldedRows = (rows: ReminderInWindow[], section: ReminderSection) =>
+    foldWishes(rows).map((line) => {
+      if (line.kind === "row") return row(line.reminder, section);
+      const countdown = reminderCountdownOf(line.reminders[0], section);
+      return (
+        <li key={line.key}>
+          <details>
+            <summary>
+              {messages.notifications.wishGroup(line.greeting)}{" "}
+              {countdown !== null && (
+                <small style={{ color: "#666" }}>
+                  {countdownText(countdown)}
+                </small>
+              )}
+            </summary>
+            <ul>{line.reminders.map((r) => row(r, section))}</ul>
+          </details>
+        </li>
+      );
+    });
+
   // Inside Next 7 days, or on its own when that is empty.
   const laterDisclosure = later.length > 0 && (
     <details>
       <summary>
         {TEXT.later} ({later.length})
       </summary>
-      <ul>{later.map((r) => row(r, "later"))}</ul>
+      <ul>{foldedRows(later, "later")}</ul>
     </details>
   );
 
@@ -329,7 +354,7 @@ export function ReminderList() {
           <summary>
             {TEXT.next7} ({next7.length})
           </summary>
-          <ul>{next7.map((r) => row(r, "next7"))}</ul>
+          <ul>{foldedRows(next7, "next7")}</ul>
           {laterDisclosure}
         </details>
       ) : (

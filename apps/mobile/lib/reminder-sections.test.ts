@@ -170,3 +170,63 @@ describe("reminderListItems", () => {
     expect(reminderListItems([], { collapsed: none, now: NOW })).toEqual([]);
   });
 });
+
+describe("reminderListItems — a holiday's wishes", () => {
+  const christmas = {
+    key: "christmas:2026-06-08",
+    greeting: "a Merry Christmas",
+  };
+  const wish = (id: string, dueIn: number) => ({
+    ...row(id, { dueIn, occurrenceIn: dueIn }),
+    wishGroup: christmas,
+  });
+  const lines = <R>(list: readonly ReminderListItem<R>[]) =>
+    list.map((i) =>
+      i.kind === "header"
+        ? `# ${i.section}`
+        : i.kind === "wish-group"
+          ? `wishes ${i.greeting}`
+          : i.id,
+    );
+  const open = new Set<ReminderSection>();
+
+  it("folds them into one line before the day", () => {
+    expect(
+      lines(
+        reminderListItems([wish("violet", 7), wish("mary", 7)], {
+          collapsed: open,
+          now: NOW,
+        }),
+      ),
+    ).toEqual(["note:owed", "# next7", "wishes a Merry Christmas"]);
+  });
+
+  it("opens the line to its rows", () => {
+    expect(
+      lines(
+        reminderListItems([wish("violet", 7), wish("mary", 7)], {
+          collapsed: open,
+          expandedWishes: new Set([christmas.key]),
+          now: NOW,
+        }),
+      ),
+    ).toEqual([
+      "note:owed",
+      "# next7",
+      "wishes a Merry Christmas",
+      "violet",
+      "mary",
+    ]);
+  });
+
+  it("lists them one by one on the day", () => {
+    expect(
+      lines(
+        reminderListItems([wish("violet", 0), wish("mary", 0)], {
+          collapsed: open,
+          now: NOW,
+        }),
+      ),
+    ).toEqual(["# today", "violet", "mary"]);
+  });
+});

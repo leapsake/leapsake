@@ -13,6 +13,7 @@ import {
   type HolidayOccurrenceCandidate,
   type ReminderEngineDeps,
   SYSTEM_REMINDER_NAMESPACE,
+  listRemindersInWindow,
   regenerateSystemReminders,
 } from "../src/index.js";
 
@@ -94,11 +95,13 @@ function makeHarness() {
 }
 
 const VIOLET = "11111111-1111-4111-8111-111111111111";
+const MARY = "22222222-2222-4222-8222-222222222222";
 
 function candidate(
   over: Partial<HolidayOccurrenceCandidate> = {},
 ): HolidayOccurrenceCandidate {
   return {
+    holidayId: "christmas",
     observanceId: "obs-christmas-violet",
     greeting: "a Merry Christmas",
     occasion: "Christmas",
@@ -335,5 +338,38 @@ describe("holiday reminders", () => {
     );
 
     expect(h.activeSystem().map((r) => r.id)).toEqual(before);
+  });
+});
+
+describe("the wishes of one holiday occurrence", () => {
+  it("share a group, which nothing else on the holiday joins", async () => {
+    const h = makeHarness();
+    h.labels.set(VIOLET, "Violet Bick");
+    h.labels.set(MARY, "Mary Hatch");
+    h.setCandidates([
+      candidate(),
+      candidate({ observanceId: "obs-christmas-mary", bearerId: MARY }),
+    ]);
+    const both = [
+      {
+        action: "get:gift" as const,
+        label: null,
+        offsetDays: 12,
+        enabled: true,
+      },
+      { action: "wish" as const, label: null, offsetDays: 0, enabled: true },
+    ];
+    h.setSchedule("obs-christmas-violet", both);
+    h.setSchedule("obs-christmas-mary", both);
+
+    const rows = await listRemindersInWindow(h.deps, 30);
+    const groups = rows.map((r) => [r.title?.split(" ")[0], r.wishGroup]);
+    expect(groups).toEqual(
+      expect.arrayContaining([
+        ["🎁", null],
+        ["🎉", { key: "christmas:2026-12-25", greeting: "a Merry Christmas" }],
+      ]),
+    );
+    expect(rows.filter((r) => r.wishGroup !== null)).toHaveLength(2);
   });
 });

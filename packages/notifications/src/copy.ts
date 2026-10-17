@@ -27,6 +27,8 @@ export interface NotificationText {
 /** The wording every planned notification is written with. */
 export interface NotificationCopy {
   digest(situation: DigestSituation): NotificationText;
+  /** The one label a holiday occurrence's wishes share: never a count. */
+  wishGroup(greeting: string): string;
   /** The notice that the schedule is about to lapse. */
   runningOut: NotificationText;
 }

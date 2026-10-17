@@ -185,6 +185,8 @@ export interface UndatedPartnership {
 
 /** One person's observance of one holiday, with the dates it falls on. */
 export interface HolidayOccurrenceCandidate {
+  /** The holiday, which keys the wishes of one occurrence together. */
+  holidayId: string;
   /** The observance row's id: the reminder's bearer, and part of its id. */
   observanceId: string;
   /** The occasion phrase for reminder copy, e.g. "a Merry Christmas". */
@@ -210,6 +212,13 @@ export interface HolidayPromptCandidate {
   /** What the question offers, each with its lead; the furthest times the
    *  question. */
   offers: { action: ReminderAction; offsetDays: number }[];
+}
+
+/** The wishes of one holiday occurrence, which fold into one line before the
+ *  day: one key per occurrence, and the greeting the line says. */
+export interface WishGroup {
+  key: string;
+  greeting: string;
 }
 
 /** A reminder the engine wants to exist today. `dueDate` is null for the
@@ -246,6 +255,8 @@ interface DesiredReminder {
    *  {@link displayTitle}. */
   belated?: boolean;
   category: Exclude<ReminderCategory, "custom">;
+  /** Set on a holiday's wish; see {@link WishGroup}. */
+  wishGroup?: WishGroup;
 }
 
 /**
@@ -657,6 +668,8 @@ export interface ReminderWindowFacts {
    *  remove or join. */
   materialized: boolean;
   category: ReminderCategory;
+  /** Set on a holiday's wish; see {@link WishGroup}. */
+  wishGroup: WishGroup | null;
 }
 
 /** A reminder paired with what the engine knows about its timing. */
@@ -708,6 +721,7 @@ export async function listRemindersInWindow(
       countdownDate: row.dueDate,
       materialized: true,
       category: "custom" as const,
+      wishGroup: null,
     })),
   ];
 }
@@ -744,6 +758,7 @@ function factsOf(
     countdownDate: want.countdownDate ?? want.dueDate,
     materialized,
     category: want.category,
+    wishGroup: want.wishGroup ?? null,
   };
 }
 
@@ -1074,6 +1089,14 @@ async function computeDesired(
             dueDate,
             activeFrom: dueDate - ownActiveDays(rule.action) * DAY_MS,
             occurrenceDate: dueDateMs(occ),
+            ...(rule.action === "wish"
+              ? {
+                  wishGroup: {
+                    key: `${candidate.holidayId}:${iso}`,
+                    greeting: candidate.greeting,
+                  },
+                }
+              : {}),
             target: {
               action: rule.action,
               bearerType: candidate.bearerType,

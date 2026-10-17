@@ -74,6 +74,47 @@ export function landingDayOf(reminder: ReminderTiming): number | null {
   return Math.max(shown, back);
 }
 
+/** One line of a reminder section: a row, or a holiday occurrence's wishes
+ *  folded together. */
+export type ReminderLine<R> =
+  | { kind: "row"; reminder: R }
+  | { kind: "wish-group"; key: string; greeting: string; reminders: R[] };
+
+/**
+ * A section's rows with each holiday occurrence's two or more wishes folded
+ * into one line where the first stood. For before the day only.
+ */
+export function foldWishes<
+  R extends { wishGroup?: { key: string; greeting: string } | null },
+>(rows: readonly R[]): ReminderLine<R>[] {
+  const members = new Map<string, R[]>();
+  for (const r of rows)
+    if (r.wishGroup != null)
+      members.set(r.wishGroup.key, [
+        ...(members.get(r.wishGroup.key) ?? []),
+        r,
+      ]);
+  const lines: ReminderLine<R>[] = [];
+  const placed = new Set<string>();
+  for (const r of rows) {
+    const group = r.wishGroup;
+    const together = group == null ? [] : (members.get(group.key) ?? []);
+    if (group == null || together.length < 2) {
+      lines.push({ kind: "row", reminder: r });
+      continue;
+    }
+    if (placed.has(group.key)) continue;
+    placed.add(group.key);
+    lines.push({
+      kind: "wish-group",
+      key: group.key,
+      greeting: group.greeting,
+      reminders: together,
+    });
+  }
+  return lines;
+}
+
 /**
  * Buckets the open reminders into belated, today, next 7 days and later, in
  * whole civil days; see the README's _The reminders list_.

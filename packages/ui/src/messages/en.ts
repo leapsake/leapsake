@@ -38,6 +38,9 @@ const DIGEST_TITLES = {
 /** A digest carrying a remembrance: no greeting, no urgency. */
 const REMEMBERING_TITLES = ["Today", "On this day"] as const;
 
+/** A holiday occurrence's wishes as one line, wherever they fold. */
+const wishPeople = (greeting: string) => `Wish people ${greeting}`;
+
 /** The English catalog; gender values come from `@leapsake/schema`'s table. */
 export const en: Messages = {
   common: {
@@ -401,7 +404,7 @@ export const en: Messages = {
     forYou: "For you",
     whichIsYou: "Which of these is you?",
     youFirst: "Say which person is you before ticking an errand.",
-    wishLine: (greeting) => `Wish people ${greeting}`,
+    wishLine: wishPeople,
     addSomeone: "Add someone",
     nothingLeft:
       "It’s too close to the day to plan anything new. What’s already set still happens.",
@@ -535,5 +538,6 @@ export const en: Messages = {
       title: "Your reminders are running out",
       body: "Open Leapsake to keep them coming.",
     },
+    wishGroup: wishPeople,
   },
 };

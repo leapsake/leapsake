@@ -20,6 +20,7 @@ const COPY: NotificationCopy = {
     body: situation.labels.join(" | "),
   }),
   runningOut: { title: "running out", body: "open the app" },
+  wishGroup: (greeting) => `wish people ${greeting}`,
 };
 
 const situationOf = (n: DesiredNotification) =>
@@ -659,5 +660,35 @@ describe("planNotifications — a note remembering someone", () => {
     expect(realOnly(planNotifications([note()], POLICY_DIGEST, NOW))).toEqual(
       [],
     );
+  });
+});
+
+describe("planNotifications — a holiday's wishes", () => {
+  const CHRISTMAS = due({ year: 2026, month: 8, day: 20 });
+  const group = { key: "christmas:2026-08-20", greeting: "a Merry Christmas" };
+  const wish = (id: string, name: string) =>
+    occasion(id, CHRISTMAS, {
+      title: `Wish ${name} a Merry Christmas`,
+      wishGroup: group,
+    });
+  const bodyOf = (plan: DesiredNotification[]) => realOnly(plan)[0]?.body;
+
+  it("folds into one line where the first stood, never a count", () => {
+    const plan = planNotifications(
+      [
+        occasion("r0", CHRISTMAS, { title: "Call Harry" }),
+        wish("w1", "Violet"),
+        wish("w2", "Mary"),
+        wish("w3", "George"),
+      ],
+      POLICY_DIGEST,
+      NOW,
+    );
+    expect(bodyOf(plan)).toBe("Call Harry | wish people a Merry Christmas");
+  });
+
+  it("names a lone wish as it is", () => {
+    const plan = planNotifications([wish("w1", "Violet")], POLICY_DIGEST, NOW);
+    expect(bodyOf(plan)).toBe("Wish Violet a Merry Christmas");
   });
 });

@@ -30,6 +30,8 @@ export interface NotifiableReminder {
   snoozedUntil: number | null;
   deletedAt: number | null;
   category: ReminderCategory;
+  /** Set on a holiday's wish: those sharing a key share one label. */
+  wishGroup?: { key: string; greeting: string } | null;
 }
 
 /** The fields of a `notification_settings` row the planner reads. */
@@ -201,7 +203,7 @@ function planDigest(
               followUp,
               remembering: carried.some((r) => r.category === "remembrance"),
               partOfDay: partOfDayOf(minute),
-              labels: carried.map((r) => reminderLabel(r)),
+              labels: labelsOf(carried, copy),
               variant: variantOf(id),
             }),
             // A digest of one reminder opens it; of more, the list.
@@ -210,6 +212,27 @@ function planDigest(
         ];
       });
     });
+}
+
+/** Each reminder's label, a holiday occurrence's wishes folded into one
+ *  where they stood first. */
+function labelsOf(
+  reminders: readonly NotifiableReminder[],
+  copy: NotificationCopy,
+): string[] {
+  const counts = new Map<string, number>();
+  for (const r of reminders)
+    if (r.wishGroup != null)
+      counts.set(r.wishGroup.key, (counts.get(r.wishGroup.key) ?? 0) + 1);
+  const seen = new Set<string>();
+  return reminders.flatMap((r) => {
+    const group = r.wishGroup;
+    if (group == null || (counts.get(group.key) ?? 0) < 2)
+      return [reminderLabel(r)];
+    if (seen.has(group.key)) return [];
+    seen.add(group.key);
+    return [copy.wishGroup(group.greeting)];
+  });
 }
 
 /** Minute 540 as `0900`, keying a day's digests apart. */

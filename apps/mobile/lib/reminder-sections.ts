@@ -2,6 +2,7 @@ import {
   type ReminderSection,
   type ReminderTiming,
   bucketReminders,
+  foldWishes,
 } from "@leapsake/view-models";
 
 export type { ReminderSection };
@@ -41,6 +42,19 @@ export interface ReminderRowItem<R> {
   reminder: R;
 }
 
+/** A holiday occurrence's wishes as one line, before the day; open, its rows
+ *  follow it. */
+export interface ReminderWishGroupItem<R> {
+  kind: "wish-group";
+  id: string;
+  /** The occurrence it folds, which {@link reminderListItems} opens by. */
+  key: string;
+  section: ReminderSection;
+  greeting: string;
+  reminders: R[];
+  expanded: boolean;
+}
+
 /** The done-for-the-day line, where Belated and Today would have been. */
 export interface ReminderNoteItem {
   kind: "note";
@@ -50,17 +64,25 @@ export interface ReminderNoteItem {
 export type ReminderListItem<R> =
   | ReminderHeaderItem
   | ReminderRowItem<R>
+  | ReminderWishGroupItem<R>
   | ReminderNoteItem;
 
 /**
  * Home's headings, rows and done-for-the-day note, flat. Later's heading shows
  * only once Next 7 days is open, or when the next week is empty.
  */
-export function reminderListItems<R extends ReminderTiming & { id: string }>(
+export function reminderListItems<
+  R extends ReminderTiming & {
+    id: string;
+    wishGroup?: { key: string; greeting: string } | null;
+  },
+>(
   reminders: readonly R[],
   options: {
     /** The sections the user has folded away. */
     collapsed: ReadonlySet<ReminderSection>;
+    /** The wish lines the user has opened, by key. */
+    expandedWishes?: ReadonlySet<string>;
     now?: number;
   },
 ): ReminderListItem<R>[] {
@@ -97,8 +119,35 @@ export function reminderListItems<R extends ReminderTiming & { id: string }>(
       collapsed,
     });
     if (collapsed) continue;
-    for (const reminder of rows)
-      items.push({ kind: "row", id: reminder.id, section, reminder });
+    // Before the day, each occasion's wishes are one line.
+    const upcoming = section === "next7" || section === "later";
+    const lines = upcoming
+      ? foldWishes(rows)
+      : rows.map((reminder) => ({ kind: "row" as const, reminder }));
+    for (const line of lines) {
+      if (line.kind === "row") {
+        items.push({
+          kind: "row",
+          id: line.reminder.id,
+          section,
+          reminder: line.reminder,
+        });
+        continue;
+      }
+      const expanded = options.expandedWishes?.has(line.key) ?? false;
+      items.push({
+        kind: "wish-group",
+        id: `wishes:${line.key}`,
+        key: line.key,
+        section,
+        greeting: line.greeting,
+        reminders: line.reminders,
+        expanded,
+      });
+      if (expanded)
+        for (const reminder of line.reminders)
+          items.push({ kind: "row", id: reminder.id, section, reminder });
+    }
   }
   return items;
 }

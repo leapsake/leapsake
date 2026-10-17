@@ -5,6 +5,7 @@ import {
   type PlanReminderSubject,
   SNOOZE_PRESET_DAYS,
   bucketReminders,
+  foldWishes,
   partitionReminders,
   reminderActionsOf,
   reminderCountdownOf,
@@ -716,5 +717,40 @@ describe("reminderCountdownOf", () => {
 
   it("has nothing to count on a dateless row", () => {
     expect(reminderCountdownOf(reminder("nudge", {}), "today")).toBeNull();
+  });
+});
+
+describe("foldWishes", () => {
+  const christmas = {
+    key: "christmas:2026-12-25",
+    greeting: "a Merry Christmas",
+  };
+  const row = (id: string, wishGroup: typeof christmas | null = null) => ({
+    id,
+    wishGroup,
+  });
+  const shape = (rows: ReturnType<typeof row>[]) =>
+    foldWishes(rows).map((line) =>
+      line.kind === "row"
+        ? line.reminder.id
+        : `${line.greeting}: ${line.reminders.map((r) => r.id).join(",")}`,
+    );
+
+  it("folds one occasion's wishes into one line where the first stood", () => {
+    expect(
+      shape([
+        row("gift"),
+        row("violet", christmas),
+        row("card"),
+        row("mary", christmas),
+      ]),
+    ).toEqual(["gift", "a Merry Christmas: violet,mary", "card"]);
+  });
+
+  it("leaves a lone wish as its own row", () => {
+    expect(shape([row("violet", christmas), row("gift")])).toEqual([
+      "violet",
+      "gift",
+    ]);
   });
 });

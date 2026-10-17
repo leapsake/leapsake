@@ -699,6 +699,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         // A row the walk no longer wants is never notified, so its family is
         // moot; a system one is most likely a lapsed occasion.
         category: stored.source === "user" ? "custom" : "occasion",
+        wishGroup: null,
       });
     }
     return withTagsAndMentions(row);

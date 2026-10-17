@@ -177,6 +177,7 @@ export async function holidayReminderCandidates(deps: {
     const stored = observances.filter((o) => o.holidayId === holiday.id);
     for (const observer of observersOf(holiday, stored, implicit)) {
       candidates.push({
+        holidayId: holiday.id,
         observanceId: observanceIdFor(
           holiday.id,
           observer.bearerType,

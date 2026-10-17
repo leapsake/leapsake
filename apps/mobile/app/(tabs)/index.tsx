@@ -13,6 +13,7 @@ import {
   type ReminderCountdown,
   reminderCountdownOf,
 } from "@leapsake/view-models";
+import { useMessages } from "@leapsake/ui/messages";
 import { EmptyState } from "../../components/EmptyState";
 import { ReminderText } from "../../components/ReminderText";
 import { useCore } from "../../lib/core-context";
@@ -64,10 +65,19 @@ export default function RemindersScreen() {
   const [collapsed, setCollapsed] = useState<ReadonlySet<ReminderSection>>(
     () => new Set<ReminderSection>(["next7", "later", "done"]),
   );
+  const [expandedWishes, setExpandedWishes] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   if (error !== null || reminders === null) return <LoadState error={error} />;
 
-  const items = reminderListItems(reminders, { collapsed });
+  const items = reminderListItems(reminders, { collapsed, expandedWishes });
+  const toggleWishes = (key: string) =>
+    setExpandedWishes((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   const toggleSection = (section: ReminderSection) =>
     setCollapsed((current) => {
       const next = new Set(current);
@@ -113,6 +123,16 @@ export default function RemindersScreen() {
               />
             );
           }
+          if (item.kind === "wish-group")
+            return (
+              <WishGroupRow
+                greeting={item.greeting}
+                first={item.reminders[0]}
+                section={item.section}
+                expanded={item.expanded}
+                onToggle={() => toggleWishes(item.key)}
+              />
+            );
           return (
             <ReminderRow reminder={item.reminder} section={item.section} />
           );
@@ -236,6 +256,48 @@ function ReminderRow({
         )}
       </View>
       <Text style={[styles.chevron, styles.rowChevron]}>{TEXT.chevron}</Text>
+    </Pressable>
+  );
+}
+
+/** An occasion's wishes as one line before the day; tapping it shows them. */
+function WishGroupRow({
+  greeting,
+  first,
+  section,
+  expanded,
+  onToggle,
+}: {
+  greeting: string;
+  /** The first of its wishes, whose countdown the line shows. */
+  first: ReminderInWindow;
+  section: ReminderSection;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const m = useMessages();
+  const countdown = reminderCountdownOf(first, section);
+  return (
+    <Pressable
+      accessible
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={onToggle}
+      style={[styles.row, styles.rowWithLead]}
+    >
+      <View style={styles.rowBody}>
+        <Text style={styles.rowText}>
+          {m.notifications.wishGroup(greeting)}
+        </Text>
+        {countdown !== null && (
+          <View style={styles.rowMeta}>
+            <Text style={styles.muted}>{countdownText(countdown)}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={[styles.chevron, styles.rowChevron]}>
+        {expanded ? "▾" : "▸"}
+      </Text>
     </Pressable>
   );
 }

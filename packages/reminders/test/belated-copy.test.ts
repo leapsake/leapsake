@@ -234,6 +234,7 @@ describe("belated copy", () => {
     // greeting beats a mangled one.
     h.setCandidates([
       {
+        holidayId: "h1",
         observanceId: "o1",
         greeting: "a Merry Christmas",
         occasion: "Christmas",

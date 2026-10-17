@@ -27,6 +27,7 @@ export type {
   OnboardingRoute,
   ReminderEngineDeps,
   ReminderWindowFacts,
+  WishGroup,
   SystemReminderStore,
   SystemReminderTarget,
   UndatedPartnership,
