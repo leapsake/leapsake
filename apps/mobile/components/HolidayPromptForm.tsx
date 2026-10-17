@@ -142,9 +142,11 @@ export function HolidayPromptForm({
 
   return (
     <View style={styles.promptForm}>
+      {(prompt.errands.length > 0 || offersWishes) && (
+        <Text style={styles.promptCaption}>{m.holidayPrompt.caption}</Text>
+      )}
       {prompt.errands.length > 0 ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{m.holidayPrompt.forYou}</Text>
           {prompt.selfId === null && (
             <Typeahead
               label={m.holidayPrompt.whichIsYou}
@@ -172,11 +174,11 @@ export function HolidayPromptForm({
       {prompt.errands.length === 0 && !offersWishes && (
         <Text style={styles.muted}>{m.holidayPrompt.nothingLeft}</Text>
       )}
-      <Button label={m.holidayPrompt.save} onPress={save} />
+      <Button label={m.holidayPrompt.done} onPress={save} />
     </View>
   );
 }
 
 const local = StyleSheet.create({
-  people: { marginLeft: 36 },
+  people: { marginLeft: 36, paddingTop: 12 },
 });

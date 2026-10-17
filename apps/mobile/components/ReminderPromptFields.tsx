@@ -68,7 +68,7 @@ export function ReminderPromptFields({
         accessibilityLabel={SOMETHING_ELSE}
         placeholder={SOMETHING_ELSE}
         placeholderTextColor={colors.muted}
-        style={styles.input}
+        style={[styles.input, local.somethingElse]}
         value={somethingElse}
         onChangeText={onSomethingElseChange}
       />
@@ -77,6 +77,7 @@ export function ReminderPromptFields({
 }
 
 const local = StyleSheet.create({
+  somethingElse: { marginTop: 12 },
   lead: {
     fontFamily: fonts.serif,
     fontSize: 13,

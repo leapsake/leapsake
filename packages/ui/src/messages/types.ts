@@ -368,16 +368,18 @@ export interface Messages {
   holidayPrompt: {
     /** Under the question: when the holiday is, and how soon. */
     when: (name: string, date: string, countdown: string) => string;
-    forYou: string;
+    /** Over the ticks: they schedule reminders, not today's list. */
+    caption: string;
     whichIsYou: string;
     /** Shown when an errand is ticked with nobody picked as you. */
     youFirst: string;
-    /** The collapsed line over everyone else who keeps it. */
+    /** The tick over the people you'll wish. */
     wishLine: (greeting: string) => string;
     addSomeone: string;
     /** When the day is too close for anything but what's already set. */
     nothingLeft: string;
-    save: string;
+    /** Answers the question, ticks or none, and closes it. */
+    done: string;
     stopAsking: {
       title: (name: string) => string;
       thisYear: string;

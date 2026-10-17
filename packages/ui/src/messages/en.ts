@@ -401,14 +401,14 @@ export const en: Messages = {
 
   holidayPrompt: {
     when: (name, date, countdown) => `${name} is on ${date} (${countdown}).`,
-    forYou: "For you",
+    caption: "We’ll remind you in time for each one.",
     whichIsYou: "Which of these is you?",
     youFirst: "Say which person is you before ticking an errand.",
     wishLine: wishPeople,
     addSomeone: "Add someone",
     nothingLeft:
       "It’s too close to the day to plan anything new. What’s already set still happens.",
-    save: "Save",
+    done: "Done",
     stopAsking: {
       title: (name) => `Stop asking about ${name}?`,
       thisYear: "Not this year",

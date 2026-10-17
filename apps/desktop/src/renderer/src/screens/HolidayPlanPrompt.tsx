@@ -92,9 +92,11 @@ export function HolidayPlanPrompt() {
         <p role="alert">{m.holidayPrompt.youFirst}</p>
       )}
       <Form method="post">
+        {(prompt.errands.length > 0 || offersWishes) && (
+          <p>{m.holidayPrompt.caption}</p>
+        )}
         {prompt.errands.length > 0 ? (
-          <fieldset>
-            <legend>{m.holidayPrompt.forYou}</legend>
+          <>
             {prompt.selfId === null && (
               <p>
                 <label>
@@ -130,14 +132,14 @@ export function HolidayPlanPrompt() {
               aria-label={m.reminderPrompt.somethingElse}
               placeholder={m.reminderPrompt.somethingElse}
             />
-          </fieldset>
+          </>
         ) : (
           wishBlock
         )}
         {prompt.errands.length === 0 && !offersWishes && (
           <p>{m.holidayPrompt.nothingLeft}</p>
         )}
-        <button type="submit">{m.holidayPrompt.save}</button>{" "}
+        <button type="submit">{m.holidayPrompt.done}</button>{" "}
         <Link
           to={`/holidays/${prompt.holidayId}/stop-asking?reminder=${prompt.reminderId}`}
         >
