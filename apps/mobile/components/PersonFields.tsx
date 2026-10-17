@@ -1,10 +1,11 @@
 import { Text, TextInput, View } from "react-native";
 import type { PersonDraft } from "@leapsake/schema";
+import { AffiliationsFields } from "./AffiliationsFields";
 import { GenderField } from "./GenderField";
 import { styles } from "../lib/styles";
 
 /**
- * A person's three name parts and gender, controlled by whoever owns the draft.
+ * A person's name, gender, nationalities and religions, owned by the caller.
  * Tags are {@link TagsInput}, rendered apart so a form can keep them last.
  */
 export function PersonFields({
@@ -58,6 +59,13 @@ export function PersonFields({
         label="Gender"
         value={draft.gender}
         onChange={(gender) => set("gender", gender)}
+      />
+
+      <AffiliationsFields
+        nationalities={draft.nationalities}
+        religions={draft.religions}
+        onNationalitiesChange={(codes) => set("nationalities", codes)}
+        onReligionsChange={(religions) => set("religions", religions)}
       />
     </>
   );
