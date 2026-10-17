@@ -5,7 +5,7 @@ rules are in that folder's `README.md`), `scripts/release/` (`pnpm release --hel
 CONTRIBUTING.md → _Versioning and releases_. What landed is `git log -- .github scripts/release
 scripts/ci`. **This doc holds only what is open; delete it when the last item closes.**
 
-⚠️ `0.1.0` ships by hand (`plans/status.md`). Nothing here may run before it is live.
+`0.1.0` is live (2026-10-17), so nothing here waits on it any more.
 
 ## Open: are hosted runners good enough for the gate? _(owner's call)_
 
@@ -42,10 +42,10 @@ section, and unblocks `ci-and-test-tiers.md` step 4c.
      `APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE` (the profiles' names),
      `APPLE_APP_STORE_CONNECT_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`,
      `APPLE_APP_STORE_CONNECT_BETA_GROUP`, `GOOGLE_PLAY_UPLOAD_KEY_ALIAS`.
-3. **Once the secrets exist and `0.1.0` is live**, set the repository variable
+3. **Once the secrets exist**, set the repository variable
    `REMOTE_RELEASES=true`. Before that, a pushed tag, including your own `v0.1.0`, starts
    nothing.
-4. **After `0.1.0` is live**, set `AUTO_FINAL=true`. The hourly `cut final --if-approved` then
+4. **Then** set `AUTO_FINAL=true`. The hourly `cut final --if-approved` then
    tags each future final once Apple parks it in Pending Developer Release, and does nothing
    otherwise.
 5. **Prove it end to end**, which nothing has done yet (no workflow has run on GitHub, and the
@@ -57,6 +57,13 @@ section, and unblocks `ci-and-test-tiers.md` step 4c.
 6. **Once that run is green, retire the iOS `rc` rung's sentence about the catalog**: the
    `manual:` line "the crucial-flow catalog green on a real device" in
    `scripts/release/targets/ios.mjs`, since the pipeline now runs the catalog itself.
+
+## Open: a new core's App Store version record is made by hand
+
+`rc`'s listing preflight refuses until App Store Connect has a version record for the core, so
+a remote `rc` on a fresh core stops there. A record made through the API inherits the previous
+version's listing, screenshots and review details. Either let `rc` create the record before it
+checks the listing, or keep it a step in this list.
 
 ## Not blocking
 

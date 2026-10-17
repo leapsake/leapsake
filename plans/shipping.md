@@ -5,52 +5,18 @@
 > next to the code it constrains. **Delete each section as its work lands**, and the file when
 > macOS ships.
 
-**Where this stands:** iOS is in external TestFlight with a real tester on it; the release
-pipeline carries a build to _In Beta Review_ unattended; the `beta` E2E bar is green on both
-mobile platforms. v0.1 is **iOS alone, single-device**; the relay half of the clients returns in
-v0.2 ([`v0-2.md`](./v0-2.md) → _Encryption, sync, and the relay_).
-
-**The two parts below overlap on purpose.** Part 2's paperwork has a 30-day clock inside it and
-must start **now**, in parallel with Part 1, not when Part 1 finishes.
-
----
-
-# Part 1 — Before iOS GA
-
-`0.1.0` is **Waiting for Review**: `v0.1.0-rc.2` submitted build 387695, recorded against its
-commit in `refs/notes/releases`, and the version is on manual release. What is left is Apple's
-answer, then one command pair. If it is not on this list, it does not block GA.
-
-## When Apple approves: release it
-
-The version parks in _Pending Developer Release_. From this machine, with `main` checked out:
-
-```sh
-pnpm release cut final --push                  # tags the commit the approved build came from
-pnpm release ship --tag=<the tag it prints> --here
-git push origin <that tag> refs/notes/releases # or the exact command ship prints
-```
-
-`final` builds nothing: it releases the approved version and tags the commit that went live,
-which it reads from `refs/notes/releases`. The tag is cut before the release, so it cannot land
-on a rejected commit.
-
-## If Apple rejects it
-
-Fix what the rejection cites, then `pnpm release cut rc --push` and `ship` the new tag, pushing
-the notes after. The same `0.1.0` record is reused, so a rejection costs an `rc.N+1` and nothing
-more; the version string is spent only once a version is _released_.
-
-**Acceptance:** the iOS app installable by the public. **Then delete Part 1.**
+**Where this stands:** `0.1.0` is live on the App Store (iOS alone, single-device), released
+2026-10-17. The relay half of the clients returns later ([`v0-2.md`](./v0-2.md) →
+_Encryption, sync, and the relay_). What is left is the account sequence below.
 
 ---
 
 # Part 2 — After iOS GA: the account sequence
 
-**Start step 1 now.** It has the only calendar clock left in the whole plan.
+**Step 1 is now.** It has the only calendar clock left in the whole plan.
 
 1. **Leapsake incorporates** and gets a D-U-N-S number: up to **30 days**, and the entity must
-   exist first, so this runs in parallel with Part 1 rather than after it.
+   exist first.
 2. **The iOS record transfers to the company.**
 3. **macOS follows, signed under the company's Developer ID from its first release**
    ([`desktop-packaging.md`](./desktop-packaging.md)). That ordering is not incidental; see the
@@ -146,7 +112,7 @@ decisions made _before_ it, which is why they are here and not in a runbook.
   **must stay that way until the transfer completes**. Its two capabilities,
   `webcredentials:leapsake.com` and the share extension's App Group, are not in Apple's
   criteria (which bar App Groups only for sandboxed **Mac** apps); each needs a step below.
-- **At least one version released to the App Store**, the reason Part 1 comes first.
+- **At least one version released to the App Store**: met by `0.1.0`.
 - **Not available for pre-order**; both accounts out of any pending or changing state; the latest
   paid/free agreements accepted on both sides.
 - **No in-app purchase product ID collides** with one in the recipient account. Moot today; re-read
