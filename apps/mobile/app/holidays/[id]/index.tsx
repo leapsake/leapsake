@@ -80,6 +80,12 @@ export default function HolidayDetailScreen() {
     );
   };
 
+  const toggleAsked = () => {
+    core.holidays
+      .setAsked(id, !holiday.asked)
+      .then(reload, (e: unknown) => Alert.alert("Couldn't save", String(e)));
+  };
+
   const toggleHidden = () => {
     core.holidays
       .setHidden(id, !holiday.hidden)
@@ -164,6 +170,18 @@ export default function HolidayDetailScreen() {
             />
           ))
         )}
+      </View>
+
+      <View style={styles.field}>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: holiday.asked }}
+          style={styles.rowWithLead}
+          onPress={toggleAsked}
+        >
+          <CheckboxBox checked={holiday.asked} />
+          <Text style={styles.fieldValue}>{m.holidayPrompt.askEachYear}</Text>
+        </Pressable>
       </View>
 
       <View style={styles.field}>

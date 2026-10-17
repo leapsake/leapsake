@@ -77,6 +77,19 @@ export function HolidayView() {
             {holiday.hidden ? "Unhide this holiday" : "Hide this holiday"}
           </button>
         </Form>
+        {/* Posts the switch's new state, as a no-JS form must. */}
+        <Form method="post">
+          <input
+            type="hidden"
+            name="asked"
+            value={holiday.asked ? "false" : "true"}
+          />
+          <button type="submit">
+            {holiday.asked
+              ? messages.holidayPrompt.stopAsking.ever
+              : messages.holidayPrompt.askEachYear}
+          </button>
+        </Form>
       </header>
 
       <h2>Upcoming</h2>

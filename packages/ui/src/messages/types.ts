@@ -364,6 +364,31 @@ export interface Messages {
     reviewDuplicates: string;
   };
 
+  /** A holiday's yearly question, and the switch that stops it. */
+  holidayPrompt: {
+    /** Under the question: when the holiday is, and how soon. */
+    when: (name: string, date: string, countdown: string) => string;
+    forYou: string;
+    whichIsYou: string;
+    /** Shown when an errand is ticked with nobody picked as you. */
+    youFirst: string;
+    /** The collapsed line over everyone else who keeps it. */
+    wishLine: (greeting: string) => string;
+    addSomeone: string;
+    /** When the day is too close for anything but what's already set. */
+    nothingLeft: string;
+    save: string;
+    stopAsking: {
+      title: (name: string) => string;
+      thisYear: string;
+      ever: string;
+      /** Under the choice: what stopping leaves as it was. */
+      note: string;
+    };
+    /** The holiday page's switch. */
+    askEachYear: string;
+  };
+
   /** A person's stated nationalities and religions. */
   affiliations: {
     nationalities: string;

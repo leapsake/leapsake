@@ -60,6 +60,8 @@ function ctaPathFor(cta: ReminderCta): string {
       return "/duplicates";
     case "plan":
       return `/milestones/${cta.milestoneId}/plan`;
+    case "holiday-plan":
+      return `/holidays/${cta.holidayId}/plan/${cta.occurrence}`;
     case "gift":
       return cta.action === "record-giving"
         ? `/gifts/new?recipient=${encodeURIComponent(`${cta.recipientType}:${cta.recipientId}`)}`
@@ -148,6 +150,12 @@ export function rowAffordanceFor(
       return {
         kind: "link",
         to: `/milestones/${action.milestoneId}/stop-asking?reminder=${reminderId}`,
+        label,
+      };
+    case "stop-asking-holiday":
+      return {
+        kind: "link",
+        to: `/holidays/${action.holidayId}/stop-asking?reminder=${reminderId}`,
         label,
       };
     case "mark-deceased":

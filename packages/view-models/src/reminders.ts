@@ -206,6 +206,13 @@ export interface PlanReminderSubject {
   offers: ReminderRuleInput[];
 }
 
+/** A holiday's question for one occurrence. */
+export interface HolidayPlanReminderSubject {
+  holidayId: string;
+  /** The occurrence asked about, `YYYY-MM-DD`. */
+  occurrence: string;
+}
+
 /** A milestone's posting, which can be handed over in person instead. */
 export interface DeliveryReminderSubject {
   milestoneId: string;
@@ -235,6 +242,7 @@ export type ReminderCta =
   | { kind: "onboarding"; route: OnboardingRoute }
   | { kind: "duplicates" }
   | ({ kind: "plan" } & PlanReminderSubject)
+  | ({ kind: "holiday-plan" } & HolidayPlanReminderSubject)
   | ({
       kind: "gift";
       action: "see-gifts" | "record-giving";
@@ -256,6 +264,8 @@ export function reminderCtaOf(
     isDuplicatesNudge?: boolean;
     /** Set when this is a `🗓 plan` prompt: what it is asking about. */
     planTarget?: PlanReminderSubject;
+    /** Set when this is a holiday's question. */
+    holidayPlanTarget?: HolidayPlanReminderSubject;
     /** Set when this is a `🎉 wish` about a person; absent for a pet. */
     contactTarget?: ContactReminderSubject;
     /** Set when this row is a partnership question. */
@@ -270,6 +280,8 @@ export function reminderCtaOf(
   if (context.isDuplicatesNudge === true) return { kind: "duplicates" };
   if (context.planTarget !== undefined)
     return { kind: "plan", ...context.planTarget };
+  if (context.holidayPlanTarget !== undefined)
+    return { kind: "holiday-plan", ...context.holidayPlanTarget };
   if (context.giftTarget !== undefined) {
     return {
       kind: "gift",
@@ -302,6 +314,7 @@ export type ReminderRowAction =
   | { kind: "snooze"; days: number }
   | { kind: "dismiss" }
   | { kind: "stop-asking"; milestoneId: string }
+  | { kind: "stop-asking-holiday"; holidayId: string }
   | { kind: "mark-deceased"; bearerType: "person" | "pet"; bearerId: string }
   | {
       kind: "give-in-person";
@@ -342,6 +355,8 @@ export function reminderActionsOf(
     isDuplicatesNudge?: boolean;
     /** Set when this is a `🗓 plan` prompt: what it is asking about. */
     planTarget?: PlanReminderSubject;
+    /** Set when this is a holiday's question. */
+    holidayPlanTarget?: HolidayPlanReminderSubject;
     /** Set when this is a milestone's posting. */
     deliveryTarget?: DeliveryReminderSubject;
     /** Set when this is a `🎉 wish` about a person. */
@@ -413,6 +428,8 @@ export function reminderActionsOf(
   // A nudge's only out is permanent; a prompt's is this year's, or for good.
   if (cta?.kind === "plan")
     actions.push({ kind: "stop-asking", milestoneId: cta.milestoneId });
+  if (cta?.kind === "holiday-plan")
+    actions.push({ kind: "stop-asking-holiday", holidayId: cta.holidayId });
   if (cta?.kind === "onboarding" || cta?.kind === "partnership")
     actions.push({ kind: "dismiss" });
   return actions;

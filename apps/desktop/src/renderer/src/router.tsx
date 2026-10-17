@@ -86,6 +86,7 @@ import { TagDelete } from "./screens/TagDelete";
 import { HolidayList } from "./screens/HolidayList";
 import { HolidayObservanceSchedule } from "./screens/HolidayObservanceSchedule";
 import { HolidayView } from "./screens/HolidayView";
+import { HolidayPlanPrompt, bearerKeyOf } from "./screens/HolidayPlanPrompt";
 import { TagView } from "./screens/TagView";
 
 /** Parse the Gender select: the empty option means "unset" (null). */
@@ -882,14 +883,83 @@ async function giftCreateLoader({ request }: LoaderFunctionArgs) {
 
 /** `listInWindow`, not `list`: the time buckets need more than stored rows. */
 async function remindersLoader() {
-  const [reminders, targets, duplicatesNudgeId] = await Promise.all([
-    window.api.reminders.listInWindow(),
-    // What the gift, plan and wish rows each act on, from one engine walk.
-    window.api.reminders.targets(),
-    // Derived from the outstanding pairs, so it cannot be a static id.
-    window.api.duplicates.nudgeId(),
-  ]);
-  return { reminders, targets, duplicatesNudgeId };
+  const [reminders, targets, duplicatesNudgeId, holidayPrompts] =
+    await Promise.all([
+      window.api.reminders.listInWindow(),
+      // What the gift, plan and wish rows each act on, from one engine walk.
+      window.api.reminders.targets(),
+      // Derived from the outstanding pairs, so it cannot be a static id.
+      window.api.duplicates.nudgeId(),
+      window.api.holidays.prompts(),
+    ]);
+  return { reminders, targets, duplicatesNudgeId, holidayPrompts };
+}
+
+/** One holiday's question, or a 404 once answered or out of reach. */
+async function holidayPlanLoader({ params }: LoaderFunctionArgs) {
+  const prompt = await window.api.holidays.prompt(
+    params.id as string,
+    params.occurrence as string,
+  );
+  if (prompt === undefined)
+    throw new Response("No question for this holiday", { status: 404 });
+  return { prompt };
+}
+
+/** The ticks as an answer: every errand offered, each wish shown, and anyone
+ *  added. An errand needs you picked first. */
+async function holidayPlanAction({ request, params }: ActionFunctionArgs) {
+  const id = params.id as string;
+  const occurrence = params.occurrence as string;
+  const prompt = await window.api.holidays.prompt(id, occurrence);
+  if (prompt === undefined) return redirect("/reminders");
+  const formData = await request.formData();
+  const ticked = new Set(formData.getAll("errand").map(String));
+  const errands = withSomethingElse(
+    prompt.errands.map((e) => ({ ...e, enabled: ticked.has(e.label ?? "") })),
+    String(formData.get("somethingElse") ?? ""),
+  );
+  const wished = new Set(formData.getAll("wish").map(String));
+  const added = new Set(formData.getAll("add").map(String));
+  const wishes = [
+    ...prompt.wishes.map((w) => ({
+      bearerType: w.bearerType,
+      bearerId: w.bearerId,
+      wish: wished.has(bearerKeyOf(w)),
+    })),
+    ...prompt.addable
+      .filter((c) => added.has(bearerKeyOf(c)))
+      .map((c) => ({
+        bearerType: c.bearerType,
+        bearerId: c.bearerId,
+        wish: true,
+      })),
+  ];
+  const you = String(formData.get("you") ?? "");
+  if (prompt.selfId === null && you === "" && errands.some((e) => e.enabled))
+    return { needsYou: true };
+  await window.api.holidays.answerPrompt(
+    id,
+    occurrence,
+    { errands, wishes },
+    you === "" ? undefined : you,
+  );
+  return redirect("/reminders");
+}
+
+/** This year retires the question's own row; ever turns the holiday's off. */
+async function holidayStopAskingAction({
+  request,
+  params,
+}: ActionFunctionArgs) {
+  const formData = await request.formData();
+  if (formData.get("scope") === "ever")
+    await window.api.holidays.setAsked(params.id as string, false);
+  else {
+    const reminderId = new URL(request.url).searchParams.get("reminder");
+    if (reminderId !== null) await window.api.reminders.softDelete(reminderId);
+  }
+  return redirect("/reminders");
 }
 
 /** The offer set for the milestone the prompt is asking about. */
@@ -1403,14 +1473,33 @@ const routes: RouteObject[] = [
           return { holiday, candidates };
         },
         element: <HolidayView />,
+        // One form per switch: hide, or ask each year.
         action: async ({ params, request }: ActionFunctionArgs) => {
           const formData = await request.formData();
-          await window.api.holidays.setHidden(
-            params.id as string,
-            formData.get("hidden") === "true",
-          );
+          const id = params.id as string;
+          if (formData.has("asked"))
+            await window.api.holidays.setAsked(
+              id,
+              formData.get("asked") === "true",
+            );
+          else
+            await window.api.holidays.setHidden(
+              id,
+              formData.get("hidden") === "true",
+            );
           return null;
         },
+      },
+      {
+        path: "holidays/:id/plan/:occurrence",
+        loader: holidayPlanLoader,
+        element: <HolidayPlanPrompt />,
+        action: holidayPlanAction,
+      },
+      {
+        path: "holidays/:id/stop-asking",
+        element: <MilestoneStopAsking />,
+        action: holidayStopAskingAction,
       },
       {
         // Per observance, not per holiday: two observers of one holiday can be

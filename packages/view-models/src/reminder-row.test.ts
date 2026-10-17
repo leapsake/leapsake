@@ -170,3 +170,21 @@ describe("reminderRowOf", () => {
     ).toBe(false);
   });
 });
+
+describe("a holiday's question", () => {
+  const holidayContext = {
+    holidayPlanTarget: { holidayId: "h1", occurrence: "2026-10-31" },
+  };
+
+  it("offers choosing, putting off, and not being asked again", () => {
+    expect(
+      actionsFor("q1", null, holidayContext).map(reminderOfferLabelOf),
+    ).toEqual(["choosePlan", "remindMe", "remindMe", "remindMe", "stopAsking"]);
+  });
+
+  it("can't be marked done or removed while open", () => {
+    expect(
+      reminderRowOf(actionsFor("q1", null, holidayContext), false),
+    ).toEqual({ completable: false, showsRemove: false, removal: "dismiss" });
+  });
+});

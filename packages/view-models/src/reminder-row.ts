@@ -40,7 +40,8 @@ export function reminderOfferLabelOf(
   if (action.kind === "answer-plan") return "justTheDay";
   if (action.kind === "snooze") return "remindMe";
   if (action.kind === "dismiss") return "dismiss";
-  if (action.kind === "stop-asking") return "stopAsking";
+  if (action.kind === "stop-asking" || action.kind === "stop-asking-holiday")
+    return "stopAsking";
   if (action.kind === "mark-deceased") return "markDeceased";
   if (action.kind === "give-in-person") return "giveInPerson";
   const { cta } = action;
@@ -50,6 +51,7 @@ export function reminderOfferLabelOf(
     case "duplicates":
       return "duplicates";
     case "plan":
+    case "holiday-plan":
       return "choosePlan";
     case "gift":
       return cta.action === "record-giving" ? "recordGiving" : "seeGifts";
@@ -77,7 +79,10 @@ export function reminderRowOf(
   const ctaKinds = actions.flatMap((a) =>
     a.kind === "cta" ? [a.cta.kind] : [],
   );
-  const nudge = ctaKinds.includes("onboarding") || ctaKinds.includes("plan");
+  const nudge =
+    ctaKinds.includes("onboarding") ||
+    ctaKinds.includes("plan") ||
+    ctaKinds.includes("holiday-plan");
   return {
     completable: !nudge && !ctaKinds.includes("duplicates"),
     showsRemove: done || !nudge,

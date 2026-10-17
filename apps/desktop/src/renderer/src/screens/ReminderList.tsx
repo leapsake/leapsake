@@ -3,6 +3,7 @@ import type {
   GiftReminderTarget,
   LinkPartnerReminderTarget,
   PartnershipReminderTarget,
+  HolidayPromptTarget,
   PlanReminderTarget,
   DeliveryReminderTarget,
   ReminderInWindow,
@@ -72,6 +73,7 @@ function ReminderRow({
   reminder,
   giftTarget,
   planTarget,
+  holidayPlanTarget,
   deliveryTarget,
   contactTarget,
   partnershipTarget,
@@ -86,6 +88,8 @@ function ReminderRow({
   giftTarget?: GiftReminderTarget;
   /** Set when this is a `🗓 plan` prompt: its question and offers. */
   planTarget?: PlanReminderTarget;
+  /** Set when this is a holiday's question. */
+  holidayPlanTarget?: HolidayPromptTarget;
   /** Set when this is a milestone's posting, which may be handed over. */
   deliveryTarget?: DeliveryReminderTarget;
   /**
@@ -113,6 +117,7 @@ function ReminderRow({
     giftTarget,
     isDuplicatesNudge,
     planTarget,
+    holidayPlanTarget,
     deliveryTarget,
     partnershipTarget,
     linkPartnerTarget,
@@ -233,14 +238,19 @@ function ReminderRow({
  * Later inside it, then Completed. The split is `bucketReminders`'s.
  */
 export function ReminderList() {
-  const { reminders, targets, duplicatesNudgeId } = useLoaderData() as {
-    reminders: ReminderInWindow[];
-    targets: SystemReminderTargets;
-    /** The id of today's duplicates nudge, or null when there are no pairs. */
-    duplicatesNudgeId: string | null;
-  };
+  const { reminders, targets, duplicatesNudgeId, holidayPrompts } =
+    useLoaderData() as {
+      reminders: ReminderInWindow[];
+      targets: SystemReminderTargets;
+      holidayPrompts: HolidayPromptTarget[];
+      /** Today's duplicates nudge id, or null when there are no pairs. */
+      duplicatesNudgeId: string | null;
+    };
   const giftTargetById = new Map(targets.gifts.map((t) => [t.reminderId, t]));
   const planTargetById = new Map(targets.plans.map((t) => [t.reminderId, t]));
+  const holidayPromptById = new Map(
+    holidayPrompts.map((t) => [t.reminderId, t]),
+  );
   const deliveryTargetById = new Map(
     targets.deliveries.map((t) => [t.reminderId, t]),
   );
@@ -267,6 +277,7 @@ export function ReminderList() {
       section={section}
       giftTarget={giftTargetById.get(reminder.id)}
       planTarget={planTargetById.get(reminder.id)}
+      holidayPlanTarget={holidayPromptById.get(reminder.id)}
       deliveryTarget={deliveryTargetById.get(reminder.id)}
       contactTarget={contactTargetById.get(reminder.id)}
       partnershipTarget={partnershipTargetById.get(reminder.id)}

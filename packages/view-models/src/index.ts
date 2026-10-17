@@ -28,6 +28,7 @@ export type {
   PartnershipReminderSubject,
   GiftReminderSubject,
   PlanReminderSubject,
+  HolidayPlanReminderSubject,
   DeliveryReminderSubject,
   ReminderBucket,
   ReminderCountdown,

@@ -14,6 +14,7 @@ import {
 } from "@leapsake/schema";
 import { type InPersonAnswer, type PlanAnswer } from "@leapsake/core";
 import type { PartyChoice } from "@leapsake/ui/headless";
+import { useMessages } from "@leapsake/ui/messages";
 import {
   reminderActionKey,
   reminderActionsOf,
@@ -22,6 +23,7 @@ import {
 import { ActionSheet } from "../../../components/ActionSheet";
 import { ContactReachButtons } from "../../../components/ContactReachButtons";
 import { PartnerField, linkedPartner } from "../../../components/PartnerField";
+import { HolidayPromptForm } from "../../../components/HolidayPromptForm";
 import { ReminderPromptFields } from "../../../components/ReminderPromptFields";
 import { ReminderText } from "../../../components/ReminderText";
 import { useCore } from "../../../lib/core-context";
@@ -65,6 +67,7 @@ const HEADER = { title: "" } as const;
  */
 export default function ReminderDetailScreen() {
   const core = useCore();
+  const m = useMessages();
   const dateFormat = useDateFormat();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -77,21 +80,32 @@ export default function ReminderDetailScreen() {
     undefined,
   );
   const [remindMeOpen, setRemindMeOpen] = useState(false);
-  // The milestone a prompt's “Don’t ask again…” would stop asking about.
-  const [stopAsking, setStopAsking] = useState<string | null>(null);
-  const load = useCallback(
-    () =>
-      Promise.all([
-        // Not `get`: the belated wording is derived on the engine's walk, so
-        // the plain row would word this differently from the list.
-        core.reminders.getInWindow(id),
-        // Gifts, the prompt's offers and contact ways: one engine walk.
-        core.reminders.targets(),
-        // Content-addressed on the live pairs, so no static table holds it.
-        core.duplicates.nudgeId(),
-      ]),
-    [core, id],
-  );
+  // What a prompt's “Don’t ask again…” would stop asking about.
+  const [stopAsking, setStopAsking] = useState<{
+    kind: "milestone" | "holiday";
+    id: string;
+  } | null>(null);
+  const load = useCallback(async () => {
+    const [reminder, targets, nudgeId, holidayPrompts] = await Promise.all([
+      // Not `get`: the belated wording is derived on the engine's walk, so
+      // the plain row would word this differently from the list.
+      core.reminders.getInWindow(id),
+      // Gifts, the prompt's offers and contact ways: one engine walk.
+      core.reminders.targets(),
+      // Content-addressed on the live pairs, so no static table holds it.
+      core.duplicates.nudgeId(),
+      core.holidays.prompts(),
+    ]);
+    const holidayTarget = holidayPrompts.find((p) => p.reminderId === id);
+    const holidayPrompt =
+      holidayTarget === undefined
+        ? undefined
+        : await core.holidays.prompt(
+            holidayTarget.holidayId,
+            holidayTarget.occurrence,
+          );
+    return [reminder, targets, nudgeId, holidayTarget, holidayPrompt] as const;
+  }, [core, id]);
   const { data, error } = useFocusedData(load);
   useLeaveWhenGone(data !== null && data[0] === undefined);
 
@@ -101,7 +115,8 @@ export default function ReminderDetailScreen() {
     return <LoadState error={error} header={HEADER} />;
   }
 
-  const [reminder, targets, duplicatesNudgeId] = data;
+  const [reminder, targets, duplicatesNudgeId, holidayTarget, holidayPrompt] =
+    data;
 
   if (reminder === undefined) {
     return (
@@ -120,7 +135,7 @@ export default function ReminderDetailScreen() {
   const label = reminderLabel(reminder);
   const planTarget = targets.plans.find((t) => t.reminderId === id);
   // A `🗓 plan` prompt is drawn as a question, with its answer form inline.
-  const isPrompt = planTarget !== undefined;
+  const isPrompt = planTarget !== undefined || holidayTarget !== undefined;
   const isDuplicatesNudge = id === duplicatesNudgeId;
   // Only on a `wish` about a person (one per partner for a couple); with no
   // contact methods the view-model offers the collect prompt instead.
@@ -133,6 +148,7 @@ export default function ReminderDetailScreen() {
     giftTarget: targets.gifts.find((t) => t.reminderId === id),
     isDuplicatesNudge,
     planTarget,
+    holidayPlanTarget: holidayTarget,
     deliveryTarget: targets.deliveries.find((t) => t.reminderId === id),
     // Knows a partner, not the date: "When is your anniversary?"
     partnershipTarget: targets.partnerships.find((t) => t.reminderId === id),
@@ -205,10 +221,15 @@ export default function ReminderDetailScreen() {
   }
 
   /** Stop asking about the occasion this year, or ever; then go back. */
-  function stopAskingFor(milestoneId: string, ever: boolean) {
-    const write = ever
-      ? core.milestones.update(milestoneId, { asksEachYear: false })
-      : core.reminders.softDelete(id);
+  function stopAskingFor(
+    about: { kind: "milestone" | "holiday"; id: string },
+    ever: boolean,
+  ) {
+    const write = !ever
+      ? core.reminders.softDelete(id)
+      : about.kind === "holiday"
+        ? core.holidays.setAsked(about.id, false)
+        : core.milestones.update(about.id, { asksEachYear: false });
     write.then(
       () => router.back(),
       (e: unknown) => Alert.alert(FAILURE_TITLES.stopAsking, String(e)),
@@ -248,7 +269,19 @@ export default function ReminderDetailScreen() {
         />
         {/* ⚠️ The occasion's own date. A prompt's "Due" is its deadline, weeks
             earlier, so it is not shown on a prompt. */}
-        {isPrompt && planTarget.occurrenceDate != null && (
+        {holidayPrompt !== undefined && (
+          <Text style={styles.promptOccasion}>
+            {m.holidayPrompt.when(
+              holidayPrompt.name,
+              formatDate(
+                civilFromDueMs(holidayPrompt.occurrenceDate),
+                dateFormat,
+              ),
+              formatDueIn(holidayPrompt.occurrenceDate),
+            )}
+          </Text>
+        )}
+        {planTarget !== undefined && planTarget.occurrenceDate != null && (
           <Text style={styles.promptOccasion}>
             {kindDefs[planTarget.milestoneKind].label} ·{" "}
             {formatDueIn(planTarget.occurrenceDate)} (
@@ -335,6 +368,25 @@ export default function ReminderDetailScreen() {
           />
         </View>
       )}
+      {holidayPrompt !== undefined && (
+        <HolidayPromptForm
+          prompt={holidayPrompt}
+          onSave={(answer, you) =>
+            core.holidays
+              .answerPrompt(
+                holidayPrompt.holidayId,
+                holidayPrompt.occurrence,
+                answer,
+                you,
+              )
+              .then(
+                () => router.back(),
+                (e: unknown) =>
+                  Alert.alert(FAILURE_TITLES.answerPrompt, String(e)),
+              )
+          }
+        />
+      )}
       {(row.completable || offered.length > 0) && (
         // The offers, in offer order, snoozes folded into one sheet.
         <View style={styles.rowOffers}>
@@ -383,7 +435,9 @@ export default function ReminderDetailScreen() {
                   else if (offer.kind === "snooze") snooze(offer.days);
                   else if (offer.kind === "dismiss") confirmDelete();
                   else if (offer.kind === "stop-asking")
-                    setStopAsking(offer.milestoneId);
+                    setStopAsking({ kind: "milestone", id: offer.milestoneId });
+                  else if (offer.kind === "stop-asking-holiday")
+                    setStopAsking({ kind: "holiday", id: offer.holidayId });
                   else if (offer.kind === "give-in-person")
                     giveInPerson(offer.milestoneId, {
                       year: offer.year,

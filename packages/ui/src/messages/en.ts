@@ -396,6 +396,25 @@ export const en: Messages = {
     reviewDuplicates: "Review",
   },
 
+  holidayPrompt: {
+    when: (name, date, countdown) => `${name} is on ${date} (${countdown}).`,
+    forYou: "For you",
+    whichIsYou: "Which of these is you?",
+    youFirst: "Say which person is you before ticking an errand.",
+    wishLine: (greeting) => `Wish people ${greeting}`,
+    addSomeone: "Add someone",
+    nothingLeft:
+      "It’s too close to the day to plan anything new. What’s already set still happens.",
+    save: "Save",
+    stopAsking: {
+      title: (name) => `Stop asking about ${name}?`,
+      thisYear: "Not this year",
+      ever: "Don’t ask again",
+      note: "What you’ve already planned still happens. You can turn the question back on from the holiday’s page.",
+    },
+    askEachYear: "Ask me each year what I’ll do for it",
+  },
+
   affiliations: {
     nationalities: "Nationalities",
     religions: "Religions",

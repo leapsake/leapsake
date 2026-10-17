@@ -88,6 +88,7 @@ export type RowOffer =
   | { kind: "snooze"; days: number; label: string }
   | { kind: "dismiss"; label: string }
   | { kind: "stop-asking"; milestoneId: string; label: string }
+  | { kind: "stop-asking-holiday"; holidayId: string; label: string }
   | {
       kind: "give-in-person";
       milestoneId: string;
@@ -104,6 +105,7 @@ function ctaPathFor(cta: ReminderCta): string | null {
     case "duplicates":
       return "/duplicates";
     case "plan":
+    case "holiday-plan":
       return null;
     // `given=1` opens the capture form ticked.
     case "gift":
@@ -147,6 +149,12 @@ export function offerFor(action: ReminderRowAction): RowOffer {
       return { kind: "dismiss", label };
     case "stop-asking":
       return { kind: "stop-asking", milestoneId: action.milestoneId, label };
+    case "stop-asking-holiday":
+      return {
+        kind: "stop-asking-holiday",
+        holidayId: action.holidayId,
+        label,
+      };
     case "mark-deceased":
       return {
         kind: "navigate",
@@ -187,7 +195,9 @@ export function isAnsweredInline(action: ReminderRowAction): boolean {
   return (
     action.kind === "answer-plan" ||
     (action.kind === "cta" &&
-      (action.cta.kind === "plan" || action.cta.kind === "link-partner"))
+      (action.cta.kind === "plan" ||
+        action.cta.kind === "holiday-plan" ||
+        action.cta.kind === "link-partner"))
   );
 }
 
