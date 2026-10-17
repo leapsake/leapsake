@@ -9,15 +9,7 @@ any setup, because who observes what is implied from people's affiliations. Term
 
 Each one ships on its own.
 
-1. **Implicit observers.** A living person whose affiliations match a holiday observes it
-   implicitly (`isAffiliated`). Your own residence is your country, which a choice can set against
-   your address. Pets and the dead never do, though either can be added explicitly. An observance
-   has three states: *observes*, *doesn't observe*, and *unstated*. Ticking anything for a person
-   writes *observes*. Only unticking writes *unstated*, holding the off rule and saying nothing
-   about whether they keep the day. *Doesn't observe* is its own action. A per-holiday wish
-   default, authored in the shipped catalog (Christmas on, Columbus Day off), applies to every
-   observer until a choice is made for them.
-2. **The holiday prompt.** One per (holiday, occurrence).
+1. **The holiday prompt.** One per (holiday, occurrence).
    - **Who it asks about:** it asks only for a relevant, not-hidden holiday, and only when it has
      an authored suggestion, a default-on wish, or something already on its schedule.
    - **Your errands:** at most two or three neutral suggestions per holiday, and none when
@@ -28,15 +20,9 @@ Each one ships on its own.
    - **Timing:** derived from the furthest offer, and a late arrival offers only what still
      fits, as for a hand-entered milestone.
    - **Don't ask again:** a reversible per-holiday switch, distinct from hide.
-3. **Grouped display** ([ADR 0002](./adr/0002-wishes-stay-individual-reminders.md)). Before the
+2. **Grouped display** ([ADR 0002](./adr/0002-wishes-stay-individual-reminders.md)). Before the
    day, an occasion's wishes fold to one line, "Wish people a Merry Christmas". On the day they're
    individual rows under Today. The digest uses the same wording, never a count.
-
-## Rules this retires, once it lands
-
-In `packages/holidays/README.md`: *observance is explicit-first* becomes "explicit beats
-implicit", and *no observance reminder is on by default* gives way to the per-holiday wish
-default. Edit each where the increment that breaks it lands.
 
 ## Open, and deliberately not decided here
 
@@ -44,3 +30,5 @@ default. Edit each where the increment that breaks it lands.
   affiliation makes nothing relevant.
 - **A long observer list** stays inline at first. If the prompt reads as too much, it links out to
   the Holiday screen instead.
+- **Why someone is implied.** Observer lists don't yet say that someone is there by affiliation
+  rather than by choice (`explicit === null`), or which affiliation it was.

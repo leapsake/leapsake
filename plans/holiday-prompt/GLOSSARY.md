@@ -19,31 +19,6 @@ A holiday someone you know, you included, observes, whether implicitly or explic
 relevant holiday has a prompt. Relevance is derived and is never set by hand.
 _Avoid_: followed, active, enabled holiday
 
-**Explicit observer**:
-A person the user has said observes, or does not observe, a holiday. It always beats what is
-implied.
-_Avoid_: manual observer
-
-**Unstated observance**:
-A person you've only turned errands off for on a holiday. It records that you don't want to be
-reminded, and says nothing about whether they keep the day.
-_Avoid_: non-observer, opted-out observer
-
-**Your country**:
-The one country Leapsake takes you to live in, shared by all your devices. It also stands in
-for anyone whose addresses don't say where they live.
-_Avoid_: device region, locale
-
-**Implicit observer**:
-A person Leapsake takes to observe a holiday because one of their affiliations matches it, with
-nobody having said so.
-_Avoid_: suggested observer, inferred observer
-
-**Affiliation**:
-Something about a person that ties them to a holiday: a religion, a nationality, or the country
-they live in.
-_Avoid_: background, identity
-
 **Don't ask again**:
 A holiday or milestone whose prompt you've switched off. What it has already scheduled still
 happens.
