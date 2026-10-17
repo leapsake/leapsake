@@ -239,6 +239,7 @@ describe("belated copy", () => {
         occasion: "Christmas",
         bearerType: "person",
         bearerId: "p1",
+        wishByDefault: false,
         occurrences: [daysOut(-1)],
       },
     ]);

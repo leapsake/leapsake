@@ -113,8 +113,8 @@ export const hiddenHolidaySchema = z.object({
 export type HiddenHoliday = z.infer<typeof hiddenHolidaySchema>;
 
 /**
- * What an observance with no stored rules offers. Nothing is on by default:
- * every observance of one holiday would come due on the same day.
+ * What an observance with no stored rules offers, all off. Only the wish can
+ * be on, where the holiday's catalog entry says so.
  */
 export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
   { action: "get:gift", offsetDays: 12, enabledByDefault: false },
@@ -125,10 +125,11 @@ export const observanceDefaultReminderSchedule: DefaultReminderRule[] = [
 
 /**
  * An observance's stored rules, or {@link observanceDefaultReminderSchedule}
- * when it has none, furthest lead first.
+ * when it has none, with the wish on if `wishByDefault`; furthest lead first.
  */
 export function resolveObservanceReminderSchedule(
   storedRules: ReminderRule[],
+  wishByDefault = false,
 ): ReminderRuleInput[] {
   const source: ReminderRuleInput[] =
     storedRules.length > 0
@@ -142,7 +143,7 @@ export function resolveObservanceReminderSchedule(
           action: d.action,
           label: null,
           offsetDays: d.offsetDays,
-          enabled: d.enabledByDefault,
+          enabled: d.enabledByDefault || (wishByDefault && d.action === "wish"),
         }));
   return [...source].sort((a, b) => b.offsetDays - a.offsetDays);
 }

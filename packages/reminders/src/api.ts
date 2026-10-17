@@ -629,6 +629,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
             "observance",
             candidate.observanceId,
           ),
+          candidate.wishByDefault,
         ),
       resolveLabel: async (bearerType, bearerId) =>
         (await entities.label(bearerType, bearerId)) ?? null,

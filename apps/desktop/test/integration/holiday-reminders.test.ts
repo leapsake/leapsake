@@ -307,6 +307,8 @@ describe("observance reminder schedule", () => {
     vi.useRealTimers();
   });
 
+  const MOTHERS_DAY = holidayIdFor("us-mothers-day");
+
   async function violet(core: ReturnType<typeof createCore>) {
     const person = await core.people.create(
       { firstName: "Violet", lastName: "Bick" },
@@ -323,7 +325,7 @@ describe("observance reminder schedule", () => {
     const person = await violet(core);
 
     const schedule = await core.holidays.getObservanceSchedule(
-      CHRISTMAS,
+      MOTHERS_DAY,
       "person",
       person.id,
     );
@@ -433,22 +435,39 @@ describe("observance reminder schedule", () => {
   it("clearing the schedule falls back to the (all-off) defaults", async () => {
     const core = createCore(driver);
     const person = await violet(core);
-    await core.holidays.setObservanceSchedule(CHRISTMAS, "person", person.id, [
-      { action: "wish", label: null, offsetDays: 0, enabled: true },
-    ]);
+    await core.holidays.setObservanceSchedule(
+      MOTHERS_DAY,
+      "person",
+      person.id,
+      [{ action: "wish", label: null, offsetDays: 0, enabled: true }],
+    );
 
     await core.holidays.setObservanceSchedule(
-      CHRISTMAS,
+      MOTHERS_DAY,
       "person",
       person.id,
       [],
     );
 
     const schedule = await core.holidays.getObservanceSchedule(
-      CHRISTMAS,
+      MOTHERS_DAY,
       "person",
       person.id,
     );
     expect(schedule.every((r) => !r.enabled)).toBe(true);
+  });
+
+  it("turns the wish on where the holiday wishes everyone by default", async () => {
+    const core = createCore(driver);
+    const person = await violet(core);
+
+    const schedule = await core.holidays.getObservanceSchedule(
+      CHRISTMAS,
+      "person",
+      person.id,
+    );
+    expect(schedule.filter((r) => r.enabled).map((r) => r.action)).toEqual([
+      "wish",
+    ]);
   });
 });

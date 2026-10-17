@@ -104,6 +104,7 @@ function candidate(
     occasion: "Christmas",
     bearerType: "person",
     bearerId: VIOLET,
+    wishByDefault: false,
     occurrences: [{ year: 2026, month: 12, day: 25 }],
     ...over,
   };
@@ -260,13 +261,14 @@ describe("holiday reminders", () => {
     );
   });
 
-  it("ships with every action off by default", async () => {
-    // Unlike a birthday, an observance generates nothing until the user asks for
-    // it: every Christmas observance comes due on the same day, so a default-on
-    // wish would surface forty reminders at once for a forty-person address book.
+  it("turns on nothing by default but a holiday's own wish", async () => {
     for (const rule of resolveObservanceReminderSchedule([])) {
       expect(rule.enabled).toBe(false);
     }
+    const onByDefault = resolveObservanceReminderSchedule([], true)
+      .filter((rule) => rule.enabled)
+      .map((rule) => rule.action);
+    expect(onByDefault).toEqual(["wish"]);
 
     h.setCandidates([candidate()]);
     h.setSchedule(

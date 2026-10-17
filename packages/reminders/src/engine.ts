@@ -189,6 +189,9 @@ export interface HolidayOccurrenceCandidate {
   occasion: string;
   bearerType: HolidayBearerType;
   bearerId: string;
+  /** Whether the wish is on until a schedule is stored: the holiday's
+   *  default, and never for you. */
+  wishByDefault: boolean;
   /** The occurrence dates to consider, ascending. */
   occurrences: CivilDate[];
 }

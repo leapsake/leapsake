@@ -62,6 +62,9 @@ export interface HolidayEntry {
   authoredAt: number;
   /** Set instead of deleting; seeds as a tombstone. */
   retiredAt?: number;
+  /** Whether every observer is wished it until a schedule is stored for
+   *  them. Bundle-side, like {@link affiliations}. */
+  wishByDefault?: true;
 }
 
 /** An authored ISO date as epoch ms, readable in a diff. */
@@ -160,6 +163,9 @@ const ORTHODOX_EASTER = countries(
   "KZ",
 );
 
+// Observing it means being the one celebrated, which no affiliation says.
+const KEPT_BY_WHOEVER_YOU_SAY = countries();
+
 const CHINESE_FESTIVAL = countries("CN", "TW", "HK", "MO", "SG", "MY");
 
 /** Bump on any change to {@link CATALOG}; an integer, not semver. */
@@ -201,6 +207,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "christian",
     region: "global",
     affiliations: ORTHODOX_CHRISTMAS,
+    wishByDefault: true,
     familyId: "christmas",
     authoredAt: V3,
   },
@@ -452,6 +459,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "christian",
     region: "global",
     affiliations: { religions: ["christian"], countries: CHRISTMAS_COUNTRIES },
+    wishByDefault: true,
     familyId: "christmas",
     // Safe to imply from a US locale: an occasion, not a religion.
     impliedByLocale: true,
@@ -499,45 +507,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 5, weekday: 0, nth: 2 },
     tradition: "secular",
     region: "us",
-    affiliations: countries(
-      "US",
-      "CA",
-      "AU",
-      "NZ",
-      "ZA",
-      "DE",
-      "AT",
-      "CH",
-      "IT",
-      "BE",
-      "NL",
-      "DK",
-      "FI",
-      "JP",
-      "CN",
-      "TW",
-      "HK",
-      "SG",
-      "MY",
-      "PH",
-      "IN",
-      "BR",
-      "CL",
-      "CO",
-      "PE",
-      "VE",
-      "EC",
-      "UY",
-      "TR",
-      "GR",
-      "CY",
-      "EE",
-      "LV",
-      "CZ",
-      "SK",
-      "HR",
-      "JM",
-    ),
+    affiliations: KEPT_BY_WHOEVER_YOU_SAY,
     familyId: "mothers-day",
     impliedByLocale: true,
     authoredAt: V1,
@@ -563,31 +533,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 6, weekday: 0, nth: 3 },
     tradition: "secular",
     region: "us",
-    affiliations: countries(
-      "US",
-      "CA",
-      "GB",
-      "IE",
-      "FR",
-      "NL",
-      "JP",
-      "HK",
-      "SG",
-      "MY",
-      "PH",
-      "IN",
-      "ZA",
-      "MX",
-      "AR",
-      "CL",
-      "CO",
-      "PE",
-      "VE",
-      "EC",
-      "TR",
-      "GR",
-      "SK",
-    ),
+    affiliations: KEPT_BY_WHOEVER_YOU_SAY,
     familyId: "fathers-day",
     impliedByLocale: true,
     authoredAt: V1,
@@ -697,7 +643,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "offset", from: "western-easter", days: -21 },
     tradition: "christian",
     region: "uk",
-    affiliations: countries("GB", "IE"),
+    affiliations: KEPT_BY_WHOEVER_YOU_SAY,
     familyId: "mothers-day",
     authoredAt: V3,
   },
@@ -771,6 +717,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
+    wishByDefault: true,
     durationDays: 8,
     authoredAt: V2,
   },
@@ -819,6 +766,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
+    wishByDefault: true,
     durationDays: 2,
     authoredAt: V3,
   },
@@ -1017,6 +965,7 @@ export const CATALOG: readonly HolidayEntry[] = [
       "BN",
       "PH",
     ),
+    wishByDefault: true,
     familyId: "lunar-new-year",
     authoredAt: V2,
   },
@@ -1152,4 +1101,9 @@ export function classificationFor(slug: string): HolidayClassification | null {
  *  user-defined one, which only explicit observers keep. */
 export function affiliationsFor(slug: string): HolidayAffiliations | null {
   return BY_SLUG.get(slug)?.affiliations ?? null;
+}
+
+/** Whether a slug's holiday is wished to every observer by default. */
+export function wishByDefaultFor(slug: string): boolean {
+  return BY_SLUG.get(slug)?.wishByDefault === true;
 }

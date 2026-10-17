@@ -168,7 +168,8 @@ both (Christmas is Christian, and also a public holiday across much of the world
 affiliations are their stated religions plus one set of countries, their nationalities and where
 they live, so an American living in Canada keeps both Thanksgivings. Religions are broad, not by
 denomination, so the Orthodox entries name the countries whose churches keep them rather than a
-religion. A user-defined holiday has none, and only explicit observers keep it.
+religion. A user-defined holiday has none, and only explicit observers keep it; so do Mother’s Day,
+Father’s Day and Mothering Sunday, since observing them means being the one celebrated.
 
 **Display names must stand alone.** Search returns a bare title and the browse list is flat, so a
 name that is only unambiguous inside its group is the wrong name — hence "Canadian Thanksgiving".
@@ -264,25 +265,34 @@ The table is **synced** (a deliberate registration, per `packages/data/src/synca
 also gets the offline case right: only one device ever needs internet. A laptop OTAs at a coffee
 shop, comes home, and an internet-less LAN relay carries the catalog to every other device.
 
-## Observance is explicit-first; religion and nationality are accelerators
+## Observance is implicit, and explicit beats it
 
-Religion is a lossy proxy — converts, cultural-but-not-practicing, mixed families, people who do
-Christmas with in-laws and Hanukkah at home. That "Religions" wants to be plural is the symptom:
-the field is standing in for something more granular, and that something is the observance. So
-religion is a **bulk-assignment accelerator** layered on top, never a foundation underneath.
-Constraints for whenever that lands:
+A living person whose affiliations match a holiday observes it with nobody having said so, so
+the feature works with no data entry. Pets and the dead are never implied, though either can be
+added. What anyone says wins, forever:
+
+| State             | Stored                         | Means                                          |
+| ----------------- | ------------------------------ | ---------------------------------------------- |
+| _observes_        | an observance row, `true`      | they keep it, whatever their affiliations say |
+| _doesn't observe_ | an observance row, `false`     | they don't, whatever their affiliations say   |
+| _unstated_        | no row                         | their affiliations decide                      |
+
+Turning any reminder on for someone writes _observes_, so it survives their religion or address
+changing later. Turning reminders off stores the off rules and nothing else: not wanting to be
+reminded says nothing about whether someone keeps the day. _Doesn't observe_ is its own action,
+on the observer picker.
+
+Religion is a lossy proxy (converts, mixed families, Christmas with the in-laws and Hanukkah at
+home), which is why it only ever implies, and why two constraints hold:
 
 - **Never infer religion from country, or country from religion.** Frequently wrong, and badly
   wrong when it is.
-- Keep derived-nationality → derived-observance a **single flattening pass**, not inference
-  feeding inference: the UI must be able to answer "why does Leapsake think Grandma observes
-  this?"
+- **One flattening pass**: affiliations straight to observance, never inference feeding
+  inference, so the UI can always answer "why does Leapsake think Grandma observes this?"
 
-The cost of explicit-first is that **bulk assignment cannot be a follow-up** — without an
-implicit source, a feature with no on-ramp dies of data entry. v1 shipped a select-all checklist,
-judged it too cumbersome to scan and scroll, and replaced it with an autocomplete that stays open
-across repeated picks. If data entry does prove to be what kills adoption, the fix is an
-additional bulk affordance ("add everyone tagged #family"), not a return to the checklist.
+The observer list a holiday implies can be long. If even that proves too little, the fix is an
+additional bulk affordance ("add everyone tagged #family"), not a return to a select-all
+checklist, which v1 shipped and replaced as too cumbersome to scan.
 
 ## Invariants a change here must preserve
 
@@ -313,13 +323,14 @@ additional bulk affordance ("add everyone tagged #family"), not a return to the 
   holiday reminders, and aggregate reminders.
 - **Watch the N+1.** The engine resolves occurrences and filters by window _before_ hydrating
   labels; holidays multiply the candidate set (people × holidays), so that ordering must hold.
-- **Store an observance only where it diverges from the implicit answer.** An explicit `true`
-  then survives a later correction to the inference, because the user said so directly.
+- **The observer picker stores an answer only where it diverges from the implied one**, so
+  saving a long list doesn't freeze everyone's affiliations into rows.
 - **Hides sync.** Any input to the reminder engine must sit on the same side of the sync boundary
   as the reminders it generates; otherwise one device tombstones what another regenerates under
   the same id, and a tombstone is never resurrected.
-- **No observance reminder is on by default.** Every Christmas observance comes due on the same
-  day, so a default-on wish would hand someone forty reminders at once.
+- **Only a holiday's own wish is ever on by default**, and only where its catalog entry says so
+  (`wishByDefault`: Christmas, not Columbus Day). It applies to every observer until a schedule is
+  stored for them, and never to you.
 - **The dismissal ladder is closed, and each rung means something different**: dismissing a
   reminder is "not this year" (one occurrence, because the occurrence is part of the
   deterministic id); a disabled reminder rule is "never gift Violet at Christmas, but still call";

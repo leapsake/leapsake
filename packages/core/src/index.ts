@@ -119,9 +119,12 @@ import {
 } from "@leapsake/export";
 import { getSyncStatus } from "@leapsake/key-custody";
 import {
+  type ImplicitObservance,
   type ObserverDecision,
   createHolidaysApi,
   holidayReminderCandidates,
+  personAffiliations,
+  residenceOf,
 } from "@leapsake/holidays";
 import { createGiftsApi } from "@leapsake/gifts";
 import { createImportApi } from "@leapsake/contact-import";
@@ -364,10 +367,60 @@ export function createCore(
     people,
     pets,
     reminderRules,
+    implicit: implicitObservance,
     driver,
   });
 
   const contactMethods = createContactMethodsRepo(driver);
+
+  /** Your country, seeding the setting from this device's region while none
+   *  is stored. */
+  async function yourCountryNow(): Promise<YourCountry> {
+    await preferences.seedCountry(options.phoneRegion ?? null);
+    const selfId = (await self.getSelf())?.personId;
+    const own =
+      selfId === undefined
+        ? []
+        : await contactMethods.postals.listForOwner("person", selfId);
+    return yourCountry(await preferences.getCountry(), own);
+  }
+
+  /** Every living person's affiliations. You live in your country; anyone
+   *  else where their addresses say, else your country too. */
+  async function implicitObservance(): Promise<ImplicitObservance> {
+    const [everyone, deaths, postals, you, selfRow] = await Promise.all([
+      people.list(),
+      milestones.listWhere({
+        where: "bearer_type = ? AND kind = ?",
+        params: ["person", "death"],
+      }),
+      contactMethods.postals.listWhere({
+        where: "owner_type = ?",
+        params: ["person"],
+      }),
+      yourCountryNow(),
+      self.getSelf(),
+    ]);
+    const dead = new Set(deaths.map((m) => m.bearerId));
+    const selfId = selfRow?.personId ?? null;
+    const affiliations = new Map(
+      everyone
+        .filter((person) => !dead.has(person.id))
+        .map((person) => {
+          const residence =
+            person.id === selfId
+              ? residenceOf([], you.country)
+              : residenceOf(
+                  postals
+                    .filter((p) => p.ownerId === person.id)
+                    .map((p) => p.country),
+                  you.country,
+                );
+          return [person.id, personAffiliations(person, residence)] as const;
+        }),
+    );
+    return { people: affiliations, selfId };
+  }
   const kinship = createKinshipService(driver, {
     people,
     pets,
@@ -449,6 +502,7 @@ export function createCore(
         observances,
         hiddenHolidays,
         reminderRules,
+        implicit: implicitObservance,
         today: todayCivil(),
       }),
   });
@@ -1209,18 +1263,12 @@ export function createCore(
         preferences.getDateFormat(),
       setDateFormat: (format: DateFormat | null): Promise<void> =>
         preferences.setDateFormat(format),
-      // Seeds the setting from this device's region while none is stored.
-      async getYourCountry(): Promise<YourCountry> {
-        await preferences.seedCountry(options.phoneRegion ?? null);
-        const selfId = (await self.getSelf())?.personId;
-        const own =
-          selfId === undefined
-            ? []
-            : await contactMethods.postals.listForOwner("person", selfId);
-        return yourCountry(await preferences.getCountry(), own);
+      getYourCountry: (): Promise<YourCountry> => yourCountryNow(),
+      // Your country says who keeps which holiday.
+      setCountry: async (code: string | null): Promise<void> => {
+        await preferences.setCountry(code);
+        await regenerateSystem();
       },
-      setCountry: (code: string | null): Promise<void> =>
-        preferences.setCountry(code),
     },
 
     // Per-device notification policy. Every method takes an explicit deviceId,
@@ -1293,23 +1341,35 @@ export function createCore(
         softDelete: (id: string): Promise<void> =>
           driver.transaction(() => contactMethods.phones.softDelete(id)),
       },
+      // An address's country says who keeps which holiday, so each write
+      // regenerates.
       postals: {
-        create: (input: CreatePostalInput): Promise<PostalAddress> =>
-          driver.transaction(async () => {
-            const created = await contactMethods.postals.create(input);
+        create: async (input: CreatePostalInput): Promise<PostalAddress> => {
+          const created = await driver.transaction(async () => {
+            const row = await contactMethods.postals.create(input);
             await entities.publishBearerIfUnpublished(
               input.ownerType,
               input.ownerId,
             );
-            return created;
-          }),
-        update: (
+            return row;
+          });
+          await regenerateSystem();
+          return created;
+        },
+        update: async (
           id: string,
           input: UpdatePostalInput,
-        ): Promise<PostalAddress | undefined> =>
-          driver.transaction(() => contactMethods.postals.update(id, input)),
-        softDelete: (id: string): Promise<void> =>
-          driver.transaction(() => contactMethods.postals.softDelete(id)),
+        ): Promise<PostalAddress | undefined> => {
+          const updated = await driver.transaction(() =>
+            contactMethods.postals.update(id, input),
+          );
+          await regenerateSystem();
+          return updated;
+        },
+        softDelete: async (id: string): Promise<void> => {
+          await driver.transaction(() => contactMethods.postals.softDelete(id));
+          await regenerateSystem();
+        },
       },
       socials: {
         create: (input: CreateSocialInput): Promise<SocialProfile> =>

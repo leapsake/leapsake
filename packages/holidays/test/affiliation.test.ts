@@ -44,15 +44,24 @@ describe("catalog affiliations", () => {
   const codes = new Set(contactCountryOptions.map((c) => c.code));
 
   it.each(CATALOG.map((e) => [e.slug, e.affiliations] as const))(
-    "%s is kept by someone, named by real codes",
+    "%s names real religions and country codes",
     (_slug, affiliations) => {
-      expect(
-        affiliations.religions.length + affiliations.countries.length,
-      ).toBeGreaterThan(0);
       for (const r of affiliations.religions) expect(RELIGIONS).toContain(r);
       for (const c of affiliations.countries) expect(codes).toContain(c);
     },
   );
+
+  it("leaves only the days that celebrate someone to explicit observers", () => {
+    const explicitOnly = CATALOG.filter(
+      (e) =>
+        e.affiliations.religions.length + e.affiliations.countries.length === 0,
+    ).map((e) => e.slug);
+    expect(explicitOnly.sort()).toEqual([
+      "uk-mothering-sunday",
+      "us-fathers-day",
+      "us-mothers-day",
+    ]);
+  });
 
   it("knows nothing of a holiday outside the catalog", () => {
     expect(affiliationsFor("bailey-building-and-loan-day")).toBeNull();

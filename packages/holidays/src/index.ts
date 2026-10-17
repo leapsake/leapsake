@@ -5,6 +5,7 @@ export {
   CATALOG_VERSION,
   affiliationsFor,
   classificationFor,
+  wishByDefaultFor,
 } from "./catalog.js";
 export {
   isAffiliated,
@@ -55,6 +56,7 @@ export type {
   HolidayListItem,
   HolidayObserverCandidate,
   HolidaysApiDeps,
+  ImplicitObservance,
   ObserverDecision,
 } from "./api.js";
 export { seedHolidayCatalog } from "./seed.js";
