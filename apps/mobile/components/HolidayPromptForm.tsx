@@ -144,6 +144,12 @@ export function HolidayPromptForm({
             onChange={(c) => c !== null && wish(c)}
             getKey={keyOf}
             getLabel={(c) => c.label}
+            renderOption={(c) => (
+              <View style={styles.rowWithLead}>
+                <CheckboxBox checked={false} />
+                <Text style={styles.rowText}>{c.label}</Text>
+              </View>
+            )}
           />
         </View>
         <ScrollView
