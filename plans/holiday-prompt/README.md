@@ -9,19 +9,15 @@ any setup, because who observes what is implied from people's affiliations. Term
 
 Each one ships on its own.
 
-1. **Affiliations.** *Nationalities* and *Religions* on a person, both stated. Residence is
-   derived from address countries, or from your country when no address has one, even alongside
-   a stated nationality. Catalog entries carry an affiliation **set** (Christmas: Christian plus
-   the countries where it's also secular). Religion is never inferred from country, or the
-   reverse. The religion list is complete even where the catalog has no holidays for it.
-2. **Implicit observers.** A living person whose affiliations match a holiday observes it
-   implicitly. Pets and the dead never do, though either can be added explicitly. An observance
+1. **Implicit observers.** A living person whose affiliations match a holiday observes it
+   implicitly (`isAffiliated`). Your own residence is your country, which a choice can set against
+   your address. Pets and the dead never do, though either can be added explicitly. An observance
    has three states: *observes*, *doesn't observe*, and *unstated*. Ticking anything for a person
    writes *observes*. Only unticking writes *unstated*, holding the off rule and saying nothing
    about whether they keep the day. *Doesn't observe* is its own action. A per-holiday wish
    default, authored in the shipped catalog (Christmas on, Columbus Day off), applies to every
    observer until a choice is made for them.
-3. **The holiday prompt.** One per (holiday, occurrence).
+2. **The holiday prompt.** One per (holiday, occurrence).
    - **Who it asks about:** it asks only for a relevant, not-hidden holiday, and only when it has
      an authored suggestion, a default-on wish, or something already on its schedule.
    - **Your errands:** at most two or three neutral suggestions per holiday, and none when
@@ -32,7 +28,7 @@ Each one ships on its own.
    - **Timing:** derived from the furthest offer, and a late arrival offers only what still
      fits, as for a hand-entered milestone.
    - **Don't ask again:** a reversible per-holiday switch, distinct from hide.
-4. **Grouped display** ([ADR 0002](./adr/0002-wishes-stay-individual-reminders.md)). Before the
+3. **Grouped display** ([ADR 0002](./adr/0002-wishes-stay-individual-reminders.md)). Before the
    day, an occasion's wishes fold to one line, "Wish people a Merry Christmas". On the day they're
    individual rows under Today. The digest uses the same wording, never a count.
 
