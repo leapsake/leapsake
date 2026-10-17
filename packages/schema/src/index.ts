@@ -191,6 +191,7 @@ export {
   leadTimeLabel,
   offerLabel,
   promptItemLabel,
+  ruleIcon,
   promptItemsOf,
   setPromptItem,
   promptDraftOf,

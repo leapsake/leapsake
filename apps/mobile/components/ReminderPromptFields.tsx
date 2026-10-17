@@ -3,10 +3,10 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type OfferContext,
   type ReminderRuleInput,
-  actionDefOf,
   leadTimeLabel,
   promptItemLabel,
   promptItemsOf,
+  ruleIcon,
   setPromptItem,
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
@@ -39,7 +39,7 @@ export function ReminderPromptFields({
   return (
     <View>
       {promptItemsOf(value).map(({ index, rule }) => {
-        const def = actionDefOf(rule.action);
+        const icon = ruleIcon(rule);
         const label = promptItemLabel(rule, offer);
         return (
           <Pressable
@@ -54,7 +54,7 @@ export function ReminderPromptFields({
             <CheckboxBox checked={rule.enabled} />
             <View style={styles.rowBody}>
               <Text style={styles.rowText}>
-                {def.icon ? `${def.icon} ` : ""}
+                {icon ? `${icon} ` : ""}
                 {label}
               </Text>
               {/* Its own line, where an editable lead time will go. */}

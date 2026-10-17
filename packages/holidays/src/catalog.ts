@@ -171,7 +171,7 @@ const ORTHODOX_EASTER = countries(
   "KZ",
 );
 
-const GATHERING = [{ label: "Plan a gathering", offsetDays: 14 }] as const;
+const GATHERING = [{ label: "🎉 Plan a gathering", offsetDays: 14 }] as const;
 
 // Observing it means being the one celebrated, which no affiliation says.
 const KEPT_BY_WHOEVER_YOU_SAY = countries();
@@ -204,7 +204,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "global",
     affiliations: everywhereBut("AF", "IR", "SA"),
-    suggestions: [{ label: "Make New Year’s Eve plans", offsetDays: 14 }],
+    suggestions: [{ label: "🥂 Make New Year’s Eve plans", offsetDays: 14 }],
     familyId: "new-year",
     authoredAt: V3,
   },
@@ -427,8 +427,8 @@ export const CATALOG: readonly HolidayEntry[] = [
     region: "us",
     affiliations: countries("US", "CA", "IE", "GB"),
     suggestions: [
-      { label: "Plan a costume", offsetDays: 21 },
-      { label: "Buy candy for trick-or-treaters", offsetDays: 7 },
+      { label: "🎭 Plan a costume", offsetDays: 21 },
+      { label: "🍬 Buy candy for trick-or-treaters", offsetDays: 7 },
     ],
     familyId: "halloween",
     impliedByLocale: true,
@@ -476,7 +476,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "christian",
     region: "global",
     affiliations: { religions: ["christian"], countries: CHRISTMAS_COUNTRIES },
-    suggestions: [{ label: "Plan Christmas dinner", offsetDays: 21 }],
+    suggestions: [{ label: "🍽️ Plan Christmas dinner", offsetDays: 21 }],
     wishByDefault: true,
     familyId: "christmas",
     // Safe to imply from a US locale: an occasion, not a religion.
@@ -601,7 +601,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "ca",
     affiliations: countries("CA"),
-    suggestions: [{ label: "Plan Thanksgiving dinner", offsetDays: 21 }],
+    suggestions: [{ label: "🦃 Plan Thanksgiving dinner", offsetDays: 21 }],
     familyId: "thanksgiving",
     authoredAt: V3,
   },
@@ -626,7 +626,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "us",
     affiliations: countries("US"),
-    suggestions: [{ label: "Plan Thanksgiving dinner", offsetDays: 21 }],
+    suggestions: [{ label: "🦃 Plan Thanksgiving dinner", offsetDays: 21 }],
     familyId: "thanksgiving",
     impliedByLocale: true,
     authoredAt: V1,
@@ -738,7 +738,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
-    suggestions: [{ label: "Buy Hanukkah candles", offsetDays: 7 }],
+    suggestions: [{ label: "🕎 Buy Hanukkah candles", offsetDays: 7 }],
     wishByDefault: true,
     durationDays: 8,
     authoredAt: V2,
@@ -929,7 +929,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
-    suggestions: [{ label: "Plan the Seder", offsetDays: 21 }],
+    suggestions: [{ label: "🍷 Plan the Seder", offsetDays: 21 }],
     durationDays: 8,
     authoredAt: V3,
   },
@@ -988,7 +988,7 @@ export const CATALOG: readonly HolidayEntry[] = [
       "BN",
       "PH",
     ),
-    suggestions: [{ label: "Plan a reunion dinner", offsetDays: 21 }],
+    suggestions: [{ label: "🥟 Plan a reunion dinner", offsetDays: 21 }],
     wishByDefault: true,
     familyId: "lunar-new-year",
     authoredAt: V2,

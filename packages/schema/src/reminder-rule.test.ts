@@ -12,6 +12,7 @@ import {
   parseAction,
   reminderRuleInputSchema,
   reminderRuleLabel,
+  ruleIcon,
   reminderRuleSchema,
   reminderScheduleInputSchema,
   resolveReminderSchedule,
@@ -282,6 +283,19 @@ describe("reminderRuleInputSchema", () => {
         enabled: true,
       }),
     ).toThrow();
+  });
+});
+
+describe("ruleIcon", () => {
+  it("gives an errand of your own the bell, unless it opens with an emoji", () => {
+    expect(ruleIcon({ action: "other", label: "Carve pumpkins" })).toBe("🔔");
+    expect(ruleIcon({ action: "other", label: "🎃 Carve pumpkins" })).toBe(
+      undefined,
+    );
+  });
+
+  it("gives a known action its own icon whatever its label", () => {
+    expect(ruleIcon({ action: "get:gift", label: "🎃" })).toBe("🎁");
   });
 });
 

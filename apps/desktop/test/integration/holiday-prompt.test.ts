@@ -108,8 +108,8 @@ describe("what a holiday's question offers", () => {
 
     const prompt = await core.holidays.prompt(HALLOWEEN, "2026-10-31");
     expect(prompt?.errands.map((e) => [e.label, e.enabled])).toEqual([
-      ["Plan a costume", false],
-      ["Buy candy for trick-or-treaters", false],
+      ["🎭 Plan a costume", false],
+      ["🍬 Buy candy for trick-or-treaters", false],
     ]);
     expect(prompt?.wishes.map((w) => [w.label, w.wish])).toEqual([
       ["Mary Hatch", false],
@@ -154,7 +154,7 @@ describe("answering a holiday's question", () => {
     await core.holidays.answerPrompt(HALLOWEEN, "2026-10-31", {
       errands: prompt.errands.map((e) => ({
         ...e,
-        enabled: e.label === "Plan a costume",
+        enabled: e.label === "🎭 Plan a costume",
       })),
       wishes: [{ bearerType: "person", bearerId: mary.id, wish: true }],
     });
@@ -177,15 +177,15 @@ describe("answering a holiday's question", () => {
     await core.holidays.answerPrompt(HALLOWEEN, "2026-10-31", {
       errands: prompt.errands.map((e) => ({
         ...e,
-        enabled: e.label === "Plan a costume",
+        enabled: e.label === "🎭 Plan a costume",
       })),
       wishes: [],
     });
 
     const next = await core.holidays.prompt(HALLOWEEN, "2027-10-31");
     expect(next?.errands.map((e) => [e.label, e.enabled])).toEqual([
-      ["Plan a costume", true],
-      ["Buy candy for trick-or-treaters", false],
+      ["🎭 Plan a costume", true],
+      ["🍬 Buy candy for trick-or-treaters", false],
     ]);
   });
 

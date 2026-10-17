@@ -1,10 +1,10 @@
 import {
   type OfferContext,
   type ReminderRuleInput,
-  actionDefOf,
   leadTimeLabel,
   promptItemLabel,
   promptItemsOf,
+  ruleIcon,
   setPromptItem,
 } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
@@ -31,7 +31,7 @@ export function ReminderPromptFields({
       <p>{m.reminderPrompt.caption}</p>
       <ul>
         {promptItemsOf(value).map(({ index, rule }) => {
-          const def = actionDefOf(rule.action);
+          const icon = ruleIcon(rule);
           const label = promptItemLabel(rule, offer);
           return (
             // Positional, like the schedule editor: no stable id until saved.
@@ -44,7 +44,7 @@ export function ReminderPromptFields({
                     onChange(setPromptItem(value, index, e.target.checked))
                   }
                 />{" "}
-                {def.icon ? `${def.icon} ` : ""}
+                {icon ? `${icon} ` : ""}
                 {label} <small>{leadTimeLabel(rule.offsetDays)}</small>
               </label>
             </li>

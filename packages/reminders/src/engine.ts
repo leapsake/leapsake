@@ -10,6 +10,7 @@ import {
   type ReminderRuleInput,
   type ResolvedReminderSchedule,
   actionDefOf,
+  ruleIcon,
   actionKeyOf,
   daysUntil,
   dueDateMs,
@@ -304,7 +305,7 @@ function renderTitle(copy: ReminderCopySource, belated: boolean): string {
           forSelf: copy.forSelf,
           recipient: copy.recipient,
         });
-  return `${def.icon ?? ""} ${body}`.trim();
+  return `${ruleIcon(copy) ?? ""} ${body}`.trim();
 }
 
 /** The title the read shows in place of the stored one, or `null` when the

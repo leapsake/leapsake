@@ -539,6 +539,19 @@ export function reminderRuleLabel(rule: {
   return actionDefOf(rule.action).label;
 }
 
+const LEADING_EMOJI = /^\p{Extended_Pictographic}/u;
+
+/** The emoji beside a rule's label: an `other` that opens with its own gets
+ *  none, so it isn't shown twice. */
+export function ruleIcon(rule: {
+  action: ReminderAction;
+  label?: string | null;
+}): string | undefined {
+  return verbOf(rule.action) === "other" && LEADING_EMOJI.test(rule.label ?? "")
+    ? undefined
+    : actionDefOf(rule.action).icon;
+}
+
 /** An action's label on a prompt about this occasion. */
 export function offerLabel(
   action: ReminderAction,
