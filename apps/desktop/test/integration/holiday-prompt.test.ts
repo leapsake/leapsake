@@ -46,7 +46,7 @@ async function questions() {
   return (await core.reminders.list())
     .filter((r) => r.source === "system")
     .map((r) => r.title ?? "")
-    .filter((title) => title.startsWith("🗓 What do you want to do for"));
+    .filter((title) => title.includes("What do you want to do for"));
 }
 
 describe("when a holiday asks", () => {
@@ -54,7 +54,7 @@ describe("when a holiday asks", () => {
     today(2026, 9, 25);
     await you();
     expect(await questions()).toEqual([
-      "🗓 What do you want to do for Halloween?",
+      "🎃 What do you want to do for Halloween?",
     ]);
   });
 
@@ -76,7 +76,7 @@ describe("when a holiday asks", () => {
     await you();
     await person({ firstName: "Mary", lastName: "Hatch" });
     expect(await questions()).toContain(
-      "🗓 What do you want to do for Christmas?",
+      "🎄 What do you want to do for Christmas?",
     );
   });
 

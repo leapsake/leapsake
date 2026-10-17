@@ -208,6 +208,8 @@ export interface HolidayPromptCandidate {
   holidayId: string;
   /** The holiday's name, “Halloween”, for the question. */
   occasion: string;
+  /** Its own emoji for the question; absent asks under the calendar. */
+  icon?: string;
   /** The occurrence dates to consider, ascending. */
   occurrences: CivilDate[];
   /** What the question offers, each with its lead; the furthest times the
@@ -1125,7 +1127,7 @@ async function computeDesired(
       desired.set(id, {
         id,
         title:
-          `${actionDefOf("plan").icon ?? ""} ${holidayPlanQuestion(prompt.occasion)}`.trim(),
+          `${prompt.icon ?? actionDefOf("plan").icon ?? ""} ${holidayPlanQuestion(prompt.occasion)}`.trim(),
         category: "occasion",
         dueDate,
         activeFrom: dueDate - ownActiveDays("plan") * DAY_MS,

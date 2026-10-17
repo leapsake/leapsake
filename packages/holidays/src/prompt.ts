@@ -33,6 +33,7 @@ import {
 import { isAffiliated } from "./affiliation.js";
 import {
   affiliationsFor,
+  iconFor,
   suggestionsFor,
   wishByDefaultFor,
 } from "./catalog.js";
@@ -302,6 +303,10 @@ export async function holidayPromptCandidates(
           {
             holidayId: ctx.holiday.id,
             occasion: ctx.holiday.name,
+            icon:
+              ctx.holiday.origin === "catalog"
+                ? iconFor(ctx.holiday.slug)
+                : undefined,
             occurrences: [...occurrences],
             offers,
           },

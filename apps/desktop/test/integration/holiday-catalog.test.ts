@@ -34,6 +34,7 @@ describe("holiday catalog seed", () => {
     slug: "test-holiday",
     name: "Test Holiday",
     greeting: "a Happy Test",
+    icon: "🧪",
     recurrence: { type: "fixed" as const, month: 3, day: 1 },
     // Classification is bundle-side and never reaches a row, so it is
     // irrelevant to everything this file asserts — but it is required on an

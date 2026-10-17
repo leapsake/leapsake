@@ -5,6 +5,7 @@ export {
   CATALOG_VERSION,
   affiliationsFor,
   classificationFor,
+  iconFor,
   suggestionsFor,
   wishByDefaultFor,
 } from "./catalog.js";

@@ -48,6 +48,8 @@ export interface HolidayEntry {
   /** The phrase “Wish @Violet …” takes, with its own article if any; see
    *  the README on greetings. */
   greeting: string;
+  /** Beside its name where it asks or reminds, “🎃”. */
+  icon: string;
   recurrence: HolidayRecurrence;
   /** The tradition this occasion comes from. See {@link HolidayTradition}. */
   tradition: HolidayTradition;
@@ -188,6 +190,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "new-years-day",
     name: "New Year's Day",
+    icon: "🎆",
     greeting: "a Happy New Year",
     recurrence: { type: "fixed", month: 1, day: 1 },
     tradition: "secular",
@@ -199,6 +202,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "new-years-eve",
     name: "New Year's Eve",
+    icon: "🥂",
     greeting: "a Happy New Year",
     recurrence: { type: "fixed", month: 12, day: 31 },
     tradition: "secular",
@@ -211,6 +215,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "orthodox-christmas",
     name: "Orthodox Christmas",
+    icon: "🎄",
     greeting: "a Merry Christmas",
     // Julian 25 December is Gregorian 7 January throughout 1900–2099, so a
     // `fixed` rule is exact; it is no Julian conversion.
@@ -225,6 +230,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "au-australia-day",
     name: "Australia Day",
+    icon: "🇦🇺",
     greeting: "a Happy Australia Day",
     recurrence: { type: "fixed", month: 1, day: 26 },
     tradition: "secular",
@@ -235,6 +241,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-valentines",
     name: "Valentine's Day",
+    icon: "💘",
     greeting: "a Happy Valentine's Day",
     recurrence: { type: "fixed", month: 2, day: 14 },
     tradition: "secular",
@@ -278,6 +285,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "intl-womens-day",
     name: "International Women's Day",
+    icon: "💐",
     greeting: "a Happy International Women's Day",
     recurrence: { type: "fixed", month: 3, day: 8 },
     tradition: "secular",
@@ -324,6 +332,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "ie-st-patricks",
     name: "St. Patrick's Day",
+    icon: "☘️",
     greeting: "a Happy St. Patrick's Day",
     // `secular`: kept far more widely as a national day than a religious one.
     recurrence: { type: "fixed", month: 3, day: 17 },
@@ -335,6 +344,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "intl-workers-day",
     name: "May Day",
+    icon: "✊",
     greeting: "a Happy May Day",
     recurrence: { type: "fixed", month: 5, day: 1 },
     tradition: "secular",
@@ -358,6 +368,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "mx-cinco-de-mayo",
     name: "Cinco de Mayo",
+    icon: "🪅",
     greeting: "a Happy Cinco de Mayo",
     recurrence: { type: "fixed", month: 5, day: 5 },
     tradition: "secular",
@@ -368,6 +379,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-juneteenth",
     name: "Juneteenth",
+    icon: "✊🏿",
     greeting: "a Happy Juneteenth",
     recurrence: { type: "fixed", month: 6, day: 19 },
     tradition: "secular",
@@ -378,6 +390,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "ca-canada-day",
     name: "Canada Day",
+    icon: "🇨🇦",
     greeting: "a Happy Canada Day",
     recurrence: { type: "fixed", month: 7, day: 1 },
     tradition: "secular",
@@ -389,6 +402,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-independence-day",
     name: "Independence Day",
+    icon: "🎆",
     greeting: "a Happy Fourth of July",
     recurrence: { type: "fixed", month: 7, day: 4 },
     tradition: "secular",
@@ -401,6 +415,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "fr-bastille-day",
     name: "Bastille Day",
+    icon: "🇫🇷",
     greeting: "a Happy Bastille Day",
     recurrence: { type: "fixed", month: 7, day: 14 },
     tradition: "secular",
@@ -411,6 +426,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "mx-independence-day",
     name: "Mexican Independence Day",
+    icon: "🇲🇽",
     greeting: "a Happy Independence Day",
     recurrence: { type: "fixed", month: 9, day: 16 },
     tradition: "secular",
@@ -421,6 +437,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-halloween",
     name: "Halloween",
+    icon: "🎃",
     greeting: "a Happy Halloween",
     recurrence: { type: "fixed", month: 10, day: 31 },
     tradition: "secular",
@@ -437,6 +454,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "mx-dia-de-muertos",
     name: "Día de los Muertos",
+    icon: "💀",
     // A remembrance, and a warm one — but not "Happy".
     greeting: "a meaningful Día de los Muertos",
     recurrence: { type: "fixed", month: 11, day: 1 },
@@ -449,6 +467,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-veterans-day",
     name: "Veterans Day",
+    icon: "🎖️",
     greeting: "a Happy Veterans Day",
     recurrence: { type: "fixed", month: 11, day: 11 },
     tradition: "secular",
@@ -460,6 +479,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "ca-remembrance-day",
     name: "Remembrance Day",
+    icon: "🌺",
     greeting: "a peaceful Remembrance Day",
     recurrence: { type: "fixed", month: 11, day: 11 },
     tradition: "secular",
@@ -471,6 +491,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "christmas",
     name: "Christmas",
+    icon: "🎄",
     greeting: "a Merry Christmas",
     recurrence: { type: "fixed", month: 12, day: 25 },
     tradition: "christian",
@@ -486,6 +507,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "uk-boxing-day",
     name: "Boxing Day",
+    icon: "🎁",
     greeting: "a Happy Boxing Day",
     recurrence: { type: "fixed", month: 12, day: 26 },
     tradition: "secular",
@@ -498,6 +520,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-mlk-day",
     name: "Martin Luther King Jr. Day",
+    icon: "🕊️",
     greeting: "a meaningful Martin Luther King Jr. Day",
     // Third Monday in January.
     recurrence: { type: "nth-weekday", month: 1, weekday: 1, nth: 3 },
@@ -509,6 +532,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-presidents-day",
     name: "Presidents' Day",
+    icon: "🏛️",
     greeting: "a Happy Presidents' Day",
     // Third Monday in February.
     recurrence: { type: "nth-weekday", month: 2, weekday: 1, nth: 3 },
@@ -520,6 +544,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-mothers-day",
     name: "Mother's Day",
+    icon: "💐",
     greeting: "a Happy Mother's Day",
     // Second Sunday in May.
     recurrence: { type: "nth-weekday", month: 5, weekday: 0, nth: 2 },
@@ -533,6 +558,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-memorial-day",
     name: "Memorial Day",
+    icon: "🇺🇸",
     greeting: "a peaceful Memorial Day",
     // Last Monday in May — the shape `nth: -1` exists for.
     recurrence: { type: "nth-weekday", month: 5, weekday: 1, nth: -1 },
@@ -546,6 +572,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-fathers-day",
     name: "Father's Day",
+    icon: "👔",
     greeting: "a Happy Father's Day",
     // Third Sunday in June.
     recurrence: { type: "nth-weekday", month: 6, weekday: 0, nth: 3 },
@@ -559,6 +586,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-labor-day",
     name: "Labor Day",
+    icon: "🛠️",
     greeting: "a Happy Labor Day",
     // First Monday in September.
     recurrence: { type: "nth-weekday", month: 9, weekday: 1, nth: 1 },
@@ -571,6 +599,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-columbus-day",
     name: "Columbus Day",
+    icon: "⛵",
     greeting: "a Happy Columbus Day",
     // Second Monday in October. It shares a date with the next entry and no
     // `familyId`, so the picker takes no side between them.
@@ -583,6 +612,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-indigenous-peoples-day",
     name: "Indigenous Peoples' Day",
+    icon: "🪶",
     greeting: "a Happy Indigenous Peoples' Day",
     // Second Monday in October. See the note above.
     recurrence: { type: "nth-weekday", month: 10, weekday: 1, nth: 2 },
@@ -595,6 +625,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     slug: "ca-thanksgiving",
     // A display name must stand alone in a flat list or search.
     name: "Canadian Thanksgiving",
+    icon: "🦃",
     greeting: "a Happy Thanksgiving",
     // Second Monday in October; shares `thanksgiving` with the US entry.
     recurrence: { type: "nth-weekday", month: 10, weekday: 1, nth: 2 },
@@ -608,6 +639,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "uk-remembrance-sunday",
     name: "Remembrance Sunday",
+    icon: "🌺",
     greeting: "a peaceful Remembrance Sunday",
     // Second Sunday in November, unlike the family's fixed 11 November.
     recurrence: { type: "nth-weekday", month: 11, weekday: 0, nth: 2 },
@@ -620,6 +652,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "us-thanksgiving",
     name: "Thanksgiving",
+    icon: "🦃",
     greeting: "a Happy Thanksgiving",
     // Fourth Thursday in November.
     recurrence: { type: "nth-weekday", month: 11, weekday: 4, nth: 4 },
@@ -636,6 +669,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "western-easter",
     name: "Easter",
+    icon: "🐣",
     greeting: "a Happy Easter",
     recurrence: { type: "computed", algorithm: "western-easter" },
     tradition: "christian",
@@ -647,6 +681,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "western-good-friday",
     name: "Good Friday",
+    icon: "✝️",
     greeting: "a blessed Good Friday",
     // A derivation edge, which the resolver keeps acyclic.
     recurrence: { type: "offset", from: "western-easter", days: -2 },
@@ -659,6 +694,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "uk-mothering-sunday",
     name: "Mothering Sunday",
+    icon: "💐",
     greeting: "a Happy Mothering Sunday",
     // The fourth Sunday of Lent: `us-mothers-day`'s family, on another rule.
     recurrence: { type: "offset", from: "western-easter", days: -21 },
@@ -672,6 +708,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "orthodox-easter",
     name: "Orthodox Easter",
+    icon: "🥚",
     greeting: "a Happy Easter",
     // Its own rule, not a Western variant: the two diverge by up to five weeks.
     recurrence: { type: "computed", algorithm: "orthodox-easter" },
@@ -684,6 +721,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "orthodox-good-friday",
     name: "Orthodox Good Friday",
+    icon: "✝️",
     greeting: "a blessed Good Friday",
     recurrence: { type: "offset", from: "orthodox-easter", days: -2 },
     tradition: "christian",
@@ -697,6 +735,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "hanukkah",
     name: "Hanukkah",
+    icon: "🕎",
     greeting: "a Happy Hanukkah",
     // 25 Kislev, the first day's daytime date.
     recurrence: {
@@ -746,6 +785,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "rosh-hashanah",
     name: "Rosh Hashanah",
+    icon: "🍎",
     // Article-less: “Wish @Grandma Shana Tova”.
     greeting: "Shana Tova",
     // 1 Tishrei, daytime.
@@ -795,6 +835,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "yom-kippur",
     name: "Yom Kippur",
+    icon: "🕍",
     // A fast, never “Happy”; “an easy fast” is the idiom.
     greeting: "an easy fast",
     // 10 Tishrei, daytime.
@@ -842,6 +883,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "sukkot",
     name: "Sukkot",
+    icon: "🌿",
     greeting: "a Happy Sukkot",
     // 15 Tishrei, daytime.
     recurrence: {
@@ -889,6 +931,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "passover",
     name: "Passover",
+    icon: "🍷",
     greeting: "a Happy Passover",
     // 15 Nisan, daytime; eight days in the diaspora, seven in Israel.
     recurrence: {
@@ -936,6 +979,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "lunar-new-year",
     name: "Lunar New Year",
+    icon: "🧧",
     greeting: "a Happy Lunar New Year",
     // First day of Chinese month 1, from true new moons in UTC+8.
     recurrence: {
@@ -996,6 +1040,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "lantern-festival",
     name: "Lantern Festival",
+    icon: "🏮",
     greeting: "a Happy Lantern Festival",
     // Derived, not tabled, so it inherits Lunar New Year's horizon and fixes.
     recurrence: { type: "offset", from: "lunar-new-year", days: 14 },
@@ -1007,6 +1052,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "dragon-boat-festival",
     name: "Dragon Boat Festival",
+    icon: "🐉",
     greeting: "a Happy Dragon Boat Festival",
     // 5th day of Chinese month 5.
     recurrence: {
@@ -1053,6 +1099,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   {
     slug: "mid-autumn-festival",
     name: "Mid-Autumn Festival",
+    icon: "🥮",
     greeting: "a Happy Mid-Autumn Festival",
     // 15th day of Chinese month 8, the harvest full moon.
     recurrence: {
@@ -1133,6 +1180,11 @@ export function wishByDefaultFor(slug: string): boolean {
 }
 
 /** The errands of your own a slug's prompt offers, or none. */
+/** A catalog holiday's emoji; a holiday of the user's own has none. */
+export function iconFor(slug: string): string | undefined {
+  return BY_SLUG.get(slug)?.icon;
+}
+
 export function suggestionsFor(slug: string): readonly HolidaySuggestion[] {
   return BY_SLUG.get(slug)?.suggestions ?? [];
 }
