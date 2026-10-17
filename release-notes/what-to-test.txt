@@ -21,22 +21,34 @@ Please try, in roughly this order:
    encryption and gives you a recovery phrase. Write the phrase down.
 7. In Safari, open a shop’s page for something you might give, tap Share, and choose
    Leapsake. If Leapsake is not in the row of apps, tap More and turn it on.
+8. Give someone a nationality or a religion, then look ahead on Home for a holiday they
+   keep, and answer what you’ll do for it.
 
 New in this build:
 
+- Holidays: give people nationalities and religions, and Leapsake works out which
+  holidays they keep. Before each one it asks what you’ll do, such as wish them or give
+  a gift, and who for.
+- Record that someone has passed away. Their days stay in memory and remind you once,
+  quietly, and Leapsake offers the people closest to them.
+- Choose your date format in Settings → Display, and your country in
+  Settings → Country.
+- Notifications repeat each day a reminder sits undone, at up to three times you choose,
+  and you can pick which kinds of reminder notify on each device.
+- Adding a person or pet uses the same screens as editing one.
+- Tags have their own colours, and @mentions stand out in what you write.
+
+New since the App Store version:
+
 - Share to Leapsake: from Safari or any app’s Share button, a web page opens in Leapsake
   as a new gift, with its name and picture filled in; shared text without a link becomes
-  the gift’s name. This is brand new, so please tell us where it goes wrong.
-
-New in the previous build:
-
+  the gift’s name.
 - Gifts: paste a shop link and Leapsake names the gift and shows its picture. It fetches
   that page directly from your phone, with no server of ours in between.
 - Birthdays and anniversaries now ask each year what you’d like to do, such as give a gift
   or send a card, and you can tell them not to ask again.
 - Possible duplicates are reviewed one pair at a time, and you choose which one to keep.
 - Phone numbers work with or without a country code, including for WhatsApp and Signal.
-- Notifications arrive as one daily digest, and can be turned on per device.
 - Most screens have been tidied: one style of button, menu and sheet throughout.
 
 Things we know are unfinished: syncing between devices is switched off in this build,
