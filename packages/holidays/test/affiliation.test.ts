@@ -51,13 +51,14 @@ describe("catalog affiliations", () => {
     },
   );
 
-  it("leaves only the days that celebrate someone to explicit observers", () => {
+  it("leaves the days that celebrate someone, and Columbus Day, to explicit observers", () => {
     const explicitOnly = CATALOG.filter(
       (e) =>
         e.affiliations.religions.length + e.affiliations.countries.length === 0,
     ).map((e) => e.slug);
     expect(explicitOnly.sort()).toEqual([
       "uk-mothering-sunday",
+      "us-columbus-day",
       "us-fathers-day",
       "us-mothers-day",
     ]);

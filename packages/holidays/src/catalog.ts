@@ -606,7 +606,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     recurrence: { type: "nth-weekday", month: 10, weekday: 1, nth: 2 },
     tradition: "secular",
     region: "us",
-    affiliations: countries("US"),
+    affiliations: countries(),
     authoredAt: V3,
   },
   {

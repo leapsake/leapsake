@@ -8,6 +8,7 @@ import { makeEncryptedTestDriver } from "../support/encrypted-test-driver.js";
 const CHRISTMAS = holidayIdFor("christmas");
 const THANKSGIVING = holidayIdFor("us-thanksgiving");
 const HANUKKAH = holidayIdFor("hanukkah");
+const COLUMBUS_DAY = holidayIdFor("us-columbus-day");
 
 let driver: SqliteDriver;
 let cleanup: () => void;
@@ -55,6 +56,11 @@ describe("implicit observers", () => {
   it("keeps a national holiday for whoever lives in your country", async () => {
     const george = await person({ firstName: "George" });
     expect(await observes(THANKSGIVING, george.id)).toBe(true);
+  });
+
+  it("keeps Columbus Day only for whoever you say", async () => {
+    const george = await person({ firstName: "George" });
+    expect(await observes(COLUMBUS_DAY, george.id)).toBe(false);
   });
 
   it("goes by an address over your country", async () => {
