@@ -925,7 +925,7 @@ async function holidayPlanAction({ request, params }: ActionFunctionArgs) {
     ...prompt.wishes.map((w) => ({
       bearerType: w.bearerType,
       bearerId: w.bearerId,
-      wish: wished.has(bearerKeyOf(w)),
+      wish: wished.has(bearerKeyOf(w)) || added.has(bearerKeyOf(w)),
     })),
     ...prompt.addable
       .filter((c) => added.has(bearerKeyOf(c)))

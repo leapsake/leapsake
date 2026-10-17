@@ -16,8 +16,8 @@ export function bearerKeyOf(b: { bearerType: string; bearerId: string }) {
 }
 
 /**
- * A holiday's question: your errands, then everyone else on one collapsed wish
- * line. Posts the ticks by name; the action rebuilds the answer from them.
+ * A holiday's question: your errands, then a collapsed wish line of who you're
+ * wishing, with everyone else to add. The action rebuilds the answer by name.
  */
 export function HolidayPlanPrompt() {
   const { prompt } = useLoaderData() as { prompt: HolidayPrompt };
@@ -27,6 +27,10 @@ export function HolidayPlanPrompt() {
     .filter((p) => p.bearerType === "person")
     .sort((a, b) => a.label.localeCompare(b.label));
   const offersWishes = prompt.wishes.length + prompt.addable.length > 0;
+  const findable = [
+    ...prompt.wishes.filter((w) => !w.wish),
+    ...prompt.addable,
+  ].sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <main>
@@ -84,24 +88,26 @@ export function HolidayPlanPrompt() {
         {offersWishes && (
           <details>
             <summary>{m.holidayPrompt.wishLine(prompt.greeting)}</summary>
-            {prompt.wishes.map((w) => (
-              <p key={bearerKeyOf(w)}>
-                <label>
-                  <input
-                    type="checkbox"
-                    name="wish"
-                    value={bearerKeyOf(w)}
-                    defaultChecked={w.wish}
-                  />{" "}
-                  {w.label}
-                </label>
-              </p>
-            ))}
-            {prompt.addable.length > 0 && (
+            {prompt.wishes
+              .filter((w) => w.wish)
+              .map((w) => (
+                <p key={bearerKeyOf(w)}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="wish"
+                      value={bearerKeyOf(w)}
+                      defaultChecked={w.wish}
+                    />{" "}
+                    {w.label}
+                  </label>
+                </p>
+              ))}
+            {findable.length > 0 && (
               <label>
                 {m.holidayPrompt.addSomeone}{" "}
                 <select name="add" multiple size={4}>
-                  {prompt.addable.map((c) => (
+                  {findable.map((c) => (
                     <option key={bearerKeyOf(c)} value={bearerKeyOf(c)}>
                       {c.label}
                     </option>

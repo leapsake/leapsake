@@ -27,8 +27,8 @@ const OWN_ERRANDS: OfferContext = {
 };
 
 /**
- * A holiday's question: your errands, then everyone else on one wish line
- * that opens to a tick each and a field to add someone.
+ * A holiday's question: your errands, then one wish line that opens to who
+ * you're wishing and a search for anyone else who keeps it, or doesn't.
  */
 export function HolidayPromptForm({
   prompt,
@@ -48,13 +48,26 @@ export function HolidayPromptForm({
   const [somethingElse, setSomethingElse] = useState("");
   const [wishes, setWishes] = useState(prompt.wishes);
   const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(
+    () => new Set(prompt.wishes.filter((w) => w.wish).map(keyOf)),
+  );
   const [you, setYou] = useState<PromptCandidate | null>(null);
 
   const people = [...prompt.wishes, ...prompt.addable].filter(
     (p) => p.bearerType === "person",
   );
-  const onLine = new Set(wishes.map(keyOf));
+  const findable = [...prompt.wishes, ...prompt.addable];
   const offersWishes = prompt.wishes.length + prompt.addable.length > 0;
+
+  function wish(c: PromptCandidate) {
+    const key = keyOf(c);
+    setShown(new Set(shown).add(key));
+    setWishes(
+      wishes.some((w) => keyOf(w) === key)
+        ? wishes.map((w) => (keyOf(w) === key ? { ...w, wish: true } : w))
+        : [...wishes, { ...c, wish: true }],
+    );
+  }
 
   function save() {
     const answered = withSomethingElse(errands, somethingElse);
@@ -107,39 +120,37 @@ export function HolidayPromptForm({
           </Pressable>
           {open && (
             <>
-              {wishes.map((w) => (
-                <Pressable
-                  key={keyOf(w)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: w.wish }}
-                  accessibilityLabel={w.label}
-                  onPress={() =>
-                    setWishes(
-                      wishes.map((x) =>
-                        keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
-                      ),
-                    )
-                  }
-                  style={[styles.row, styles.rowWithLead]}
-                >
-                  <CheckboxBox checked={w.wish} />
-                  <Text style={styles.rowText}>{w.label}</Text>
-                </Pressable>
-              ))}
-              {prompt.addable.length > 0 && (
-                <Typeahead
-                  multi
-                  label={m.holidayPrompt.addSomeone}
-                  value={null}
-                  options={prompt.addable}
-                  exclude={onLine}
-                  onChange={(c) =>
-                    c !== null && setWishes([...wishes, { ...c, wish: true }])
-                  }
-                  getKey={keyOf}
-                  getLabel={(c) => c.label}
-                />
-              )}
+              {wishes
+                .filter((w) => shown.has(keyOf(w)))
+                .map((w) => (
+                  <Pressable
+                    key={keyOf(w)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: w.wish }}
+                    accessibilityLabel={w.label}
+                    onPress={() =>
+                      setWishes(
+                        wishes.map((x) =>
+                          keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
+                        ),
+                      )
+                    }
+                    style={[styles.row, styles.rowWithLead]}
+                  >
+                    <CheckboxBox checked={w.wish} />
+                    <Text style={styles.rowText}>{w.label}</Text>
+                  </Pressable>
+                ))}
+              <Typeahead
+                multi
+                label={m.holidayPrompt.addSomeone}
+                value={null}
+                options={findable}
+                exclude={shown}
+                onChange={(c) => c !== null && wish(c)}
+                getKey={keyOf}
+                getLabel={(c) => c.label}
+              />
             </>
           )}
         </View>
