@@ -32,7 +32,10 @@ export function HolidayList() {
             {holidays.map((holiday) => (
               <tr key={holiday.id}>
                 <td>
-                  <Link to={`/holidays/${holiday.id}`}>{holiday.name}</Link>
+                  <Link to={`/holidays/${holiday.id}`}>
+                    {holiday.icon === null ? "" : `${holiday.icon} `}
+                    {holiday.name}
+                  </Link>
                   {holiday.hidden && " (hidden)"}
                 </td>
                 <td>

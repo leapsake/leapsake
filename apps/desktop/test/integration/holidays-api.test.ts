@@ -168,6 +168,11 @@ describe("holidays read API", () => {
     expect(list.at(-1)?.slug).toBe("us-mothers-day");
   });
 
+  it("lists a catalog holiday with its emoji", async () => {
+    const list = await api().list();
+    expect(list.find((h) => h.slug === "christmas")?.icon).toBe("🎄");
+  });
+
   it("returns a detail view with several upcoming dates", async () => {
     const detail = await api().get(holidayIdFor("christmas"));
     expect(detail?.name).toBe("Christmas");

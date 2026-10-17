@@ -46,6 +46,7 @@ export default function HolidaysScreen() {
             >
               <View>
                 <Text style={[styles.rowText, { color: colors.accent }]}>
+                  {holiday.icon === null ? "" : `${holiday.icon} `}
                   {holiday.name}
                   {holiday.hidden ? " (hidden)" : ""}
                 </Text>

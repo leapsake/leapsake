@@ -54,6 +54,8 @@ export interface HolidayListItem {
   id: string;
   slug: string;
   name: string;
+  /** Beside its name; `null` for a holiday of the user's own. */
+  icon: string | null;
   greeting: string;
   durationDays: number | null;
   familyId: string | null;
@@ -198,6 +200,11 @@ export async function holidayReminderCandidates(deps: {
   return candidates;
 }
 
+/** A catalog holiday's emoji; none for one of the user's own. */
+function iconOfRow(row: { origin: HolidayOrigin; slug: string }) {
+  return row.origin === "catalog" ? (iconFor(row.slug) ?? null) : null;
+}
+
 /** Who observes implicitly, or nobody when the deps don't say. */
 function implicitOf(deps: HolidaysApiDeps): Promise<ImplicitObservance> {
   return deps.implicit?.() ?? Promise.resolve(NO_IMPLICIT);
@@ -282,6 +289,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
           id: row.id,
           slug: row.slug,
           name: row.name,
+          icon: row.origin === "catalog" ? (iconFor(row.slug) ?? null) : null,
           greeting: row.greeting,
           durationDays: row.durationDays,
           familyId: row.familyId,
@@ -311,6 +319,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
         id: row.id,
         slug: row.slug,
         name: row.name,
+        icon: iconOfRow(row),
         greeting: row.greeting,
         durationDays: row.durationDays,
         familyId: row.familyId,
@@ -420,6 +429,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
           id: row.id,
           slug: row.slug,
           name: row.name,
+          icon: row.origin === "catalog" ? (iconFor(row.slug) ?? null) : null,
           greeting: row.greeting,
           durationDays: row.durationDays,
           familyId: row.familyId,
