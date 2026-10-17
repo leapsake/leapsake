@@ -396,6 +396,37 @@ export const en: Messages = {
     reviewDuplicates: "Review",
   },
 
+  affiliations: {
+    nationalities: "Nationalities",
+    religions: "Religions",
+    religion: {
+      bahai: "Bahá’í",
+      buddhist: "Buddhist",
+      "chinese-folk": "Chinese folk religion",
+      christian: "Christian",
+      confucian: "Confucian",
+      druze: "Druze",
+      hindu: "Hindu",
+      indigenous: "Indigenous religion",
+      jain: "Jain",
+      jewish: "Jewish",
+      muslim: "Muslim",
+      pagan: "Pagan",
+      rastafari: "Rastafari",
+      shinto: "Shinto",
+      sikh: "Sikh",
+      spiritist: "Spiritist",
+      taoist: "Taoist",
+      yazidi: "Yazidi",
+      zoroastrian: "Zoroastrian",
+    },
+    nationalitiesHint: "Hold ⌘ to choose more than one.",
+    list: (names) =>
+      names.length < 3
+        ? names.join(" and ")
+        : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`,
+  },
+
   people: {
     reviewDuplicates: (count) =>
       count === 1

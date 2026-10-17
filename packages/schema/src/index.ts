@@ -463,7 +463,11 @@ export {
   wholeNumberOrNull,
 } from "./date-parts.js";
 export type { DateParts, DueDateCheck } from "./date-parts.js";
-export { contactCountryOptions, countryFlag } from "./countries.js";
+export {
+  contactCountryOptions,
+  countryFlag,
+  countryName,
+} from "./countries.js";
 export { RELIGIONS, religionSchema } from "./religion.js";
 export type { Religion } from "./religion.js";
 export type { CountryOption } from "./countries.js";

@@ -260,3 +260,8 @@ export function countryFlag(code: string): string {
     ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65),
   );
 }
+
+/** A code's English name, or the code itself for one outside the list. */
+export function countryName(code: string): string {
+  return contactCountryOptions.find((c) => c.code === code)?.name ?? code;
+}

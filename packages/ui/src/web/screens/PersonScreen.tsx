@@ -7,7 +7,7 @@ import type {
   Reminder,
   Tag,
 } from "@leapsake/schema";
-import { fullName } from "@leapsake/schema";
+import { countryName, fullName } from "@leapsake/schema";
 import { useMessages } from "../../messages/index.js";
 import { useUi } from "../adapter.js";
 import type { GiftRecipientRow } from "../../headless/index.js";
@@ -94,6 +94,22 @@ export function PersonScreen({
           },
           { term: m.person.lastName, value: person.lastName },
           { term: m.gender.fieldLabel, value: <GenderValue gender={gender} /> },
+          {
+            term: m.affiliations.nationalities,
+            value:
+              person.nationalities.length === 0
+                ? m.common.none
+                : m.affiliations.list(person.nationalities.map(countryName)),
+          },
+          {
+            term: m.affiliations.religions,
+            value:
+              person.religions.length === 0
+                ? m.common.none
+                : m.affiliations.list(
+                    person.religions.map((r) => m.affiliations.religion[r]),
+                  ),
+          },
         ]}
       />
 

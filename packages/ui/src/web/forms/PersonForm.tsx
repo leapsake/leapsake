@@ -7,6 +7,7 @@ import type {
 import type { ReactNode } from "react";
 import { usePersonForm } from "../../headless/index.js";
 import { type Messages, useMessages } from "../../messages/index.js";
+import { AffiliationsFields } from "../fields/AffiliationsFields.js";
 import { ChipTextField } from "../fields/ChipTextField.js";
 import {
   StagedRelationshipsFields,
@@ -110,6 +111,12 @@ export function PersonFields({
       <GenderField
         value={fields.gender}
         onChange={(gender) => set("gender", gender)}
+      />
+      <AffiliationsFields
+        nationalities={fields.nationalities}
+        religions={fields.religions}
+        onNationalitiesChange={(codes) => set("nationalities", codes)}
+        onReligionsChange={(religions) => set("religions", religions)}
       />
       <fieldset>
         <legend>{m.tags.title}</legend>

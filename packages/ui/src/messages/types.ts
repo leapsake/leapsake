@@ -3,6 +3,7 @@ import type {
   DateFormat,
   GiftPartyType,
   ObservanceBearerType,
+  Religion,
   YourCountrySource,
 } from "@leapsake/schema";
 
@@ -361,6 +362,17 @@ export interface Messages {
     /** How many others look like this person. */
     duplicates: (count: number) => string;
     reviewDuplicates: string;
+  };
+
+  /** A person's stated nationalities and religions. */
+  affiliations: {
+    nationalities: string;
+    religions: string;
+    religion: Record<Religion, string>;
+    /** Under the multi-select of countries, on a pointer-driven form. */
+    nationalitiesHint: string;
+    /** Several names as one phrase: “Ireland and the United States”. */
+    list: (names: readonly string[]) => string;
   };
 
   people: {

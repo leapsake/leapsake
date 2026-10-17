@@ -85,4 +85,5 @@ export { DetailList, type Detail } from "./primitives/DetailList.js";
 export { MultiAddCombobox } from "./primitives/MultiAddCombobox.js";
 export { EmptyState, Section } from "./primitives/Section.js";
 export { GenderField } from "./primitives/GenderField.js";
+export { AffiliationsFields } from "./fields/AffiliationsFields.js";
 export { GenderValue, type GenderResult } from "./primitives/GenderValue.js";

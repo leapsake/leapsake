@@ -21,6 +21,8 @@ const person = {
   middleName: null,
   lastName: "Bailey",
   gender: "female",
+  nationalities: ["US", "IE"],
+  religions: ["christian"],
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
   deletedAt: null,
@@ -75,6 +77,12 @@ describe("PersonScreen", () => {
       "Tags",
       "Mentioned in",
     ]);
+  });
+
+  it("names the person's nationalities and religions", () => {
+    renderPerson();
+    expect(screen.getByText("United States and Ireland")).toBeTruthy();
+    expect(screen.getByText("Christian")).toBeTruthy();
   });
 
   it("offers edit, merge and delete for the person", () => {
