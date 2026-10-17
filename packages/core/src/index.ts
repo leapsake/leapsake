@@ -128,6 +128,7 @@ import {
   type ImplicitObservance,
   type ObserverDecision,
   createHolidaysApi,
+  holidayDisplayName,
   holidayPromptCandidates,
   holidayReminderCandidates,
   personAffiliations,
@@ -441,7 +442,12 @@ export function createCore(
     relationships,
     dismissals,
   });
-  const search = createSearchService(driver);
+  const search = createSearchService(driver, {
+    holidayName: async () => {
+      const { country } = await yourCountryNow();
+      return (holiday) => holidayDisplayName(holiday, country);
+    },
+  });
   const duplicates = createDuplicateService(
     driver,
     { notADuplicate },

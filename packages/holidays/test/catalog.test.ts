@@ -5,6 +5,7 @@ import {
   CATALOG_VERSION,
   canonicalRecurrenceJson,
   classificationFor,
+  holidayDisplayName,
   createHolidayResolver,
   isoFromCivil,
   parseRecurrence,
@@ -56,16 +57,25 @@ describe("catalog integrity", () => {
     ]);
   });
 
-  it("gives every live entry a display name nothing else shares", () => {
-    // A name has to identify its holiday on its own: search returns a bare
-    // title, and the browse list is flat. Two entries reading "Thanksgiving"
-    // are two rows a user cannot tell apart — which is what `ca-thanksgiving`
-    // is named "Canadian Thanksgiving" to avoid. Grouping by region will help,
-    // but a name that only works inside its group is still the wrong name.
-    const names = CATALOG.filter((e) => e.retiredAt === undefined).map(
-      (e) => e.name,
-    );
-    expect(new Set(names).size).toBe(names.length);
+  it.each([null, "US", "CA", "MX", "GB", "IE", "FR", "AU", "JP"])(
+    "gives every live entry a name nothing else shows, in %s",
+    (country) => {
+      // Search and the browse list show a bare name, so it has to identify
+      // its holiday on its own wherever you are.
+      const names = CATALOG.filter((e) => e.retiredAt === undefined).map((e) =>
+        holidayDisplayName({ ...e, origin: "catalog" }, country),
+      );
+      expect(new Set(names).size).toBe(names.length);
+    },
+  );
+
+  it("never names the country of a holiday of your own", () => {
+    expect(
+      holidayDisplayName(
+        { origin: "user", slug: "ca-thanksgiving", name: "Thanksgiving" },
+        "US",
+      ),
+    ).toBe("Thanksgiving");
   });
 
   it("gives every entry a greeting, for the reminder copy", () => {
@@ -398,7 +408,7 @@ describe("catalog serialization", () => {
       ].join(FIELD),
     ).join(RECORD);
     expect(createHash("sha256").update(payload).digest("hex")).toBe(
-      "3aff5b51ea924e49113b95b8522912956135d082953cb632ce44a45518af15a9",
+      "b9d6fc7ed3a28083c8a150bf61470be70393d9ca27a5819800e8614c390abc1c",
     );
   });
 

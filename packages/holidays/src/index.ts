@@ -9,6 +9,7 @@ export {
   suggestionsFor,
   wishByDefaultFor,
 } from "./catalog.js";
+export { holidayDisplayName } from "./naming.js";
 export {
   isAffiliated,
   personAffiliations,

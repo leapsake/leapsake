@@ -86,6 +86,7 @@ function authored(iso: string): number {
 const V1 = authored("2026-07-20");
 const V2 = authored("2026-07-23");
 const V3 = authored("2026-09-11");
+const V4 = authored("2026-10-16");
 
 // Kept as a public holiday by everyone, not only by Christians.
 const CHRISTMAS_COUNTRIES = [
@@ -181,7 +182,7 @@ const KEPT_BY_WHOEVER_YOU_SAY = countries();
 const CHINESE_FESTIVAL = countries("CN", "TW", "HK", "MO", "SG", "MY");
 
 /** Bump on any change to {@link CATALOG}; an integer, not semver. */
-export const CATALOG_VERSION = 4;
+export const CATALOG_VERSION = 5;
 
 /** The catalog; its lunisolar tables run to 2056, derived as the README's
  *  _How the lunisolar tables were derived_ says. */
@@ -425,14 +426,14 @@ export const CATALOG: readonly HolidayEntry[] = [
   },
   {
     slug: "mx-independence-day",
-    name: "Mexican Independence Day",
+    name: "Independence Day",
     icon: "🇲🇽",
     greeting: "a Happy Independence Day",
     recurrence: { type: "fixed", month: 9, day: 16 },
     tradition: "secular",
     region: "mx",
     affiliations: countries("MX"),
-    authoredAt: V3,
+    authoredAt: V4,
   },
   {
     slug: "us-halloween",
@@ -623,8 +624,7 @@ export const CATALOG: readonly HolidayEntry[] = [
   },
   {
     slug: "ca-thanksgiving",
-    // A display name must stand alone in a flat list or search.
-    name: "Canadian Thanksgiving",
+    name: "Thanksgiving",
     icon: "🦃",
     greeting: "a Happy Thanksgiving",
     // Second Monday in October; shares `thanksgiving` with the US entry.
@@ -634,7 +634,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     affiliations: countries("CA"),
     suggestions: [{ label: "🦃 Plan Thanksgiving dinner", offsetDays: 21 }],
     familyId: "thanksgiving",
-    authoredAt: V3,
+    authoredAt: V4,
   },
   {
     slug: "uk-remembrance-sunday",
@@ -1147,6 +1147,33 @@ export const CATALOG: readonly HolidayEntry[] = [
 
 /** Every entry, by slug — built once. */
 const BY_SLUG = new Map(CATALOG.map((e) => [e.slug, e]));
+
+/** The country a national holiday belongs to. */
+const REGION_COUNTRY: Record<HolidayRegion, string | null> = {
+  global: null,
+  us: "US",
+  ca: "CA",
+  mx: "MX",
+  uk: "GB",
+  ie: "IE",
+  fr: "FR",
+  au: "AU",
+};
+
+/** Names more than one live entry goes by. */
+const SHARED_NAMES = new Set(
+  CATALOG.filter((e) => e.retiredAt === undefined)
+    .map((e) => e.name)
+    .filter((name, i, names) => names.indexOf(name) !== i),
+);
+
+/** The country a catalog holiday's name is told apart by, or `null` when no
+ *  other entry shares its name. */
+export function nameCountryFor(slug: string): string | null {
+  const entry = BY_SLUG.get(slug);
+  if (entry === undefined || !SHARED_NAMES.has(entry.name)) return null;
+  return REGION_COUNTRY[entry.region];
+}
 
 /** An entry's grouping facts, as the browse list consumes them. */
 export interface HolidayClassification {

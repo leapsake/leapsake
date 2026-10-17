@@ -171,9 +171,12 @@ denomination, so the Orthodox entries name the countries whose churches keep the
 religion. A user-defined holiday has none, and only explicit observers keep it; so do Mother’s Day,
 Father’s Day and Mothering Sunday, since observing them means being the one celebrated.
 
-**Display names must stand alone.** Search returns a bare title and the browse list is flat, so a
-name that is only unambiguous inside its group is the wrong name — hence "Canadian Thanksgiving".
-A catalog test pins this.
+**A name is what people there call it, and shows its country only when it must.** Canada's
+Thanksgiving is stored as "Thanksgiving", like the US one. Where two catalog entries share a name,
+`holidayDisplayName` adds the country to every one that isn't yours: in Canada you see
+"Thanksgiving" and "Thanksgiving (United States)". Search and the browse list show bare titles,
+so a catalog test pins that the shown names are unique wherever you are. A holiday of your own
+always shows as you typed it.
 
 ## Recurrence: rules where they are exact, tables where they are not
 

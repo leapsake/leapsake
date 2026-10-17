@@ -189,6 +189,12 @@ export function planQuestion({
   return `What do you want to do for ${subject}’s ${occasion}?`;
 }
 
+/** A holiday's name told apart from another country's: “Thanksgiving
+ *  (Canada)”. */
+export function holidayNameIn(name: string, country: string): string {
+  return `${name} (${country})`;
+}
+
 /** A holiday prompt's question, which no one person's occasion it is. */
 export function holidayPlanQuestion(occasion: string): string {
   return `What do you want to do for ${occasion}?`;

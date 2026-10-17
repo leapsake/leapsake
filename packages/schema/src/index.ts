@@ -177,6 +177,7 @@ export {
   parseAction,
   planQuestion,
   holidayPlanQuestion,
+  holidayNameIn,
   YOUR_PARTNER,
   offerContextForOthers,
   reachAction,

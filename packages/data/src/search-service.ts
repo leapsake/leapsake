@@ -132,7 +132,9 @@ interface BirthdayMatchRow {
 /** A holiday as its own result; its name is folded at read time. */
 interface HolidayRow {
   id: string;
+  slug: string;
   name: string;
+  origin: "catalog" | "user";
 }
 /** A gift idea, as its own result and as a tag's owner. Matched on its folded
  *  title and its `url`, the half-remembered link. */
@@ -153,7 +155,13 @@ interface Accumulator {
 }
 
 /** Global search: load the small set of active rows and match in memory. */
-export function createSearchService(driver: SqliteDriver): SearchService {
+export function createSearchService(
+  driver: SqliteDriver,
+  options: {
+    /** A holiday's name as shown, which search matches and returns. */
+    holidayName?: () => Promise<(holiday: HolidayRow) => string>;
+  } = {},
+): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
     if (term.trim().length < MIN_QUERY_LENGTH) return [];
     // Trimmed, so "harry " still matches what "harry" did.
@@ -218,7 +226,7 @@ export function createSearchService(driver: SqliteDriver): SearchService {
       ),
       // Hidden holidays included: search is the fastest way back to unhide one.
       driver.all<HolidayRow>(
-        "SELECT id, name FROM holidays WHERE deleted_at IS NULL",
+        "SELECT id, slug, name, origin FROM holidays WHERE deleted_at IS NULL",
       ),
       driver.all<GiftIdeaRow>(
         "SELECT id, title, url FROM gift_ideas WHERE deleted_at IS NULL",
@@ -527,11 +535,13 @@ export function createSearchService(driver: SqliteDriver): SearchService {
 
     // Holiday as its own result. No holiday-as-reason pass: forty observers of
     // Christmas would bury everything else.
+    const holidayName =
+      (await options.holidayName?.()) ?? ((h: HolidayRow) => h.name);
     for (const h of holidays) {
-      const foldedName = fold(h.name);
-      const q = quality(foldedName, folded);
+      const name = holidayName(h);
+      const q = quality(fold(name), folded);
       if (q === QUALITY_NONE) continue;
-      record("holiday", h.id, h.name, true, "name", h.name, q);
+      record("holiday", h.id, name, true, "name", name, q);
     }
 
     const rows = [...acc.values()];

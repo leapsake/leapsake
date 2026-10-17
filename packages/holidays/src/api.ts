@@ -15,6 +15,7 @@ import {
   holidayPromptWrites,
 } from "./prompt.js";
 import { iconFor } from "./catalog.js";
+import { holidayDisplayName } from "./naming.js";
 import { isoFromCivil, parseRecurrence } from "./recurrence.js";
 import { type HolidayResolver, createHolidayResolver } from "./resolver.js";
 import { observanceIdFor } from "@leapsake/data";
@@ -188,7 +189,7 @@ export async function holidayReminderCandidates(deps: {
         ),
         greeting: holiday.greeting,
         // The bare noun, “Christmas”, beside the greeting “a Merry Christmas”.
-        occasion: holiday.name,
+        occasion: holidayDisplayName(holiday, implicit.yourCountry),
         icon: holiday.origin === "catalog" ? iconFor(holiday.slug) : undefined,
         bearerType: observer.bearerType,
         bearerId: observer.bearerId,
@@ -217,6 +218,7 @@ async function loadCatalog(deps: HolidaysApiDeps): Promise<{
   resolver: HolidayResolver;
   hidden: Set<string>;
   observerCounts: Map<string, number>;
+  yourCountry: string | null;
 }> {
   const [rows, hidden, observances, implicit] = await Promise.all([
     deps.holidays.list(),
@@ -243,7 +245,13 @@ async function loadCatalog(deps: HolidaysApiDeps): Promise<{
     ]),
   );
 
-  return { rows, resolver, hidden, observerCounts };
+  return {
+    rows,
+    resolver,
+    hidden,
+    observerCounts,
+    yourCountry: implicit.yourCountry,
+  };
 }
 
 export function createHolidaysApi(deps: HolidaysApiDeps) {
@@ -275,7 +283,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
     /** Every holiday, soonest first, hidden ones last but listed, so they can
      *  be unhidden. */
     async list(): Promise<HolidayListItem[]> {
-      const { rows, resolver, hidden, observerCounts } =
+      const { rows, resolver, hidden, observerCounts, yourCountry } =
         await loadCatalog(deps);
       const today = now();
 
@@ -288,8 +296,8 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
         return {
           id: row.id,
           slug: row.slug,
-          name: row.name,
-          icon: row.origin === "catalog" ? (iconFor(row.slug) ?? null) : null,
+          name: holidayDisplayName(row, yourCountry),
+          icon: iconOfRow(row),
           greeting: row.greeting,
           durationDays: row.durationDays,
           familyId: row.familyId,
@@ -305,7 +313,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
 
     /** One holiday with its next few dates, or undefined. */
     async get(id: string): Promise<HolidayDetail | undefined> {
-      const { rows, resolver, hidden, observerCounts } =
+      const { rows, resolver, hidden, observerCounts, yourCountry } =
         await loadCatalog(deps);
       const row = rows.find((r) => r.id === id);
       if (row === undefined) return undefined;
@@ -318,7 +326,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
       return {
         id: row.id,
         slug: row.slug,
-        name: row.name,
+        name: holidayDisplayName(row, yourCountry),
         icon: iconOfRow(row),
         greeting: row.greeting,
         durationDays: row.durationDays,
@@ -428,8 +436,8 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
         return {
           id: row.id,
           slug: row.slug,
-          name: row.name,
-          icon: row.origin === "catalog" ? (iconFor(row.slug) ?? null) : null,
+          name: holidayDisplayName(row, implicitSource.yourCountry),
+          icon: iconOfRow(row),
           greeting: row.greeting,
           durationDays: row.durationDays,
           familyId: row.familyId,

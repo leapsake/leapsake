@@ -31,6 +31,7 @@ import {
   verbOf,
 } from "@leapsake/schema";
 import { isAffiliated } from "./affiliation.js";
+import { holidayDisplayName } from "./naming.js";
 import {
   affiliationsFor,
   iconFor,
@@ -302,7 +303,7 @@ export async function holidayPromptCandidates(
       : [
           {
             holidayId: ctx.holiday.id,
-            occasion: ctx.holiday.name,
+            occasion: holidayDisplayName(ctx.holiday, ctx.implicit.yourCountry),
             icon:
               ctx.holiday.origin === "catalog"
                 ? iconFor(ctx.holiday.slug)
@@ -360,7 +361,7 @@ export async function holidayPrompt(
   return {
     reminderId: holidayPlanReminderId(holidayId, occurrence),
     holidayId,
-    name: ctx.holiday.name,
+    name: holidayDisplayName(ctx.holiday, ctx.implicit.yourCountry),
     greeting: ctx.holiday.greeting,
     occurrence,
     occurrenceDate: dueDateMs(day),
