@@ -127,6 +127,7 @@ export default function RemindersScreen() {
             return (
               <WishGroupRow
                 greeting={item.greeting}
+                icon={item.icon}
                 first={item.reminders[0]}
                 section={item.section}
                 expanded={item.expanded}
@@ -263,12 +264,14 @@ function ReminderRow({
 /** An occasion's wishes as one line before the day; tapping it shows them. */
 function WishGroupRow({
   greeting,
+  icon,
   first,
   section,
   expanded,
   onToggle,
 }: {
   greeting: string;
+  icon?: string;
   /** The first of its wishes, whose countdown the line shows. */
   first: ReminderInWindow;
   section: ReminderSection;
@@ -287,7 +290,7 @@ function WishGroupRow({
     >
       <View style={styles.rowBody}>
         <Text style={styles.rowText}>
-          {m.notifications.wishGroup(greeting)}
+          {m.notifications.wishGroup(greeting, icon)}
         </Text>
         {countdown !== null && (
           <View style={styles.rowMeta}>

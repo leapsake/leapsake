@@ -14,6 +14,7 @@ import {
   holidayPromptTargets,
   holidayPromptWrites,
 } from "./prompt.js";
+import { iconFor } from "./catalog.js";
 import { isoFromCivil, parseRecurrence } from "./recurrence.js";
 import { type HolidayResolver, createHolidayResolver } from "./resolver.js";
 import { observanceIdFor } from "@leapsake/data";
@@ -186,6 +187,7 @@ export async function holidayReminderCandidates(deps: {
         greeting: holiday.greeting,
         // The bare noun, “Christmas”, beside the greeting “a Merry Christmas”.
         occasion: holiday.name,
+        icon: holiday.origin === "catalog" ? iconFor(holiday.slug) : undefined,
         bearerType: observer.bearerType,
         bearerId: observer.bearerId,
         wishByDefault: wishByDefaultOf(holiday, observer.bearerId, implicit),

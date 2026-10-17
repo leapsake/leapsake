@@ -78,14 +78,22 @@ export function landingDayOf(reminder: ReminderTiming): number | null {
  *  folded together. */
 export type ReminderLine<R> =
   | { kind: "row"; reminder: R }
-  | { kind: "wish-group"; key: string; greeting: string; reminders: R[] };
+  | {
+      kind: "wish-group";
+      key: string;
+      greeting: string;
+      icon?: string;
+      reminders: R[];
+    };
 
 /**
  * A section's rows with each holiday occurrence's two or more wishes folded
  * into one line where the first stood. For before the day only.
  */
 export function foldWishes<
-  R extends { wishGroup?: { key: string; greeting: string } | null },
+  R extends {
+    wishGroup?: { key: string; greeting: string; icon?: string } | null;
+  },
 >(rows: readonly R[]): ReminderLine<R>[] {
   const members = new Map<string, R[]>();
   for (const r of rows)
@@ -109,6 +117,7 @@ export function foldWishes<
       kind: "wish-group",
       key: group.key,
       greeting: group.greeting,
+      icon: group.icon,
       reminders: together,
     });
   }

@@ -194,6 +194,8 @@ export interface HolidayOccurrenceCandidate {
   greeting: string;
   /** The occasion as a bare noun, e.g. "Christmas" (`ReminderCopyContext`). */
   occasion: string;
+  /** The holiday's emoji, which a wish leads with in place of the action's. */
+  icon?: string;
   bearerType: HolidayBearerType;
   bearerId: string;
   /** Whether the wish is on until a schedule is stored: the holiday's
@@ -222,6 +224,8 @@ export interface HolidayPromptCandidate {
 export interface WishGroup {
   key: string;
   greeting: string;
+  /** The holiday's emoji, which the folded line leads with. */
+  icon?: string;
 }
 
 /** A reminder the engine wants to exist today. `dueDate` is null for the
@@ -281,6 +285,8 @@ interface ReminderCopySource {
   recipient?: string;
   /** An `other` rule's free text, which is the whole of its copy. */
   label: string | null;
+  /** An emoji in place of the action's. */
+  icon?: string;
   /** Copy that replaces the template in both forms, for the self-directed
    *  branches only. Never part of the row's identity. */
   override: { plain: string; belated: string } | null;
@@ -307,7 +313,7 @@ function renderTitle(copy: ReminderCopySource, belated: boolean): string {
           forSelf: copy.forSelf,
           recipient: copy.recipient,
         });
-  return `${ruleIcon(copy) ?? ""} ${body}`.trim();
+  return `${copy.icon ?? ruleIcon(copy) ?? ""} ${body}`.trim();
 }
 
 /** The title the read shows in place of the stored one, or `null` when the
@@ -1079,6 +1085,9 @@ async function computeDesired(
             occasion: candidate.occasion,
             forSelf: false,
             label: rule.label ?? null,
+            ...(rule.action === "wish" && candidate.icon !== undefined
+              ? { icon: candidate.icon }
+              : {}),
             // No self-directed case: your own Christmas is not reminded.
             override: null,
           };
@@ -1097,6 +1106,7 @@ async function computeDesired(
                   wishGroup: {
                     key: `${candidate.holidayId}:${iso}`,
                     greeting: candidate.greeting,
+                    icon: candidate.icon,
                   },
                 }
               : {}),

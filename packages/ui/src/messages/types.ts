@@ -476,6 +476,6 @@ export interface Messages {
      *  was switched off, since opening the app is the fix. */
     runningOut: { title: string; body: string };
     /** One holiday occurrence's wishes as one line, never a count. */
-    wishGroup: (greeting: string) => string;
+    wishGroup: (greeting: string, icon?: string) => string;
   };
 }

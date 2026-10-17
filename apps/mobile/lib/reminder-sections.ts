@@ -51,6 +51,7 @@ export interface ReminderWishGroupItem<R> {
   key: string;
   section: ReminderSection;
   greeting: string;
+  icon?: string;
   reminders: R[];
   expanded: boolean;
 }
@@ -74,7 +75,7 @@ export type ReminderListItem<R> =
 export function reminderListItems<
   R extends ReminderTiming & {
     id: string;
-    wishGroup?: { key: string; greeting: string } | null;
+    wishGroup?: { key: string; greeting: string; icon?: string } | null;
   },
 >(
   reminders: readonly R[],
@@ -141,6 +142,7 @@ export function reminderListItems<
         key: line.key,
         section,
         greeting: line.greeting,
+        icon: line.icon,
         reminders: line.reminders,
         expanded,
       });

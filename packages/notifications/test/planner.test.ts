@@ -20,7 +20,8 @@ const COPY: NotificationCopy = {
     body: situation.labels.join(" | "),
   }),
   runningOut: { title: "running out", body: "open the app" },
-  wishGroup: (greeting) => `wish people ${greeting}`,
+  wishGroup: (greeting, icon) =>
+    `${icon === undefined ? "" : `${icon} `}wish people ${greeting}`,
 };
 
 const situationOf = (n: DesiredNotification) =>
@@ -685,6 +686,17 @@ describe("planNotifications — a holiday's wishes", () => {
       NOW,
     );
     expect(bodyOf(plan)).toBe("Call Harry | wish people a Merry Christmas");
+  });
+
+  it("leads the folded line with the holiday's emoji", () => {
+    const iconic = (id: string) =>
+      occasion(id, CHRISTMAS, { wishGroup: { ...group, icon: "🎄" } });
+    const plan = planNotifications(
+      [iconic("w1"), iconic("w2")],
+      POLICY_DIGEST,
+      NOW,
+    );
+    expect(bodyOf(plan)).toBe("🎄 wish people a Merry Christmas");
   });
 
   it("names a lone wish as it is", () => {

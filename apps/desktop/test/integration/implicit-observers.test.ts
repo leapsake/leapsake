@@ -114,6 +114,13 @@ describe("the wish an implicit observer is due", () => {
     ]);
   });
 
+  it("leads the wish with the holiday's emoji", async () => {
+    await person({ firstName: "Mary", lastName: "Hatch" });
+    expect(await christmasTitles()).toEqual([
+      expect.stringMatching(/^🎄 Wish /),
+    ]);
+  });
+
   it("never wishes you", async () => {
     const george = await person({ firstName: "George", lastName: "Bailey" });
     await core.self.set(george.id);

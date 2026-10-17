@@ -31,7 +31,7 @@ export interface NotifiableReminder {
   deletedAt: number | null;
   category: ReminderCategory;
   /** Set on a holiday's wish: those sharing a key share one label. */
-  wishGroup?: { key: string; greeting: string } | null;
+  wishGroup?: { key: string; greeting: string; icon?: string } | null;
 }
 
 /** The fields of a `notification_settings` row the planner reads. */
@@ -231,7 +231,7 @@ function labelsOf(
       return [reminderLabel(r)];
     if (seen.has(group.key)) return [];
     seen.add(group.key);
-    return [copy.wishGroup(group.greeting)];
+    return [copy.wishGroup(group.greeting, group.icon)];
   });
 }
 

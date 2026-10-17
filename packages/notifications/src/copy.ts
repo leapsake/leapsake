@@ -28,7 +28,7 @@ export interface NotificationText {
 export interface NotificationCopy {
   digest(situation: DigestSituation): NotificationText;
   /** The one label a holiday occurrence's wishes share: never a count. */
-  wishGroup(greeting: string): string;
+  wishGroup(greeting: string, icon?: string): string;
   /** The notice that the schedule is about to lapse. */
   runningOut: NotificationText;
 }

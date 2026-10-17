@@ -546,6 +546,9 @@ export const en: Messages = {
       title: "Your reminders are running out",
       body: "Open Leapsake to keep them coming.",
     },
-    wishGroup: wishPeople,
+    wishGroup: (greeting, icon) =>
+      icon === undefined
+        ? wishPeople(greeting)
+        : `${icon} ${wishPeople(greeting)}`,
   },
 };

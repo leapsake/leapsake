@@ -310,7 +310,7 @@ export function ReminderList() {
         <li key={line.key}>
           <details>
             <summary>
-              {messages.notifications.wishGroup(line.greeting)}{" "}
+              {messages.notifications.wishGroup(line.greeting, line.icon)}{" "}
               {countdown !== null && (
                 <small style={{ color: "#666" }}>
                   {countdownText(countdown)}
