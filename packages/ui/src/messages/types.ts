@@ -375,6 +375,8 @@ export interface Messages {
     youFirst: string;
     /** The tick over the people you'll wish. */
     wishLine: (greeting: string) => string;
+    /** Under it: who's ticked, the first few by name. */
+    wishing: (names: readonly string[]) => string;
     addSomeone: string;
     /** When the day is too close for anything but what's already set. */
     nothingLeft: string;

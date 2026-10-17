@@ -405,6 +405,14 @@ export const en: Messages = {
     whichIsYou: "Which of these is you?",
     youFirst: "Say which person is you before ticking an errand.",
     wishLine: wishPeople,
+    wishing: (names) =>
+      names.length === 0
+        ? "Nobody yet"
+        : names.length <= 3
+          ? names.length < 3
+            ? names.join(" and ")
+            : `${names[0]}, ${names[1]} and ${names[2]}`
+          : `${names[0]}, ${names[1]} and ${names.length - 2} others`,
     addSomeone: "Add someone",
     nothingLeft:
       "It’s too close to the day to plan anything new. What’s already set still happens.",

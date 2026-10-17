@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import type { HolidayPrompt, PromptCandidate } from "@leapsake/core";
 import {
   type OfferContext,
@@ -10,9 +17,10 @@ import { useMessages } from "@leapsake/ui/messages";
 import { Button } from "./Button";
 import { CheckboxBox } from "./Checkbox";
 import { ReminderPromptFields } from "./ReminderPromptFields";
+import { Sheet } from "./Sheet";
 import { Typeahead } from "./Typeahead";
 import { showFormProblem } from "../lib/form-problem";
-import { styles } from "../lib/styles";
+import { colors, fonts, styles } from "../lib/styles";
 
 /** The key a bearer is told apart by on the wish line. */
 const keyOf = (b: { bearerType: string; bearerId: string }) =>
@@ -28,7 +36,7 @@ const OWN_ERRANDS: OfferContext = {
 
 /**
  * A holiday's question: a tick per errand, and one for wishing people, ticked
- * while anyone under it is. Ticking it opens who and a search for more.
+ * while anyone is. Its row opens a sheet of who, with a search for more.
  */
 export function HolidayPromptForm({
   prompt,
@@ -47,7 +55,8 @@ export function HolidayPromptForm({
   const [errands, setErrands] = useState(prompt.errands);
   const [somethingElse, setSomethingElse] = useState("");
   const [wishes, setWishes] = useState(prompt.wishes);
-  const [open, setOpen] = useState(() => prompt.wishes.some((w) => w.wish));
+  const [open, setOpen] = useState(false);
+  const { height } = useWindowDimensions();
   const [shown, setShown] = useState(
     () => new Set(prompt.wishes.filter((w) => w.wish).map(keyOf)),
   );
@@ -71,9 +80,10 @@ export function HolidayPromptForm({
     );
   }
 
-  /** Unticking wishes nobody; ticking re-ticks whoever is listed. */
+  /** Unticking wishes nobody; ticking re-ticks whoever is listed, or opens
+   *  the sheet to find someone when nobody is. */
   function toggleWishing() {
-    setOpen(!anyWished);
+    if (!anyWished && shown.size === 0) return setOpen(true);
     setWishes(
       wishes.map((w) => (shown.has(keyOf(w)) ? { ...w, wish: !anyWished } : w)),
     );
@@ -90,41 +100,41 @@ export function HolidayPromptForm({
     onSave({ errands: answered, wishes }, you?.bearerId);
   }
 
+  const listed = wishes.filter((w) => shown.has(keyOf(w)));
   const wishBlock = offersWishes && (
-    <>
+    <View style={[styles.row, styles.rowWithLead]}>
       <Pressable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: anyWished }}
         accessibilityLabel={wishLine}
         onPress={toggleWishing}
-        style={[styles.row, styles.rowWithLead]}
+        hitSlop={8}
       >
         <CheckboxBox checked={anyWished} />
-        <Text style={[styles.rowText, styles.rowBody]}>{wishLine}</Text>
       </Pressable>
-      {open && (
-        <View style={local.people}>
-          {wishes
-            .filter((w) => shown.has(keyOf(w)))
-            .map((w) => (
-              <Pressable
-                key={keyOf(w)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: w.wish }}
-                accessibilityLabel={w.label}
-                onPress={() =>
-                  setWishes(
-                    wishes.map((x) =>
-                      keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
-                    ),
-                  )
-                }
-                style={[styles.row, styles.rowWithLead]}
-              >
-                <CheckboxBox checked={w.wish} />
-                <Text style={styles.rowText}>{w.label}</Text>
-              </Pressable>
-            ))}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setOpen(true)}
+        style={[styles.rowBody, local.opener]}
+      >
+        <View style={styles.rowBody}>
+          <Text style={styles.rowText}>{wishLine}</Text>
+          <Text style={local.who}>
+            {m.holidayPrompt.wishing(
+              wishes.filter((w) => w.wish).map((w) => w.label),
+            )}
+          </Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+      <Sheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        close="done"
+        title={wishLine}
+        style={{ height: height * 0.85 }}
+      >
+        <View style={local.body}>
           <Typeahead
             multi
             label={m.holidayPrompt.addSomeone}
@@ -136,8 +146,33 @@ export function HolidayPromptForm({
             getLabel={(c) => c.label}
           />
         </View>
-      )}
-    </>
+        <ScrollView
+          style={local.list}
+          contentContainerStyle={local.body}
+          keyboardShouldPersistTaps="handled"
+        >
+          {listed.map((w) => (
+            <Pressable
+              key={keyOf(w)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: w.wish }}
+              accessibilityLabel={w.label}
+              onPress={() =>
+                setWishes(
+                  wishes.map((x) =>
+                    keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
+                  ),
+                )
+              }
+              style={[styles.row, styles.rowWithLead]}
+            >
+              <CheckboxBox checked={w.wish} />
+              <Text style={styles.rowText}>{w.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </Sheet>
+    </View>
   );
 
   return (
@@ -180,5 +215,9 @@ export function HolidayPromptForm({
 }
 
 const local = StyleSheet.create({
-  people: { marginLeft: 36, paddingTop: 12 },
+  opener: { flexDirection: "row", alignItems: "center", gap: 8 },
+  who: { fontFamily: fonts.serif, fontSize: 13, color: colors.muted },
+  body: { paddingHorizontal: 16, paddingTop: 12 },
+  /** Takes what the bar and the search leave, which is what scrolls. */
+  list: { flex: 1 },
 });
