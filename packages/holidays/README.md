@@ -294,6 +294,26 @@ The observer list a holiday implies can be long. If even that proves too little,
 additional bulk affordance ("add everyone tagged #family"), not a return to a select-all
 checklist, which v1 shipped and replaced as too cumbersome to scan.
 
+## The holiday prompt asks once a year, and only when it has something to ask
+
+Ahead of each occurrence of a relevant holiday (one someone you know keeps, you included), the
+reminder engine puts one question on Home: "What do you want to do for Halloween?" It asks only
+when the holiday isn't hidden or switched off, and it has something to offer: an errand the
+catalog suggests to you, a wish on by default for someone else, or something already scheduled.
+The suggestions are few (two at most), neutral, and absent where unsure; Memorial Day has none.
+
+- **Timing** comes from the furthest offer, plus two days' notice; the row goes on display two
+  weeks before that. A late arrival asks at once and offers only what still fits.
+- **Your errands** appear only if you keep the holiday, and live as `other` rules on your own
+  observance. Before anyone is you, your country decides whether you keep it, and ticking an
+  errand asks who you are first.
+- **Everyone else** is one wish line, never you. Answering writes only the schedules it changes,
+  so untouched observers keep following the catalog's wish default.
+- **Answering tombstones the question** for that occurrence, as for a milestone. The question is
+  wanted until the day itself, whatever still fits, because a tombstone is never revived: had it
+  been pruned while someone was adding people, it could not come back that year.
+- **Don't ask again** (`unasked_holidays`) is not hiding: what's already scheduled still happens.
+
 ## Invariants a change here must preserve
 
 - **`canonicalRecurrenceJson` is the only way a rule becomes bytes.** Whole-row LWW tie-breaks on
