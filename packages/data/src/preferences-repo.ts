@@ -11,7 +11,7 @@ import {
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
 import { type EntityRepo, createEntityRepo } from "./entity-repo.js";
-import { assignmentClause, resolveCodec } from "./syncable.js";
+import { assignmentClause, insertStatement, resolveCodec } from "./syncable.js";
 
 /** The preferences row's fixed id, the same on every device. Never change it:
  *  that would mint a second row on sync. */
@@ -61,20 +61,29 @@ export function createPreferencesRepo(driver: SqliteDriver): PreferencesRepo {
     booleans: BOOLEAN_FIELDS,
   });
 
+  /** Creates the row unless it exists, so concurrent first writes both land. */
+  async function ensureRow(now: number): Promise<Preferences> {
+    const [sql, params] = insertStatement(
+      "preferences",
+      await codec.toRow(
+        preferencesSchema.parse({
+          id: PREFERENCES_ID,
+          ...DEFAULTS,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        }),
+      ),
+    );
+    await driver.run(`${sql} ON CONFLICT(id) DO NOTHING`, params);
+    const row = await base.getIncludingDeleted(PREFERENCES_ID);
+    if (row === undefined) throw new Error("preferences row missing");
+    return row;
+  }
+
   async function write(patch: SettingsPatch): Promise<void> {
-    const existing = await base.getIncludingDeleted(PREFERENCES_ID);
     const now = Date.now();
-    if (existing === undefined) {
-      await base.insert({
-        id: PREFERENCES_ID,
-        ...DEFAULTS,
-        ...patch,
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      });
-      return;
-    }
+    const existing = await ensureRow(now);
     const cols = await codec.toRow(
       preferencesSchema.parse({ ...existing, ...patch, deletedAt: null }),
     );

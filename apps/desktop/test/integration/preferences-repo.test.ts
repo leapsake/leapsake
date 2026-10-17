@@ -92,6 +92,16 @@ describe("preferencesRepo — your country", () => {
     expect((await repo.getCountry()).country).toBe("IE");
   });
 
+  it("seeds once when two first reads seed at the same time", async () => {
+    await Promise.all([repo.seedCountry("CA"), repo.seedCountry("CA")]);
+
+    expect(await repo.getCountry()).toEqual({ country: "CA", seeded: true });
+    const rows = await driver.all<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM preferences",
+    );
+    expect(rows[0]?.n).toBe(1);
+  });
+
   it("ignores a region that is not a country", async () => {
     await repo.seedCountry("419");
     await repo.seedCountry(null);
