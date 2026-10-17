@@ -146,6 +146,8 @@ function person(over: Partial<Person> = {}): Person {
     middleName: null,
     lastName: "Wainwright",
     gender: null,
+    nationalities: [],
+    religions: [],
     standing: "published",
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,

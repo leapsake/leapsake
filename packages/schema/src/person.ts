@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { countryCodeSchema } from "./contact-method.js";
 import { type Gender, genderSchema } from "./gender.js";
+import { type Religion, religionSchema } from "./religion.js";
 import { standingColumnSchema, standingSchema } from "./standing.js";
 import { parseTagNames } from "./tag.js";
 
@@ -59,6 +61,18 @@ function namedUnlessDraft(person: {
   return person.standing === "draft" || hasAnyName(person);
 }
 
+/** Stated values as a set, sorted, so one set always serializes one way. */
+function statedSet<T extends string>(item: z.ZodType<T>) {
+  return z.array(item).transform((items) => [...new Set(items)].sort());
+}
+
+/** Countries a person is a national of, and religions they hold: stated,
+ *  never inferred from each other. */
+const affiliations = {
+  nationalities: statedSet(countryCodeSchema),
+  religions: statedSet(religionSchema),
+};
+
 /** Reported against `firstName`, so a form shows it on the field you'd fix. */
 const nameRequired = {
   error: "A person needs at least one name",
@@ -71,6 +85,9 @@ export const personSchema = z
     id: z.uuid(),
     ...nameParts,
     gender: genderSchema.nullable(), // explicit gender; null when unset
+    // Defaulted, so a row from a peer that predates the columns decodes.
+    nationalities: affiliations.nationalities.default([]),
+    religions: affiliations.religions.default([]),
     // Defaulted, so a row from a peer that predates the column decodes.
     standing: standingColumnSchema,
     createdAt: z.number().int(), // epoch ms, UTC
@@ -88,6 +105,8 @@ export type Person = z.infer<typeof personSchema>;
 const personInputBase = z.object({
   ...optionalNameParts,
   gender: genderSchema.nullable().optional(),
+  nationalities: affiliations.nationalities.optional(),
+  religions: affiliations.religions.optional(),
   standing: standingSchema.optional(),
 });
 
@@ -113,6 +132,8 @@ export interface PersonDraft {
   middleName: string;
   lastName: string;
   gender: Gender | null;
+  nationalities: string[];
+  religions: Religion[];
   /** Raw tag text, parsed by {@link parseTagNames}. */
   tags: string;
 }
@@ -128,6 +149,8 @@ export type PersonDraftResult =
         middleName: string | null;
         lastName: string | null;
         gender: Gender | null;
+        nationalities: string[];
+        religions: Religion[];
       };
       tags: string[];
     }
@@ -135,7 +158,8 @@ export type PersonDraftResult =
 
 /** The draft a form starts from: the person being edited, or blanks. */
 export function personDraftOf(
-  person?: Pick<Person, "firstName" | "middleName" | "lastName" | "gender">,
+  person?: Pick<Person, "firstName" | "middleName" | "lastName" | "gender"> &
+    Partial<Pick<Person, "nationalities" | "religions">>,
   tags = "",
 ): PersonDraft {
   return {
@@ -143,6 +167,8 @@ export function personDraftOf(
     middleName: person?.middleName ?? "",
     lastName: person?.lastName ?? "",
     gender: person?.gender ?? null,
+    nationalities: person?.nationalities ?? [],
+    religions: person?.religions ?? [],
     tags,
   };
 }
@@ -156,6 +182,8 @@ export function personInputOf(draft: PersonDraft): PersonDraftResult {
     middleName: blankToNull(draft.middleName),
     lastName: blankToNull(draft.lastName),
     gender: draft.gender,
+    nationalities: draft.nationalities,
+    religions: draft.religions,
   };
   if (!hasAnyName(input)) return { ok: false, errors: { name: "required" } };
   return { ok: true, input, tags: parseTagNames(draft.tags) };

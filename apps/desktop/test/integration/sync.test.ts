@@ -331,6 +331,8 @@ describe("sync engine (all entities, in-memory transport)", () => {
       middleName: null,
       lastName: "Bailey", // A's row won wholesale
       gender: "female",
+      nationalities: [],
+      religions: [],
       standing: "published",
       createdAt: 1000,
       updatedAt: 3000,

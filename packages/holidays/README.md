@@ -10,6 +10,7 @@ design behind them. Shipped on both clients 2026-07-20; what remains is sequence
 | File            | What it owns                                                                   |
 | --------------- | ------------------------------------------------------------------------------ |
 | `catalog.ts`    | the bundled reference data and its classification axes                         |
+| `affiliation.ts` | who keeps a holiday, and whether a person's affiliations match it             |
 | `recurrence.ts` | a recurrence rule → the concrete days it falls on; no I/O                      |
 | `resolver.ts`   | a resolver built over holiday _rows_, so user-defined entries resolve the same |
 | `seed.ts`       | the bundled catalog into the synced `holidays` table, once per bundle version  |
@@ -162,6 +163,13 @@ classification on this build and groups under "Other" until the app updates. Tha
 degradation `parseRecurrence` already takes — data syncs, code does not — and it self-heals.
 Promoting classification to a column later is strictly additive; nothing here forecloses it.
 
+**Affiliations are bundle-side too.** Each entry names who keeps it: religions, countries, or
+both (Christmas is Christian, and also a public holiday across much of the world). A person's
+affiliations are their stated religions plus one set of countries, their nationalities and where
+they live, so an American living in Canada keeps both Thanksgivings. Religions are broad, not by
+denomination, so the Orthodox entries name the countries whose churches keep them rather than a
+religion. A user-defined holiday has none, and only explicit observers keep it.
+
 **Display names must stand alone.** Search returns a bare title and the browse list is flat, so a
 name that is only unambiguous inside its group is the wrong name — hence "Canadian Thanksgiving".
 A catalog test pins this.
@@ -266,8 +274,6 @@ Constraints for whenever that lands:
 
 - **Never infer religion from country, or country from religion.** Frequently wrong, and badly
   wrong when it is.
-- A catalog flag (`impliedByLocale`, per holiday × country) marks what is safe to imply from the
-  **user's own** locale without asserting anything about a third party's religion.
 - Keep derived-nationality → derived-observance a **single flattening pass**, not inference
   feeding inference: the UI must be able to answer "why does Leapsake think Grandma observes
   this?"

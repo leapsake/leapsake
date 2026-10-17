@@ -1,6 +1,17 @@
 // `@leapsake/holidays`: the catalog, the recurrence engine and the API; see
 // the README's code map.
-export { CATALOG, CATALOG_VERSION, classificationFor } from "./catalog.js";
+export {
+  CATALOG,
+  CATALOG_VERSION,
+  affiliationsFor,
+  classificationFor,
+} from "./catalog.js";
+export {
+  isAffiliated,
+  personAffiliations,
+  residenceOf,
+} from "./affiliation.js";
+export type { HolidayAffiliations, PersonAffiliations } from "./affiliation.js";
 export type {
   HolidayClassification,
   HolidayEntry,

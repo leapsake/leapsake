@@ -328,6 +328,28 @@ describe("createCore — mergePeople", () => {
     expect((await core.people.get(mary.id))!.gender).toBe("female");
   });
 
+  it("keeps both people's nationalities and religions", async () => {
+    const giuseppe = await core.people.create(
+      { firstName: "Giuseppe", lastName: "Martini", nationalities: ["IT"] },
+      [],
+    );
+    const duplicate = await core.people.create(
+      {
+        firstName: "Giuseppe",
+        lastName: "Martini",
+        nationalities: ["US"],
+        religions: ["christian"],
+      },
+      [],
+    );
+
+    await core.people.merge(giuseppe.id, duplicate.id);
+
+    const merged = await core.people.get(giuseppe.id);
+    expect(merged!.nationalities).toEqual(["IT", "US"]);
+    expect(merged!.religions).toEqual(["christian"]);
+  });
+
   it("publishes an unpublished survivor when the loser was published", async () => {
     const george = await core.people.create(
       { firstName: "George", lastName: "Bailey", standing: "unpublished" },

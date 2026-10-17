@@ -289,3 +289,47 @@ describe("peopleRepo — standing", () => {
     expect(await repo.list()).toEqual([]);
   });
 });
+
+describe("peopleRepo — nationalities and religions", () => {
+  it("has none until stated", async () => {
+    const george = await repo.create({ firstName: "George" });
+    expect(george.nationalities).toEqual([]);
+    expect(george.religions).toEqual([]);
+  });
+
+  it("stores each as a sorted set", async () => {
+    const created = await repo.create({
+      firstName: "Giuseppe",
+      lastName: "Martini",
+      nationalities: ["US", "IT", "US"],
+      religions: ["christian"],
+    });
+    const stored = await repo.get(created.id);
+    expect(stored?.nationalities).toEqual(["IT", "US"]);
+    expect(stored?.religions).toEqual(["christian"]);
+  });
+
+  it("replaces them on update", async () => {
+    const created = await repo.create({
+      firstName: "Giuseppe",
+      nationalities: ["IT"],
+    });
+    await repo.update(created.id, { nationalities: ["US"], religions: [] });
+    expect((await repo.get(created.id))?.nationalities).toEqual(["US"]);
+  });
+
+  it("refuses a nationality that isn't a country code", async () => {
+    await expect(
+      repo.create({ firstName: "Giuseppe", nationalities: ["Italy"] }),
+    ).rejects.toThrow();
+  });
+
+  it("refuses a religion that isn't on the list", async () => {
+    await expect(
+      repo.create({
+        firstName: "Giuseppe",
+        religions: ["jedi" as unknown as "christian"],
+      }),
+    ).rejects.toThrow();
+  });
+});

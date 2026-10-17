@@ -40,6 +40,7 @@ describe("holiday catalog seed", () => {
     // entry, so the stand-in carries a value.
     tradition: "secular" as const,
     region: "global" as const,
+    affiliations: { religions: [], countries: [] },
     authoredAt: Date.UTC(2026, 0, 1),
     ...over,
   });

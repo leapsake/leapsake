@@ -918,6 +918,16 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 50,
+    async up(driver) {
+      // A person's stated nationalities and religions, as JSON lists.
+      await driver.exec(`
+        ALTER TABLE people ADD COLUMN nationalities TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE people ADD COLUMN religions TEXT NOT NULL DEFAULT '[]';
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

@@ -13,6 +13,8 @@ const validPerson = {
   middleName: null,
   lastName: "Bailey",
   gender: null,
+  nationalities: [],
+  religions: [],
   standing: "published" as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -219,6 +221,8 @@ describe("personInputOf", () => {
         firstName: " Mary ",
         lastName: "  ",
         gender: "female",
+        nationalities: ["US"],
+        religions: ["christian"],
         tags: "#family",
       }),
     ).toEqual({
@@ -228,6 +232,8 @@ describe("personInputOf", () => {
         middleName: null,
         lastName: null,
         gender: "female",
+        nationalities: ["US"],
+        religions: ["christian"],
       },
       tags: ["family"],
     });
@@ -237,6 +243,20 @@ describe("personInputOf", () => {
     expect(personInputOf({ ...personDraftOf(), lastName: "Bailey" }).ok).toBe(
       true,
     );
+  });
+
+  it("orders and dedupes a person's nationalities", () => {
+    const parsed = personSchema.parse({
+      ...validPerson,
+      nationalities: ["US", "IE", "US"],
+    });
+    expect(parsed.nationalities).toEqual(["IE", "US"]);
+  });
+
+  it("reads a peer's row from before nationalities and religions", () => {
+    const { nationalities: _n, religions: _r, ...older } = validPerson;
+    const parsed = personSchema.parse(older);
+    expect([parsed.nationalities, parsed.religions]).toEqual([[], []]);
   });
 
   it("refuses a name with every part blank", () => {
@@ -256,6 +276,8 @@ describe("personDraftOf", () => {
           middleName: null,
           lastName: "Bailey",
           gender: null,
+          nationalities: ["US"],
+          religions: [],
         },
         "#family",
       ),
@@ -264,6 +286,8 @@ describe("personDraftOf", () => {
       middleName: "",
       lastName: "Bailey",
       gender: null,
+      nationalities: ["US"],
+      religions: [],
       tags: "#family",
     });
   });

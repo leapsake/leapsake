@@ -148,7 +148,11 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
   async function fieldsToCarry(
     survivorId: string,
     loserId: string,
-  ): Promise<{ gender?: Person["gender"]; standing?: "published" }> {
+  ): Promise<
+    Partial<Pick<Person, "gender" | "nationalities" | "religions">> & {
+      standing?: "published";
+    }
+  > {
     const [survivor, loser] = await Promise.all([
       people.get(survivorId),
       people.get(loserId),
@@ -158,6 +162,9 @@ export function createEntityService(deps: EntityServiceDeps): EntityService {
       ...(survivor.gender === null && loser.gender !== null
         ? { gender: loser.gender }
         : {}),
+      // Stated affiliations are each a fact, so the survivor keeps both sets.
+      nationalities: [...survivor.nationalities, ...loser.nationalities],
+      religions: [...survivor.religions, ...loser.religions],
       ...(!isPublished(survivor.standing) && isPublished(loser.standing)
         ? { standing: "published" as const }
         : {}),

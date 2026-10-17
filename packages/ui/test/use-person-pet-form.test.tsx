@@ -19,6 +19,8 @@ describe("usePersonForm", () => {
         middleName: null,
         lastName: "Bailey",
         gender: null,
+        nationalities: [],
+        religions: [],
       },
       tags: [],
     });
@@ -42,6 +44,8 @@ describe("usePersonForm", () => {
       middleName: "",
       lastName: "Bailey",
       gender: "male",
+      nationalities: [],
+      religions: [],
       tags: "#family",
     });
     expect(result.current.canSubmit).toBe(true);

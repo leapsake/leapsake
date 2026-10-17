@@ -35,6 +35,8 @@ describe("entityDetailsOf", () => {
       middleName: null,
       lastName: null,
       gender: "male",
+      nationalities: [],
+      religions: [],
     });
   });
 });
@@ -68,6 +70,8 @@ describe("switchedEntityForm", () => {
       middleName: " ",
       lastName: "Hatch",
       gender: "female",
+      nationalities: [],
+      religions: [],
       tags: "",
     };
     expect(switchedEntityForm("person", value).pet).toEqual({

@@ -25,6 +25,7 @@ import {
   relationshipDraftOf,
   relationshipInputOf,
   relationshipRoleSchema,
+  religionSchema,
   reminderInputOf,
   updateRelationshipInputSchema,
   withSomethingElse,
@@ -101,6 +102,10 @@ function readPersonDraft(formData: FormData): PersonDraft {
     middleName: text("middleName"),
     lastName: text("lastName"),
     gender: readGender(formData),
+    nationalities: formData.getAll("nationalities").map(String),
+    religions: formData
+      .getAll("religions")
+      .flatMap((value) => religionSchema.safeParse(value).data ?? []),
     tags: text("tags"),
   };
 }

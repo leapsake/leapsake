@@ -22,6 +22,7 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
     driver,
     table: "people",
     schema: personSchema,
+    json: ["nationalities", "religions"],
     // Sort each person by whichever name part they have.
     orderBy: "COALESCE(last_name, first_name, middle_name), first_name",
     // The catalog: every list and picker builds from here, so unpublished
@@ -38,6 +39,8 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         middleName = null,
         lastName = null,
         gender = null,
+        nationalities = [],
+        religions = [],
         // Spelled out rather than left to the schema's default, because the row
         // this assembles is typed as a complete Person.
         standing = "published",
@@ -49,6 +52,8 @@ export function createPeopleRepo(driver: SqliteDriver): PeopleRepo {
         middleName,
         lastName,
         gender,
+        nationalities,
+        religions,
         standing,
         createdAt: now,
         updatedAt: now,

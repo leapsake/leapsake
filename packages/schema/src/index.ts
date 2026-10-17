@@ -464,6 +464,8 @@ export {
 } from "./date-parts.js";
 export type { DateParts, DueDateCheck } from "./date-parts.js";
 export { contactCountryOptions, countryFlag } from "./countries.js";
+export { RELIGIONS, religionSchema } from "./religion.js";
+export type { Religion } from "./religion.js";
 export type { CountryOption } from "./countries.js";
 export type {
   ContactOwnerType,
