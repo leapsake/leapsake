@@ -906,8 +906,8 @@ async function holidayPlanLoader({ params }: LoaderFunctionArgs) {
   return { prompt };
 }
 
-/** The ticks as an answer: every errand offered, each wish shown, and anyone
- *  added. An errand needs you picked first. */
+/** The ticks as an answer: every errand, each wish shown unless wishing is
+ *  unticked, and anyone added. An errand needs you picked first. */
 async function holidayPlanAction({ request, params }: ActionFunctionArgs) {
   const id = params.id as string;
   const occurrence = params.occurrence as string;
@@ -919,7 +919,8 @@ async function holidayPlanAction({ request, params }: ActionFunctionArgs) {
     prompt.errands.map((e) => ({ ...e, enabled: ticked.has(e.label ?? "") })),
     String(formData.get("somethingElse") ?? ""),
   );
-  const wished = new Set(formData.getAll("wish").map(String));
+  const wishing = formData.get("wishing") !== null;
+  const wished = new Set(wishing ? formData.getAll("wish").map(String) : []);
   const added = new Set(formData.getAll("add").map(String));
   const wishes = [
     ...prompt.wishes.map((w) => ({

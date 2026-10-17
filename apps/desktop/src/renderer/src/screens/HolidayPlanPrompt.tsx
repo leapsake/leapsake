@@ -10,14 +10,16 @@ import { Form, Link, useActionData, useLoaderData } from "react-router-dom";
 
 const TEXT = { cancel: "Cancel", stopAsking: "Don’t ask again…" } as const;
 
+const PEOPLE = { marginInlineStart: "1.75em" } as const;
+
 /** The key a wish checkbox and an added observer post under. */
 export function bearerKeyOf(b: { bearerType: string; bearerId: string }) {
   return `${b.bearerType}:${b.bearerId}`;
 }
 
 /**
- * A holiday's question: your errands, then a collapsed wish line of who you're
- * wishing, with everyone else to add. The action rebuilds the answer by name.
+ * A holiday's question: a tick per errand, and one for wishing the people
+ * listed under it. The action rebuilds the answer by name.
  */
 export function HolidayPlanPrompt() {
   const { prompt } = useLoaderData() as { prompt: HolidayPrompt };
@@ -31,6 +33,50 @@ export function HolidayPlanPrompt() {
     ...prompt.wishes.filter((w) => !w.wish),
     ...prompt.addable,
   ].sort((a, b) => a.label.localeCompare(b.label));
+
+  const wishBlock = offersWishes && (
+    <>
+      <p>
+        <label>
+          <input
+            type="checkbox"
+            name="wishing"
+            defaultChecked={prompt.wishes.some((w) => w.wish)}
+          />{" "}
+          {m.holidayPrompt.wishLine(prompt.greeting)}
+        </label>
+      </p>
+      <div style={PEOPLE}>
+        {prompt.wishes
+          .filter((w) => w.wish)
+          .map((w) => (
+            <p key={bearerKeyOf(w)}>
+              <label>
+                <input
+                  type="checkbox"
+                  name="wish"
+                  value={bearerKeyOf(w)}
+                  defaultChecked
+                />{" "}
+                {w.label}
+              </label>
+            </p>
+          ))}
+        {findable.length > 0 && (
+          <label>
+            {m.holidayPrompt.addSomeone}{" "}
+            <select name="add" multiple size={4}>
+              {findable.map((c) => (
+                <option key={bearerKeyOf(c)} value={bearerKeyOf(c)}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <main>
@@ -46,7 +92,7 @@ export function HolidayPlanPrompt() {
         <p role="alert">{m.holidayPrompt.youFirst}</p>
       )}
       <Form method="post">
-        {prompt.errands.length > 0 && (
+        {prompt.errands.length > 0 ? (
           <fieldset>
             <legend>{m.holidayPrompt.forYou}</legend>
             {prompt.selfId === null && (
@@ -77,6 +123,7 @@ export function HolidayPlanPrompt() {
                 </label>
               </p>
             ))}
+            {wishBlock}
             <input
               type="text"
               name="somethingElse"
@@ -84,38 +131,8 @@ export function HolidayPlanPrompt() {
               placeholder={m.reminderPrompt.somethingElse}
             />
           </fieldset>
-        )}
-        {offersWishes && (
-          <details>
-            <summary>{m.holidayPrompt.wishLine(prompt.greeting)}</summary>
-            {prompt.wishes
-              .filter((w) => w.wish)
-              .map((w) => (
-                <p key={bearerKeyOf(w)}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="wish"
-                      value={bearerKeyOf(w)}
-                      defaultChecked={w.wish}
-                    />{" "}
-                    {w.label}
-                  </label>
-                </p>
-              ))}
-            {findable.length > 0 && (
-              <label>
-                {m.holidayPrompt.addSomeone}{" "}
-                <select name="add" multiple size={4}>
-                  {findable.map((c) => (
-                    <option key={bearerKeyOf(c)} value={bearerKeyOf(c)}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </details>
+        ) : (
+          wishBlock
         )}
         {prompt.errands.length === 0 && !offersWishes && (
           <p>{m.holidayPrompt.nothingLeft}</p>

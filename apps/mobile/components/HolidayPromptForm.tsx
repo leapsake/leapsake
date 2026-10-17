@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { HolidayPrompt, PromptCandidate } from "@leapsake/core";
 import {
   type OfferContext,
@@ -27,8 +27,8 @@ const OWN_ERRANDS: OfferContext = {
 };
 
 /**
- * A holiday's question: your errands, then one wish line that opens to who
- * you're wishing and a search for anyone else who keeps it, or doesn't.
+ * A holiday's question: a tick per errand, and one for wishing people, ticked
+ * while anyone under it is. Ticking it opens who and a search for more.
  */
 export function HolidayPromptForm({
   prompt,
@@ -47,7 +47,7 @@ export function HolidayPromptForm({
   const [errands, setErrands] = useState(prompt.errands);
   const [somethingElse, setSomethingElse] = useState("");
   const [wishes, setWishes] = useState(prompt.wishes);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => prompt.wishes.some((w) => w.wish));
   const [shown, setShown] = useState(
     () => new Set(prompt.wishes.filter((w) => w.wish).map(keyOf)),
   );
@@ -58,6 +58,8 @@ export function HolidayPromptForm({
   );
   const findable = [...prompt.wishes, ...prompt.addable];
   const offersWishes = prompt.wishes.length + prompt.addable.length > 0;
+  const anyWished = wishes.some((w) => w.wish);
+  const wishLine = m.holidayPrompt.wishLine(prompt.greeting);
 
   function wish(c: PromptCandidate) {
     const key = keyOf(c);
@@ -66,6 +68,14 @@ export function HolidayPromptForm({
       wishes.some((w) => keyOf(w) === key)
         ? wishes.map((w) => (keyOf(w) === key ? { ...w, wish: true } : w))
         : [...wishes, { ...c, wish: true }],
+    );
+  }
+
+  /** Unticking wishes nobody; ticking re-ticks whoever is listed. */
+  function toggleWishing() {
+    setOpen(!anyWished);
+    setWishes(
+      wishes.map((w) => (shown.has(keyOf(w)) ? { ...w, wish: !anyWished } : w)),
     );
   }
 
@@ -80,9 +90,59 @@ export function HolidayPromptForm({
     onSave({ errands: answered, wishes }, you?.bearerId);
   }
 
+  const wishBlock = offersWishes && (
+    <>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: anyWished }}
+        accessibilityLabel={wishLine}
+        onPress={toggleWishing}
+        style={[styles.row, styles.rowWithLead]}
+      >
+        <CheckboxBox checked={anyWished} />
+        <Text style={[styles.rowText, styles.rowBody]}>{wishLine}</Text>
+      </Pressable>
+      {open && (
+        <View style={local.people}>
+          {wishes
+            .filter((w) => shown.has(keyOf(w)))
+            .map((w) => (
+              <Pressable
+                key={keyOf(w)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: w.wish }}
+                accessibilityLabel={w.label}
+                onPress={() =>
+                  setWishes(
+                    wishes.map((x) =>
+                      keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
+                    ),
+                  )
+                }
+                style={[styles.row, styles.rowWithLead]}
+              >
+                <CheckboxBox checked={w.wish} />
+                <Text style={styles.rowText}>{w.label}</Text>
+              </Pressable>
+            ))}
+          <Typeahead
+            multi
+            label={m.holidayPrompt.addSomeone}
+            value={null}
+            options={findable}
+            exclude={shown}
+            onChange={(c) => c !== null && wish(c)}
+            getKey={keyOf}
+            getLabel={(c) => c.label}
+          />
+        </View>
+      )}
+    </>
+  );
+
   return (
     <View style={styles.promptForm}>
-      {prompt.errands.length > 0 && (
+      {prompt.errands.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{m.holidayPrompt.forYou}</Text>
           {prompt.selfId === null && (
@@ -102,58 +162,12 @@ export function HolidayPromptForm({
             onChange={setErrands}
             somethingElse={somethingElse}
             onSomethingElseChange={setSomethingElse}
-          />
-        </View>
-      )}
-      {offersWishes && (
-        <View style={styles.section}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: open }}
-            onPress={() => setOpen(!open)}
-            style={styles.row}
           >
-            <Text style={styles.rowText}>
-              {open ? "▾ " : "▸ "}
-              {m.holidayPrompt.wishLine(prompt.greeting)}
-            </Text>
-          </Pressable>
-          {open && (
-            <>
-              {wishes
-                .filter((w) => shown.has(keyOf(w)))
-                .map((w) => (
-                  <Pressable
-                    key={keyOf(w)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: w.wish }}
-                    accessibilityLabel={w.label}
-                    onPress={() =>
-                      setWishes(
-                        wishes.map((x) =>
-                          keyOf(x) === keyOf(w) ? { ...x, wish: !x.wish } : x,
-                        ),
-                      )
-                    }
-                    style={[styles.row, styles.rowWithLead]}
-                  >
-                    <CheckboxBox checked={w.wish} />
-                    <Text style={styles.rowText}>{w.label}</Text>
-                  </Pressable>
-                ))}
-              <Typeahead
-                multi
-                label={m.holidayPrompt.addSomeone}
-                value={null}
-                options={findable}
-                exclude={shown}
-                onChange={(c) => c !== null && wish(c)}
-                getKey={keyOf}
-                getLabel={(c) => c.label}
-              />
-            </>
-          )}
+            {wishBlock}
+          </ReminderPromptFields>
         </View>
+      ) : (
+        offersWishes && <View style={styles.section}>{wishBlock}</View>
       )}
       {prompt.errands.length === 0 && !offersWishes && (
         <Text style={styles.muted}>{m.holidayPrompt.nothingLeft}</Text>
@@ -162,3 +176,7 @@ export function HolidayPromptForm({
     </View>
   );
 }
+
+const local = StyleSheet.create({
+  people: { marginLeft: 36 },
+});

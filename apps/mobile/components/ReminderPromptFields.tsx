@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type OfferContext,
@@ -23,6 +24,7 @@ export function ReminderPromptFields({
   onChange,
   somethingElse,
   onSomethingElseChange,
+  children,
 }: {
   value: readonly ReminderRuleInput[];
   /** The occasion and whose it is, which the labels may name. */
@@ -31,6 +33,8 @@ export function ReminderPromptFields({
   /** What is typed into _Something else…_. */
   somethingElse: string;
   onSomethingElseChange: (text: string) => void;
+  /** More ticks, kept above _Something else…_ so it stays last. */
+  children?: ReactNode;
 }) {
   return (
     <View>
@@ -59,6 +63,7 @@ export function ReminderPromptFields({
           </Pressable>
         );
       })}
+      {children}
       <TextInput
         accessibilityLabel={SOMETHING_ELSE}
         placeholder={SOMETHING_ELSE}
