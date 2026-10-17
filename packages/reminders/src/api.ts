@@ -52,6 +52,7 @@ import {
 } from "@leapsake/data";
 import type {
   HolidayOccurrenceCandidate,
+  HolidayPromptCandidate,
   ReminderEngineDeps,
   ReminderWindowFacts,
   UndatedPartnership,
@@ -239,6 +240,8 @@ export interface RemindersApiDeps {
   hasAccount: () => Promise<boolean>;
   /** Today's holiday-observance candidates. */
   listHolidayCandidates: () => Promise<HolidayOccurrenceCandidate[]>;
+  /** The holidays that ask what you'll do for them. Omitted: none ask. */
+  listHolidayPrompts?: () => Promise<HolidayPromptCandidate[]>;
 }
 
 /** The repo-backed Reminders surface: client reads, writes that keep #tags and
@@ -633,6 +636,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         ),
       resolveLabel: async (bearerType, bearerId) =>
         (await entities.label(bearerType, bearerId)) ?? null,
+      listPrompts: deps.listHolidayPrompts,
     },
     // Always supplied, for the same reason as `holidays`.
     duplicates: { pairKeys: () => duplicates.unresolvedPairKeys() },

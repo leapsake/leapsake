@@ -22,6 +22,9 @@ export const OBSERVANCE_NAMESPACE = "leapsake:observance";
 /** As {@link OBSERVANCE_NAMESPACE}, keyed on the holiday alone. */
 export const HIDDEN_HOLIDAY_NAMESPACE = "leapsake:hidden-holiday";
 
+/** As {@link HIDDEN_HOLIDAY_NAMESPACE}, for a holiday whose prompt is off. */
+export const UNASKED_HOLIDAY_NAMESPACE = "leapsake:unasked-holiday";
+
 /** The name a catalog holiday's id is derived from. */
 export function holidayIdName(slug: string): string {
   return slug;
@@ -111,6 +114,12 @@ export const hiddenHolidaySchema = z.object({
 });
 
 export type HiddenHoliday = z.infer<typeof hiddenHolidaySchema>;
+
+/** A holiday you've said not to be asked about each year. What its observers
+ *  have scheduled still happens. */
+export const unaskedHolidaySchema = hiddenHolidaySchema;
+
+export type UnaskedHoliday = z.infer<typeof unaskedHolidaySchema>;
 
 /**
  * What an observance with no stored rules offers, all off. Only the wish can

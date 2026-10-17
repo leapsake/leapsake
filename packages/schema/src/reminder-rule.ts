@@ -189,6 +189,11 @@ export function planQuestion({
   return `What do you want to do for ${subject}’s ${occasion}?`;
 }
 
+/** A holiday prompt's question, which no one person's occasion it is. */
+export function holidayPlanQuestion(occasion: string): string {
+  return `What do you want to do for ${occasion}?`;
+}
+
 /**
  * How a reminder action displays, how long it sits on the list, and its copy.
  */

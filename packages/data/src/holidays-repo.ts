@@ -11,17 +11,21 @@ import {
   hiddenHolidaySchema,
   holidayIdName,
   holidaySchema,
+  UNASKED_HOLIDAY_NAMESPACE,
+  type UnaskedHoliday,
   observanceIdName,
   observanceSchema,
+  unaskedHolidaySchema,
 } from "@leapsake/schema";
 import type { SqliteDriver } from "./driver.js";
+import type { ParsableSchema } from "./syncable.js";
 import {
   type EntityRepo,
   createEntityRepo,
   softDeleteWhere,
 } from "./entity-repo.js";
 
-/** The three holiday repositories. Ids are content-addressed, so two devices
+/** The four holiday repositories. Ids are content-addressed, so two devices
  *  asserting the same fact mint one row instead of colliding. */
 
 /** The uuid a catalog holiday's slug derives to, on every device alike. */
@@ -39,6 +43,11 @@ export function observanceIdFor(
     OBSERVANCE_NAMESPACE,
     observanceIdName(holidayId, bearerType, bearerId),
   );
+}
+
+/** The uuid an unasked-holiday row for `holidayId` derives to. */
+export function unaskedHolidayIdFor(holidayId: string): string {
+  return deterministicUuid(UNASKED_HOLIDAY_NAMESPACE, holidayId);
 }
 
 /** The uuid a hidden-holiday row for `holidayId` derives to. */
@@ -198,33 +207,32 @@ export function createObservancesRepo(driver: SqliteDriver): ObservancesRepo {
   };
 }
 
-export interface HiddenHolidaysRepo extends EntityRepo<HiddenHoliday> {
-  /** The ids of every currently-hidden holiday. */
-  listHiddenIds(): Promise<Set<string>>;
-  /** Hide or unhide one holiday. Unhiding never touches its observances. */
-  setHidden(holidayId: string, hidden: boolean): Promise<void>;
+/** A set of holidays kept as one thin table: a live row while a holiday is
+ *  in it, a tombstone once it's out. */
+interface HolidaySetRepo<T extends HiddenHoliday> extends EntityRepo<T> {
+  listIds(): Promise<Set<string>>;
+  setIn(holidayId: string, isIn: boolean): Promise<void>;
 }
 
-export function createHiddenHolidaysRepo(
+function createHolidaySetRepo<T extends HiddenHoliday>(
   driver: SqliteDriver,
-): HiddenHolidaysRepo {
-  const base = createEntityRepo<HiddenHoliday>({
-    driver,
-    table: "hidden_holidays",
-    schema: hiddenHolidaySchema,
-  });
+  table: string,
+  schema: ParsableSchema<T>,
+  idFor: (holidayId: string) => string,
+): HolidaySetRepo<T> {
+  const base = createEntityRepo<T>({ driver, table, schema });
 
   return {
     ...base,
 
-    async listHiddenIds() {
+    async listIds() {
       return new Set((await base.list()).map((row) => row.holidayId));
     },
 
-    async setHidden(holidayId, hidden) {
-      const id = hiddenHolidayIdFor(holidayId);
-      if (!hidden) {
-        await softDeleteWhere(driver, "hidden_holidays", "id = ?", [id]);
+    async setIn(holidayId, isIn) {
+      const id = idFor(holidayId);
+      if (!isIn) {
+        await softDeleteWhere(driver, table, "id = ?", [id]);
         return;
       }
       const existing = await base.getIncludingDeleted(id);
@@ -236,15 +244,53 @@ export function createHiddenHolidaysRepo(
           createdAt: now,
           updatedAt: now,
           deletedAt: null,
-        });
+        } as T);
         return;
       }
       await driver.run(
-        `UPDATE hidden_holidays
+        `UPDATE ${table}
             SET deleted_at = NULL, updated_at = MAX(?, updated_at + 1)
           WHERE id = ?`,
         [now, id],
       );
     },
   };
+}
+
+export interface HiddenHolidaysRepo extends EntityRepo<HiddenHoliday> {
+  /** The ids of every currently-hidden holiday. */
+  listHiddenIds(): Promise<Set<string>>;
+  /** Hide or unhide one holiday. Unhiding never touches its observances. */
+  setHidden(holidayId: string, hidden: boolean): Promise<void>;
+}
+
+export function createHiddenHolidaysRepo(
+  driver: SqliteDriver,
+): HiddenHolidaysRepo {
+  const { listIds, setIn, ...base } = createHolidaySetRepo(
+    driver,
+    "hidden_holidays",
+    hiddenHolidaySchema,
+    hiddenHolidayIdFor,
+  );
+  return { ...base, listHiddenIds: listIds, setHidden: setIn };
+}
+
+export interface UnaskedHolidaysRepo extends EntityRepo<UnaskedHoliday> {
+  /** The ids of every holiday whose prompt is off. */
+  listUnaskedIds(): Promise<Set<string>>;
+  /** Stop or resume asking about one holiday each year. */
+  setUnasked(holidayId: string, unasked: boolean): Promise<void>;
+}
+
+export function createUnaskedHolidaysRepo(
+  driver: SqliteDriver,
+): UnaskedHolidaysRepo {
+  const { listIds, setIn, ...base } = createHolidaySetRepo(
+    driver,
+    "unasked_holidays",
+    unaskedHolidaySchema,
+    unaskedHolidayIdFor,
+  );
+  return { ...base, listUnaskedIds: listIds, setUnasked: setIn };
 }

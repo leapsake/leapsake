@@ -928,6 +928,23 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 51,
+    async up(driver) {
+      // Holidays whose yearly prompt is off, shaped as hidden_holidays.
+      await driver.exec(`
+        CREATE TABLE unasked_holidays (
+          id         TEXT    PRIMARY KEY,
+          holiday_id TEXT    NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          deleted_at INTEGER
+        );
+        CREATE UNIQUE INDEX ux_unasked_holidays_active
+          ON unasked_holidays(holiday_id) WHERE deleted_at IS NULL;
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

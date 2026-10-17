@@ -63,12 +63,15 @@ export {
 } from "./mentions-repo.js";
 export {
   type HiddenHolidaysRepo,
+  type UnaskedHolidaysRepo,
   type HolidaysRepo,
   type ObservancesRepo,
   createHiddenHolidaysRepo,
+  createUnaskedHolidaysRepo,
   createHolidaysRepo,
   createObservancesRepo,
   hiddenHolidayIdFor,
+  unaskedHolidayIdFor,
   holidayIdFor,
   observanceIdFor,
 } from "./holidays-repo.js";

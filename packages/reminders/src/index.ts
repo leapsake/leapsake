@@ -15,12 +15,14 @@ export {
   onboardingRouteOf,
   partnershipNudgeId,
   planReminderId,
+  holidayPlanReminderId,
   regenerateSystemReminders,
   snoozeTargetOf,
 } from "./engine.js";
 export type {
   HolidayBearerType,
   HolidayOccurrenceCandidate,
+  HolidayPromptCandidate,
   OnboardingReminder,
   OnboardingRoute,
   ReminderEngineDeps,

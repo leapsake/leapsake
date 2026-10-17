@@ -176,6 +176,7 @@ export {
   isReminderAction,
   parseAction,
   planQuestion,
+  holidayPlanQuestion,
   YOUR_PARTNER,
   offerContextForOthers,
   reachAction,
@@ -266,6 +267,8 @@ export {
   formatOccurrence,
   hiddenHolidayIdName,
   hiddenHolidaySchema,
+  UNASKED_HOLIDAY_NAMESPACE,
+  unaskedHolidaySchema,
   holidayIdName,
   holidayOriginSchema,
   holidaySchema,
@@ -277,6 +280,7 @@ export {
 } from "./holiday.js";
 export type {
   HiddenHoliday,
+  UnaskedHoliday,
   Holiday,
   HolidayOrigin,
   Observance,

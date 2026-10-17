@@ -17,6 +17,8 @@ import {
   mentionToken,
   effectiveOffsets,
   planOffers,
+  OFFER_NOTICE_DAYS,
+  holidayPlanQuestion,
   planQuestion,
   planTiming,
   nextOccurrence,
@@ -152,6 +154,8 @@ export interface ReminderEngineDeps {
       bearerType: HolidayBearerType,
       bearerId: string,
     ): Promise<string | null>;
+    /** The holidays that ask what you'll do for them. Omitted: none ask. */
+    listPrompts?(): Promise<HolidayPromptCandidate[]>;
   };
   /**
    * Unresolved duplicate pairs as `"lower:higher"` person-id keys. The nudge
@@ -194,6 +198,18 @@ export interface HolidayOccurrenceCandidate {
   wishByDefault: boolean;
   /** The occurrence dates to consider, ascending. */
   occurrences: CivilDate[];
+}
+
+/** A holiday that asks what you'll do for it, with what it would offer. */
+export interface HolidayPromptCandidate {
+  holidayId: string;
+  /** The holiday's name, “Halloween”, for the question. */
+  occasion: string;
+  /** The occurrence dates to consider, ascending. */
+  occurrences: CivilDate[];
+  /** What the question offers, each with its lead; the furthest times the
+   *  question. */
+  offers: { action: ReminderAction; offsetDays: number }[];
 }
 
 /** A reminder the engine wants to exist today. `dueDate` is null for the
@@ -459,6 +475,17 @@ export function planReminderId(milestoneId: string, year: number): string {
   return deterministicUuid(
     SYSTEM_REMINDER_NAMESPACE,
     occurrenceName(milestoneId, year, "plan"),
+  );
+}
+
+/** The id of a holiday's question for one occurrence, by its date. */
+export function holidayPlanReminderId(
+  holidayId: string,
+  occurrenceIso: string,
+): string {
+  return deterministicUuid(
+    SYSTEM_REMINDER_NAMESPACE,
+    `holiday:${holidayId}:${occurrenceIso}:plan`,
   );
 }
 
@@ -1055,6 +1082,32 @@ async function computeDesired(
           });
         }
       }
+    }
+  }
+
+  // Each holiday's question, due ahead of its furthest offer, or now if late.
+  // Asked until the day, so a change to who keeps it can't prune it for good.
+  for (const prompt of (await deps.holidays?.listPrompts?.()) ?? []) {
+    const usual =
+      Math.max(0, ...prompt.offers.map((o) => o.offsetDays)) +
+      OFFER_NOTICE_DAYS;
+    for (const occ of prompt.occurrences) {
+      const days = daysUntil(deps.today, occ);
+      if (days < 0) continue;
+      const offsetDays = Math.min(usual, days);
+      if (!isWithinWindow(days, offsetDays, activeDaysOf("plan"))) continue;
+      const id = holidayPlanReminderId(prompt.holidayId, isoOf(occ));
+      const dueDate = dueDateMs(occ) - offsetDays * DAY_MS;
+      desired.set(id, {
+        id,
+        title:
+          `${actionDefOf("plan").icon ?? ""} ${holidayPlanQuestion(prompt.occasion)}`.trim(),
+        category: "occasion",
+        dueDate,
+        activeFrom: dueDate - ownActiveDays("plan") * DAY_MS,
+        occurrenceDate: dueDateMs(occ),
+        countdownDate: dueDateMs(occ),
+      });
     }
   }
 

@@ -33,6 +33,12 @@ export type HolidayRegion =
   | "fr"
   | "au";
 
+/** An errand of your own for a holiday, and how many days ahead it's due. */
+export interface HolidaySuggestion {
+  label: string;
+  offsetDays: number;
+}
+
 /** A catalog entry before it becomes a row, its recurrence not yet
  *  serialized. */
 export interface HolidayEntry {
@@ -65,6 +71,8 @@ export interface HolidayEntry {
   /** Whether every observer is wished it until a schedule is stored for
    *  them. Bundle-side, like {@link affiliations}. */
   wishByDefault?: true;
+  /** At most three errands of your own the prompt offers, if you keep it. */
+  suggestions?: readonly HolidaySuggestion[];
 }
 
 /** An authored ISO date as epoch ms, readable in a diff. */
@@ -163,6 +171,8 @@ const ORTHODOX_EASTER = countries(
   "KZ",
 );
 
+const GATHERING = [{ label: "Plan a gathering", offsetDays: 14 }] as const;
+
 // Observing it means being the one celebrated, which no affiliation says.
 const KEPT_BY_WHOEVER_YOU_SAY = countries();
 
@@ -194,6 +204,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "global",
     affiliations: everywhereBut("AF", "IR", "SA"),
+    suggestions: [{ label: "Make New Year’s Eve plans", offsetDays: 14 }],
     familyId: "new-year",
     authoredAt: V3,
   },
@@ -372,6 +383,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "ca",
     affiliations: countries("CA"),
+    suggestions: GATHERING,
     authoredAt: V3,
   },
   {
@@ -382,6 +394,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "us",
     affiliations: countries("US"),
+    suggestions: GATHERING,
     impliedByLocale: true,
     authoredAt: V1,
   },
@@ -413,6 +426,10 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "us",
     affiliations: countries("US", "CA", "IE", "GB"),
+    suggestions: [
+      { label: "Plan a costume", offsetDays: 21 },
+      { label: "Buy candy for trick-or-treaters", offsetDays: 7 },
+    ],
     familyId: "halloween",
     impliedByLocale: true,
     authoredAt: V1,
@@ -459,6 +476,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "christian",
     region: "global",
     affiliations: { religions: ["christian"], countries: CHRISTMAS_COUNTRIES },
+    suggestions: [{ label: "Plan Christmas dinner", offsetDays: 21 }],
     wishByDefault: true,
     familyId: "christmas",
     // Safe to imply from a US locale: an occasion, not a religion.
@@ -547,6 +565,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "us",
     affiliations: countries("US"),
+    suggestions: GATHERING,
     authoredAt: V1,
   },
   {
@@ -582,6 +601,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "ca",
     affiliations: countries("CA"),
+    suggestions: [{ label: "Plan Thanksgiving dinner", offsetDays: 21 }],
     familyId: "thanksgiving",
     authoredAt: V3,
   },
@@ -606,6 +626,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "secular",
     region: "us",
     affiliations: countries("US"),
+    suggestions: [{ label: "Plan Thanksgiving dinner", offsetDays: 21 }],
     familyId: "thanksgiving",
     impliedByLocale: true,
     authoredAt: V1,
@@ -717,6 +738,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
+    suggestions: [{ label: "Buy Hanukkah candles", offsetDays: 7 }],
     wishByDefault: true,
     durationDays: 8,
     authoredAt: V2,
@@ -907,6 +929,7 @@ export const CATALOG: readonly HolidayEntry[] = [
     tradition: "jewish",
     region: "global",
     affiliations: religion("jewish"),
+    suggestions: [{ label: "Plan the Seder", offsetDays: 21 }],
     durationDays: 8,
     authoredAt: V3,
   },
@@ -965,6 +988,7 @@ export const CATALOG: readonly HolidayEntry[] = [
       "BN",
       "PH",
     ),
+    suggestions: [{ label: "Plan a reunion dinner", offsetDays: 21 }],
     wishByDefault: true,
     familyId: "lunar-new-year",
     authoredAt: V2,
@@ -1106,4 +1130,9 @@ export function affiliationsFor(slug: string): HolidayAffiliations | null {
 /** Whether a slug's holiday is wished to every observer by default. */
 export function wishByDefaultFor(slug: string): boolean {
   return BY_SLUG.get(slug)?.wishByDefault === true;
+}
+
+/** The errands of your own a slug's prompt offers, or none. */
+export function suggestionsFor(slug: string): readonly HolidaySuggestion[] {
+  return BY_SLUG.get(slug)?.suggestions ?? [];
 }

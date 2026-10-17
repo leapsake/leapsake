@@ -5,6 +5,7 @@ export {
   CATALOG_VERSION,
   affiliationsFor,
   classificationFor,
+  suggestionsFor,
   wishByDefaultFor,
 } from "./catalog.js";
 export {
@@ -17,6 +18,7 @@ export type {
   HolidayClassification,
   HolidayEntry,
   HolidayRegion,
+  HolidaySuggestion,
   HolidayTradition,
 } from "./catalog.js";
 export {
@@ -56,7 +58,15 @@ export type {
   HolidayListItem,
   HolidayObserverCandidate,
   HolidaysApiDeps,
-  ImplicitObservance,
   ObserverDecision,
 } from "./api.js";
 export { seedHolidayCatalog } from "./seed.js";
+export type { ImplicitObservance } from "./observers.js";
+export { holidayPromptCandidates } from "./prompt.js";
+export type {
+  HolidayPrompt,
+  HolidayPromptAnswer,
+  HolidayPromptTarget,
+  PromptCandidate,
+  PromptWish,
+} from "./prompt.js";

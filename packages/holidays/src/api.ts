@@ -1,5 +1,19 @@
-import { type PersonAffiliations, isAffiliated } from "./affiliation.js";
-import { affiliationsFor, wishByDefaultFor } from "./catalog.js";
+import {
+  type ImplicitObservance,
+  NO_IMPLICIT,
+  bearerKey,
+  implicitObservers,
+  observersOf,
+  wishByDefaultOf,
+} from "./observers.js";
+import {
+  type HolidayPrompt,
+  type HolidayPromptAnswer,
+  type HolidayPromptTarget,
+  holidayPrompt,
+  holidayPromptTargets,
+  holidayPromptWrites,
+} from "./prompt.js";
 import { isoFromCivil, parseRecurrence } from "./recurrence.js";
 import { type HolidayResolver, createHolidayResolver } from "./resolver.js";
 import { observanceIdFor } from "@leapsake/data";
@@ -11,6 +25,7 @@ import type {
   PetsRepo,
   ReminderRulesRepo,
   SqliteDriver,
+  UnaskedHolidaysRepo,
 } from "@leapsake/data";
 import {
   type HolidayOccurrenceCandidate,
@@ -18,7 +33,6 @@ import {
 } from "@leapsake/reminders";
 import {
   type CivilDate,
-  type Holiday,
   type HolidayOrigin,
   type ObservanceBearerType,
   type ReminderRuleInput,
@@ -54,6 +68,8 @@ export interface HolidayListItem {
 export interface HolidayDetail extends HolidayListItem {
   /** The next few occurrences, ascending — context for the detail screen. */
   upcoming: string[];
+  /** Whether it asks each year what you'll do for it. */
+  asked: boolean;
 }
 
 export interface HolidayObserverCandidate {
@@ -94,20 +110,11 @@ export interface ObserverDecision {
   observes: boolean;
 }
 
-/** What implicit observance is read from: each living person's affiliations,
- *  and which person is you. */
-export interface ImplicitObservance {
-  people: ReadonlyMap<string, PersonAffiliations>;
-  selfId: string | null;
-}
-
-/** Nobody observes implicitly. */
-const NO_IMPLICIT: ImplicitObservance = { people: new Map(), selfId: null };
-
 export interface HolidaysApiDeps {
   holidays: HolidaysRepo;
   observances: ObservancesRepo;
   hiddenHolidays: HiddenHolidaysRepo;
+  unaskedHolidays: UnaskedHolidaysRepo;
   people: PeopleRepo;
   pets: PetsRepo;
   reminderRules: ReminderRulesRepo;
@@ -188,64 +195,6 @@ export async function holidayReminderCandidates(deps: {
   return candidates;
 }
 
-/** The key an observance is addressed by within one holiday. */
-function bearerKey(bearerType: ObservanceBearerType, bearerId: string): string {
-  return `${bearerType}:${bearerId}`;
-}
-
-/** The bearer id a {@link bearerKey} was made from. */
-function keyId(key: string): string {
-  return key.slice(key.indexOf(":") + 1);
-}
-
-/** The living people who keep a catalog holiday because an affiliation of
- *  theirs matches it, as bearer keys. */
-function implicitObservers(
-  holiday: Pick<Holiday, "slug" | "origin">,
-  implicit: ImplicitObservance,
-): ReadonlySet<string> {
-  const keptBy =
-    holiday.origin === "catalog" ? affiliationsFor(holiday.slug) : null;
-  const keys = new Set<string>();
-  if (keptBy === null) return keys;
-  for (const [personId, affiliations] of implicit.people)
-    if (isAffiliated(keptBy, affiliations))
-      keys.add(bearerKey("person", personId));
-  return keys;
-}
-
-/** Everyone who observes a holiday: those who said so, and those it's
- *  implied for who haven't said otherwise. */
-function observersOf(
-  holiday: Pick<Holiday, "slug" | "origin">,
-  stored: readonly {
-    bearerType: ObservanceBearerType;
-    bearerId: string;
-    observes: boolean;
-  }[],
-  implicit: ImplicitObservance,
-): { bearerType: ObservanceBearerType; bearerId: string }[] {
-  const said = new Set(stored.map((o) => bearerKey(o.bearerType, o.bearerId)));
-  const implied = [...implicitObservers(holiday, implicit)]
-    .filter((key) => !said.has(key))
-    .map((key) => ({ bearerType: "person" as const, bearerId: keyId(key) }));
-  return [...stored.filter((o) => o.observes), ...implied];
-}
-
-/** Whether a bearer's wish is on before any schedule is stored. You are never
- *  on your own wish list. */
-function wishByDefaultOf(
-  holiday: Pick<Holiday, "slug" | "origin">,
-  bearerId: string,
-  implicit: ImplicitObservance,
-): boolean {
-  return (
-    holiday.origin === "catalog" &&
-    wishByDefaultFor(holiday.slug) &&
-    bearerId !== implicit.selfId
-  );
-}
-
 /** Who observes implicitly, or nobody when the deps don't say. */
 function implicitOf(deps: HolidaysApiDeps): Promise<ImplicitObservance> {
   return deps.implicit?.() ?? Promise.resolve(NO_IMPLICIT);
@@ -289,6 +238,28 @@ async function loadCatalog(deps: HolidaysApiDeps): Promise<{
 
 export function createHolidaysApi(deps: HolidaysApiDeps) {
   const now = deps.today ?? todayCivil;
+
+  /** Replace one observance's schedule; anything on says they observe it.
+   *  Transaction-free. */
+  async function writeSchedule(
+    holidayId: string,
+    bearerType: ObservanceBearerType,
+    bearerId: string,
+    rules: ReminderRuleInput[],
+  ): Promise<void> {
+    await deps.reminderRules.replaceForBearer(
+      "observance",
+      observanceIdFor(holidayId, bearerType, bearerId),
+      rules,
+    );
+    if (rules.some((r) => r.enabled))
+      await deps.observances.setObservance(
+        holidayId,
+        bearerType,
+        bearerId,
+        true,
+      );
+  }
 
   return {
     /** Every holiday, soonest first, hidden ones last but listed, so they can
@@ -346,6 +317,7 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
         hidden: hidden.has(row.id),
         observerCount: observerCounts.get(row.id) ?? 0,
         upcoming: upcoming.map(isoFromCivil),
+        asked: !(await deps.unaskedHolidays.listUnaskedIds()).has(row.id),
       };
     },
 
@@ -519,19 +491,36 @@ export function createHolidaysApi(deps: HolidaysApiDeps) {
       bearerId: string,
       rules: ReminderRuleInput[],
     ): Promise<void> {
-      return deps.driver.transaction(async () => {
-        await deps.reminderRules.replaceForBearer(
-          "observance",
-          observanceIdFor(holidayId, bearerType, bearerId),
-          rules,
-        );
-        if (rules.some((r) => r.enabled))
-          await deps.observances.setObservance(
-            holidayId,
-            bearerType,
-            bearerId,
-            true,
-          );
+      return deps.driver.transaction(() =>
+        writeSchedule(holidayId, bearerType, bearerId, rules),
+      );
+    },
+
+    /** Stop or resume asking each year what you'll do for a holiday. */
+    setAsked(holidayId: string, asked: boolean): Promise<void> {
+      return deps.unaskedHolidays.setUnasked(holidayId, !asked);
+    },
+
+    /** Each holiday question there could be today, by reminder id. */
+    prompts: (): Promise<HolidayPromptTarget[]> =>
+      holidayPromptTargets({ ...deps, today: now() }),
+
+    /** One holiday's question for one occurrence, or undefined. */
+    prompt: (
+      holidayId: string,
+      occurrence: string,
+    ): Promise<HolidayPrompt | undefined> =>
+      holidayPrompt({ ...deps, today: now() }, holidayId, occurrence),
+
+    /** Writes a question's answer onto each schedule it changes, at once. */
+    async answerPrompt(
+      holidayId: string,
+      answer: HolidayPromptAnswer,
+    ): Promise<void> {
+      const writes = await holidayPromptWrites(deps, holidayId, answer);
+      await deps.driver.transaction(async () => {
+        for (const w of writes)
+          await writeSchedule(holidayId, w.bearerType, w.bearerId, w.rules);
       });
     },
   };

@@ -10,6 +10,7 @@ import {
   createDuplicateService,
   createEntityService,
   createHiddenHolidaysRepo,
+  createUnaskedHolidaysRepo,
   createHolidaysRepo,
   createKinshipService,
   createMentionsRepo,
@@ -93,7 +94,11 @@ import {
   todayCivil,
   yourCountry,
 } from "@leapsake/schema";
-import { duplicatesReminderId, planReminderId } from "@leapsake/reminders";
+import {
+  duplicatesReminderId,
+  holidayPlanReminderId,
+  planReminderId,
+} from "@leapsake/reminders";
 import { createRemindersApi } from "@leapsake/reminders/api";
 // Re-exported so a client can map a Home reminder's id to its CTA route
 // without depending on `@leapsake/reminders` directly.
@@ -119,9 +124,11 @@ import {
 } from "@leapsake/export";
 import { getSyncStatus } from "@leapsake/key-custody";
 import {
+  type HolidayPromptAnswer,
   type ImplicitObservance,
   type ObserverDecision,
   createHolidaysApi,
+  holidayPromptCandidates,
   holidayReminderCandidates,
   personAffiliations,
   residenceOf,
@@ -251,6 +258,11 @@ export {
 export { seedHolidayCatalog, createHolidaysApi } from "@leapsake/holidays";
 export type {
   BearerHolidayCandidate,
+  HolidayPrompt,
+  HolidayPromptAnswer,
+  HolidayPromptTarget,
+  PromptCandidate,
+  PromptWish,
   HolidayDetail,
   HolidayListItem,
   HolidayObserverCandidate,
@@ -360,10 +372,12 @@ export function createCore(
   const holidays = createHolidaysRepo(driver);
   const observances = createObservancesRepo(driver);
   const hiddenHolidays = createHiddenHolidaysRepo(driver);
+  const unaskedHolidays = createUnaskedHolidaysRepo(driver);
   const holidaysApi = createHolidaysApi({
     holidays,
     observances,
     hiddenHolidays,
+    unaskedHolidays,
     people,
     pets,
     reminderRules,
@@ -419,7 +433,7 @@ export function createCore(
           return [person.id, personAffiliations(person, residence)] as const;
         }),
     );
-    return { people: affiliations, selfId };
+    return { people: affiliations, selfId, yourCountry: you.country };
   }
   const kinship = createKinshipService(driver, {
     people,
@@ -502,6 +516,18 @@ export function createCore(
         observances,
         hiddenHolidays,
         reminderRules,
+        implicit: implicitObservance,
+        today: todayCivil(),
+      }),
+    listHolidayPrompts: () =>
+      holidayPromptCandidates({
+        holidays,
+        observances,
+        hiddenHolidays,
+        unaskedHolidays,
+        reminderRules,
+        people,
+        pets,
         implicit: implicitObservance,
         today: todayCivil(),
       }),
@@ -921,6 +947,25 @@ export function createCore(
       },
       setHidden: async (holidayId: string, hidden: boolean): Promise<void> => {
         await holidaysApi.setHidden(holidayId, hidden);
+        await regenerateSystem();
+      },
+      setAsked: async (holidayId: string, asked: boolean): Promise<void> => {
+        await holidaysApi.setAsked(holidayId, asked);
+        await regenerateSystem();
+      },
+      // `you` says which person you are first, when nobody is yet. Answering
+      // retires this occurrence's question for good.
+      answerPrompt: async (
+        holidayId: string,
+        occurrence: string,
+        answer: HolidayPromptAnswer,
+        you?: string,
+      ): Promise<void> => {
+        if (you !== undefined) await self.setSelf(you);
+        await holidaysApi.answerPrompt(holidayId, answer);
+        await remindersApi.softDelete(
+          holidayPlanReminderId(holidayId, occurrence),
+        );
         await regenerateSystem();
       },
       setObservanceSchedule: async (

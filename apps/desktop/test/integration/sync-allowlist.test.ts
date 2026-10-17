@@ -48,6 +48,7 @@ describe("syncableRepos — the canonical allowlist", () => {
       "social_profiles",
       "taggings",
       "tags",
+      "unasked_holidays",
     ]);
   });
 

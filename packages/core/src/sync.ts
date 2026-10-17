@@ -7,6 +7,7 @@ import {
   createGiftIdeasRepo,
   createGiftRecipientsRepo,
   createHiddenHolidaysRepo,
+  createUnaskedHolidaysRepo,
   createHolidaysRepo,
   createMentionsRepo,
   createMilestonesRepo,
@@ -49,6 +50,7 @@ export function syncableRepos(driver: SqliteDriver): SyncableRepo<SyncRow>[] {
     createHolidaysRepo(driver),
     createObservancesRepo(driver),
     createHiddenHolidaysRepo(driver),
+    createUnaskedHolidaysRepo(driver),
     // Per-device notification policy, editable from any device.
     createNotificationSettingsRepo(driver),
     // The preferences singleton converges by whole-row LWW, as self_person.

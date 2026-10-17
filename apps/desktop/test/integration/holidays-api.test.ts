@@ -1,6 +1,7 @@
 import { createHolidaysApi, seedHolidayCatalog } from "@leapsake/core";
 import {
   createHiddenHolidaysRepo,
+  createUnaskedHolidaysRepo,
   createHolidaysRepo,
   createObservancesRepo,
   createPeopleRepo,
@@ -32,6 +33,7 @@ describe("holidays read API", () => {
       holidays: createHolidaysRepo(driver),
       observances: createObservancesRepo(driver),
       hiddenHolidays: createHiddenHolidaysRepo(driver),
+      unaskedHolidays: createUnaskedHolidaysRepo(driver),
       people: createPeopleRepo(driver),
       pets: createPetsRepo(driver),
       reminderRules: createReminderRulesRepo(driver),

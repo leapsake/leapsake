@@ -36,6 +36,10 @@ export const API_CHANNELS = [
   "holidays.listForBearer",
   "holidays.setObservers",
   "holidays.setHidden",
+  "holidays.setAsked",
+  "holidays.prompts",
+  "holidays.prompt",
+  "holidays.answerPrompt",
   "holidays.getObservanceSchedule",
   "holidays.setObservanceSchedule",
 

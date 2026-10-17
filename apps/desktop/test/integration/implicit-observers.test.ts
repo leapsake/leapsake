@@ -37,13 +37,13 @@ async function observes(holidayId: string, bearerId: string) {
   return observers.find((o) => o.bearerId === bearerId)?.observes;
 }
 
-/** Every Christmas reminder on Home. */
+/** Every Christmas wish on Home. */
 async function christmasTitles() {
   await core.reminders.regenerateSystem();
   return (await core.reminders.list())
     .filter((r) => r.source === "system")
     .map((r) => r.title ?? "")
-    .filter((title) => title.includes("Christmas"));
+    .filter((title) => title.includes("a Merry Christmas"));
 }
 
 describe("implicit observers", () => {
