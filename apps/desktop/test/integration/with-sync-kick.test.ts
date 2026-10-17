@@ -204,6 +204,8 @@ const SURFACE: Record<string, "read" | "write"> = {
   "pets.softDelete": "write",
   "pets.update": "write",
   "preferences.getDateFormat": "read",
+  "preferences.getYourCountry": "read",
+  "preferences.setCountry": "write",
   "preferences.setDateFormat": "write",
   "relationships.create": "write",
   "relationships.createFromSubject": "write",

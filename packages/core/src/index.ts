@@ -58,6 +58,7 @@ import type {
   SocialProfile,
   MilestoneKind,
   DateFormat,
+  YourCountry,
   NotificationMode,
   ReminderCategory,
   NotificationSettings,
@@ -90,6 +91,7 @@ import {
   resolveReminderSchedule,
   scheduleWithAnswer,
   todayCivil,
+  yourCountry,
 } from "@leapsake/schema";
 import { duplicatesReminderId, planReminderId } from "@leapsake/reminders";
 import { createRemindersApi } from "@leapsake/reminders/api";
@@ -1207,6 +1209,17 @@ export function createCore(
         preferences.getDateFormat(),
       setDateFormat: (format: DateFormat | null): Promise<void> =>
         preferences.setDateFormat(format),
+      // Seeds the setting from this device's region while none is stored.
+      async getYourCountry(): Promise<YourCountry> {
+        await preferences.seedCountry(options.phoneRegion ?? null);
+        const selfId = (await self.getSelf())?.personId;
+        const own =
+          selfId === undefined
+            ? []
+            : await contactMethods.postals.listForOwner("person", selfId);
+        return yourCountry(await preferences.getCountry(), own);
+      },
+      setCountry: (code: string): Promise<void> => preferences.setCountry(code),
     },
 
     // Per-device notification policy. Every method takes an explicit deviceId,

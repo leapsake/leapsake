@@ -86,6 +86,8 @@ export const API_CHANNELS = [
   "drafts.discardAll",
   "preferences.getDateFormat",
   "preferences.setDateFormat",
+  "preferences.getYourCountry",
+  "preferences.setCountry",
   "notificationSettings.get",
   "notificationSettings.list",
   "notificationSettings.setPolicy",

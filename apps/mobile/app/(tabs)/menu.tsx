@@ -8,6 +8,7 @@ import { colors, styles } from "../../lib/styles";
 const ROWS = [
   // First: who you are. Then alphabetical.
   { href: "/settings", glyph: "👤", label: "Account" },
+  { href: "/your-country", glyph: "🌍", label: "Country" },
   { href: "/data", glyph: "💾", label: "Data" },
   { href: "/display", glyph: "🎨", label: "Display" },
   { href: "/notifications", glyph: "🔔", label: "Notifications" },

@@ -395,6 +395,15 @@ export interface Messages {
     of: (type: GiftPartyType) => string;
   };
 
+  /** Settings → Country: the one country Leapsake takes you to live in. */
+  yourCountry: {
+    title: string;
+    intro: string;
+    /** In place of the picker while your own address names a country. */
+    fromAddress: (country: string) => string;
+    saveFailed: string;
+  };
+
   /** Settings → Display: how the app writes things out. */
   display: {
     title: string;

@@ -907,6 +907,17 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 49,
+    async up(driver) {
+      // Your country, and whether it is only the device region's guess.
+      await driver.exec(`
+        ALTER TABLE preferences ADD COLUMN country TEXT;
+        ALTER TABLE preferences
+          ADD COLUMN country_seeded INTEGER NOT NULL DEFAULT 0;
+      `);
+    },
+  },
 ];
 
 /** Apply every migration newer than `user_version`, each in a transaction,

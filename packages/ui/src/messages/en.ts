@@ -435,6 +435,15 @@ export const en: Messages = {
     of: (type) => (type === "pet" ? "Pet" : "Person"),
   },
 
+  yourCountry: {
+    title: "Your country",
+    intro:
+      "Where Leapsake takes you to live, on every device you use. It also stands in for anyone whose address doesn’t say where they live.",
+    fromAddress: (country) =>
+      `Your own address is in ${country}, so Leapsake uses that. To change it, edit your address.`,
+    saveFailed: "Your country couldn’t be saved. Please try again.",
+  },
+
   display: {
     title: "Display",
     intro: "How Leapsake writes things out, on every device you use.",
