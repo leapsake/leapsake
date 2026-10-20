@@ -48,9 +48,9 @@ rules) live in **Zod, not the DB** (`schema`), so the same portable SQL runs on 
 NULL`**, so soft-deleted history coexists with live data.
 
 **Version numbers are never reused, and gaps are harmless.** 26 and 34 are absent: they created
-gift tables that were rewritten in place under the pre-v0.1 latitude when the gift model shrank
+gift tables that were rewritten in place before the first release, when the gift model shrank
 to two tables. Leaving the numbers unused makes a stale profile fail loudly on a missing table
-rather than quietly on a renumbered one; the runner filters and sorts by version. From v0.1 on,
+rather than quietly on a renumbered one; the runner filters and sorts by version. Since the first release,
 existing migrations are never edited or reordered.
 
 **Some tables are device-local and never replicate:** `content_key`, `key_wrap`, `sync_state`,

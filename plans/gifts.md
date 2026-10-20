@@ -7,8 +7,8 @@ for the model as it stood. Nothing here is a bug or an omission; each is a decis
 later, on purpose, with the code one `git show` away.
 
 
-⚠️ **Restoring these costs a real migration.** They were removed under the pre-v0.1 latitude;
-there are users now, so `gift_recipients` has to be widened rather than replaced.
+⚠️ **Restoring these costs a real migration.** There are users now, so `gift_recipients` has
+to be widened rather than replaced.
 
 - **Occasions** — the whole apparatus. A gift could name a milestone, a holiday, or (on an idea)
   a bare milestone _kind_, from a pool that was **ranked rather than filtered** across three

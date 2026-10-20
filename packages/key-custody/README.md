@@ -474,8 +474,8 @@ SQLCipher has the reverse. **A change to either must preserve:**
 
 > **A dev install predating this work must be recreated.** `resolveActiveStore` is purely
 > "does the roster hold an account?", and the only legitimate plaintext→encrypted conversions
-> are the three that establish an account on this device. There is no compatibility path, by
-> choice — see _Pre-v0.1 latitude_ in [`AGENTS.md`](../../AGENTS.md).
+> are the three that establish an account on this device. There is no compatibility path:
+> every released version already has this layout.
 
 ## Why it is a package, not a `core` module
 

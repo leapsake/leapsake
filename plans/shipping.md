@@ -33,7 +33,7 @@
      `AFTER_FIRST_UNLOCK` key unlocks under the same conditions as the file.
    - **The copy.** “Recover” reads as “if I lose my phone”, which a login held only on this
      device cannot do.
-   - **Shipped installs.** Pre-v0.1 latitude will have expired, so plaintext stores need a
+   - **Shipped installs.** Plaintext stores already exist on users' devices, so they need a
      migration.
 
 **Why GA has to come first:** Apple's transfer criteria require at least one **released**

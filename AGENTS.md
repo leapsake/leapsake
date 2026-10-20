@@ -53,11 +53,10 @@ Stable, and shapes *how* every increment is built rather than what gets built ne
   layperson-complete with no account at all; the invitation arrives once there is data worth
   protecting. A nudge, never a wall — see [`@leapsake/reminders`](packages/reminders/README.md).
 
-> ⚠️ **Pre-v0.1 latitude** *(owner, 2026-07-27)*: **breaking changes that cost a new dev
-> install are fine.** There are no real users, so a migration is worth writing only when it
-> is genuinely cheaper than "delete the profile and relaunch" — prefer the simpler code.
-> **This expires at v0.1.** Until then it is why several stores, key formats and door layouts
-> were replaced rather than migrated.
+> ⚠️ **There are users, and releases follow [semver](https://semver.org/)** *(owner,
+> 2026-10-19)*. A change to stored data ships a forward-only migration, never "delete the
+> profile and relaunch". Breaking changes are allowed; they decide the bump, which is
+> [`CONTRIBUTING.md`](CONTRIBUTING.md) → *Versioning and releases*.
 
 ## Data model
 
