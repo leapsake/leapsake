@@ -143,4 +143,4 @@ tar -xzf ~/.npm/_prebuilds/*better-sqlite3-multiple-ciphers-*-node-v137-darwin-a
 
 `pnpm test:bundle` does **not** flip the ABI, despite building the renderer: electron-vite
 externalizes the module and never loads it. The whole dance disappears if the N-API fork ever
-releases — see [`plans/v0-2.md`](plans/v0-2.md) → *The N-API exit*.
+releases — see [`plans/tooling.md`](plans/tooling.md) → *The N-API exit*.

@@ -6,8 +6,7 @@
 > macOS ships.
 
 **Where this stands:** `0.1.0` is live on the App Store (iOS alone, single-device), released
-2026-10-17. The relay half of the clients returns later ([`v0-2.md`](./v0-2.md) →
-_Encryption, sync, and the relay_). What is left is the account sequence below.
+2026-10-17. The relay half of the clients returns later ([`accounts-and-sync.md`](./accounts-and-sync.md)). What is left is the account sequence below.
 
 ---
 
@@ -142,8 +141,8 @@ discovers afterwards.
 
 # Not here
 
-Everything that does not gate the above is [`v0-2.md`](./v0-2.md), under a rule kept strict on
-purpose: **ready-but-non-blocking is still not now.** The two platform docs
+Everything that does not gate the above is in the area files ([`README.md`](./README.md)), under
+a rule kept strict on purpose: **ready-but-non-blocking is still not now.** The two platform docs
 ([`android-pipeline.md`](./android-pipeline.md), [`desktop-packaging.md`](./desktop-packaging.md))
 hold the work Part 2 orders. Windows and Linux desktop are out of scope entirely: blocked on a
 host, not waived ([`../CONTRIBUTING.md`](../CONTRIBUTING.md) → _The E2E release gate_).

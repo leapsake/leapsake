@@ -43,8 +43,7 @@ to that are [`../README.md`](../README.md) → _What no tier checks_.
 
 **Promoting a new flow is a scope decision**, made in
 [`plans/shipping.md`](../../../../plans/shipping.md), not here. The candidates that pass the
-rule but are not promoted are in [`plans/v0-2.md`](../../../../plans/v0-2.md) → _Platform and
-tooling_.
+rule but are not promoted are in [`plans/tooling.md`](../../../../plans/tooling.md).
 
 **This catalog is written against the app as actually built.** Two consequences a harness
 author will otherwise get wrong:

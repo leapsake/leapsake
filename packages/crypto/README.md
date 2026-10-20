@@ -108,7 +108,7 @@ GPU/ASIC cracking.
 > re-derives nothing and locks nobody out. Measure Hermes headroom and take as
 > much as mobile tolerates — many RN apps bear 46–64 MiB. This stays load-bearing
 > even after OPAQUE, which removes the _passive_ observation of a verifier but
-> not a malicious operator's active grind ([`plans/v0-2.md`](../../plans/v0-2.md)
+> not a malicious operator's active grind ([`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md)
 > → _Hosted-relay gate_).
 
 ### The test cost

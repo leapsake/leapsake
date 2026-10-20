@@ -6,7 +6,7 @@ export default {
   platform: "mac",
   host: "macos",
   status: "blocked",
-  note: "packaging and notarization deferred past v0.1 — plans/v0-2.md",
+  note: "packaging and notarization wait for the iOS transfer — plans/desktop-packaging.md",
 
   preflight: [],
 
@@ -19,13 +19,13 @@ export default {
 
   async build() {
     throw new Error(
-      "desktop packaging is deferred past v0.1 — see plans/v0-2.md",
+      "desktop packaging waits for the iOS transfer — see plans/desktop-packaging.md",
     );
   },
 
   async publish() {
     throw new Error(
-      "desktop packaging is deferred past v0.1 — see plans/v0-2.md",
+      "desktop packaging waits for the iOS transfer — see plans/desktop-packaging.md",
     );
   },
 };

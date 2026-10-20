@@ -5,7 +5,7 @@
 > decryption, web and sharing designs. Encryption and key-custody decisions are brutally expensive
 > to reverse, so the model is decided before a row is touched, and this doc should read the same
 > whether a thing shipped yesterday or ships next year. Nothing here records what is built or
-> when; what is ahead is [`../v0-2.md`](../v0-2.md).
+> when; what is ahead is the area files beside this folder ([`../README.md`](../README.md)).
 >
 > **Custody is built and is specified in its code.**
 > [`@leapsake/key-custody`](../../packages/key-custody/README.md) owns the states, the exits, the
@@ -82,18 +82,18 @@ which is why the mechanism was kept while its consumer was dropped:
 
 | | What the CK encrypts | Where the wrapped CK goes |
 |---|---|---|
-| **Photo (v0.2)** | bytes in a blob *outside* the database | on the wire, in `EncryptedRecord.wrappedKey` |
+| **Photo (unbuilt)** | bytes in a blob *outside* the database | on the wire, in `EncryptedRecord.wrappedKey` |
 | **A field inside the database** | a column | nowhere: re-sealed per device, so it buys nothing |
 
 > **Do not read this as "layer 3 is speculative."** It is the *only* layer that can protect
 > a photo, because a blob living outside the database is reachable by neither layer 1 nor
-> layer 2 — [`../v0-2.md`](../v0-2.md)'s files invariant #2 is built on it. It is also the only
+> layer 2 — [`../media.md`](../media.md)'s invariant #2 is built on it. It is also the only
 > layer that can express "you may read *this album* and nothing else."
 
-#### 2.2 Four guardrails so v0.2 sharing stays possible
+#### 2.2 Four guardrails so sharing stays possible
 
 A shared album is **bytes plus rows** — timestamps, location, and "who is in this photo."
-So per-item keys must work for rows, not only blobs. None of that is v0.1 work; all of it
+So per-item keys must work for rows, not only blobs. None of that is built yet; all of it
 is easy to foreclose by accident, so it is pinned here:
 
 1. **`EncryptedRecord.wrappedKey` stays** — reserved, unused, and specifically *not*
@@ -101,7 +101,7 @@ is easy to foreclose by accident, so it is pinned here:
    key instead of directly under MK.
 2. **Sealing a row under a CK must be a per-repo choice, not a global engine mode** — some
    rows shareable, some not, within the same push.
-3. **CK scoping is a real mismatch, check it before v0.2.** `content_key` currently enforces
+3. **CK scoping is a real mismatch, check it before files are built.** `content_key` currently enforces
    *one CK per entity* (the `content_key_entity_active` unique index), but a shared album
    wants one CK per **sharing unit** spanning many rows and blobs — which is what §3
    actually says ("every shareable *unit*"). Changing it is a migration, not a
@@ -197,7 +197,7 @@ architecture stays constant across all tiers.
 
 > Only **Tier 2** exists. Tier 1 (server escrow) and Tier 0 are each literally "add one more MK
 > wrapping," so deferring them costs nothing and re-encrypts nothing
-> ([`../v0-2.md`](../v0-2.md) → *Post-launch*).
+> ([`../accounts-and-sync.md`](../accounts-and-sync.md) → *Hosted-relay gate*).
 
 **The honest impossibility result.** If the user holds **no secret at all**, then for
 data to be usable on a second device or the web, *someone else must hold the key —
@@ -391,7 +391,7 @@ decryption boundary from server to client.
 
 **Encrypted content is client-rendered when JS is present and server-rendered (trusted) when it
 is not.** The floor's remaining gaps, and everything else an `apps/web` inherits, are
-[`../v0-2.md`](../v0-2.md) → *Post-launch* item 1.
+[`../web-and-sharing.md`](../web-and-sharing.md) item 1.
 
 ### 10.1 The web client requires a sync account — durability is not grantable
 
@@ -464,14 +464,14 @@ a rule the sharing UI has to state, where a hosted link can always be looked up 
 mode in the table above renders somebody else's screen**, which the shared screens are not yet
 shaped for: rendered unauthenticated they still offer Edit / Delete / Add-milestone and leak the
 item's internal id. A read-only mode is small, and it is a prerequisite for sharing rather than a
-polish item ([`../v0-2.md`](../v0-2.md) → *Post-launch*).
+polish item ([`../web-and-sharing.md`](../web-and-sharing.md)).
 
 **Photos / large binaries** introduce **blob/object storage** (photos don't belong in
 SQLite rows). Same per-item-key model — encrypt each blob with a content key, store
 ciphertext in object storage, wrap keys as above. A storage concern, not a
 crypto-model change. The file-layer design invariants (separate blob channel, resumable
 chunked transfer, client-computed encrypted derivatives, the `BlobStore` port) are pinned
-in [`../v0-2.md`](../v0-2.md).
+in [`../media.md`](../media.md).
 
 ## 12. The honest trust boundary & limits
 

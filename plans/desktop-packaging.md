@@ -1,12 +1,12 @@
 # Desktop packaging, signing, and auto-update
 
-> **Deferred past v0.1**: the desktop app ships after the iOS record has moved to the company
-> ([`shipping.md`](./shipping.md) → Part 2). This keeps its detail rather than being folded into
-> [`v0-2.md`](./v0-2.md) because the sequencing below (A before B before C) is the whole value.
+> **Deferred**: the desktop app ships after the iOS record has moved to the company
+> ([`shipping.md`](./shipping.md) → Part 2). The sequencing below (A before B before C) is the
+> whole value.
 >
 > **Delete this doc when the work lands.** The packaging configuration documents itself; the
 > native-module constraint below is already recorded beside the code it constrains
-> (`scripts/ensure-sqlite-abi.mjs`, [`../AGENTS.md`](../AGENTS.md), and [`v0-2.md`](./v0-2.md)).
+> (`scripts/ensure-sqlite-abi.mjs`, [`../AGENTS.md`](../AGENTS.md), and [`tooling.md`](./tooling.md)).
 
 **Where this plugs in:** `scripts/release/targets/mac.mjs`, a `blocked` stub today. Note what
 that target does *not* need — **Xcode is not in this path at all.** The app is Electron, so
@@ -59,7 +59,7 @@ nothing is being delayed to obey this; it is why the order is right.
   bundle gets its name_ says why packaging ends it, and the `electronDist` trap to avoid.
 
 > An N-API fork release would delete this whole constraint — see
-> [`v0-2.md`](./v0-2.md) → *The N-API exit*. Watch-item, blocked upstream; do not wait for it.
+> [`tooling.md`](./tooling.md) → *The N-API exit*. Watch-item, blocked upstream; do not wait for it.
 
 **Acceptance:** `.app` launches on a clean macOS user account, creates its DB, migrates, and
 reaches Home. Native SQLite loads from the packaged bundle.
@@ -131,3 +131,8 @@ have — automated proof a real user can complete the crucial journeys on the bu
 
 **Acceptance:** `pnpm test:all` shows `e2e` PASS on macOS as well as iOS and Android; a
 deliberately-broken build goes red.
+
+## Not in this doc: Windows and Linux
+
+**Out of scope**, matching the E2E host policy — blocked, not waived. Windows code-signing certs
+carry their own procurement latency and, for OV/EV, hardware-token logistics.

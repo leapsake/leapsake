@@ -22,7 +22,7 @@ it does not link against it.
 ## `account.ts` is dormant, deliberately
 
 The relay half has **no caller today**: the clients' relay flows were deleted on 2026-09-17
-and return in v0.2. It is kept, and kept tested (`apps/server/test/relay.test.ts` exercises it
+and return later. It is kept, and kept tested (`apps/server/test/relay.test.ts` exercises it
 against a live relay), so the rebuild starts from working code rather than from a diff.
 
 **What syncs is not decided here.** `createAccountSyncEngine`, `runAccountSync` and

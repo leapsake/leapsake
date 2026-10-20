@@ -48,7 +48,7 @@ custody, so "start syncing later" adds a relay binding rather than a new ritual.
 > definition: an account exists, therefore keys exist, therefore the store is encrypted. Read
 > the table downward and it derives; read it as a list and the two get conflated.
 >
-> Why that separation is worth keeping explicit: [`plans/v0-2.md`](../../plans/v0-2.md)
+> Why that separation is worth keeping explicit: [`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md)
 > anticipates a user **opting out of encryption while holding an account**, which severs
 > exactly this implication. When that lands, only the _Store on disk_ row changes — the state
 > itself still means what it says.
@@ -175,7 +175,7 @@ It takes two exits, because _"I have a local-only account and I want sync"_ has 
 and a user knows which one they mean before they know any of the mechanics.
 
 **Neither exit has a client today.** The clients' relay flows were deleted on 2026-09-17 and
-return in v0.2; what they did is at the tag `relay-clients-final`. `bindRelayToAccount` and
+return later; what they did is at the tag `relay-clients-final`. `bindRelayToAccount` and
 `@leapsake/sync`'s account half stay, kept tested against a live relay in
 `apps/server/test/relay.test.ts`, so the rebuild starts from working code.
 
@@ -209,7 +209,7 @@ account"_ refusal `joinAccount` does, so it needs the same copy-first treatment 
 a second full flow; a merge UI must hide its recovery affordance rather than offer a button
 that can only throw. The gap is a user who has the account's **phrase** but not its password —
 today they must recover on the other device first. *(Deferred, owner 2026-08-08; see
-[`plans/v0-2.md`](../../plans/v0-2.md) → *Encryption, sync, and the relay*.)*
+[`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md) → *Sync and the relay*.)*
 
 ## Locked, Sign out, Forget account _(decided 2026-07-27)_
 
@@ -266,8 +266,8 @@ who forgot their password to the unlock gate instead.
 Forget account are cheap — close or delete the store. **Automatic** locking is not: a real
 session needs mid-session re-lock in the desktop main process and mobile's bootstrap, and it
 must be a genuine re-lock rather than theater, since the keychain still holds the db-key and a
-relaunch would otherwise walk straight past it. Deferred to v0.2
-([`plans/v0-2.md`](../../plans/v0-2.md)). Nothing about it is a one-way door — the session sits
+relaunch would otherwise walk straight past it. Deferred
+([`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md)). Nothing about it is a one-way door — the session sits
 on top of the same password door either way.
 
 ### Forgetting the last device — ask the relay, assume the worst
@@ -430,7 +430,7 @@ the sections above are the decisions it implements.
   relay; without it, the account is local only.
 - **Adopting an account another device created** — the join/recover counterpart, same
   sequence: `joinAccountViaRelay` and `recoverAccountViaRelay` in
-  [`@leapsake/sync`](../sync/README.md), with no client caller until v0.2. Desktop's client
+  [`@leapsake/sync`](../sync/README.md), with no client caller until the relay clients return. Desktop's client
   flow is at the tag `relay-clients-final`; on mobile, `adoptStoreForAccount` is the
   conversion creation already uses (`core-context.tsx`).
 - **The doors** — `packages/crypto/src/{recovery,password-sidecar}.ts` for the primitives,
@@ -613,7 +613,7 @@ Coverage lives in `apps/desktop/test/integration/` (`key-session`, `password-doo
 OS keystore adapter, so they stay integration tests at the app layer rather than moving here.
 They reach these functions through `@leapsake/core`'s re-export.
 
-**The relay-facing flows are tested live only, until v0.2.** `joinAccount`, `recoverAccount` and
+**The relay-facing flows are tested live only, until the relay clients return.** `joinAccount`, `recoverAccount` and
 `bindRelayToAccount` run against a relay in-process on an ephemeral port, in the
 `bind → join → converge` suite in `apps/server/test/relay.test.ts`. The desktop stub tier went
 with the client flows (tag `relay-clients-final`). When the clients return, both tiers are owed,

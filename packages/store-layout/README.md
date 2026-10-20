@@ -13,7 +13,7 @@ on-device layout that _"encryption follows custody"_ requires
 
 The state names the **account**; `resolveActiveStore` reports the **file** separately as
 `custody: "plaintext" | "encrypted"`. They agree today because encryption follows custody,
-and they are named apart because `plans/v0-2.md` expects that to change. See
+and they are named apart because `plans/accounts-and-sync.md` expects that to change. See
 [`@leapsake/key-custody`](../key-custody/README.md) → _Three questions, three
 vocabularies_ for all three axes.
 

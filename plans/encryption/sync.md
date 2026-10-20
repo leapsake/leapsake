@@ -55,8 +55,9 @@ Three candidate fixes were weighed **through the accessibility lens** (`model.md
 security default must not cost laypeople usability). Recorded so it is not relitigated:
 
 - **Decision: OPAQUE (an aPAKE), required before any official or hosted relay stores other
-  people's data** — "the hosted-relay gate," tracked in [`../v0-2.md`](../v0-2.md). Not v0.1
-  scope: v0.1 sync is self-host-only, so the operator is the user or someone they chose to
+  people's data** — "the hosted-relay gate," tracked in
+  [`../accounts-and-sync.md`](../accounts-and-sync.md). Not needed while sync is
+  self-host-only, since the operator is then the user or someone they chose to
   trust. **The deciding criterion:** OPAQUE keeps login *exactly* username + password. The
   entire cost is engineering — a vetted protocol dependency — and zero new user-visible
   burden. That is what beat the alternatives, both of which spend the user's attention.

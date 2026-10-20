@@ -233,7 +233,7 @@ annoying later:
 - **The session cookie must be set on `Domain=.leapsake.com`**, not on
   `app.leapsake.com` alone, or an edge function at the apex can never see it. Note
   that a domain-wide cookie slightly weakens the origin isolation
-  the web spike liked about serving the app from a separate origin (`plans/v0-2.md` →
-  _Post-launch_ item 1).
+  the web spike liked about serving the app from a separate origin (`plans/web-and-sharing.md`
+  item 1).
 - **`/` stops being trivially edge-cacheable** — it has to `Vary` on cookie. Check
   cookie _presence_ only at the edge; validity is the app's job after the redirect.

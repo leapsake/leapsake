@@ -31,15 +31,16 @@ This folder holds *design*, never a backlog:
 
 | Work | Where |
 |---|---|
-| Building the SSR / PWA client — what an `apps/web` inherits from the spike | [`../v0-2.md`](../v0-2.md) → *Post-launch* item 1 |
-| Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, the `createCore` cleanup, the relay-backup capability, the open security findings | [`../v0-2.md`](../v0-2.md) → *Encryption, sync, and the relay* |
-| Automatic locking, session lifetime, biometrics | [`../v0-2.md`](../v0-2.md) → *v0.2 proper* |
-| Stages 3–4 (sharing, the web app), the hosted-relay gate, passkeys, device management | [`../v0-2.md`](../v0-2.md) → *Post-launch* |
+| Building the SSR / PWA client — what an `apps/web` inherits from the spike | [`../web-and-sharing.md`](../web-and-sharing.md) item 1 |
+| Relay disposability, CK revocation/GC, the shared rate-limit counter, background sync, the `createCore` cleanup, the relay-backup capability, the open security findings | [`../accounts-and-sync.md`](../accounts-and-sync.md) → *Sync and the relay* |
+| Automatic locking, session lifetime, biometrics | [`../accounts-and-sync.md`](../accounts-and-sync.md) → *Sync and the relay* |
+| Stages 3–4 (sharing, the web app) | [`../web-and-sharing.md`](../web-and-sharing.md) |
+| The hosted-relay gate, passkeys, device management | [`../accounts-and-sync.md`](../accounts-and-sync.md) → *Before any hosted relay, and after it* |
 
 The **open design questions** tied to a not-yet-started stage — the asymmetric scheme, the
 public-key directory trust model, the web framework, share-URL formation, metadata
 minimization, the SSR enclave ceiling — are listed with the stage that will answer them, in
-[`../v0-2.md`](../v0-2.md).
+[`../web-and-sharing.md`](../web-and-sharing.md) and [`../accounts-and-sync.md`](../accounts-and-sync.md).
 
 ## The two rules that keep this folder honest
 

@@ -10,7 +10,7 @@ link** pairs that idea with a person or a pet and carries whether the thing has 
 
 That last part was once a separate dated row — a "giving" — and is now a boolean on the link.
 The scope cut is recorded in `git log` (branch `gift-scope-cut`, 2026-08-20) and what was
-removed with it is in [`plans/v0-2.md`](../../plans/v0-2.md). The consequence worth knowing
+removed with it is in [`plans/gifts.md`](../../plans/gifts.md). The consequence worth knowing
 here: **`given` is a stamp, not a date.** Nothing records _when_ something was given, so no
 screen can offer a gift history over time without a migration.
 

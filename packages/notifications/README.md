@@ -3,7 +3,7 @@
 What this package owns, and the decisions that constrain anyone changing it. The API surface is
 documented on the exports themselves (`src/index.ts`); this file is the design behind them.
 The mobile adapter and UI are built; the desktop applier is not
-([`plans/v0-2.md`](../../plans/v0-2.md) → _Platform and tooling_).
+([`plans/reminders-and-notifications.md`](../../plans/reminders-and-notifications.md) → _Notifications_).
 
 ## The shape: a second reconcile behind the first
 

@@ -5,7 +5,7 @@
 v0.1 is single-device by construction, so the app container is the only place a user's data
 exists. That is what makes this the difference between "delete and reinstall" being an ordinary
 act and being data loss — and why it gates GA rather than being a nicety. What is still ahead of
-it (restore, desktop parity, CardDAV) is [`plans/v0-2.md`](../../plans/v0-2.md) → _Export_; this
+it (restore, desktop parity, CardDAV) is [`plans/export.md`](../../plans/export.md); this
 file is why the package is shaped the way it is.
 
 ## ⚠️ It must never use iCloud
@@ -188,4 +188,4 @@ alone, which is the only thing `DATE_KINDS` is about.
 Note what the ids are **for**: matching, not identity. An imported card always gets a fresh row
 id, and `X-LEAPSAKE-CREATED` is parsed but not applied — writing the file's own ids and
 timestamps back is a _restore_, and that door is deliberately still closed
-([`plans/v0-2.md`](../../plans/v0-2.md) → _Export_).
+([`plans/export.md`](../../plans/export.md)).

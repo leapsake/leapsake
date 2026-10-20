@@ -101,7 +101,7 @@ const OUTPUTS = [
     size: 1024,
     fraction: FRACTIONS.masked,
     background: BACKGROUND,
-    note: "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
+    note: "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/desktop-packaging.md)",
   },
   {
     // The macOS Dock icon, drawn on its tile; see the README's _Why macOS gets
@@ -112,7 +112,7 @@ const OUTPUTS = [
     fraction: FRACTIONS.masked,
     plate: PLATE,
     background: BACKGROUND,
-    note: "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
+    note: "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/desktop-packaging.md)",
   },
   {
     // The vector favicon, sharp at every tab size; see the README's _The

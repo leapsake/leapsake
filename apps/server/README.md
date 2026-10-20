@@ -21,7 +21,7 @@ The hosting strategy is **incremental and reversible**, and this package is step
    run this themselves. Single-device use needs no server at all and remains the
    layperson-complete path.
 2. **An official paid hosted relay**, later. Before it can store other people's data it needs
-   the hosted-relay gate in [`plans/v0-2.md`](../../plans/v0-2.md): OPAQUE login, server-escrow
+   the hosted-relay gate in [`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md): OPAQUE login, server-escrow
    recovery as an opt-in dial, quotas / registration-token enforcement, and a shared
    cross-process rate-limit counter.
 3. **User-customizable / BYO storage**, as the endgame.
@@ -108,7 +108,7 @@ are closed; H1 is scoped to a tier that does not exist yet.
 
 | Id     | The attack                                                                                                                                                                                                                           | Where it stands                                                                                                                                                                                                             |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **H1** | The relay observes the raw auth verifier and stores `kdfSalt` + `wrap(MK, KEK)`, so an operator can crack passwords **entirely offline** and decrypt the account. Zero-knowledge reduces to password strength.                       | **Open, gated.** Sessions (H3) cut the observation window to once per login; OPAQUE closes it and is required before any hosted tier — [`plans/v0-2.md`](../../plans/v0-2.md) → _Hosted-relay gate_.                        |
+| **H1** | The relay observes the raw auth verifier and stores `kdfSalt` + `wrap(MK, KEK)`, so an operator can crack passwords **entirely offline** and decrypt the account. Zero-knowledge reduces to password strength.                       | **Open, gated.** Sessions (H3) cut the observation window to once per login; OPAQUE closes it and is required before any hosted tier — [`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md) → _Hosted-relay gate_.                        |
 | **H2** | `GET /accounts/bootstrap` is the de-facto login endpoint, so unlimited 401s let an attacker with a username grind passwords online. A hit yields the verifier **and** the KEK.                                                       | **Closed.** A third per-IP throttle charges only _failed_ logins, on its own counter (`RELAY_BOOTSTRAP_RATE_LIMIT_MAX`); `relay.test.ts` asserts 401→401→429 and budget independence.                                       |
 | **H3** | The verifier was a forever-valid bearer on every request — replayable, non-expiring, one per account — and nothing in the repo terminated TLS.                                                                                       | **Closed for transit.** Session tokens (`POST /accounts/session`) plus both TLS options above. **Still open:** per-device tokens + revocation, and a shared session store for multi-node.                                   |
 | **M3** | A hostile or buggy relay can serve a too-short ciphertext; `open()` had no length guard and `pull()` no per-record try/catch, so one bad row aborted every batch forever — a denial of _convergence_.                                | **Closed, client-side.** `open()` length-guards before the `subarray` (`packages/crypto`) and `pull()` skips-and-logs a poison record while the cursor still advances (`packages/sync`).                                    |
@@ -118,7 +118,7 @@ Findings that are not about the relay live with the code they constrain: the
 Argon2id cost in [`packages/crypto`](../../packages/crypto/README.md), master-key
 residency and recovery-phrase backpressure in
 [`packages/key-custody`](../../packages/key-custody/README.md) and
-[`plans/v0-2.md`](../../plans/v0-2.md).
+[`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md).
 
 ## Routes (`src/relay.ts`)
 
@@ -290,4 +290,4 @@ is you or someone you chose to trust — but **use a strong password** regardles
 
 > **Still ahead** before a public, at-scale relay: per-device tokens + revocation, replay
 > defense, and a shared cross-process session + rate-limit store for multi-node — the open
-> half of H3, tracked in [`plans/v0-2.md`](../../plans/v0-2.md).
+> half of H3, tracked in [`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md).

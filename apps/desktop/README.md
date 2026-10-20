@@ -52,7 +52,7 @@ idempotent, and both re-apply themselves after an install wipes them.
 
 The Dock icon and the name beside the Apple logo are both read from the **app bundle**, and in
 dev the bundle is the downloaded one under `node_modules/electron/dist/` — someone else's icon,
-someone else's name. Packaging will supply a real one (plans/v0-2.md); until it does, a few
+someone else's name. Packaging will supply a real one (plans/desktop-packaging.md); until it does, a few
 small pieces stand in, and they are in different places because macOS reads the name at
 several different moments from several different sources:
 
@@ -324,7 +324,7 @@ not substitutes:
   No amount of file copying helps: that is the design working as intended.
 
 Exporting to a portable format (rather than copying files) is the vCard exporter in
-[`plans/v0-2.md`](../../plans/v0-2.md).
+[`plans/export.md`](../../plans/export.md).
 
 ## IPC: a thin bridge, not a layer
 

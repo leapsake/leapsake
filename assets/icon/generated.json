@@ -110,7 +110,7 @@
       "background": "#fbf7f0",
       "plate": null,
       "tint": null,
-      "note": "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/v0-2.md)",
+      "note": "the Electron window icon on Windows and Linux, and the master electron-builder will slice when desktop packaging lands (plans/desktop-packaging.md)",
       "sha256": "ef083b049194be406e29ae8aff413c6ad54e5dd4d9351276984bea48bea64771"
     },
     {
@@ -126,7 +126,7 @@
         "radius": 0.225
       },
       "tint": null,
-      "note": "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/v0-2.md)",
+      "note": "app.dock.setIcon in the main process, and the master for icon.icns when desktop packaging lands (plans/desktop-packaging.md)",
       "sha256": "872dfb5fc6a39ad4c427951d9200cdacd430d78c124ae1ec8772533fbfb05861"
     },
     {

@@ -731,7 +731,7 @@ describe("core.import.commit — milestones", () => {
       note: "at the lighthouse",
     });
     // The file's own milestone id is a matching key, not a row id — writing it
-    // back verbatim is a restore (`plans/v0-2.md` → *Export*).
+    // back verbatim is a restore (`plans/export.md`).
     expect(onEdge[0].id).not.toBe(WEDDING);
 
     const pete = listed.find((p) => p.firstName === "Pete")!;
