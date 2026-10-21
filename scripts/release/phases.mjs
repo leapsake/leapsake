@@ -16,13 +16,6 @@ import { tagSha } from "./git.mjs";
 import { recordShipment, shipmentsFor } from "./receipts.mjs";
 import { coreOf } from "./version.mjs";
 
-const BUILD_EPOCH_MS = Date.UTC(2026, 0, 1);
-
-/** The build-number clock `apps/mobile/app.config.ts` reads. */
-export function buildNumberNow(now = Date.now()) {
-  return Math.floor((now - BUILD_EPOCH_MS) / 60_000);
-}
-
 /** Each target's cell: `ready`, `blocked` by policy, or `failed` checks,
  *  which alone fails a release. */
 export async function evaluateCells(targets, ctx, { checks = true } = {}) {

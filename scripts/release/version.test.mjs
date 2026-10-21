@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildNumberFor,
   compareVersions,
   coreOf,
   formatTag,
@@ -165,5 +166,45 @@ describe("successorCores", () => {
 
   it("counts past nine numerically", () => {
     expect(successorCores("0.9.9").minor).toBe("0.10.0");
+  });
+});
+
+describe("buildNumberFor", () => {
+  it("puts the core in the high digits and counts the core's tags in the low", () => {
+    const tags = ["v1.2.3", "v1.3.0-alpha.1", "v1.3.0-beta.1"];
+    expect(buildNumberFor("v1.3.0-beta.1", tags)).toBe(103_000_002);
+  });
+
+  it("numbers a tag not yet cut after every tag on its core", () => {
+    const tags = ["v0.3.0-alpha.1", "v0.2.0", "v0.3.0-alpha.2"];
+    expect(buildNumberFor("v0.3.0-beta.1", tags)).toBe(3_000_003);
+  });
+
+  it("orders by when tags were cut, since channels are not a ladder", () => {
+    const tags = ["v1.0.0-beta.9", "v1.0.0-alpha.4"];
+    expect(buildNumberFor("v1.0.0-alpha.4", tags)).toBeGreaterThan(
+      buildNumberFor("v1.0.0-beta.9", tags),
+    );
+  });
+
+  it("keeps a patch to an older line below anything on a newer one", () => {
+    const tags = ["v2.0.0-alpha.1", "v1.2.4-rc.1"];
+    expect(buildNumberFor("v1.2.4-rc.1", tags)).toBeLessThan(
+      buildNumberFor("v2.0.0-alpha.1", tags),
+    );
+  });
+
+  it("stays above every clock-based number already uploaded", () => {
+    expect(
+      buildNumberFor("v0.3.0-alpha.2", ["v0.3.0-alpha.1"]),
+    ).toBeGreaterThan(422_159);
+  });
+
+  it("refuses a version whose fields would spill into the next", () => {
+    expect(() => buildNumberFor("v1.100.0", [])).toThrow(/does not fit/);
+  });
+
+  it("fits Play's versionCode ceiling at its largest", () => {
+    expect(buildNumberFor("v20.99.99", [])).toBeLessThanOrEqual(2_100_000_000);
   });
 });

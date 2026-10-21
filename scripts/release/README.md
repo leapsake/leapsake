@@ -97,8 +97,8 @@ Retry notices go to stderr, so a pause does not read as a hang.
 
 ## Receipts (`receipts.mjs`)
 
-The build number is a clock reading: collision-free, and **opaque**, since Apple names a build by
-number and nothing else. So which commit a build came from is recorded at the only moment both
+The build number is derived from the tag (`buildNumberFor` in `version.mjs`), but it is still
+**opaque** to the stores, since Apple names a build by number and nothing else. So which commit a build came from is recorded at the only moment both
 are known, right after a target publishes, as one JSON line per shipment in a **git note** on
 `refs/notes/releases`. Going live needs it, to tag the commit that actually reached the public
 rather than a later HEAD, and so would resuming a partial release.
@@ -149,9 +149,13 @@ what `--help` lists:
 Every precondition is a check, `{ name, check(ctx) }`, returning `undefined` or **a string saying
 what is missing and how to supply it**: that string is read at the moment it matters, by whoever
 is shipping, so no release rule lives only in prose. Checks run in order, cheapest first, and may
-be async; all are offline but the iOS target's one live probe. The build number is a clock reading
-from `app.config.ts`, so the first target pins it (`LEAPSAKE_BUILD_NUMBER`) for the rest, or iOS
-and Android would ship numbers an archive apart under one tag.
+be async; all are offline but the iOS target's one live probe. The build number comes from the tag:
+the core in the high digits (`MAJOR·10⁸ + MINOR·10⁶ + PATCH·10⁴`), then the tag's place among
+the tags cut on that core. A newer line always outranks an older one, which keeps Play, which
+serves each device the highest `versionCode` it can see, from moving testers back a line.
+Channels are not a ladder, so within a core the order is when each tag was cut. A tag keeps its
+number because `abandon` refuses a tag that shipped, and an abandoned tag never spent its
+number. The plan pins it in `LEAPSAKE_BUILD_NUMBER`, which `app.config.ts` reads.
 
 ## Adding a target
 

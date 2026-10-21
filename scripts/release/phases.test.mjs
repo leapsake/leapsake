@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   abandonTag,
   buildInto,
-  buildNumberNow,
   builtIn,
   evaluateCells,
   planJson,
@@ -65,12 +64,6 @@ const original = process.env.LEAPSAKE_BUILD_NUMBER;
 afterEach(() => {
   if (original === undefined) delete process.env.LEAPSAKE_BUILD_NUMBER;
   else process.env.LEAPSAKE_BUILD_NUMBER = original;
-});
-
-describe("buildNumberNow", () => {
-  it("counts minutes since 2026-01-01 UTC", () => {
-    expect(buildNumberNow(Date.UTC(2026, 0, 1, 1, 30))).toBe(90);
-  });
 });
 
 describe("evaluateCells", () => {

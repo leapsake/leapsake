@@ -541,9 +541,9 @@ async function waitForProcessing(appleAppStoreConnect, appId, buildNumber) {
           ? `build ${buildNumber} was still ${state ?? "processing"} after ` +
               `${minutes(elapsed)}. The upload succeeded and Apple finishes processing on ` +
               "its own, so the build is not lost — but its notes, its group and the review " +
-              "submission never happened. Re-running the release archives and uploads " +
-              "again under a *new* build number, since they come from the clock, so the " +
-              "cheaper repair is finishing this one in App Store Connect by hand"
+              "submission never happened. Re-running the release would upload the same " +
+              "build number, which Apple refuses, so finish this one in App Store " +
+              "Connect by hand"
           : `build ${buildNumber} never appeared in App Store Connect within ` +
               `${minutes(elapsed)} of the upload. Check the account's email for a rejection`,
       );

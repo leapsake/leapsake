@@ -215,7 +215,7 @@ macOS `1.2.3` are known to work together. New workspaces join at whatever the re
 `pnpm test:versions` fails the suite when they disagree.
 
 **Manifests carry only the core (`0.1.0`); the tag carries the rest (`v0.1.0-beta.10`).**
-The stores see the core plus a clock-derived build number, and the app gets the full version
+The stores see the core plus a build number derived from the tag, and the app gets the full version
 through `LEAPSAKE_RELEASE`. Moving to the next core is one ordinary commit:
 `node scripts/set-version.mjs patch|minor|major`, which refuses anything but the three cores
 semver allows next. Which one to pick follows [Semantic Versioning](https://semver.org/):

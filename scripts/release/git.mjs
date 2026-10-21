@@ -5,8 +5,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 const git = (root, args) =>
   execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 
+/** Every tag, oldest first. */
 export const listTags = (root) =>
-  git(root, ["tag", "--list"]).split("\n").filter(Boolean);
+  git(root, ["tag", "--list", "--sort=creatordate"])
+    .split("\n")
+    .filter(Boolean);
 
 export const currentBranch = (root) =>
   git(root, ["rev-parse", "--abbrev-ref", "HEAD"]);

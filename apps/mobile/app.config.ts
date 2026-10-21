@@ -20,8 +20,8 @@ function storeVersion(version: string): string {
 /** Minutes since this instant are the build number; see {@link buildNumber}. */
 const BUILD_EPOCH_MS = Date.UTC(2026, 0, 1);
 
-/** Minutes since {@link BUILD_EPOCH_MS}, shared by both stores; pinned by
- *  `LEAPSAKE_BUILD_NUMBER`. Minutes fit Android's 32-bit `versionCode`. */
+/** `LEAPSAKE_BUILD_NUMBER`, which a release derives from its tag; otherwise
+ *  minutes since {@link BUILD_EPOCH_MS}. */
 function buildNumber(): number {
   // Blank means unset: `.env.example` ships the variable empty.
   const pinned = process.env.LEAPSAKE_BUILD_NUMBER?.trim();

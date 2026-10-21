@@ -21,7 +21,6 @@ import { confirmTag, isCI, localUploadRefusal, via } from "./guards.mjs";
 import {
   abandonTag,
   buildInto,
-  buildNumberNow,
   evaluateCells,
   planJson,
   publishAll,
@@ -38,6 +37,7 @@ import { materializeSecrets } from "./materialize.mjs";
 import { NOTES_REF } from "./receipts.mjs";
 import { TARGETS, targetById } from "./targets/index.mjs";
 import {
+  buildNumberFor,
   coreOf,
   formatTag,
   nextVersion,
@@ -165,8 +165,11 @@ function reportFailures(heading, failures, write = console.error) {
   for (const { name, reason } of failures) write(`  ${name}: ${reason}`);
 }
 
-const plannedBuildNumber = () =>
-  Number(process.env.LEAPSAKE_BUILD_NUMBER?.trim() || buildNumberNow());
+const plannedBuildNumber = (tag) =>
+  Number(
+    process.env.LEAPSAKE_BUILD_NUMBER?.trim() ||
+      buildNumberFor(tag, listTags(ROOT)),
+  );
 
 function printCells(ctx, cells, buildNumber, write) {
   write(`\nRelease ${ctx.tag}`);
@@ -191,7 +194,7 @@ async function planRelease(opts, { write = console.log } = {}) {
     checks: !opts.flags.has("no-checks"),
   });
   const repoFailures = await runChecks(FROM_TAG_CHECKS, ctx);
-  const buildNumber = plannedBuildNumber();
+  const buildNumber = plannedBuildNumber(ctx.tag);
   printCells(ctx, cells, buildNumber, write);
   if (repoFailures.length > 0) {
     reportFailures(
@@ -282,7 +285,7 @@ async function cut(opts) {
     channel === "final" ? MARKER_CHECKS : LOCAL_CHECKS,
     ctx,
   );
-  printCells(ctx, cells, plannedBuildNumber(), console.log);
+  printCells(ctx, cells, plannedBuildNumber(ctx.tag), console.log);
   if (failures.length > 0) {
     reportFailures(`${ctx.tag} cannot be cut from here:`, failures);
     return 1;

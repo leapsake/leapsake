@@ -298,10 +298,10 @@ Three things about this app specifically, all of which cost an evening to learn 
 - **The store version is the repo version minus its pre-release suffix.** Both stores take at
   most three integers (`CFBundleShortVersionString`, `versionName`), so `0.1.0-alpha.1` ships as
   `0.1.0`. Shipping that to TestFlight is not releasing 0.1.0.
-- **The build number is minutes since 2026-01-01 UTC.** Every upload needs a higher one, even
-  within a version; a clock needs no counter and cannot be forgotten. Minutes, because Android's
-  `versionCode` caps at 2,100,000,000 and `YYMMDDHHmm` overflows it. `LEAPSAKE_BUILD_NUMBER`
-  pins one to rebuild a known upload; it is baked in at prebuild.
+- **A release's build number comes from its tag**, set by the release script through
+  `LEAPSAKE_BUILD_NUMBER` and baked in at prebuild; the scheme is in
+  [`scripts/release/README.md`](../../scripts/release/README.md). Without it, as in a
+  development build, the number is minutes since 2026-01-01 UTC.
 - **The commit rides inside the artifact**, so a build names its source without being launched:
   `LeapsakeCommit` in the iOS `Info.plist`, and a manifest `<meta-data>` of the same name
   (`plugins/with-android-commit.js`, reading the one value `app.config.ts` resolved).

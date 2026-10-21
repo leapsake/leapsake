@@ -126,3 +126,23 @@ export function nextVersion({ core, stage, tags = [] }) {
   }
   return `${core}-${stage}.${highest + 1}`;
 }
+
+/** The build number both stores see: the core in the high digits, so an
+ *  older line never outranks a newer one, then the tag's place on its core. */
+export function buildNumberFor(tag, tagsInCreationOrder) {
+  const version = parseTag(tag);
+  const { major, minor, patch } = parseVersion(version);
+  const at = tagsInCreationOrder.indexOf(tag);
+  const earlier =
+    at === -1 ? tagsInCreationOrder : tagsInCreationOrder.slice(0, at);
+  const sameCore = earlier
+    .map(parseTag)
+    .filter((each) => each !== null && coreOf(each) === coreOf(version));
+  const ordinal = sameCore.length + 1;
+  if (major > 20 || minor > 99 || patch > 99 || ordinal > 9999) {
+    throw new Error(
+      `${tag} (tag ${ordinal} on its core) does not fit a build number, which allows majors to 20, minors and patches to 99, and 9999 tags per core`,
+    );
+  }
+  return major * 1e8 + minor * 1e6 + patch * 1e4 + ordinal;
+}
