@@ -1,7 +1,8 @@
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { useRouter } from "expo-router";
 import { categoryFor, facetParam, facetsOf } from "../lib/search-categories";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const GLYPH = "🔍";
 
@@ -14,7 +15,7 @@ export function SearchHereLink({ category }: { category: string }) {
   const found = categoryFor(category);
   const type = found === undefined ? undefined : facetParam(facetsOf(found));
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="button"
       accessibilityLabel="Search"
       testID={`search-here-${category}`}
@@ -27,6 +28,6 @@ export function SearchHereLink({ category }: { category: string }) {
       }
     >
       <Text style={styles.headerGlyph}>{GLYPH}</Text>
-    </Pressable>
+    </Tappable>
   );
 }

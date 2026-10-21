@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { DATABASE_KEY, RECOVERY_KEY } from "@leapsake/crypto";
 import { KEYSTORE_SECRET_IDS } from "@leapsake/core";
 import { secureStoreKeyStore } from "../../keystore/secure-store-keystore";
 import { colors, styles } from "../../lib/styles";
+import { Tappable } from "../../components/Tappable";
 import { TEST_ONLY_MARKER } from "../test-only";
 
 type State =
@@ -96,7 +97,7 @@ export default function ClearKeys() {
             </Text>
           </View>
         ) : (
-          <Pressable
+          <Tappable
             testID="dev-clear-dbkey-button"
             style={[
               banner,
@@ -111,11 +112,11 @@ export default function ClearKeys() {
             <Text style={bannerText}>
               {state.kind === "working" ? "Clearing…" : "Clear db-key"}
             </Text>
-          </Pressable>
+          </Tappable>
         )}
 
         {state.kind === "idle" || state.kind === "working" ? (
-          <Pressable
+          <Tappable
             testID="dev-clear-identity-button"
             style={[
               banner,
@@ -130,11 +131,11 @@ export default function ClearKeys() {
             <Text style={bannerText}>
               {state.kind === "working" ? "Clearing…" : "Clear device identity"}
             </Text>
-          </Pressable>
+          </Tappable>
         ) : null}
 
         {state.kind === "idle" || state.kind === "working" ? (
-          <Pressable
+          <Tappable
             testID="dev-clear-keychain-button"
             style={[
               banner,
@@ -149,7 +150,7 @@ export default function ClearKeys() {
             <Text style={bannerText}>
               {state.kind === "working" ? "Clearing…" : "Clear everything"}
             </Text>
-          </Pressable>
+          </Tappable>
         ) : null}
       </ScrollView>
     </>

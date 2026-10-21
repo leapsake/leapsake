@@ -1,4 +1,4 @@
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { type ContactMethod, postalAddressLines } from "@leapsake/schema";
 import { type LinkAction, resolveActions } from "@leapsake/contact-links";
@@ -124,7 +124,7 @@ export function ContactsSection({
                 <Text style={styles.muted}>{displayValue(entry)}</Text>
               </Tappable>
               {buttonActions(actions).map((action) => (
-                <Pressable
+                <Tappable
                   key={action.id}
                   accessibilityRole="button"
                   accessibilityLabel={`${actionLabel(action)} — ${entry.method.label}`}
@@ -136,7 +136,7 @@ export function ContactsSection({
                   <Text style={local.actionGlyph}>
                     {VERB_ICON[action.verb]}
                   </Text>
-                </Pressable>
+                </Tappable>
               ))}
               <RowMenu
                 subject={entry.method.label}

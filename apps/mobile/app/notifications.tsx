@@ -1,13 +1,5 @@
 import { useCallback, useState } from "react";
-import {
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Linking, Platform, ScrollView, Text, View } from "react-native";
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import type { NotificationMode, ReminderCategory } from "@leapsake/core";
@@ -25,6 +17,7 @@ import { requestNotificationPermissionOnThisDevice } from "../lib/notification-p
 import { useFocusedData } from "../lib/useFocusedData";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
+import { Tappable } from "../components/Tappable";
 
 /** The label on this phone's own checkbox. */
 const THIS_PHONE_LABEL = "Notify me on this phone";
@@ -335,7 +328,7 @@ function CheckboxRow({
   onToggle: (on: boolean) => void;
 }) {
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel={label}
@@ -344,6 +337,6 @@ function CheckboxRow({
     >
       <CheckboxBox checked={checked} />
       <Text style={styles.fieldValue}>{label}</Text>
-    </Pressable>
+    </Tappable>
   );
 }

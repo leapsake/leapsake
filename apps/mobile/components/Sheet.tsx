@@ -3,7 +3,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -11,6 +10,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const CLOSE = { cancel: "Cancel", done: "Done" } as const;
 
@@ -40,10 +40,11 @@ export function Sheet({
 }) {
   const content = (
     <>
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         accessibilityLabel={CLOSE[close ?? "cancel"]}
         style={styles.sheetBackdrop}
+        feedback={false}
         onPress={onClose}
       />
       <View style={[styles.sheet, style]} testID={testID}>
@@ -54,9 +55,9 @@ export function Sheet({
             {title !== undefined && (
               <Text style={styles.sheetTitle}>{title}</Text>
             )}
-            <Pressable accessibilityRole="button" onPress={onClose}>
+            <Tappable accessibilityRole="button" onPress={onClose}>
               <Text style={styles.link}>{CLOSE[close]}</Text>
-            </Pressable>
+            </Tappable>
           </View>
         )}
         {children}

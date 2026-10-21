@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, Text, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { MIN_PASSWORD_LENGTH } from "@leapsake/core";
 import { CheckboxBox } from "./Checkbox";
@@ -8,6 +8,7 @@ import { useAccount } from "../lib/core-context";
 import { showFormProblem } from "../lib/form-problem";
 import { colors, styles } from "../lib/styles";
 import { Button } from "./Button";
+import { Tappable } from "./Tappable";
 
 const NOT_SAVED_YET = "Save your phrase first";
 const SAVE_PHRASE_FIRST =
@@ -164,7 +165,7 @@ export function RecoveryKeyReveal({
       </Text>
       <RecoveryPhraseWords phrase={recoveryKey} />
       {/* An id, since a driver must hit this row or Done stays disabled. */}
-      <Pressable
+      <Tappable
         testID="recovery-acknowledged"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: acknowledged }}
@@ -174,7 +175,7 @@ export function RecoveryKeyReveal({
       >
         <CheckboxBox checked={acknowledged} />
         <Text style={styles.fieldValue}>I've saved my recovery phrase</Text>
-      </Pressable>
+      </Tappable>
       <Button
         label="Done"
         faded={!acknowledged}

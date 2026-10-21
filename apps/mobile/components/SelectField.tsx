@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { colors, radius, styles } from "../lib/styles";
 import { Sheet } from "./Sheet";
+import { Tappable } from "./Tappable";
 
 /**
  * A short, finite enum as the native picker (the app's README → Form
@@ -60,7 +61,7 @@ export function SelectField<T extends string | null>({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
+      <Tappable
         testID={testID}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -69,7 +70,7 @@ export function SelectField<T extends string | null>({
       >
         <Text style={styles.fieldValue}>{selectedLabel}</Text>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>
+      </Tappable>
 
       {/* The wheel says what the field is, so the bar holds only Done. */}
       <Sheet visible={open} onClose={() => setOpen(false)} close="done">

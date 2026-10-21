@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SearchInput } from "./SearchInput";
 import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
@@ -69,7 +63,7 @@ export function SuggestField({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
+      <Tappable
         testID={testID}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -85,7 +79,7 @@ export function SuggestField({
           {value === "" ? (placeholder ?? label) : value}
         </Text>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>
+      </Tappable>
 
       {/* Pinned to the bottom, where the keyboard would cover the field;
           half the screen however few rows, or it reads as a toast. */}

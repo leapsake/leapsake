@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import type { ContactMethodKind } from "@leapsake/schema";
 import {
   type ContactMethodDraft,
@@ -13,6 +13,7 @@ import { CountryField } from "./CountryField";
 import { SelectField } from "./SelectField";
 import { SuggestField } from "./SuggestField";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * Marks a Type option as social, the platform id after it: "Instagram"
@@ -159,7 +160,7 @@ export function ContactMethodFields({
               keyboardType="number-pad"
             />
           </View>
-          <Pressable
+          <Tappable
             accessibilityRole="checkbox"
             accessibilityState={{ checked: draft.smsCapable }}
             accessibilityLabel="Can receive texts"
@@ -168,7 +169,7 @@ export function ContactMethodFields({
           >
             <CheckboxBox checked={draft.smsCapable} />
             <Text style={styles.fieldValue}>Can receive texts</Text>
-          </Pressable>
+          </Tappable>
 
           {/* Whether a number is on WhatsApp cannot be worked out, so it is
               asked; the list comes from the registry. */}
@@ -177,7 +178,7 @@ export function ContactMethodFields({
             {PHONE_PLATFORMS.map((option) => {
               const on = draft.reachableOn.includes(option.id);
               return (
-                <Pressable
+                <Tappable
                   key={option.id}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
@@ -194,7 +195,7 @@ export function ContactMethodFields({
                 >
                   <CheckboxBox checked={on} />
                   <Text style={styles.fieldValue}>{option.name}</Text>
-                </Pressable>
+                </Tappable>
               );
             })}
           </View>

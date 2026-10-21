@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text } from "react-native";
+import { Alert, StyleSheet, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type EntityType, joinNameParts } from "@leapsake/schema";
 import { FormScrollView } from "../components/FormScrollView";
@@ -20,6 +20,7 @@ import {
 import { entityHref } from "../lib/record-title";
 import { styles } from "../lib/styles";
 import { useFocusedData } from "../lib/useFocusedData";
+import { Tappable } from "../components/Tappable";
 
 const TEXT = {
   person: {
@@ -239,14 +240,14 @@ function AddEntityForm({
     <>
       <Stack.Screen options={options} />
       <FormScrollView contentContainerStyle={styles.screen}>
-        <Pressable
+        <Tappable
           accessibilityRole="button"
           testID="add-switch-type"
           onPress={switchType}
           style={local.switchLink}
         >
           <Text style={styles.link}>{TEXT[type].switchLink}</Text>
-        </Pressable>
+        </Tappable>
 
         {type === "person" ? (
           <PersonFields

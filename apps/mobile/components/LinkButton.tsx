@@ -1,6 +1,5 @@
 import type { ComponentProps } from "react";
 import {
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { BUTTON_BOX, BUTTON_LABEL, type ButtonTone } from "./Button";
+import { Tappable } from "./Tappable";
 
 /** Where a {@link LinkButton} leads — `Link`'s own href type. */
 export type Href = ComponentProps<typeof Link>["href"];
@@ -34,7 +34,7 @@ export function LinkButton({
     // ⚠️ `flatten`: a `Link`'s child renders through `Slot`, which throws on
     // a `style` array rather than merging it.
     <Link href={href} asChild>
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         accessibilityLabel={label}
         testID={testID}
@@ -52,7 +52,7 @@ export function LinkButton({
           )}
           <Text style={BUTTON_LABEL[tone]}>{label}</Text>
         </View>
-      </Pressable>
+      </Tappable>
     </Link>
   );
 }

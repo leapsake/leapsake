@@ -3,7 +3,6 @@ import {
   type StyleProp,
   type TextInput as RNTextInput,
   type TextStyle,
-  Pressable,
   Text,
   TextInput,
   View,
@@ -14,6 +13,7 @@ import { useCore } from "../lib/core-context";
 import { highlightMatch } from "../lib/highlightMatch";
 import { colors, styles } from "../lib/styles";
 import { tagColor } from "../lib/tag-color";
+import { Tappable } from "./Tappable";
 
 const TEXT = {
   matchedOn: "matched on",
@@ -148,7 +148,7 @@ export function ChipTextField({
             const reasons = hit.reasons.filter((r) => r.facet !== "name");
             const highlighted = index === activeIndex;
             return (
-              <Pressable
+              <Tappable
                 key={`${hit.entityType}:${hit.entityId}`}
                 accessibilityRole="button"
                 // Which row Return will take — the native counterpart of the
@@ -177,7 +177,7 @@ export function ChipTextField({
                     ))}
                   </Text>
                 )}
-              </Pressable>
+              </Tappable>
             );
           })}
         </View>

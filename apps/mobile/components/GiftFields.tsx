@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import { getLocales } from "expo-localization";
 import { fetchLinkPreview } from "@leapsake/link-preview";
 import type { GiftIdea } from "@leapsake/schema";
@@ -145,13 +145,13 @@ export function GiftIdentityFields({
       {draft.url !== "" && (
         <View style={styles.rowMeta}>
           <Text style={styles.muted}>🔗 {giftUrlLabel(draft.url)}</Text>
-          <Pressable
+          <Tappable
             accessibilityRole="button"
             accessibilityLabel="Remove link"
             onPress={() => onChange({ ...draft, url: "", imageUrl: "" })}
           >
             <Text style={[styles.link, styles.danger]}>Remove link</Text>
-          </Pressable>
+          </Tappable>
         </View>
       )}
 
@@ -185,7 +185,7 @@ export function GiftGivenCheckbox({
   const text =
     label === undefined ? "Already gave it" : `Already gave it to ${label}`;
   return (
-    <Pressable
+    <Tappable
       testID={testID}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: value }}
@@ -195,6 +195,6 @@ export function GiftGivenCheckbox({
     >
       <CheckboxBox checked={value} />
       <Text style={styles.rowText}>{text}</Text>
-    </Pressable>
+    </Tappable>
   );
 }

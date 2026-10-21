@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   AppState,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -67,6 +66,7 @@ import {
 } from "./notification-scheduler";
 import { Button } from "../components/Button";
 import { FormScrollView } from "../components/FormScrollView";
+import { Tappable } from "../components/Tappable";
 
 /** The account surface: custody acts, which are not transactional core ops. */
 export interface AccountApi {
@@ -613,11 +613,11 @@ function CustodyBanner({
         Your data is safe and still here. Nothing is lost — but until you
         re-link it, this device can't confirm that it holds your account's key.
       </Text>
-      <Pressable onPress={() => setExpanded(!expanded)}>
+      <Tappable onPress={() => setExpanded(!expanded)}>
         <Text style={styles.bannerLink}>
           {expanded ? "Hide details" : "How to fix this"}
         </Text>
-      </Pressable>
+      </Tappable>
       {expanded && (
         <>
           <Text style={styles.bannerBody}>
@@ -708,16 +708,16 @@ function RecoveryGate({
           onPress={submit}
         />
         {door === "password" && doors.phrase && (
-          <Pressable onPress={() => switchTo("phrase")}>
+          <Tappable onPress={() => switchTo("phrase")}>
             <Text style={styles.gateLink}>
               Forgot your password? Use your 24-word recovery phrase
             </Text>
-          </Pressable>
+          </Tappable>
         )}
         {door === "phrase" && doors.password && (
-          <Pressable onPress={() => switchTo("password")}>
+          <Tappable onPress={() => switchTo("password")}>
             <Text style={styles.gateLink}>Use your password instead</Text>
-          </Pressable>
+          </Tappable>
         )}
       </FormScrollView>
     </View>

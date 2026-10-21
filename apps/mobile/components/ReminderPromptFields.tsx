@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type OfferContext,
   type ReminderRuleInput,
@@ -11,6 +11,7 @@ import {
 } from "@leapsake/schema";
 import { CheckboxBox } from "./Checkbox";
 import { colors, fonts, styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const SOMETHING_ELSE = "Something else…";
 
@@ -42,7 +43,7 @@ export function ReminderPromptFields({
         const icon = ruleIcon(rule);
         const label = promptItemLabel(rule, offer);
         return (
-          <Pressable
+          <Tappable
             key={index}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: rule.enabled }}
@@ -60,7 +61,7 @@ export function ReminderPromptFields({
               {/* Its own line, where an editable lead time will go. */}
               <Text style={local.lead}>{leadTimeLabel(rule.offsetDays)}</Text>
             </View>
-          </Pressable>
+          </Tappable>
         );
       })}
       {children}

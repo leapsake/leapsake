@@ -1,4 +1,4 @@
-import { Alert, Pressable, Text } from "react-native";
+import { Alert, Text } from "react-native";
 import type { GiftForIdea } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
 import { partyKey } from "@leapsake/ui/headless";
@@ -10,6 +10,7 @@ import { SummaryRow } from "./SummaryRow";
 import { Typeahead } from "./Typeahead";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /** A person/pet the idea can be for — the add field's pool. */
 export interface RecipientCandidate {
@@ -102,7 +103,7 @@ export function GiftIdeaRecipientsSection({
         <SummaryRow
           key={row.id}
           title={
-            <Pressable
+            <Tappable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: isGiven(row) }}
               accessibilityLabel={row.recipientLabel}
@@ -111,7 +112,7 @@ export function GiftIdeaRecipientsSection({
             >
               <CheckboxBox checked={isGiven(row)} />
               <Text style={styles.rowText}>{row.recipientLabel}</Text>
-            </Pressable>
+            </Tappable>
           }
           detail={isGiven(row) ? "✓ Given" : "Not given yet"}
           menu={{

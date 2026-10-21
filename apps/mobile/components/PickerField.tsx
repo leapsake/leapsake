@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
 import { SearchInput } from "./SearchInput";
 import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * One value from a long closed list, in a sheet, for a field too narrow for
@@ -62,7 +62,7 @@ export function PickerField<T>({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
+      <Tappable
         testID={testID}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -78,7 +78,7 @@ export function PickerField<T>({
           {chosen === "" ? (placeholder ?? label) : chosen}
         </Text>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>
+      </Tappable>
 
       {/* No `avoidKeyboard`: the filter sits high, and lifting the sheet
           pushed its bar under the status bar. */}
@@ -110,7 +110,7 @@ export function PickerField<T>({
             <Text style={styles.muted}>{emptyText}</Text>
           ) : (
             matches.map((option) => (
-              <Pressable
+              <Tappable
                 key={getKey(option)}
                 // Its label is a decoy twice over: the filter and Gboard's
                 // suggestion strip both show it (maestro/README.md).
@@ -134,7 +134,7 @@ export function PickerField<T>({
                 ) : (
                   <Text style={styles.rowText}>{getLabel(option)}</Text>
                 )}
-              </Pressable>
+              </Tappable>
             ))
           )}
         </ScrollView>

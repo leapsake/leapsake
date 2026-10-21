@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Alert, Pressable, ScrollView, Text } from "react-native";
+import { Alert, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { fullName } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
@@ -110,12 +110,12 @@ export default function PersonDetailScreen() {
 
       {/* Only when detection has something to merge. */}
       {duplicateCandidates.length > 0 && (
-        <Pressable
+        <Tappable
           accessibilityRole="button"
           onPress={() => router.push(`/people/${person.id}/merge`)}
         >
           <Text style={styles.link}>Merge duplicate…</Text>
-        </Pressable>
+        </Tappable>
       )}
 
       {/* Above the timestamps, so the page ends on bookkeeping. */}

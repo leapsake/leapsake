@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import {
   type Handover,
   type OfferContext,
@@ -24,6 +24,7 @@ import { SelectField } from "./SelectField";
 import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
 import { Button } from "./Button";
+import { Tappable } from "./Tappable";
 
 const daysBefore = (days: number) =>
   days === 0
@@ -155,7 +156,7 @@ export function ReminderScheduleFields({
         return (
           // Rows have no id until saved, so the index is the key.
           <View key={i} style={[styles.row, local.line]}>
-            <Pressable
+            <Tappable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: rule.enabled }}
               accessibilityLabel={label}
@@ -174,8 +175,8 @@ export function ReminderScheduleFields({
               hitSlop={12}
             >
               <CheckboxBox checked={rule.enabled} />
-            </Pressable>
-            <Pressable
+            </Tappable>
+            <Tappable
               accessibilityRole="button"
               accessibilityLabel={TEXT.editRule(label, timing)}
               onPress={() => setEditing(i)}
@@ -186,7 +187,7 @@ export function ReminderScheduleFields({
                 <Text style={styles.muted}>{timing}</Text>
               </View>
               <Text style={styles.chevron}>›</Text>
-            </Pressable>
+            </Tappable>
           </View>
         );
       })}
@@ -239,12 +240,12 @@ export function ReminderScheduleFields({
                 />
               </View>
             ) : null}
-            <Pressable
+            <Tappable
               accessibilityRole="button"
               onPress={() => remove(editing)}
             >
               <Text style={[styles.link, styles.danger]}>{TEXT.remove}</Text>
-            </Pressable>
+            </Tappable>
           </View>
         ) : open !== undefined && editing !== null ? (
           <View style={local.sheetBody}>
@@ -285,12 +286,12 @@ export function ReminderScheduleFields({
                 keyboardType="number-pad"
               />
             </View>
-            <Pressable
+            <Tappable
               accessibilityRole="button"
               onPress={() => remove(editing)}
             >
               <Text style={[styles.link, styles.danger]}>{TEXT.remove}</Text>
-            </Pressable>
+            </Tappable>
           </View>
         ) : null}
       </Sheet>

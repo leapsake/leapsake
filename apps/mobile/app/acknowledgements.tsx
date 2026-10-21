@@ -1,14 +1,8 @@
-import {
-  Alert,
-  Linking,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Linking, ScrollView, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { ACKNOWLEDGEMENTS, type Acknowledgement } from "@leapsake/ui/headless";
 import { styles } from "../lib/styles";
+import { Tappable } from "../components/Tappable";
 
 // The attribution a user can reach, a licence obligation (the repo's is
 // `NOTICE`). The list is shared with desktop; the framing is this screen's.
@@ -57,7 +51,7 @@ function Credit({ entry }: { entry: Acknowledgement }) {
 /** An outbound link; a failure is the OS declining it, so it is reported. */
 function LinkOut({ label, url }: { label: string; url: string }) {
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="link"
       onPress={() => {
         Linking.openURL(url).catch((error: unknown) =>
@@ -66,6 +60,6 @@ function LinkOut({ label, url }: { label: string; url: string }) {
       }}
     >
       <Text style={styles.link}>{label}</Text>
-    </Pressable>
+    </Tappable>
   );
 }

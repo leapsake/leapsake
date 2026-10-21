@@ -1,9 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import {
   SEARCH_CATEGORIES,
   type SearchCategory,
 } from "../lib/search-categories";
 import { colors, fonts, radius } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * Search before anything is typed: a tile per catalog, People included, and a
@@ -17,7 +18,7 @@ export function BrowseTiles({
   return (
     <View style={local.grid}>
       {SEARCH_CATEGORIES.map((category) => (
-        <Pressable
+        <Tappable
           key={category.key}
           accessibilityRole="button"
           testID={`browse-tile-${category.key}`}
@@ -26,7 +27,7 @@ export function BrowseTiles({
         >
           <Text style={local.glyph}>{category.glyph}</Text>
           <Text style={local.label}>{category.label}</Text>
-        </Pressable>
+        </Tappable>
       ))}
     </View>
   );

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { ActionSheet, type SheetItem } from "./ActionSheet";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const MORE = "⋯";
 const moreActionsFor = (subject: string) => `More actions for ${subject}`;
@@ -19,7 +20,7 @@ export function RowMenu({ subject, title = subject, items }: RowMenuProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         accessibilityLabel={moreActionsFor(subject)}
         // Each option is also a custom action, reachable without the sheet.
@@ -37,7 +38,7 @@ export function RowMenu({ subject, title = subject, items }: RowMenuProps) {
         style={local.button}
       >
         <Text style={styles.link}>{MORE}</Text>
-      </Pressable>
+      </Tappable>
       <ActionSheet
         visible={open}
         title={title}

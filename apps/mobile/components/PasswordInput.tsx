@@ -1,12 +1,7 @@
 import { useState } from "react";
-import {
-  Pressable,
-  Text,
-  TextInput,
-  type TextInputProps,
-  View,
-} from "react-native";
+import { Text, TextInput, type TextInputProps, View } from "react-native";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const SHOW = "Show";
 const HIDE = "Hide";
@@ -29,14 +24,14 @@ export function PasswordInput({ style, ...rest }: TextInputProps) {
         {...rest}
         secureTextEntry={!visible}
       />
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         accessibilityLabel={visible ? HIDE_LABEL : SHOW_LABEL}
         hitSlop={8}
         onPress={() => setVisible((v) => !v)}
       >
         <Text style={styles.passwordToggle}>{visible ? HIDE : SHOW}</Text>
-      </Pressable>
+      </Tappable>
     </View>
   );
 }

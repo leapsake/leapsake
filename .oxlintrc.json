@@ -26,12 +26,38 @@
             "name": "react-native",
             "importNames": ["Switch"],
             "message": "Draw a `CheckboxBox` in a row that is itself the checkbox. Leapsake should feel as close to pen and paper as it can, and a tick box reads as paper where a switch reads as a phone setting."
+          },
+          {
+            "name": "react-native",
+            "importNames": ["Pressable"],
+            "message": "Use `Tappable` from `apps/mobile/components/Tappable.tsx`, which dims while pressed. A bare `Pressable` draws no pressed state, so a tap looks missed until the next screen appears. For a target that must stay still, pass `feedback={false}`."
           }
         ]
       }
     ]
   },
   "overrides": [
+    {
+      "files": ["apps/mobile/components/Tappable.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "expo-notifications",
+                "message": "Schedule through `apps/mobile/lib/notification-scheduler.ts` instead. Every pending notification competes for a platform budget the planner sizes (PLATFORM_NOTIFICATION_BUDGET), and one scheduled outside it is invisible to that accounting — on iOS it silently pushes a real reminder past the 64-request ceiling. If you genuinely need a second call site, add it to the override in .oxlintrc.json deliberately."
+              },
+              {
+                "name": "react-native",
+                "importNames": ["Switch"],
+                "message": "Draw a `CheckboxBox` in a row that is itself the checkbox. Leapsake should feel as close to pen and paper as it can, and a tick box reads as paper where a switch reads as a phone setting."
+              }
+            ]
+          }
+        ]
+      }
+    },
     {
       "files": ["**/*.test.*"],
       "rules": {
@@ -51,6 +77,11 @@
                 "name": "react-native",
                 "importNames": ["Switch"],
                 "message": "Draw a `CheckboxBox` in a row that is itself the checkbox. Leapsake should feel as close to pen and paper as it can, and a tick box reads as paper where a switch reads as a phone setting."
+              },
+              {
+                "name": "react-native",
+                "importNames": ["Pressable"],
+                "message": "Use `Tappable` from `apps/mobile/components/Tappable.tsx`, which dims while pressed. A bare `Pressable` draws no pressed state, so a tap looks missed until the next screen appears. For a target that must stay still, pass `feedback={false}`."
               }
             ]
           }

@@ -1,12 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Linking,
-  Platform,
-  Pressable,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Linking, Platform, Text, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import {
   Contact,
@@ -27,6 +20,7 @@ import {
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
 import { FormScrollView } from "../components/FormScrollView";
+import { Tappable } from "../components/Tappable";
 
 // Import from Contacts, which switches the sync on; with no account it first
 // offers one (the app's README → Keeping People in step).
@@ -221,12 +215,12 @@ export default function ImportScreen() {
           onPress={() => void Linking.openSettings()}
         />
         {/* A refusal must not end the first-run path: adding by hand. */}
-        <Pressable
+        <Tappable
           accessibilityRole="button"
           onPress={() => router.push("/add")}
         >
           <Text style={styles.link}>Or add someone by hand</Text>
-        </Pressable>
+        </Tappable>
       </Screen>
     );
   }

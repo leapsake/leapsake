@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { Link, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { HolidayDetail, HolidayObserverCandidate } from "@leapsake/core";
 import { CheckboxBox } from "../../../components/Checkbox";
@@ -14,6 +14,7 @@ import { colors, styles } from "../../../lib/styles";
 import { formatOccurrence } from "@leapsake/schema";
 import { useMessages } from "@leapsake/ui/messages";
 import { LoadState } from "../../../components/LoadState";
+import { Tappable } from "../../../components/Tappable";
 
 // A holiday's dates and observers. No edit: catalog rows are read-only
 // (`@leapsake/holidays` README).
@@ -173,7 +174,7 @@ export default function HolidayDetailScreen() {
       </View>
 
       <View style={styles.field}>
-        <Pressable
+        <Tappable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: holiday.asked }}
           style={styles.rowWithLead}
@@ -181,11 +182,11 @@ export default function HolidayDetailScreen() {
         >
           <CheckboxBox checked={holiday.asked} />
           <Text style={styles.fieldValue}>{m.holidayPrompt.askEachYear}</Text>
-        </Pressable>
+        </Tappable>
       </View>
 
       <View style={styles.field}>
-        <Pressable
+        <Tappable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: holiday.hidden }}
           style={styles.rowWithLead}
@@ -193,7 +194,7 @@ export default function HolidayDetailScreen() {
         >
           <CheckboxBox checked={holiday.hidden} />
           <Text style={styles.fieldValue}>Hide this holiday</Text>
-        </Pressable>
+        </Tappable>
         <Text style={styles.muted}>
           A hidden holiday produces no reminders. Your saved answers about who
           observes it are kept.

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -104,7 +103,7 @@ export function HolidayPromptForm({
   const listed = wishes.filter((w) => shown.has(keyOf(w)));
   const wishBlock = offersWishes && (
     <View style={[styles.row, styles.rowWithLead]}>
-      <Pressable
+      <Tappable
         accessibilityRole="checkbox"
         accessibilityState={{ checked: anyWished }}
         accessibilityLabel={wishLine}
@@ -112,7 +111,7 @@ export function HolidayPromptForm({
         hitSlop={8}
       >
         <CheckboxBox checked={anyWished} />
-      </Pressable>
+      </Tappable>
       <Tappable
         accessibilityRole="button"
         onPress={() => setOpen(true)}
@@ -159,7 +158,7 @@ export function HolidayPromptForm({
           keyboardShouldPersistTaps="handled"
         >
           {listed.map((w) => (
-            <Pressable
+            <Tappable
               key={keyOf(w)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: w.wish }}
@@ -175,7 +174,7 @@ export function HolidayPromptForm({
             >
               <CheckboxBox checked={w.wish} />
               <Text style={styles.rowText}>{w.label}</Text>
-            </Pressable>
+            </Tappable>
           ))}
         </ScrollView>
       </Sheet>

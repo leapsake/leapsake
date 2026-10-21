@@ -6,7 +6,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-/** How far a target dims under the finger, on top of any fade it already has. */
+/** How far a target dims under the finger, on top of any fade it has. */
 const PRESSED_OPACITY = 0.5;
 
 /**

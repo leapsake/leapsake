@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import {
   type MilestoneBearerType,
   type OfferContext,
@@ -19,6 +19,7 @@ import { ReminderScheduleFields } from "./ReminderScheduleFields";
 import { SelectField } from "./SelectField";
 import { styles } from "../lib/styles";
 import { FormScrollView } from "./FormScrollView";
+import { Tappable } from "./Tappable";
 
 const TEXT = {
   kind: "Kind",
@@ -109,7 +110,7 @@ export function MilestoneFields({
   const schedule = (
     <>
       {def.prompt !== undefined && (
-        <Pressable
+        <Tappable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: draft.asksEachYear }}
           accessibilityLabel={TEXT.asksEachYear}
@@ -122,7 +123,7 @@ export function MilestoneFields({
           <Text style={[styles.rowText, styles.rowBody]}>
             {TEXT.asksEachYear}
           </Text>
-        </Pressable>
+        </Tappable>
       )}
       <ReminderScheduleFields
         value={draft.reminderSchedule}
@@ -174,7 +175,7 @@ export function MilestoneFields({
 
       {collapseSchedule ? (
         <>
-          <Pressable
+          <Tappable
             accessibilityRole="button"
             accessibilityState={{ expanded: scheduleOpen }}
             style={styles.sectionHeader}
@@ -186,7 +187,7 @@ export function MilestoneFields({
             <Text style={styles.link}>
               {scheduleOpen ? TEXT.hide : TEXT.show}
             </Text>
-          </Pressable>
+          </Tappable>
           {scheduleOpen ? schedule : null}
         </>
       ) : (

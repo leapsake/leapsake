@@ -1,4 +1,4 @@
-import { Alert, Linking, Pressable, Text, View } from "react-native";
+import { Alert, Linking, Text, View } from "react-native";
 import { Link, useRouter } from "expo-router";
 import type { GiftForRecipient } from "@leapsake/core";
 import type { GiftPartyType } from "@leapsake/schema";
@@ -9,6 +9,7 @@ import { useCore } from "../lib/core-context";
 import { rowMenuItem } from "./RowMenu";
 import { SummaryRow } from "./SummaryRow";
 import { RecordSection } from "./RecordSection";
+import { Tappable } from "./Tappable";
 
 /**
  * What someone is down for, given ones last. The tick writes where it stands;
@@ -71,7 +72,7 @@ export function GiftsSection({
             key={row.id}
             title={
               <View style={styles.rowWithLead}>
-                <Pressable
+                <Tappable
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: given }}
                   accessibilityLabel={`${row.ideaTitle} — ${given ? "given" : "not given yet"}`}
@@ -79,7 +80,7 @@ export function GiftsSection({
                   onPress={() => setGiven(row, !given)}
                 >
                   <Text style={styles.muted}>{given ? "✓" : "○"}</Text>
-                </Pressable>
+                </Tappable>
                 <Link href={`/gifts/${row.giftIdeaId}/edit`}>
                   <Text style={[styles.rowText, { color: colors.accent }]}>
                     {row.ideaTitle}
@@ -108,7 +109,7 @@ export function GiftsSection({
 /** An idea's link in the browser; one the OS cannot open raises an alert. */
 export function GiftLink({ url }: { url: string }) {
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="link"
       onPress={() => {
         Linking.openURL(url).catch(() =>
@@ -119,6 +120,6 @@ export function GiftLink({ url }: { url: string }) {
       <Text style={styles.link} numberOfLines={1}>
         {url}
       </Text>
-    </Pressable>
+    </Tappable>
   );
 }

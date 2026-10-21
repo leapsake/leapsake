@@ -1,6 +1,7 @@
 import { type RefObject, useRef } from "react";
-import { Pressable, Text, TextInput, type TextInputProps } from "react-native";
+import { Text, TextInput, type TextInputProps } from "react-native";
 import { colors, styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * A field with 🔍 at its head: the box only, the value the caller's. The glyph
@@ -17,7 +18,7 @@ export function SearchInput({
   const ref = inputRef ?? own;
 
   return (
-    <Pressable
+    <Tappable
       accessible={false}
       style={[styles.input, styles.searchRow]}
       onPress={() => ref.current?.focus()}
@@ -39,6 +40,6 @@ export function SearchInput({
         clearButtonMode="while-editing"
         {...rest}
       />
-    </Pressable>
+    </Tappable>
   );
 }

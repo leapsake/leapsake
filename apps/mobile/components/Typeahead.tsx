@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { SearchInput } from "./SearchInput";
 import { styles } from "../lib/styles";
 import { Tappable } from "./Tappable";
@@ -63,7 +63,7 @@ export function Typeahead<T>({
             <Text style={styles.fieldValue}>{getLabel(value)}</Text>
           )}
           <View style={styles.rowActions}>
-            <Pressable
+            <Tappable
               accessibilityRole="button"
               onPress={() => {
                 setQuery("");
@@ -71,14 +71,14 @@ export function Typeahead<T>({
               }}
             >
               <Text style={styles.link}>Change</Text>
-            </Pressable>
+            </Tappable>
             {clearable ? (
-              <Pressable
+              <Tappable
                 accessibilityRole="button"
                 onPress={() => onChange(null)}
               >
                 <Text style={styles.link}>Clear</Text>
-              </Pressable>
+              </Tappable>
             ) : null}
           </View>
         </View>

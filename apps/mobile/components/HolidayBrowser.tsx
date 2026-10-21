@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 import { formatOccurrence } from "@leapsake/schema";
 import { useDateFormat } from "../lib/date-format";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /** The little a browsable holiday has to be: a name, a date, and an id. */
 export interface BrowsableHoliday {
@@ -63,13 +64,13 @@ export function HolidayBrowser<T extends BrowsableHoliday>({
                   ? "—"
                   : formatOccurrence(holiday.nextOccurrence, dateFormat)}
               </Text>
-              <Pressable
+              <Tappable
                 accessibilityRole="button"
                 accessibilityLabel={`Add ${holiday.name}`}
                 onPress={() => onAdd(holiday)}
               >
                 <Text style={styles.link}>Add</Text>
-              </Pressable>
+              </Tappable>
             </View>
           </View>
         ))

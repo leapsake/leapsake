@@ -1,13 +1,6 @@
 import type { SearchHit } from "@leapsake/schema";
 import { useEffect, useRef, useState } from "react";
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BrowseTiles } from "../../components/BrowseTiles";
@@ -122,7 +115,7 @@ export default function SearchScreen() {
       {facets.length > 0 && (
         <View style={local.chips}>
           {facets.map((facet) => (
-            <Pressable
+            <Tappable
               key={facet.type}
               accessibilityRole="button"
               // Says what tapping does: "✕" on its own is no instruction.
@@ -134,7 +127,7 @@ export default function SearchScreen() {
               <Text style={local.chipText}>
                 {facet.glyph} {facet.label} ✕
               </Text>
-            </Pressable>
+            </Tappable>
           ))}
         </View>
       )}

@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { colors, radius, styles } from "../lib/styles";
 import { Sheet } from "./Sheet";
+import { Tappable } from "./Tappable";
 
 const CANCEL = "Cancel";
 
@@ -39,7 +40,7 @@ export function ActionSheet({
         {title}
       </Text>
       {items.map((item) => (
-        <Pressable
+        <Tappable
           key={item.key}
           accessibilityRole="button"
           accessibilityLabel={item.label}
@@ -63,15 +64,15 @@ export function ActionSheet({
           {item.hint === undefined ? null : (
             <Text style={local.hint}>{item.hint}</Text>
           )}
-        </Pressable>
+        </Tappable>
       ))}
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         style={local.cancel}
         onPress={onClose}
       >
         <Text style={styles.link}>{CANCEL}</Text>
-      </Pressable>
+      </Tappable>
     </Sheet>
   );
 }
