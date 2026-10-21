@@ -1,6 +1,7 @@
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { useRouter } from "expo-router";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const GLYPH = "➕";
 
@@ -20,7 +21,7 @@ export function NewLink({
 }) {
   const router = useRouter();
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={testID}
@@ -28,6 +29,6 @@ export function NewLink({
       onPress={() => router.push(href)}
     >
       <Text style={styles.headerGlyph}>{GLYPH}</Text>
-    </Pressable>
+    </Tappable>
   );
 }

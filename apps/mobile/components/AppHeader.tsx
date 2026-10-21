@@ -1,9 +1,10 @@
 import { type ReactNode, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLLAPSE_DISTANCE, headerScroll } from "../lib/use-header-scroll";
 import { colors, fonts } from "../lib/styles";
 import logo from "../assets/logo.png";
+import { Tappable } from "./Tappable";
 
 const BACK_LABEL = "‹ Back";
 
@@ -136,9 +137,9 @@ export function AppHeader({
 /** The header's Back control. */
 export function HeaderBack({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8}>
+    <Tappable accessibilityRole="button" onPress={onPress} hitSlop={8}>
       <Text style={local.back}>{BACK_LABEL}</Text>
-    </Pressable>
+    </Tappable>
   );
 }
 

@@ -1,7 +1,8 @@
 import { type ReactElement, useCallback, useEffect, useRef } from "react";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 interface SaveProps {
   /** Why the form isn't ready; Save stays pressable and says this. */
@@ -15,9 +16,10 @@ interface SaveProps {
 export function HeaderSave({ problem, saving, onPress }: SaveProps) {
   const faded = saving || problem !== undefined;
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="button"
       accessibilityState={{ busy: saving }}
+      feedback={!saving}
       onPress={() => {
         if (saving) return;
         if (problem === undefined) onPress();
@@ -27,7 +29,7 @@ export function HeaderSave({ problem, saving, onPress }: SaveProps) {
       <Text style={[styles.link, faded && { opacity: 0.4 }]}>
         {saving ? "Saving…" : "Save"}
       </Text>
-    </Pressable>
+    </Tappable>
   );
 }
 

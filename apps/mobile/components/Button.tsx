@@ -1,5 +1,4 @@
 import {
-  Pressable,
   Text,
   type AccessibilityState,
   type StyleProp,
@@ -7,6 +6,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 export type ButtonTone = "primary" | "secondary" | "destructive";
 
@@ -52,11 +52,12 @@ export function Button({
   accessibilityState?: AccessibilityState;
 }) {
   return (
-    <Pressable
+    <Tappable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ ...accessibilityState, busy }}
       testID={testID}
+      feedback={!busy}
       style={[
         BUTTON_BOX[tone],
         (busy || faded) && { opacity: FADED_OPACITY },
@@ -67,6 +68,6 @@ export function Button({
       }}
     >
       <Text style={BUTTON_LABEL[tone]}>{label}</Text>
-    </Pressable>
+    </Tappable>
   );
 }
