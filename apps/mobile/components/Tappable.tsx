@@ -7,7 +7,7 @@ import {
 } from "react-native";
 
 /** How far a target dims under the finger, on top of any fade it has. */
-const PRESSED_OPACITY = 0.5;
+const PRESSED_OPACITY = 0.7;
 
 /**
  * A `Pressable` that dims while pressed, so a tap shows it landed.
