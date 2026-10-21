@@ -6,14 +6,14 @@
 
 ## In flight
 
-**`0.1.0` is live on the App Store** (iOS alone; macOS follows **after** the company exists
+**`0.2.0` is live on the App Store** (iOS alone; macOS follows **after** the company exists
 and the iOS record transfers to it, [`shipping.md`](./shipping.md)).
 
 **Android ships the same rungs** from the personal Play account, `rc` to closed testing;
 `final` waits on production access, earned by the [14-day closed test](./android-pipeline.md).
 
-**Next: release `0.2.0`**, approved (`v0.2.0-rc.2`, build 417108). A new core needs its App
-Store version record before its first `rc`; the preflight says so. From a clean tree:
+A release is five commands from a clean tree, once App Review approves the `rc`. A new
+core needs its App Store version record before its first `rc`; the preflight says so.
 
 ```sh
 pnpm release cut final --push
