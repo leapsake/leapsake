@@ -16,10 +16,10 @@ describe("monotonic", () => {
     expect(monotonic.check(ctx())).toBeUndefined();
   });
 
-  it("refuses a version that goes backwards", () => {
-    expect(monotonic.check(ctx({ version: "0.0.9" }))).toMatch(
-      /only ever go forward/,
-    );
+  it("refuses a core below the latest final", () => {
+    expect(
+      monotonic.check(ctx({ version: "0.0.9", tags: ["v0.1.0"] })),
+    ).toMatch(/0\.0\.9 is closed: v0\.1\.0 released 0\.1\.0/);
   });
 
   it("ignores tags that are not release tags", () => {
@@ -68,12 +68,24 @@ describe("monotonic", () => {
     ).toBeUndefined();
   });
 
-  it("refuses a lower core than one already tagged", () => {
+  it("accepts a patch to the released line beside a later core's prereleases", () => {
     expect(
       monotonic.check(
-        ctx({ version: "0.1.1-beta.1", tags: ["v0.2.0-alpha.1"] }),
+        ctx({
+          version: "1.2.4-rc.1",
+          tags: ["v1.2.3", "v1.3.0-beta.2", "v2.0.0-alpha.1"],
+        }),
       ),
-    ).toMatch(/0\.2\.0 has already been tagged/);
+    ).toBeUndefined();
+  });
+
+  it("closes every lower core once a later one ships", () => {
+    const tags = ["v1.2.3", "v1.2.4-rc.1", "v1.3.0-beta.2", "v2.0.0"];
+    for (const version of ["1.2.4-rc.2", "1.3.0-beta.3", "2.0.0-rc.1"]) {
+      expect(monotonic.check(ctx({ version, tags }))).toMatch(
+        /is closed: v2\.0\.0 released 2\.0\.0/,
+      );
+    }
   });
 
   it("refuses every channel on a core a final has closed", () => {

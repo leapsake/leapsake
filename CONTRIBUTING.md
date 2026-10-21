@@ -233,8 +233,9 @@ tagged.
 > artifacts compatible is `@leapsake/schema` migrations and `@leapsake/sync`.
 
 **`main` is the only long-lived branch.** Branch only when `main` would otherwise be
-unreleasable. `release/X.Y.Z` exists for exactly one situation — stabilizing a release while
-unrelated work keeps landing — and is deleted once the release ships.
+unreleasable. `release/X.Y.Z` exists for exactly two situations — stabilizing a release while unrelated work
+keeps landing, and patching the released line while `main` is on a later core (branch from its
+final tag, then `set-version patch`) — and is deleted once the release ships.
 
 **A release is a tag, and [`scripts/release/`](scripts/release/) is the whole policy.** The
 channels, what each one requires per platform, and every precondition are enforced there
@@ -242,8 +243,10 @@ rather than described here. Run `pnpm release --help` for the current rules.
 
 - **`alpha`, `beta` and `rc` are channels, not a ladder.** A human chooses the channel; the
   counter is computed per channel from the tags, so `alpha.4` may follow `beta.9`. **Only a
-  final closes a core:** once `vX.Y.Z` exists, nothing more is cut on `X.Y.Z`, and no tag
-  ever goes below the highest core already tagged.
+  final closes a core:** once `vX.Y.Z` exists, nothing more is cut on `X.Y.Z` or any core
+  below it. Every core above the latest final stays open at once, so `v1.2.4-rc.1` may follow
+  `v2.0.0-alpha.1` while `v1.2.3` is the latest final; the build number keeps the older line
+  below the newer one in both stores.
 - **Cutting a tag commits nothing.** `pnpm release cut <channel>` computes the next tag, shows
   the plan, and tags HEAD once you type the tag back; `--push` pushes just that tag. There is
   no version-bump commit.

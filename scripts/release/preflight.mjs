@@ -9,6 +9,7 @@ import {
   formatTag,
   highestVersion,
   releaseVersions,
+  stageOf,
 } from "./version.mjs";
 import { headSha, tagSha } from "./git.mjs";
 
@@ -56,8 +57,8 @@ const tagAvailable = {
       : `${tag} already exists — a release tag is never moved or reused`,
 };
 
-/** No core below the highest tagged, nor on a closed one; refuses when the
- *  tag list can't be trusted. */
+/** No core at or below the latest final, which closes it and every core
+ *  under it; refuses when the tag list can't be trusted. */
 export const monotonic = {
   name: "version increases",
   check: ({ version, tags, shallow, firstRelease }) => {
@@ -80,12 +81,11 @@ export const monotonic = {
     }
 
     const core = coreOf(version);
-    const highestCore = coreOf(highest);
-    if (compareVersions(core, highestCore) < 0) {
-      return `${version} is on ${core}, but ${highestCore} has already been tagged (${formatTag(highest)}) — store versions only ever go forward`;
-    }
-    if (releaseVersions(tags).includes(core)) {
-      return `${core} is closed: ${formatTag(core)} released it. Start the next core with node scripts/set-version.mjs ${BUMP_KINDS.join("|")}`;
+    const floor = releaseVersions(tags)
+      .filter((each) => stageOf(each) === "final")
+      .at(-1);
+    if (floor !== undefined && compareVersions(core, floor) <= 0) {
+      return `${core} is closed: ${formatTag(floor)} released ${floor}, which closes it and every core below. Start a later core with node scripts/set-version.mjs ${BUMP_KINDS.join("|")}`;
     }
     return undefined;
   },
