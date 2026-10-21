@@ -88,6 +88,20 @@ buttons, labels and metadata keep the system sans, which holds up better at smal
   expo-font's config plugin registers each file under one family with its weight. Otherwise
   bold text is synthesised, or falls back to another font.
 
+## Touch: every press dims, few earn a haptic
+
+- **Every press target is a [`Tappable`](./components/Tappable.tsx)**, which dims under the
+  finger. A bare `Pressable` draws no pressed state, so a tap looked missed until the next screen
+  appeared. Lint forbids importing `Pressable` anywhere else.
+- **Haptics mark meaning, not touches**, through [`haptic`](./lib/haptics.ts): a success cue when
+  a reminder is marked done (after the write lands, never on Reopen), and a selection tick on
+  every checkbox or radio, which `Tappable` plays from the target's role. A haptic on every tap
+  would be noise. Add a moment sparingly, and only for one the user should feel.
+- **`expo-haptics` is the dependency that pays for this**: the platform haptic engines have no
+  JavaScript API, and it is first-party Expo, needs no permission on iOS, and reuses the
+  `VIBRATE` the Android manifest already declares. iOS silences it when System Haptics is off,
+  so the app needs no setting of its own. Lint forbids importing it outside `lib/haptics.ts`.
+
 ## A reminder row is a link; its detail screen acts
 
 - **A Home row is a link and nothing else**, so nothing on the list can complete, delete or

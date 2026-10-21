@@ -41,6 +41,7 @@ import {
 } from "../../../lib/reminder-row";
 import { useDateFormat } from "../../../lib/date-format";
 import { colors, styles } from "../../../lib/styles";
+import { haptic } from "../../../lib/haptics";
 import { Button } from "../../../components/Button";
 import { LinkButton } from "../../../components/LinkButton";
 import { LoadState } from "../../../components/LoadState";
@@ -179,7 +180,10 @@ export default function ReminderDetailScreen() {
   /** Finish or reopen this reminder, then go back to the list. */
   function toggle() {
     core.reminders.setCompleted(id, !done).then(
-      () => router.back(),
+      () => {
+        if (!done) haptic.done();
+        router.back();
+      },
       (e: unknown) => Alert.alert(FAILURE_TITLES.complete, String(e)),
     );
   }
