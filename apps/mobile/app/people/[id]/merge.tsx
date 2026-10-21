@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Alert, Pressable, ScrollView, Text } from "react-native";
+import { Alert, ScrollView, Text } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type Person, fullName } from "@leapsake/schema";
 import { useCore } from "../../../lib/core-context";
@@ -7,6 +7,7 @@ import { personHref } from "../../../lib/record-title";
 import { useFocusedData } from "../../../lib/useFocusedData";
 import { styles } from "../../../lib/styles";
 import { LoadState } from "../../../components/LoadState";
+import { Tappable } from "../../../components/Tappable";
 
 /**
  * Merge a duplicate into the person viewed: everything of its moves onto
@@ -73,14 +74,14 @@ export default function PersonMergeScreen() {
                 </Text>
               ) : (
                 others.map((other) => (
-                  <Pressable
+                  <Tappable
                     key={other.id}
                     accessibilityRole="button"
                     style={styles.row}
                     onPress={() => confirmMerge(survivor, other)}
                   >
                     <Text style={styles.rowText}>{fullName(other)}</Text>
-                  </Pressable>
+                  </Tappable>
                 ))
               )}
             </ScrollView>

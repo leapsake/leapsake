@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SearchInput } from "./SearchInput";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * Autocomplete over a long list, listing nothing under `minChars` (the app's
@@ -116,7 +117,7 @@ export function Typeahead<T>({
         <Text style={styles.muted}>No matches.</Text>
       ) : (
         offered.map((option) => (
-          <Pressable
+          <Tappable
             key={getKey(option)}
             accessibilityRole="button"
             style={styles.row}
@@ -132,7 +133,7 @@ export function Typeahead<T>({
             ) : (
               <Text style={styles.rowText}>{getLabel(option)}</Text>
             )}
-          </Pressable>
+          </Tappable>
         ))
       )}
     </View>

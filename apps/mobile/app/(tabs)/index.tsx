@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import type { ReminderInWindow } from "@leapsake/core";
 import {
@@ -26,6 +26,7 @@ import { useHeaderScroll } from "../../lib/use-header-scroll";
 import { colors, styles } from "../../lib/styles";
 import { Button } from "../../components/Button";
 import { LoadState } from "../../components/LoadState";
+import { Tappable } from "../../components/Tappable";
 
 /** Every user-visible string on this screen. */
 const TEXT = {
@@ -165,14 +166,14 @@ function SectionHeader({
   );
   if (!collapsible) return heading;
   return (
-    <Pressable
+    <Tappable
       accessible
       accessibilityRole="button"
       accessibilityState={{ expanded: !collapsed }}
       onPress={onToggle}
     >
       {heading}
-    </Pressable>
+    </Tappable>
   );
 }
 
@@ -221,7 +222,7 @@ function ReminderRow({
   const heading = reminder.title ?? reminder.body ?? "";
 
   return (
-    <Pressable
+    <Tappable
       accessible
       accessibilityRole="link"
       accessibilityLabel={reminderLabel(reminder)}
@@ -257,7 +258,7 @@ function ReminderRow({
         )}
       </View>
       <Text style={[styles.chevron, styles.rowChevron]}>{TEXT.chevron}</Text>
-    </Pressable>
+    </Tappable>
   );
 }
 
@@ -281,7 +282,7 @@ function WishGroupRow({
   const m = useMessages();
   const countdown = reminderCountdownOf(first, section);
   return (
-    <Pressable
+    <Tappable
       accessible
       accessibilityRole="button"
       accessibilityState={{ expanded }}
@@ -301,7 +302,7 @@ function WishGroupRow({
       <Text style={[styles.chevron, styles.rowChevron]}>
         {expanded ? "▾" : "▸"}
       </Text>
-    </Pressable>
+    </Tappable>
   );
 }
 

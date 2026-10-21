@@ -21,6 +21,7 @@ import { Sheet } from "./Sheet";
 import { Typeahead } from "./Typeahead";
 import { showFormProblem } from "../lib/form-problem";
 import { colors, fonts, styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /** The key a bearer is told apart by on the wish line. */
 const keyOf = (b: { bearerType: string; bearerId: string }) =>
@@ -112,7 +113,7 @@ export function HolidayPromptForm({
       >
         <CheckboxBox checked={anyWished} />
       </Pressable>
-      <Pressable
+      <Tappable
         accessibilityRole="button"
         onPress={() => setOpen(true)}
         style={[styles.rowBody, local.opener]}
@@ -126,7 +127,7 @@ export function HolidayPromptForm({
           </Text>
         </View>
         <Text style={styles.chevron}>›</Text>
-      </Pressable>
+      </Tappable>
       <Sheet
         visible={open}
         onClose={() => setOpen(false)}

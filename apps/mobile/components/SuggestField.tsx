@@ -9,6 +9,7 @@ import {
 import { SearchInput } from "./SearchInput";
 import { Sheet } from "./Sheet";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /**
  * Free text with a handful of usual answers, in a sheet that opens holding
@@ -116,7 +117,7 @@ export function SuggestField({
           {/* The current value is not bolded (it would read as a heading),
                   only announced as selected. */}
           {matches.map((suggestion) => (
-            <Pressable
+            <Tappable
               key={suggestion}
               accessibilityRole="button"
               accessibilityState={{ selected: suggestion === value }}
@@ -124,17 +125,17 @@ export function SuggestField({
               onPress={() => choose(suggestion)}
             >
               <Text style={styles.rowText}>{suggestion}</Text>
-            </Pressable>
+            </Tappable>
           ))}
 
           {offerTyped ? (
-            <Pressable
+            <Tappable
               accessibilityRole="button"
               style={styles.row}
               onPress={() => choose(typed)}
             >
               <Text style={styles.rowText}>Use “{typed}”</Text>
-            </Pressable>
+            </Tappable>
           ) : null}
         </View>
       </Sheet>

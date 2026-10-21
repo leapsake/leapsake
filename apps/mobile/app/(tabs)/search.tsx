@@ -23,6 +23,7 @@ import {
   filterHits,
 } from "../../lib/search-categories";
 import { colors, radius, styles } from "../../lib/styles";
+import { Tappable } from "../../components/Tappable";
 
 const TEXT = {
   matchedOn: "matched on",
@@ -156,13 +157,13 @@ export default function SearchScreen() {
             )
           }
           renderItem={({ item: hit }) => (
-            <Pressable
+            <Tappable
               accessibilityRole="button"
               style={styles.row}
               onPress={() => router.push(searchHitHref(hit))}
             >
               <ResultRow hit={hit} term={term} />
-            </Pressable>
+            </Tappable>
           )}
         />
       )}

@@ -18,6 +18,7 @@ import {
 import { colors, styles } from "../../../lib/styles";
 import { Button } from "../../../components/Button";
 import { LoadState } from "../../../components/LoadState";
+import { Tappable } from "../../../components/Tappable";
 
 // A person's page; each part carries its own Edit, beside what it changes.
 export default function PersonDetailScreen() {
@@ -76,7 +77,7 @@ export default function PersonDetailScreen() {
 
       {/* Until the pair is merged or marked "not the same". */}
       {duplicateCandidates.length > 0 && (
-        <Pressable
+        <Tappable
           accessibilityRole="button"
           onPress={() => router.push(`/duplicates?for=${person.id}`)}
           style={styles.row}
@@ -85,7 +86,7 @@ export default function PersonDetailScreen() {
             {m.person.duplicates(duplicateCandidates.length)}{" "}
             {m.person.reviewDuplicates}
           </Text>
-        </Pressable>
+        </Tappable>
       )}
 
       <RecordSection

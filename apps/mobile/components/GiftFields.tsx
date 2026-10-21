@@ -10,6 +10,7 @@ import {
 } from "@leapsake/ui/headless";
 import { CheckboxBox } from "./Checkbox";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 /** Shortest query the idea suggestions act on, so none dumps the whole list. */
 const MIN_SUGGEST_CHARS = 2;
@@ -155,14 +156,14 @@ export function GiftIdentityFields({
       )}
 
       {suggestions.map((idea) => (
-        <Pressable
+        <Tappable
           key={idea.id}
           accessibilityRole="button"
           style={styles.row}
           onPress={() => onChange({ ...draft, title: idea.title })}
         >
           <Text style={styles.rowText}>{idea.title}</Text>
-        </Pressable>
+        </Tappable>
       ))}
     </View>
   );

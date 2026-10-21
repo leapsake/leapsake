@@ -16,6 +16,7 @@ import { useContactReach } from "../lib/use-contact-reach";
 import { deleteContact } from "../lib/contact-writes";
 import { useCore } from "../lib/core-context";
 import { styles } from "../lib/styles";
+import { Tappable } from "./Tappable";
 
 const PROFILE_HINT = "profile";
 
@@ -111,7 +112,7 @@ export function ContactsSection({
             <View style={styles.rowWithLead}>
               {/* The action is a hint, not the label, so the value is read
                     out. With no action the row is not pressable. */}
-              <Pressable
+              <Tappable
                 accessibilityRole={primary ? "button" : undefined}
                 accessibilityLabel={`${entry.method.label}, ${value}`}
                 accessibilityHint={primary ? actionLabel(primary) : undefined}
@@ -121,7 +122,7 @@ export function ContactsSection({
               >
                 <Text style={styles.rowText}>{entry.method.label}</Text>
                 <Text style={styles.muted}>{displayValue(entry)}</Text>
-              </Pressable>
+              </Tappable>
               {buttonActions(actions).map((action) => (
                 <Pressable
                   key={action.id}
