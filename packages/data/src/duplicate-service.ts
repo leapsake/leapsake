@@ -14,6 +14,7 @@ import {
 import { phoneE164 } from "@leapsake/phone";
 import type { SqliteDriver } from "./driver.js";
 import type { NotADuplicateRepo } from "./not-a-duplicate-repo.js";
+import { type AttachPool, loadAttachPool } from "./attach-pool.js";
 
 /** Duplicate detection over the people list: read-only, scored by
  *  {@link scoreDuplicate}. It only proposes; merges go through core. */
@@ -61,6 +62,8 @@ export interface DuplicateService {
     phones: string[];
     handles: { platform: string; handle: string }[];
   }): Promise<DuplicateMatch[]>;
+  /** The people an import's contacts may attach to, for one import. */
+  attachPool(): Promise<AttachPool>;
 }
 
 interface PersonRow {
@@ -265,6 +268,7 @@ export function createDuplicateService(
     findCandidates,
     candidatesFor,
     matchContact,
+    attachPool: () => loadAttachPool(driver, options),
     unresolvedCandidates,
     unresolvedPairKeys: async () =>
       (await unresolvedCandidates()).map(({ a, b }) => pairKey(a.id, b.id)),

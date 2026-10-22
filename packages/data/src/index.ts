@@ -105,6 +105,7 @@ export {
   type DuplicateMatch,
   createDuplicateService,
 } from "./duplicate-service.js";
+export { type AttachPool, postalValue } from "./attach-pool.js";
 export {
   type EntityService,
   type EntityServiceDeps,
