@@ -17,28 +17,12 @@ Stop an import from creating a second person for someone Leapsake already holds.
 
 ## When a contact attaches
 
-Only when it is **compatible** with exactly one stored person and they **agree**:
+**Built:** `canAttach` and `attachTarget`, specified in
+[`@leapsake/contact-import`](../../packages/contact-import/README.md) → _Attaching a contact to a
+stored person_. Still to wire: only active, published people are targets, and a contact in the
+same import attaches to a person an earlier one created.
 
-- **Agreement:** full names equal, ignoring case and accents (a middle name on one side only is
-  fine), plus at least one more shared value: an email, phone, handle or birthday.
-- **Conflicts that block:** any name part, gender, birthday, or a dated occasion of the same
-  kind that differs. A birthday with no year on one side is compatible if month and day agree.
-- **Lists conflict per label.** Emails, phones and addresses are grouped by label (case and
-  spacing ignored), handles by platform. A label both sides use must share at least one value
-  under it, so a changed "Mobile" number blocks the attach and leaves it to the review. An
-  unlabelled or "Other" entry never conflicts, and neither do different labels ("iPhone" and
-  "Mobile"); entries that differ without conflicting are added.
-- **Tags and related people** never conflict; they add.
-- **Compatible with two or more people:** do not attach. Create, and let the duplicates review
-  show them all.
-- **Only active, published people are targets.** A deleted person comes back as new, as a
-  re-imported card already does; an unpublished one is left alone.
-- **Contacts in the same import** attach to a person an earlier contact in it created, by the
-  same rule.
-
-Anything short of that is created as today, and the existing duplicates review offers the merge.
-
-## What an attach does
+## What an attach does — next
 
 - Writes the link from the contact to the person.
 - Adds whatever the contact has that the person lacks. By construction nothing conflicts, so

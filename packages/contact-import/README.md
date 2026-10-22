@@ -49,3 +49,24 @@ after a batch that created anything is `@leapsake/reminders`' business, and a ba
 transaction, so one bad row rolls back alone. Because the engine holds that transaction, every
 port writes over the **raw repos** rather than the core methods that would open their own, since
 the driver's transactions do not nest; `setSelf` also skips `core.self.set`'s own reconcile.
+
+## Attaching a contact to a stored person
+
+A third answer about an incoming card: whether it **is** someone already stored, though no id
+says so. A phone only remembers the contacts it imported itself, so a second phone, a restore
+under new ids, or a contact deleted and re-added would otherwise make a second person. Such a
+contact **attaches** to the person instead: it adds what the person lacks and overwrites
+nothing.
+
+`canAttach` is deliberately stricter than the duplicate scorer, because nobody reviews it:
+
+- **Agreement:** the same full name, ignoring case and accents, plus one more shared value
+  (an email, phone or handle, or a birthday's month and day).
+- **No conflict:** no differing middle name, gender, birthday, or date of a kind a person has
+  once (a wedding, not a graduation). Emails, phones and addresses are grouped by label, and
+  handles by platform; a label both sides use must share a value under it, so a changed
+  "Mobile" number does not attach. Different labels, none, or "Other" never conflict.
+- **Exactly one candidate.** A contact that could attach to two people is created, because
+  those two are duplicates the review should show.
+
+Anything short of that is created as before and left to the duplicates review.
