@@ -33,7 +33,8 @@ function makeHarness() {
     resolveSchedule: async (m, audience) =>
       resolveReminderSchedule(m.kind, [], audience),
     reminders: {
-      getIncludingDeleted: async (id) => rows.get(id),
+      getManyIncludingDeleted: async (ids) =>
+        ids.flatMap((id) => rows.get(id) ?? []),
       insert: async (row) => {
         rows.set(row.id, row);
         return row;

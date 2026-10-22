@@ -47,8 +47,9 @@ export const SYSTEM_REMINDER_NAMESPACE = "leapsake:system-reminder";
 
 /** The slice of the reminders repo the engine drives. */
 export interface SystemReminderStore {
-  /** Includes tombstones, so a dismissed system reminder is never re-minted. */
-  getIncludingDeleted(id: string): Promise<Reminder | undefined>;
+  /** The stored rows among `ids`, in any order. Includes tombstones, so a
+   *  dismissed system reminder is never re-minted. */
+  getManyIncludingDeleted(ids: readonly string[]): Promise<Reminder[]>;
   /** Persist a reminder row the engine assembled, id and stamps included. */
   insert(row: Reminder): Promise<Reminder>;
   /** Refresh a live row's derived copy and date, keeping its id and any manual
@@ -639,10 +640,11 @@ export async function listSystemReminderTargets(
   deps: ReminderEngineDeps,
 ): Promise<SystemReminderTarget[]> {
   const desired = await computeDesired(deps, () => DISPLAY_WINDOW_DAYS);
+  const stored = await storedById(deps, desired.keys());
   const targets: SystemReminderTarget[] = [];
   for (const row of desired.values()) {
     if (row.target === undefined) continue;
-    const existing = await deps.reminders.getIncludingDeleted(row.id);
+    const existing = stored.get(row.id);
     if (existing !== undefined && existing.deletedAt !== null) continue;
     targets.push({
       id: row.id,
@@ -694,12 +696,13 @@ export async function listRemindersInWindow(
 ): Promise<WindowedReminder[]> {
   // One uniform horizon; each row still reports its own `activeFrom`.
   const desired = await computeDesired(deps, () => windowDays);
+  const stored = await storedById(deps, desired.keys());
 
   const rows: WindowedReminder[] = [];
   for (const want of desired.values()) {
     // A `system` title is not user-editable, so overriding it loses nothing.
     const derived = derivedTitle(want);
-    const existing = await deps.reminders.getIncludingDeleted(want.id);
+    const existing = stored.get(want.id);
     if (existing !== undefined) {
       if (existing.deletedAt === null)
         rows.push({
@@ -779,7 +782,7 @@ export async function materializeReminder(
   deps: ReminderEngineDeps,
   id: string,
 ): Promise<boolean> {
-  const existing = await deps.reminders.getIncludingDeleted(id);
+  const existing = (await storedById(deps, [id])).get(id);
   if (existing !== undefined) return existing.deletedAt === null;
 
   const desired = await computeDesired(deps, () => DISPLAY_WINDOW_DAYS);
@@ -1210,6 +1213,15 @@ async function computeDesired(
   return desired;
 }
 
+/** The stored rows, tombstones included, among `ids`, by id. */
+async function storedById(
+  deps: ReminderEngineDeps,
+  ids: Iterable<string>,
+): Promise<Map<string, Reminder>> {
+  const rows = await deps.reminders.getManyIncludingDeleted([...ids]);
+  return new Map(rows.map((row) => [row.id, row]));
+}
+
 /** Reconcile the store to `desired` (see {@link regenerateSystemReminders}). */
 function reconcile(
   deps: ReminderEngineDeps,
@@ -1219,8 +1231,9 @@ function reconcile(
     const now = Date.now();
     let created = 0;
     let updated = 0;
+    const stored = await storedById(deps, desired.keys());
     for (const [id, want] of desired) {
-      const existing = await deps.reminders.getIncludingDeleted(id);
+      const existing = stored.get(id);
       if (existing === undefined) {
         await insertDesired(deps, want, now);
         created++;

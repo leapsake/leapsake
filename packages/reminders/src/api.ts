@@ -661,7 +661,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
         reachable,
       ),
     reminders: {
-      getIncludingDeleted: (id) => reminders.getIncludingDeleted(id),
+      getManyIncludingDeleted: (ids) => reminders.getManyIncludingDeleted(ids),
       // The engine bypasses `create`, so materialize the title's @mentions
       // here.
       insert: async (row) => {

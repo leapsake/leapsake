@@ -87,7 +87,8 @@ function makeHarness() {
       return { ...standing, overrides: overrides.get(m.id) ?? new Map() };
     },
     reminders: {
-      getIncludingDeleted: async (id) => rows.get(id),
+      getManyIncludingDeleted: async (ids) =>
+        ids.flatMap((id) => rows.get(id) ?? []),
       insert: async (row) => {
         rows.set(row.id, row);
         return row;

@@ -261,3 +261,40 @@ describe("remindersRepo — an untouched row never wins a merge", () => {
     expect((await repo.get(NUDGE_ID))?.snoozedUntil).toBe(Date.UTC(2026, 8, 1));
   });
 });
+
+describe("remindersRepo getManyIncludingDeleted", () => {
+  it("returns live rows and tombstones, and skips ids with no row", async () => {
+    const live = await repo.create({ title: "Lend Uncle Billy the deposit" });
+    const dismissed = await repo.create({ title: "Visit Bedford Falls" });
+    await repo.softDelete(dismissed.id);
+
+    const found = await repo.getManyIncludingDeleted([
+      live.id,
+      dismissed.id,
+      crypto.randomUUID(),
+    ]);
+
+    expect(
+      Object.fromEntries(found.map((r) => [r.title, r.deletedAt !== null])),
+    ).toEqual({
+      "Lend Uncle Billy the deposit": false,
+      "Visit Bedford Falls": true,
+    });
+  });
+
+  it("returns nothing for no ids", async () => {
+    await repo.create({ title: "Wire Sam Wainwright" });
+
+    expect(await repo.getManyIncludingDeleted([])).toEqual([]);
+  });
+
+  it("finds every row when asked for more ids than one statement binds", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 1201; i++)
+      ids.push((await repo.create({ title: `Ring Clarence ${i}` })).id);
+
+    const found = await repo.getManyIncludingDeleted(ids);
+
+    expect(new Set(found.map((r) => r.id))).toEqual(new Set(ids));
+  });
+});

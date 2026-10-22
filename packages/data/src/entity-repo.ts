@@ -20,6 +20,9 @@ export interface EntityRepo<T extends SyncRow> extends SyncableRepo<T> {
   /** Like {@link get} but returns soft-deleted rows too (a merge must see
    *  them). */
   getIncludingDeleted(id: string): Promise<T | undefined>;
+  /** {@link getIncludingDeleted} for many ids at once, in no particular
+   *  order; an id with no row is simply absent. */
+  getManyIncludingDeleted(ids: readonly string[]): Promise<T[]>;
   /** Every active row, in `orderBy` order and narrowed by `listOnly`. The
    *  unnarrowed read is {@link SyncableRepo.listActive}. */
   list(): Promise<T[]>;
@@ -61,6 +64,9 @@ export function softDeleteRow(
 ): Promise<void> {
   return softDeleteWhere(driver, table, "id = ?", [id]);
 }
+
+/** The most ids one statement binds, under SQLite's oldest variable limit. */
+const IDS_PER_STATEMENT = 500;
 
 /** Build the CRUD and sync surface for an entity, sharing one codec so its
  *  columns are spelled once, in its Zod schema. */
@@ -108,6 +114,19 @@ export function createEntityRepo<T extends SyncRow>(opts: {
 
   const get = (id: string): Promise<T | undefined> => readOne(id, true);
 
+  async function getManyIncludingDeleted(ids: readonly string[]): Promise<T[]> {
+    const found: T[] = [];
+    for (let i = 0; i < ids.length; i += IDS_PER_STATEMENT) {
+      const chunk = ids.slice(i, i + IDS_PER_STATEMENT);
+      const rows = await driver.all<Record<string, unknown>>(
+        `SELECT * FROM ${table} WHERE id IN (${chunk.map(() => "?").join(", ")})`,
+        [...chunk],
+      );
+      found.push(...(await Promise.all(rows.map((row) => codec.fromRow(row)))));
+    }
+    return found;
+  }
+
   async function listWhere(query: {
     where: string;
     params: readonly unknown[];
@@ -127,6 +146,7 @@ export function createEntityRepo<T extends SyncRow>(opts: {
     ...syncable,
     get,
     getIncludingDeleted: (id) => readOne(id, false),
+    getManyIncludingDeleted,
     listWhere,
 
     async insert(row) {
