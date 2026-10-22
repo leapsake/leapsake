@@ -81,6 +81,17 @@ export interface ImportPorts {
   ): Promise<void>;
   /** Runs one contact's writes atomically. */
   transaction<T>(body: () => Promise<T>): Promise<T>;
+  /** Lets a person's contact attach to someone stored instead of creating
+   *  them; absent, every contact is created. */
+  attach?: {
+    /** The stored person this contact is, or `null` to create one. */
+    target(contact: ParsedContact): Promise<string | null>;
+    /** Fills the person's empty fields from the contact, and returns the
+     *  contact minus whatever the person already holds. */
+    into(personId: string, contact: ParsedContact): Promise<ParsedContact>;
+    /** Records a committed person, so later contacts can attach to them. */
+    landed(personId: string, contact: ParsedContact): void;
+  };
 }
 
 /** Import or skip one contact, carrying the contact as the user reviewed it. */
@@ -102,6 +113,8 @@ export interface ImportError {
 /** What an import run did: landed, skipped, and why any failed. */
 export interface ImportResult {
   created: number;
+  /** Contacts that attached to a person already stored. */
+  attached: number;
   skipped: number;
   errors: ImportError[];
 }
@@ -115,6 +128,7 @@ export async function ingestContacts(
   decisions: ImportDecision[],
 ): Promise<ImportResult> {
   let created = 0;
+  let attached = 0;
   let skipped = 0;
   const errors: ImportError[] = [];
   /** Every entity this run created, by the `UID` its card carried. */
@@ -175,28 +189,38 @@ export async function ingestContacts(
       const landed = await ports.transaction(async () => {
         // A pet differs only in having no contact methods.
         const pet = contact.kind === "pet";
-        const { id } = pet
-          ? await ports.createPet(contact.name, contact.gender)
-          : await ports.createPerson(contact.name, contact.gender);
+        const target =
+          pet || !ports.attach ? null : await ports.attach.target(contact);
+        // What is left to write: all of it, unless the person holds some.
+        const adding =
+          target === null || !ports.attach
+            ? contact
+            : await ports.attach.into(target, contact);
+        const { id } =
+          target !== null
+            ? { id: target }
+            : pet
+              ? await ports.createPet(contact.name, contact.gender)
+              : await ports.createPerson(contact.name, contact.gender);
 
-        if (contact.tags.length > 0) {
-          await ports.addTags(pet ? "pet" : "person", id, contact.tags);
+        if (adding.tags.length > 0) {
+          await ports.addTags(pet ? "pet" : "person", id, adding.tags);
         }
         if (!pet) {
-          for (const email of contact.emails) await ports.addEmail(id, email);
-          for (const phone of contact.phones) await ports.addPhone(id, phone);
-          for (const postal of contact.postals) {
+          for (const email of adding.emails) await ports.addEmail(id, email);
+          for (const phone of adding.phones) await ports.addPhone(id, phone);
+          for (const postal of adding.postals) {
             await ports.addPostal(id, postal);
           }
-          for (const social of contact.socials) {
+          for (const social of adding.socials) {
             await ports.addSocial(id, social);
           }
         }
         const ownerType: EntityType = pet ? "pet" : "person";
-        if (contact.birthday) {
-          await ports.addBirthday(ownerType, id, contact.birthday);
+        if (adding.birthday) {
+          await ports.addBirthday(ownerType, id, adding.birthday);
         }
-        for (const date of contact.dates) {
+        for (const date of adding.dates) {
           // A relationship's milestone waits for its edge; a `-REL` on a kind
           // no relationship holds falls back to the entity.
           if (
@@ -215,7 +239,7 @@ export async function ingestContacts(
           await ports.addDate(ownerType, id, date);
         }
 
-        for (const relation of contact.related) {
+        for (const relation of adding.related) {
           // A named relation has no card of its own, so it is written here.
           if (relation.otherUid === null) {
             await ports.addRelated(ownerType, id, relation);
@@ -230,11 +254,13 @@ export async function ingestContacts(
         if (sourceId !== undefined) {
           await ports.linkSource(sourceId, { type: ownerType, id });
         }
-        return { type: ownerType, id };
+        return { type: ownerType, id, attached: target !== null };
       });
       // Only once committed, so phase 2 never points at a rolled-back entity.
       if (contact.uid !== null) byUid.set(contact.uid, landed);
-      created++;
+      if (landed.attached) attached++;
+      else created++;
+      if (landed.type === "person") ports.attach?.landed(landed.id, contact);
       const owner = {
         index,
         contact,
@@ -328,7 +354,7 @@ export async function ingestContacts(
     }
   }
 
-  return { created, skipped, errors };
+  return { created, attached, skipped, errors };
 }
 
 /** What makes two `RELATED` lines one edge: `X-LEAPSAKE-REL-ID`, else the

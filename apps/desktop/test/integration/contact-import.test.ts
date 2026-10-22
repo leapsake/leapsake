@@ -96,7 +96,7 @@ describe("core.import.commit", () => {
         }),
       },
     ]);
-    expect(result).toEqual({ created: 1, skipped: 0, errors: [] });
+    expect(result).toEqual({ created: 1, attached: 0, skipped: 0, errors: [] });
 
     const people = await core.people.list();
     expect(people).toHaveLength(1);

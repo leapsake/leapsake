@@ -83,9 +83,15 @@ export default function ImportScreen() {
     let live = true;
     // Every run that lands while this is up counts, since a background run
     // tends to get there first.
-    const landed: ImportResult = { created: 0, skipped: 0, errors: [] };
+    const landed: ImportResult = {
+      created: 0,
+      attached: 0,
+      skipped: 0,
+      errors: [],
+    };
     const stopObserving = observeDeviceContactSync((run) => {
       landed.created += run.created;
+      landed.attached += run.attached;
       landed.skipped += run.skipped;
       landed.errors.push(...run.errors);
     });

@@ -28,7 +28,12 @@ const CONTACT_FIELDS: ContactField[] = [
   ...(Platform.OS === "ios" ? [ContactField.BIRTHDAY] : []),
 ];
 
-const NOTHING_NEW: ImportResult = { created: 0, skipped: 0, errors: [] };
+const NOTHING_NEW: ImportResult = {
+  created: 0,
+  attached: 0,
+  skipped: 0,
+  errors: [],
+};
 
 /** The run in flight, so a second caller queues behind it. */
 let queue: Promise<unknown> = Promise.resolve();

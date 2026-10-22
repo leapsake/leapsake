@@ -150,7 +150,7 @@ describe("ingestContacts", () => {
       { action: "skip", contact: contact({ displayName: "B" }) },
       { action: "create", contact: contact({ displayName: "C" }) },
     ]);
-    expect(result).toEqual({ created: 2, skipped: 1, errors: [] });
+    expect(result).toEqual({ created: 2, attached: 0, skipped: 1, errors: [] });
     expect(people).toHaveLength(2);
   });
 
@@ -216,7 +216,7 @@ describe("ingestContacts", () => {
         }),
       },
     ]);
-    expect(result).toEqual({ created: 1, skipped: 0, errors: [] });
+    expect(result).toEqual({ created: 1, attached: 0, skipped: 0, errors: [] });
     expect(people).toHaveLength(1);
   });
 
@@ -926,5 +926,75 @@ describe("ingestContacts — contacts read from an address book", () => {
     expect(result.created).toBe(0);
     expect(result.errors[0].message).toBe("already linked: abc");
     expect(sources).toHaveLength(1);
+  });
+});
+
+describe("ingestContacts — attaching to a stored person", () => {
+  /** Attaches George to `stored`, and anyone else to nobody; `into` drops the
+   *  emails the person already holds. */
+  function withAttach(held: string[] = []) {
+    const made = makePorts();
+    const landed: { personId: string; first: string }[] = [];
+    made.ports.attach = {
+      target: async (c) => (c.name.firstName === "George" ? "stored" : null),
+      into: async (_personId, c) => ({
+        ...c,
+        emails: c.emails.filter((e) => !held.includes(e.address)),
+      }),
+      landed: (personId, c) => {
+        landed.push({ personId, first: c.name.firstName });
+      },
+    };
+    return { ...made, landed };
+  }
+
+  const george = contact({
+    name: { firstName: "George", middleName: null, lastName: "Bailey" },
+    emails: [
+      { label: "Home", address: "george@bailey.test" },
+      { label: "Work", address: "george@bnl.test" },
+    ],
+  });
+
+  it("writes only what the person lacks, onto them, and counts it", async () => {
+    const { ports, people, emails, sources } = withAttach([
+      "george@bailey.test",
+    ]);
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: george, sourceId: "phone-1" },
+    ]);
+    expect(result).toEqual({ created: 0, attached: 1, skipped: 0, errors: [] });
+    expect(people).toEqual([]);
+    expect(emails).toEqual([
+      { personId: "stored", address: "george@bnl.test" },
+    ]);
+    expect(sources).toEqual([{ sourceId: "phone-1", entityId: "stored" }]);
+  });
+
+  it("creates whoever has no target, and reports every person that lands", async () => {
+    const mary = contact({
+      name: { firstName: "Mary", middleName: null, lastName: "Hatch" },
+    });
+    const { ports, people, landed } = withAttach();
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: mary },
+      { action: "create", contact: george },
+    ]);
+    expect(result).toMatchObject({ created: 1, attached: 1 });
+    expect(people.map((p) => p.first)).toEqual(["Mary"]);
+    expect(landed).toEqual([
+      { personId: people[0].id, first: "Mary" },
+      { personId: "stored", first: "George" },
+    ]);
+  });
+
+  it("never attaches a pet", async () => {
+    const { ports, pets, landed } = withAttach();
+    const result = await ingestContacts(ports, [
+      { action: "create", contact: { ...george, kind: "pet" } },
+    ]);
+    expect(result).toMatchObject({ created: 1, attached: 0 });
+    expect(pets).toHaveLength(1);
+    expect(landed).toEqual([]);
   });
 });
