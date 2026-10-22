@@ -222,6 +222,8 @@ export interface Messages {
     completeSummary: (created: number, skipped: number) => string;
     /** How many people an import added. */
     imported: (count: number) => string;
+    /** How many contacts an import found already in Leapsake, and topped up. */
+    attached: (count: number) => string;
     failedCount: (count: number) => string;
     failedRow: (name: string, message: string) => string;
     unnamedContact: string;

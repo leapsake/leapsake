@@ -84,6 +84,7 @@ async function syncOnce(core: CoreApi): Promise<ImportResult | null> {
         contact: deviceContactToParsed(detail),
         sourceId: detail.id,
       })),
+    { attach: true },
   );
   for (const observe of observers) observe(result);
   return result;

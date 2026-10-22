@@ -245,8 +245,13 @@ export default function ImportScreen() {
       <Text style={styles.rowText}>
         {result.created > 0
           ? m.import.imported(result.created)
-          : "No new contacts to import."}
+          : result.attached > 0
+            ? m.import.attached(result.attached)
+            : "No new contacts to import."}
       </Text>
+      {result.created > 0 && result.attached > 0 && (
+        <Text style={styles.muted}>{m.import.attached(result.attached)}</Text>
+      )}
       {result.skipped > 0 && (
         <Text style={styles.muted}>
           Left out {result.skipped} with no name, like businesses.

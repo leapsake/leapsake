@@ -126,7 +126,10 @@ runs at boot, on foreground, and whenever the address book changes while the app
 **one-way and additive** _(settled 2026-09-10)_:
 
 - A **new contact** becomes a person through the same `import.commit` a vCard uses, carrying
-  its address-book id as the decision's `sourceId`.
+  its address-book id as the decision's `sourceId`, unless it **attaches** to someone already
+  stored ([`@leapsake/contact-import`](../../packages/contact-import/README.md) → _Attaching a
+  contact_). That catches the same person arriving under a new id: from a second phone, a
+  restore, or a contact deleted and re-added.
 - A **deleted person** stays deleted: their contact's id is still linked
   (`device_contact_links`), so it is not new.
 - A **contact deleted from the phone** leaves its person alone. Leapsake holds their reminders
@@ -141,7 +144,7 @@ to the phone arrives once it is shared.
 is the largest write the app makes to a plaintext store, and converting afterwards cannot scrub
 those bytes from free space. It is an offer, not a wall: _Import without encrypting_ is one tap.
 There is no checklist of our own either, since the system's permission prompt already asks who
-to share; duplicates are left to the review after the import, which can merge them.
+to share; whatever does not attach is left to the duplicates review after the import, which can merge it.
 
 ## Sharing a link in as a gift
 

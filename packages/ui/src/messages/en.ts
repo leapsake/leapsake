@@ -251,6 +251,10 @@ export const en: Messages = {
         : `Imported ${people(created)}.`;
     },
     imported: (count) => `Imported ${people(count)}.`,
+    attached: (count) =>
+      count === 1
+        ? "1 contact was already in Leapsake, and anything new on it was added."
+        : `${count} contacts were already in Leapsake, and anything new on them was added.`,
     failedCount: (count) =>
       count === 1 ? "Couldn’t import 1:" : `Couldn’t import ${count}:`,
     failedRow: (name, message) => `${name} — ${message}`,
