@@ -80,10 +80,10 @@ Five consequences, all actionable:
   false for a user who created an account, never saved the 24 words, and has since forgotten the
   password: the enclave opens their store silently today, so **they have no idea anything is
   wrong**, and the transfer turns that latent state into permanent, unrecoverable loss, on a date
-  we choose, for everyone at once. Ship a release ahead of the transfer that asks for the password
-  once and checks it against the door. Whoever fails learns it while the enclave still opens
-  everything and an export is still one tap away. It is the only mitigation here that **recovers**
-  data rather than explaining its loss.
+  we choose, for everyone at once. Ship the lock dial's default level, the password check, ahead
+  of the transfer ([`accounts-and-sync.md`](./accounts-and-sync.md) → _The lock dial_). Whoever
+  fails learns it while the enclave still opens everything and can set a new password on the
+  spot. It is the only mitigation here that **recovers** data rather than explaining its loss.
 - **Rehearse it before you rely on it.** `apps/mobile/app/dev-clear-dbkey.tsx` reproduces exactly
   this scenario (keychain key gone, store and doors intact), and both doors of it are automated
   (Flow 4's door acts), so the rehearsal is a suite run rather than a ceremony.

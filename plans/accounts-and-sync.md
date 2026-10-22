@@ -120,12 +120,43 @@ and the operator is the user themselves:
   so a multi-node relay needs a shared session store — the same shape of fix as the rate-limit
   counter above. Sequence this with _Device management_ below.
 
-**Automatic locking on idle, and the bounded session** _(owner, 2026-07-27)_. The
-deliberate half (sign out) is built. A real session needs mid-session re-lock in the desktop main
-process and in mobile's bootstrap, and it must not be theater, since the keychain still holds the
-db-key. Not a one-way door — it sits on the same password door. Deferred with it: **session
-lifetime and its dial**, **biometrics on mobile** as the everyday unlock with a true expiry still
-demanding the password, and **auto-purge of an idle logged-in device**.
+**The lock dial: automatic locking, and keeping the password remembered** _(owner, 2026-07-27;
+merged 2026-10-21)_. The deliberate half (sign out) is built. What is left is one per-device
+setting, offered only once an account exists, that says how often the password is asked for:
+
+| Level                                         | Drops the db-key? | What it is for                            |
+| --------------------------------------------- | ----------------- | ----------------------------------------- |
+| Every open, or after N minutes in background  | yes               | protection                                |
+| Daily, weekly                                 | yes               | protection, with biometrics in between    |
+| **Never lock, ask every few weeks** (default) | no                | proving the password still opens the door |
+
+- **A locking level must not be theater.** The keychain holds the db-key, so asking for the
+  password in front of it gates nothing. Locking _is_ an automatic sign out: clear the db-key,
+  and let the password door re-derive it. That needs mid-session re-lock in mobile's bootstrap
+  and the desktop main process.
+- **The default level is the password check.** A user who made an account, never saved the
+  phrase and has forgotten the password opens silently from the keychain, and loses everything
+  the first time the keychain does: a reinstall, an unencrypted Finder backup, a device move, or
+  the transfer ([`shipping.md`](./shipping.md)) for everyone at once. Ask on a lengthening interval
+  (days, then a week, two, a month, then every few months), as a skippable Home row through
+  `@leapsake/reminders`. Checking is `openPasswordSidecar` against the door, with no side effects.
+- **A failed check has to recover, not just re-ask.** Offer the phrase, and **set a new password
+  without the old one**: while the keychain opens the store, holding the unlocked device is
+  already full access, and with no relay the password guards nothing beyond it. That reseals the
+  password door and rewraps MK under the new KEK; offer `rotateRecoveryPhrase` in the same flow.
+  ⚠️ Once a relay holds the account, a password change needs its say, so leave that branch room.
+  No change-password path exists today; this is the bulk of the work.
+- **Biometrics** are the everyday unlock between password levels: the db-key in a
+  biometry-gated keychain item (`expo-secure-store` `requireAuthentication`), which the Secure
+  Enclave enforces, dropped at the level's expiry. Never a credential: joining a device always
+  takes the password or phrase, and passkeys (below) are the cross-device version.
+- **Known cost: notifications go stale while locked.** Planning needs an open store, so a locked
+  device fires only what was already scheduled.
+- **Until it exists**, iOS 18's own _Require Face ID_ (long-press the icon) covers someone holding
+  an unlocked phone, for every user, accountless ones included. We cannot enable or detect it; a
+  line in Settings naming it is the most we can do.
+- **When:** before the transfer, or once account holders number more than a handful, whichever
+  is first. Deferred with it: **auto-purge of an idle logged-in device**.
 
 ## Before any hosted relay, and after it
 
