@@ -1,4 +1,5 @@
 import {
+  type AttachPool,
   type DuplicateMatch,
   type EntityService,
   type ContactMethodsRepo,
@@ -11,8 +12,16 @@ import {
   type SelfPersonRepo,
   type SqliteDriver,
   type TagsRepo,
+  postalValue,
 } from "@leapsake/data";
-import { entityLabel, inverseRole, splitName } from "@leapsake/schema";
+import {
+  type AttachDate,
+  type AttachFields,
+  entityLabel,
+  fold,
+  inverseRole,
+  splitName,
+} from "@leapsake/schema";
 import {
   type ImportDecision,
   type ImportPorts,
@@ -47,6 +56,44 @@ export interface ImportApiDeps {
   regenerateSystem: () => Promise<unknown>;
 }
 
+/** A contact's fields as the attach rule compares them, values still raw. */
+function attachFieldsOf(contact: ParsedContact): AttachFields {
+  return {
+    firstName: contact.name.firstName,
+    middleName: contact.name.middleName,
+    lastName: contact.name.lastName,
+    gender: contact.gender,
+    birthday: contact.birthday,
+    dates: contact.dates.map((d) => ({ kind: d.kind, date: d.date })),
+    emails: contact.emails.map((e) => ({ label: e.label, value: e.address })),
+    phones: contact.phones.map((p) => ({ label: p.label, value: p.number })),
+    postals: contact.postals.map((a) => ({
+      label: a.label,
+      value: postalValue([
+        a.line1,
+        a.line2,
+        a.locality,
+        a.region,
+        a.postalCode,
+        a.country,
+      ]),
+    })),
+    handles: contact.socials.map((h) => ({
+      platform: h.platform,
+      value: h.handle,
+    })),
+  };
+}
+
+/** Whether two partial dates could be the same day: no part differs. */
+function sameDay(a: AttachDate, b: AttachDate): boolean {
+  const agree = (x: number | null, y: number | null) =>
+    x === null || y === null || x === y;
+  return (
+    agree(a.year, b.year) && agree(a.month, b.month) && agree(a.day, b.day)
+  );
+}
+
 /** Contact import over real repositories: vcard's `ImportPorts`, and the
  *  preview and commit the app calls. */
 export function createImportApi(deps: ImportApiDeps) {
@@ -78,9 +125,66 @@ export function createImportApi(deps: ImportApiDeps) {
       : { type, id: contact.uid, name: entityLabel(type, entity) };
   }
 
+  /** The engine's attach ports over one import's pool. */
+  function attachPorts(pool: AttachPool): ImportPorts["attach"] {
+    return {
+      target: async (contact) => pool.target(attachFieldsOf(contact)),
+      into: async (personId, contact) => {
+        const held = pool.known(personId);
+        if (held === undefined) return contact;
+        const incoming = pool.normalize(attachFieldsOf(contact));
+        const gaps = {
+          ...(held.middleName === null && contact.name.middleName
+            ? { middleName: contact.name.middleName }
+            : {}),
+          ...(held.gender === null && contact.gender
+            ? { gender: contact.gender }
+            : {}),
+        };
+        if (Object.keys(gaps).length > 0) await people.update(personId, gaps);
+
+        const lacks = (heldValues: { value: string }[], value: string) =>
+          !heldValues.some((v) => v.value === value);
+        const handleKey = (h: { platform: string; value: string }) =>
+          `${fold(h.platform)}\u0000${h.value}`;
+        const heldHandles = held.handles.map(handleKey);
+        return {
+          ...contact,
+          emails: contact.emails.filter((_, i) =>
+            lacks(held.emails, incoming.emails[i].value),
+          ),
+          phones: contact.phones.filter((_, i) =>
+            lacks(held.phones, incoming.phones[i].value),
+          ),
+          postals: contact.postals.filter((_, i) =>
+            lacks(held.postals, incoming.postals[i].value),
+          ),
+          socials: contact.socials.filter(
+            (_, i) => !heldHandles.includes(handleKey(incoming.handles[i])),
+          ),
+          birthday: held.birthday === null ? contact.birthday : null,
+          dates: contact.dates.filter(
+            (d) =>
+              !held.dates.some(
+                (h) => h.kind === d.kind && sameDay(h.date, d.date),
+              ),
+          ),
+        };
+      },
+      landed: (personId, contact) =>
+        pool.landed(personId, attachFieldsOf(contact)),
+    };
+  }
+
   return {
     // Ports over raw repos, as the engine holds each contact's transaction.
-    commit: async (decisions: ImportDecision[]): Promise<ImportResult> => {
+    /** With `attach`, a person's contact may attach to someone stored; see
+     *  the README's _Attaching a contact_. */
+    commit: async (
+      decisions: ImportDecision[],
+      options: { attach?: boolean } = {},
+    ): Promise<ImportResult> => {
+      const pool = options.attach ? await duplicates.attachPool() : null;
       const ports: ImportPorts = {
         createPerson: (name, gender) =>
           // Blanks become `null`, or a mononym would fail `min(1)`.
@@ -94,9 +198,13 @@ export function createImportApi(deps: ImportApiDeps) {
             gender,
           });
         },
-        // As a manual create tags, minus its own transaction.
+        // Added to whatever the entity already has, as an attach may.
         addTags: async (entityType, entityId, names) => {
-          await tags.setEntityTags(entityType, entityId, names);
+          const held = await tags.listForEntity(entityType, entityId);
+          await tags.setEntityTags(entityType, entityId, [
+            ...held.map((t) => t.name),
+            ...names,
+          ]);
         },
         addEmail: async (personId, email) => {
           await contactMethods.emails.create({
@@ -217,9 +325,10 @@ export function createImportApi(deps: ImportApiDeps) {
         linkSource: (sourceId, entity) =>
           deviceContactLinks.link(sourceId, entity),
         transaction: (body) => driver.transaction(body),
+        attach: pool === null ? undefined : attachPorts(pool),
       };
       const result = await ingestContacts(ports, decisions);
-      if (result.created > 0) await regenerateSystem();
+      if (result.created + result.attached > 0) await regenerateSystem();
       return result;
     },
     /** Read-only: whom each contact resembles, and whom it is; see the

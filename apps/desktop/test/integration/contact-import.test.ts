@@ -813,3 +813,165 @@ describe("core.import.commit — milestones", () => {
     });
   });
 });
+
+describe("core.import.commit — attaching to a stored person", () => {
+  const georgeName = {
+    firstName: "George",
+    middleName: null,
+    lastName: "Bailey",
+  };
+  const mobile = (number: string) => ({
+    label: "Mobile",
+    number,
+    extension: null,
+    smsCapable: true,
+  });
+
+  /** George as the store first learns of him, from a contact with no source. */
+  async function storeGeorge(over: Partial<ParsedContact> = {}) {
+    await core.import.commit([
+      {
+        action: "create",
+        contact: contact({
+          name: georgeName,
+          phones: [mobile("(412) 555-0101")],
+          ...over,
+        }),
+      },
+    ]);
+    const [george] = await core.people.list();
+    return george;
+  }
+
+  /** The same George read from the phone, which writes his number its own way. */
+  const fromPhone = (over: Partial<ParsedContact> = {}) =>
+    contact({ name: georgeName, phones: [mobile("+1 412 555 0101")], ...over });
+
+  beforeEach(() => {
+    core = createCore(driver, { phoneRegion: "US" });
+  });
+
+  it("attaches a contact to the person it is, adding only what they lack", async () => {
+    const george = await storeGeorge();
+    const result = await core.import.commit(
+      [
+        {
+          action: "create",
+          contact: fromPhone({
+            emails: [{ label: "Home", address: "george@bailey.test" }],
+          }),
+          sourceId: "phone-1",
+        },
+      ],
+      { attach: true },
+    );
+
+    expect(result).toEqual({ created: 0, attached: 1, skipped: 0, errors: [] });
+    expect((await core.people.list()).map((p) => p.id)).toEqual([george.id]);
+    const methods = await core.contactMethods.listForOwner("person", george.id);
+    expect(methods.map((m) => m.kind).sort()).toEqual(["email", "phone"]);
+    expect(await core.deviceContacts.linkedIds()).toEqual(["phone-1"]);
+  });
+
+  it("fills an empty middle name and birthday, and overwrites neither", async () => {
+    const george = await storeGeorge({
+      birthday: { year: null, month: 2, day: 12 },
+    });
+    await core.import.commit(
+      [
+        {
+          action: "create",
+          contact: fromPhone({
+            name: { ...georgeName, middleName: "Washington" },
+            birthday: { year: 1907, month: 2, day: 12 },
+          }),
+        },
+      ],
+      { attach: true },
+    );
+
+    expect((await core.people.get(george.id))?.middleName).toBe("Washington");
+    const milestones = await core.milestones.listForBearer("person", george.id);
+    expect(milestones).toHaveLength(1);
+    expect(milestones[0].year).toBeNull();
+  });
+
+  it("keeps the person's tags when the contact brings more", async () => {
+    const george = await storeGeorge({ tags: ["Family"] });
+    await core.import.commit(
+      [{ action: "create", contact: fromPhone({ tags: ["Bedford Falls"] }) }],
+      { attach: true },
+    );
+    expect(
+      (await core.tags.listForPerson(george.id)).map((t) => t.name).sort(),
+    ).toEqual(["Bedford", "Falls", "Family"]);
+  });
+
+  it("creates a second person when a number changed under the same label", async () => {
+    await storeGeorge({
+      emails: [{ label: "Home", address: "george@bailey.test" }],
+    });
+    const result = await core.import.commit(
+      [
+        {
+          action: "create",
+          contact: fromPhone({
+            emails: [{ label: "Home", address: "george@bailey.test" }],
+            phones: [mobile("+1 412 555 0199")],
+          }),
+        },
+      ],
+      { attach: true },
+    );
+    expect(result).toMatchObject({ created: 1, attached: 0 });
+    expect(await core.people.list()).toHaveLength(2);
+  });
+
+  it("attaches a contact to a person an earlier one in the same import made", async () => {
+    const result = await core.import.commit(
+      [
+        { action: "create", contact: fromPhone(), sourceId: "icloud" },
+        {
+          action: "create",
+          contact: fromPhone({
+            emails: [{ label: "Work", address: "george@bnl.test" }],
+          }),
+          sourceId: "gmail",
+        },
+      ],
+      { attach: true },
+    );
+    expect(result).toMatchObject({ created: 1, attached: 1 });
+    const [george] = await core.people.list();
+    const methods = await core.contactMethods.listForOwner("person", george.id);
+    expect(methods.map((m) => m.kind).sort()).toEqual(["email", "phone"]);
+  });
+
+  it("creates the contact when two stored people could both be it", async () => {
+    await storeGeorge();
+    await storeGeorge();
+    const result = await core.import.commit(
+      [{ action: "create", contact: fromPhone() }],
+      { attach: true },
+    );
+    expect(result).toMatchObject({ created: 1, attached: 0 });
+  });
+
+  it("never attaches to someone the user deleted", async () => {
+    const george = await storeGeorge();
+    await core.people.softDelete(george.id);
+    const result = await core.import.commit(
+      [{ action: "create", contact: fromPhone() }],
+      { attach: true },
+    );
+    expect(result).toMatchObject({ created: 1, attached: 0 });
+  });
+
+  it("creates every contact unless asked to attach", async () => {
+    await storeGeorge();
+    const result = await core.import.commit([
+      { action: "create", contact: fromPhone() },
+    ]);
+    expect(result).toMatchObject({ created: 1, attached: 0 });
+  });
+});
