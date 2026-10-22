@@ -11,6 +11,8 @@ import {
   type RelationshipRole,
   type Reminder,
   type ReminderAction,
+  type ReminderRule,
+  type ReminderRuleBearerType,
   type ReminderRuleInput,
   type ReminderWithTags,
   type ResolvedMention,
@@ -219,6 +221,25 @@ function mentionTargetsOf(r: {
   }));
 }
 
+/** The reads an occasion's facts repeat for every milestone and holiday. */
+interface OccasionReads {
+  selfId(): Promise<string | undefined>;
+  hasDeathMilestone(
+    bearerType: MilestoneBearerType,
+    bearerId: string,
+  ): Promise<boolean>;
+  rulesFor(
+    bearerType: ReminderRuleBearerType,
+    bearerId: string,
+  ): Promise<ReminderRule[]>;
+}
+
+/** `load`, run on the first call and shared by every call after it. */
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+  let loaded: Promise<T> | undefined;
+  return () => (loaded ??= load());
+}
+
 export interface RemindersApiDeps {
   reminders: RemindersRepo;
   milestones: MilestonesRepo;
@@ -282,281 +303,351 @@ export function createRemindersApi(deps: RemindersApiDeps) {
   ): Promise<ResolvedMention[]> =>
     labelTargets(await mentions.listForBearer("reminder", reminderId));
 
-  /** Whether a milestone is about you: the self-person, or a relationship they
-   *  are one end of. */
-  async function milestoneIsSelf(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<boolean> {
-    const selfId = (await self.getSelf())?.personId;
-    if (selfId === undefined) return false;
-    if (bearerType === "person") return bearerId === selfId;
-    if (bearerType === "relationship")
-      return endpointsOf(await relationships.get(bearerId)).some(
-        (e) => e.type === "person" && e.id === selfId,
-      );
-    return false; // a pet is never you
-  }
-
-  /** Who a `wish` or `reach` reminder puts in touch with. */
-  async function contactRecipients(t: {
-    action: ReminderAction;
-    bearerType: MilestoneBearerType;
-    bearerId: string;
-  }): Promise<string[]> {
-    const { verb, qualifier } = parseAction(t.action);
-    if (verb !== "reach") return wishRecipients(t.bearerType, t.bearerId);
-    if (qualifier === null || (await isDeceased("person", qualifier)))
-      return [];
-    return [qualifier];
-  }
-
-  /** Who a wish on this bearer is for: the person, or a couple's partners but
-   *  you. A pet can own no contact method, so it is nobody here. */
-  async function wishRecipients(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<string[]> {
-    if (bearerType === "person")
-      return (await isDeceased("person", bearerId)) ? [] : [bearerId];
-    if (bearerType !== "relationship") return [];
-    const selfId = (await self.getSelf())?.personId;
-    const others = endpointsOf(await relationships.get(bearerId))
-      .filter((e) => e.type === "person" && e.id !== selfId)
-      .map((e) => e.id);
-    const living: string[] = [];
-    for (const id of others)
-      if (!(await isDeceased("person", id))) living.push(id);
-    return living;
-  }
-
-  /** Whether a person or pet has died: they have a Death milestone, dated or
-   *  not. */
-  async function isDeceased(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<boolean> {
-    // A couple is remembered once either partner has died.
-    if (bearerType === "relationship") {
-      for (const end of endpointsOf(await relationships.get(bearerId)))
-        if (end.type === "person" && (await isDeceased("person", end.id)))
-          return true;
-      return false;
+  /** The facts an occasion's wording and audience turn on, read through
+   *  `reads`: per call from the app, once per walk from the engine. */
+  function occasionFacts(reads: OccasionReads) {
+    /** Whether a milestone is about you: the self-person, or a relationship
+     *  they are one end of. */
+    async function milestoneIsSelf(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<boolean> {
+      const selfId = await reads.selfId();
+      if (selfId === undefined) return false;
+      if (bearerType === "person") return bearerId === selfId;
+      if (bearerType === "relationship")
+        return endpointsOf(await relationships.get(bearerId)).some(
+          (e) => e.type === "person" && e.id === selfId,
+        );
+      return false; // a pet is never you
     }
-    return (await milestones.listForBearer(bearerType, bearerId)).some(
-      (m) => m.kind === "death",
-    );
-  }
 
-  /** The living people closest to a bearer who has died, closest first, at
-   *  most {@link MAX_REACHABLE}: a couple's survivor, then each one's kin. */
-  async function reachableFor(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<string[]> {
-    const departed: { type: EntityType; id: string }[] = [];
-    const candidates: string[] = [];
-    if (bearerType === "relationship") {
-      for (const end of endpointsOf(await relationships.get(bearerId))) {
-        if (end.type !== "person") continue;
-        if (await isDeceased("person", end.id)) departed.push(end);
-        else candidates.push(end.id);
+    /** Who a `wish` or `reach` reminder puts in touch with. */
+    async function contactRecipients(t: {
+      action: ReminderAction;
+      bearerType: MilestoneBearerType;
+      bearerId: string;
+    }): Promise<string[]> {
+      const { verb, qualifier } = parseAction(t.action);
+      if (verb !== "reach") return wishRecipients(t.bearerType, t.bearerId);
+      if (qualifier === null || (await isDeceased("person", qualifier)))
+        return [];
+      return [qualifier];
+    }
+
+    /** Who a wish on this bearer is for: the person, or a couple's partners but
+     *  you. A pet can own no contact method, so it is nobody here. */
+    async function wishRecipients(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<string[]> {
+      if (bearerType === "person")
+        return (await isDeceased("person", bearerId)) ? [] : [bearerId];
+      if (bearerType !== "relationship") return [];
+      const selfId = await reads.selfId();
+      const others = endpointsOf(await relationships.get(bearerId))
+        .filter((e) => e.type === "person" && e.id !== selfId)
+        .map((e) => e.id);
+      const living: string[] = [];
+      for (const id of others)
+        if (!(await isDeceased("person", id))) living.push(id);
+      return living;
+    }
+
+    /** Whether a person or pet has died: they have a Death milestone, dated or
+     *  not. */
+    async function isDeceased(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<boolean> {
+      // A couple is remembered once either partner has died.
+      if (bearerType === "relationship") {
+        for (const end of endpointsOf(await relationships.get(bearerId)))
+          if (end.type === "person" && (await isDeceased("person", end.id)))
+            return true;
+        return false;
       }
-    } else departed.push({ type: bearerType, id: bearerId });
-    for (const end of departed)
-      candidates.push(...(await closestKinOf(end.type, end.id)));
-
-    const selfId = (await self.getSelf())?.personId;
-    const reachable: string[] = [];
-    for (const id of candidates) {
-      if (reachable.length === MAX_REACHABLE) break;
-      if (
-        id === selfId ||
-        reachable.includes(id) ||
-        departed.some((end) => end.id === id)
-      )
-        continue;
-      if (!(await isDeceased("person", id))) reachable.push(id);
+      return reads.hasDeathMilestone(bearerType, bearerId);
     }
-    return reachable;
-  }
 
-  /** The people closest to a person or pet, in {@link KIN_ORDER}. */
-  async function closestKinOf(type: EntityType, id: string): Promise<string[]> {
-    const ranked: { id: string; rank: number }[] = [];
-    for (const rel of await relationships.listForEntity(type, id)) {
-      const subjectIsA = rel.aType === type && rel.aId === id;
-      if ((subjectIsA ? rel.bType : rel.aType) !== "person") continue;
-      const rank = KIN_ORDER.indexOf(
-        baseRole(subjectIsA ? rel.bRole : rel.aRole),
+    /** The living people closest to a bearer who has died, closest first, at
+     *  most {@link MAX_REACHABLE}: a couple's survivor, then each one's kin. */
+    async function reachableFor(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<string[]> {
+      const departed: { type: EntityType; id: string }[] = [];
+      const candidates: string[] = [];
+      if (bearerType === "relationship") {
+        for (const end of endpointsOf(await relationships.get(bearerId))) {
+          if (end.type !== "person") continue;
+          if (await isDeceased("person", end.id)) departed.push(end);
+          else candidates.push(end.id);
+        }
+      } else departed.push({ type: bearerType, id: bearerId });
+      for (const end of departed)
+        candidates.push(...(await closestKinOf(end.type, end.id)));
+
+      const selfId = await reads.selfId();
+      const reachable: string[] = [];
+      for (const id of candidates) {
+        if (reachable.length === MAX_REACHABLE) break;
+        if (
+          id === selfId ||
+          reachable.includes(id) ||
+          departed.some((end) => end.id === id)
+        )
+          continue;
+        if (!(await isDeceased("person", id))) reachable.push(id);
+      }
+      return reachable;
+    }
+
+    /** The people closest to a person or pet, in {@link KIN_ORDER}. */
+    async function closestKinOf(
+      type: EntityType,
+      id: string,
+    ): Promise<string[]> {
+      const ranked: { id: string; rank: number }[] = [];
+      for (const rel of await relationships.listForEntity(type, id)) {
+        const subjectIsA = rel.aType === type && rel.aId === id;
+        if ((subjectIsA ? rel.bType : rel.aType) !== "person") continue;
+        const rank = KIN_ORDER.indexOf(
+          baseRole(subjectIsA ? rel.bRole : rel.aRole),
+        );
+        if (rank !== -1)
+          ranked.push({ id: subjectIsA ? rel.bId : rel.aId, rank });
+      }
+      return ranked.sort((a, b) => a.rank - b.rank).map((k) => k.id);
+    }
+
+    /** Whose occasion it is, and who a memorial one offers to reach. */
+    async function occasionDefaults(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+      kind: MilestoneKind,
+    ): Promise<{ audience: OccasionAudience; reachable: string[] }> {
+      const audience = await occasionAudience(bearerType, bearerId, kind);
+      return {
+        audience,
+        reachable:
+          audience === "memorial"
+            ? await reachableFor(bearerType, bearerId)
+            : [],
+      };
+    }
+
+    /** Each reachable person's name, by id, for the offers that name them. */
+    async function recipientNames(
+      ids: readonly string[],
+    ): Promise<Record<string, string>> {
+      const names: Record<string, string> = {};
+      for (const id of ids) {
+        const label = await entities.label("person", id);
+        if (label !== undefined) names[id] = label;
+      }
+      return names;
+    }
+
+    /** Any milestone bearer, named. Shared by the engine and `targets`, so
+     *  a relationship reads the same in the text and on the answer screen. */
+    async function milestoneBearerLabel(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<string | null> {
+      // A draft's occasions wait, unnamed, until it is saved.
+      const ends =
+        bearerType === "relationship"
+          ? endpointsOf(await relationships.get(bearerId))
+          : [{ type: bearerType, id: bearerId }];
+      for (const end of ends) {
+        if (await entities.isDraft(end.type, end.id)) return null;
+      }
+      return bearerType === "relationship"
+        ? relationshipLabel(bearerId)
+        : ((await entities.label(bearerType, bearerId)) ?? null);
+    }
+
+    /** The user's own romantic partnerships with no date yet. A date on either
+     *  bearer, relationship or partner, counts as known. */
+    async function undatedOwnPartnerships(): Promise<UndatedPartnership[]> {
+      const selfId = await reads.selfId();
+      if (selfId === undefined) return []; // nobody has said who they are
+      const found: UndatedPartnership[] = [];
+      for (const rel of await relationships.listForEntity("person", selfId)) {
+        const roles = [rel.aRole, rel.bRole];
+        if (!roles.some(isRomanticRole)) continue;
+        const other = endpointsOf(rel).find(
+          (e) => !(e.type === "person" && e.id === selfId),
+        );
+        // A pet cannot hold a romantic role, but the guard keeps the narrowing
+        // honest rather than relying on that staying true.
+        if (other === undefined || other.type !== "person") continue;
+        const kind = roles.some((r) => baseRole(r) === "spouse")
+          ? "wedding"
+          : "first-date";
+        const dated = [
+          ...(await milestones.listForBearer("relationship", rel.id)),
+          ...(await milestones.listForBearer("person", other.id)),
+        ].some((m) => m.kind === kind);
+        if (dated) continue;
+        const partnerLabel = await entities.label(other.type, other.id);
+        if (partnerLabel === undefined) continue; // partner gone
+        found.push({
+          relationshipId: rel.id,
+          kind,
+          partnerLabel,
+          partnerType: "person",
+          partnerId: other.id,
+        });
+      }
+      return found;
+    }
+
+    /** Whether a milestone is about the user's own romantic partnership: borne
+     *  by the relationship, by you, or by your partner. */
+    async function isOwnPartnership(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+    ): Promise<boolean> {
+      const selfId = await reads.selfId();
+      if (selfId === undefined) return false; // nobody has said who they are
+      const includesSelfRomantically = (rel: Relationship | undefined) =>
+        rel !== undefined &&
+        endpointsOf(rel).some((e) => e.type === "person" && e.id === selfId) &&
+        (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole));
+      if (bearerType === "relationship")
+        return includesSelfRomantically(await relationships.get(bearerId));
+      if (bearerType !== "person") return false;
+      if (bearerId === selfId) return true;
+      // Read from the bearer's edges: one person has few, "you" may have many.
+      return (await relationships.listForEntity("person", bearerId)).some(
+        includesSelfRomantically,
       );
-      if (rank !== -1)
-        ranked.push({ id: subjectIsA ? rel.bId : rel.aId, rank });
     }
-    return ranked.sort((a, b) => a.rank - b.rank).map((k) => k.id);
-  }
 
-  /** Whose occasion it is, and who a memorial one offers to reach. */
-  async function occasionDefaults(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-    kind: MilestoneKind,
-  ): Promise<{ audience: OccasionAudience; reachable: string[] }> {
-    const audience = await occasionAudience(bearerType, bearerId, kind);
+    /** Which of `planQuestion`'s shapes a prompt takes. */
+    async function planPhrasing(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+      kind: MilestoneKind,
+    ): Promise<{ subjectIsSelf: boolean; shared: boolean; memorial: boolean }> {
+      // A death's bearer has died, even while the form recording it is open.
+      const memorial =
+        kind === "death" || (await isDeceased(bearerType, bearerId));
+      const isSelf = await milestoneIsSelf(bearerType, bearerId);
+      const subjectIsSelf = !memorial && isSelf && bearerType === "person";
+      return {
+        subjectIsSelf,
+        memorial,
+        shared:
+          !subjectIsSelf &&
+          (isSelf ||
+            (kindDefs[kind].coupled === true &&
+              (await isOwnPartnership(bearerType, bearerId)))),
+      };
+    }
+
+    /** Whose occasion it is: kept in memory, the user's own, or someone
+     *  else's. */
+    async function occasionAudience(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+      kind: MilestoneKind,
+    ): Promise<OccasionAudience> {
+      return audienceOf(await planPhrasing(bearerType, bearerId, kind));
+    }
+
+    /** What a milestone's schedule editor needs to seed and word its rules. */
+    async function scheduleContext(
+      bearerType: MilestoneBearerType,
+      bearerId: string,
+      kind: MilestoneKind,
+    ): Promise<MilestoneScheduleContext> {
+      const phrasing = await planPhrasing(bearerType, bearerId, kind);
+      const subject = (await milestoneBearerLabel(bearerType, bearerId)) ?? "";
+      const audience = audienceOf(phrasing);
+      const reachable =
+        audience === "memorial" ? await reachableFor(bearerType, bearerId) : [];
+      return {
+        audience,
+        reachable,
+        offer: offerContextOf({
+          ...phrasing,
+          subject,
+          kind,
+          recipients: await recipientNames(reachable),
+        }),
+      };
+    }
+
     return {
-      audience,
-      reachable:
-        audience === "memorial" ? await reachableFor(bearerType, bearerId) : [],
+      reads,
+      milestoneIsSelf,
+      contactRecipients,
+      isDeceased,
+      reachableFor,
+      occasionDefaults,
+      recipientNames,
+      milestoneBearerLabel,
+      undatedOwnPartnerships,
+      isOwnPartnership,
+      planPhrasing,
+      scheduleContext,
     };
   }
 
-  /** Each reachable person's name, by id, for the offers that name them. */
-  async function recipientNames(
-    ids: readonly string[],
-  ): Promise<Record<string, string>> {
-    const names: Record<string, string> = {};
-    for (const id of ids) {
-      const label = await entities.label("person", id);
-      if (label !== undefined) names[id] = label;
-    }
-    return names;
-  }
+  const liveReads: OccasionReads = {
+    selfId: async () => (await self.getSelf())?.personId,
+    hasDeathMilestone: async (bearerType, bearerId) =>
+      (await milestones.listForBearer(bearerType, bearerId)).some(
+        (m) => m.kind === "death",
+      ),
+    rulesFor: (bearerType, bearerId) =>
+      reminderRules.listForBearer(bearerType, bearerId),
+  };
 
-  /** Any milestone bearer, named. Shared by the engine and `targets`, so a
-   *  relationship is named the same in the text and on the answering screen. */
-  async function milestoneBearerLabel(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<string | null> {
-    // A draft's occasions wait, unnamed, until it is saved.
-    const ends =
-      bearerType === "relationship"
-        ? endpointsOf(await relationships.get(bearerId))
-        : [{ type: bearerType, id: bearerId }];
-    for (const end of ends) {
-      if (await entities.isDraft(end.type, end.id)) return null;
-    }
-    return bearerType === "relationship"
-      ? relationshipLabel(bearerId)
-      : ((await entities.label(bearerType, bearerId)) ?? null);
-  }
-
-  /** The user's own romantic partnerships with no date yet. A date on either
-   *  bearer, relationship or partner, counts as known. */
-  async function undatedOwnPartnerships(): Promise<UndatedPartnership[]> {
-    const selfId = (await self.getSelf())?.personId;
-    if (selfId === undefined) return []; // nobody has said who they are
-    const found: UndatedPartnership[] = [];
-    for (const rel of await relationships.listForEntity("person", selfId)) {
-      const roles = [rel.aRole, rel.bRole];
-      if (!roles.some(isRomanticRole)) continue;
-      const other = endpointsOf(rel).find(
-        (e) => !(e.type === "person" && e.id === selfId),
-      );
-      // A pet cannot hold a romantic role, but the guard keeps the narrowing
-      // honest rather than relying on that staying true.
-      if (other === undefined || other.type !== "person") continue;
-      const kind = roles.some((r) => baseRole(r) === "spouse")
-        ? "wedding"
-        : "first-date";
-      const dated = [
-        ...(await milestones.listForBearer("relationship", rel.id)),
-        ...(await milestones.listForBearer("person", other.id)),
-      ].some((m) => m.kind === kind);
-      if (dated) continue;
-      const partnerLabel = await entities.label(other.type, other.id);
-      if (partnerLabel === undefined) continue; // partner gone
-      found.push({
-        relationshipId: rel.id,
-        kind,
-        partnerLabel,
-        partnerType: "person",
-        partnerId: other.id,
-      });
-    }
-    return found;
-  }
-
-  /** Whether a milestone is about the user's own romantic partnership: borne
-   *  by the relationship, by you, or by your partner. */
-  async function isOwnPartnership(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-  ): Promise<boolean> {
-    const selfId = (await self.getSelf())?.personId;
-    if (selfId === undefined) return false; // nobody has said who they are
-    const includesSelfRomantically = (rel: Relationship | undefined) =>
-      rel !== undefined &&
-      endpointsOf(rel).some((e) => e.type === "person" && e.id === selfId) &&
-      (isRomanticRole(rel.aRole) || isRomanticRole(rel.bRole));
-    if (bearerType === "relationship")
-      return includesSelfRomantically(await relationships.get(bearerId));
-    if (bearerType !== "person") return false;
-    if (bearerId === selfId) return true;
-    // Read from the bearer's edges: one person has few, "you" may have many.
-    return (await relationships.listForEntity("person", bearerId)).some(
-      includesSelfRomantically,
+  /** One query for each of {@link OccasionReads}, made on first use and kept
+   *  for one walk, which writes none of them. */
+  function snapshotReads(): OccasionReads {
+    const selfId = once(liveReads.selfId);
+    const deaths = once(
+      async () =>
+        new Set(
+          (
+            await milestones.listWhere({
+              where: "kind = ?",
+              params: ["death"],
+            })
+          ).map((m) => `${m.bearerType}:${m.bearerId}`),
+        ),
     );
-  }
-
-  /** Which of `planQuestion`'s shapes a prompt takes. */
-  async function planPhrasing(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-    kind: MilestoneKind,
-  ): Promise<{ subjectIsSelf: boolean; shared: boolean; memorial: boolean }> {
-    // A death's bearer has died, even while the form recording it is open.
-    const memorial =
-      kind === "death" || (await isDeceased(bearerType, bearerId));
-    const isSelf = await milestoneIsSelf(bearerType, bearerId);
-    const subjectIsSelf = !memorial && isSelf && bearerType === "person";
+    const rules = once(async () => {
+      const byBearer = new Map<string, ReminderRule[]>();
+      for (const rule of await reminderRules.list()) {
+        const key = `${rule.bearerType}:${rule.bearerId}`;
+        const list = byBearer.get(key) ?? [];
+        list.push(rule);
+        byBearer.set(key, list);
+      }
+      return byBearer;
+    });
     return {
-      subjectIsSelf,
-      memorial,
-      shared:
-        !subjectIsSelf &&
-        (isSelf ||
-          (kindDefs[kind].coupled === true &&
-            (await isOwnPartnership(bearerType, bearerId)))),
+      selfId,
+      hasDeathMilestone: async (bearerType, bearerId) =>
+        (await deaths()).has(`${bearerType}:${bearerId}`),
+      rulesFor: async (bearerType, bearerId) =>
+        (await rules()).get(`${bearerType}:${bearerId}`) ?? [],
     };
   }
 
-  /** Whose occasion it is: kept in memory, the user's own, or someone
-   *  else's. */
-  async function occasionAudience(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-    kind: MilestoneKind,
-  ): Promise<OccasionAudience> {
-    return audienceOf(await planPhrasing(bearerType, bearerId, kind));
-  }
-
-  /** What a milestone's schedule editor needs to seed and word its rules. */
-  async function scheduleContext(
-    bearerType: MilestoneBearerType,
-    bearerId: string,
-    kind: MilestoneKind,
-  ): Promise<MilestoneScheduleContext> {
-    const phrasing = await planPhrasing(bearerType, bearerId, kind);
-    const subject = (await milestoneBearerLabel(bearerType, bearerId)) ?? "";
-    const audience = audienceOf(phrasing);
-    const reachable =
-      audience === "memorial" ? await reachableFor(bearerType, bearerId) : [];
-    return {
-      audience,
-      reachable,
-      offer: offerContextOf({
-        ...phrasing,
-        subject,
-        kind,
-        recipients: await recipientNames(reachable),
-      }),
-    };
-  }
+  const { occasionDefaults, scheduleContext } = occasionFacts(liveReads);
 
   // The engine's ports over the real repos, built per call so `today` is
   // re-read each time.
-  const systemReminderDeps = (): ReminderEngineDeps => ({
+  const systemReminderDeps = (
+    facts = occasionFacts(snapshotReads()),
+  ): ReminderEngineDeps => ({
     milestones: {
       listRemindEligible: () => milestones.listRemindEligible(),
     },
@@ -565,7 +656,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     resolveSchedule: async (m, audience, reachable) =>
       resolveReminderSchedule(
         m.kind,
-        await reminderRules.listForBearer("milestone", m.id),
+        await facts.reads.rulesFor("milestone", m.id),
         audience,
         reachable,
       ),
@@ -601,21 +692,21 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       },
     },
     // `null` means gone, and only gone: the engine skips a row it cannot name.
-    resolveLabel: milestoneBearerLabel,
-    isSelf: milestoneIsSelf,
-    isDeceased,
-    reachableFor,
-    isOwnPartnership,
+    resolveLabel: facts.milestoneBearerLabel,
+    isSelf: facts.milestoneIsSelf,
+    isDeceased: facts.isDeceased,
+    reachableFor: facts.reachableFor,
+    isOwnPartnership: facts.isOwnPartnership,
     today: todayCivil(),
     transaction: (body) => driver.transaction(body),
     onboarding: {
       // A pet is never the self-person, so only people are filtered.
       hasAnyEntityBesidesSelf: async () => {
         if ((await pets.list()).length > 0) return true;
-        const selfId = (await self.getSelf())?.personId;
+        const selfId = await facts.reads.selfId();
         return (await people.list()).some((person) => person.id !== selfId);
       },
-      hasSelf: async () => (await self.getSelf()) !== undefined,
+      hasSelf: async () => (await facts.reads.selfId()) !== undefined,
       hasAccount: () => deps.hasAccount(),
       // A device's row is written when it is first given a policy or answers
       // the OS prompt, so no rows means nobody has been asked.
@@ -628,10 +719,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       // Stored rules, else the observance defaults, as for milestones.
       resolveSchedule: async (candidate) =>
         resolveObservanceReminderSchedule(
-          await reminderRules.listForBearer(
-            "observance",
-            candidate.observanceId,
-          ),
+          await facts.reads.rulesFor("observance", candidate.observanceId),
           candidate.wishByDefault,
         ),
       resolveLabel: async (bearerType, bearerId) =>
@@ -640,7 +728,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     },
     // Always supplied, for the same reason as `holidays`.
     duplicates: { pairKeys: () => duplicates.unresolvedPairKeys() },
-    partnerships: { undated: undatedOwnPartnerships },
+    partnerships: { undated: facts.undatedOwnPartnerships },
   });
 
   const regenerateSystem = (): Promise<{
@@ -832,7 +920,10 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     /** Everything today's automated reminders are about, in one walk; each
      *  field is a filter over it. */
     targets: async (): Promise<SystemReminderTargets> => {
-      const targets = await listSystemReminderTargets(systemReminderDeps());
+      const facts = occasionFacts(snapshotReads());
+      const targets = await listSystemReminderTargets(
+        systemReminderDeps(facts),
+      );
 
       // ⚠️ `get:gift` exactly: a card is not a present. A relationship is no
       // gift recipient, so its `get:gift` records nothing.
@@ -860,7 +951,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
           return [
             (async (): Promise<PlanReminderTarget> => {
               // The same two facts the engine's copy layer branches on.
-              const phrasing = await planPhrasing(
+              const phrasing = await facts.planPhrasing(
                 bearerType,
                 bearerId,
                 milestone.kind,
@@ -868,11 +959,11 @@ export function createRemindersApi(deps: RemindersApiDeps) {
               const audience = audienceOf(phrasing);
               const reachable =
                 audience === "memorial"
-                  ? await reachableFor(bearerType, bearerId)
+                  ? await facts.reachableFor(bearerType, bearerId)
                   : [];
               const { rules } = resolveReminderSchedule(
                 milestone.kind,
-                await reminderRules.listForBearer("milestone", milestone.id),
+                await facts.reads.rulesFor("milestone", milestone.id),
                 audience,
                 reachable,
               );
@@ -887,9 +978,10 @@ export function createRemindersApi(deps: RemindersApiDeps) {
                 bearerType,
                 bearerId,
                 subject:
-                  (await milestoneBearerLabel(bearerType, bearerId)) ?? "",
+                  (await facts.milestoneBearerLabel(bearerType, bearerId)) ??
+                  "",
                 ...phrasing,
-                recipients: await recipientNames(reachable),
+                recipients: await facts.recipientNames(reachable),
                 occurrenceDate,
                 occurrenceYear: civilFromDueMs(occurrenceDate).year,
                 offers: promptDraftOf(
@@ -928,7 +1020,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
       for (const t of targets.filter((w) =>
         ["wish", "reach"].includes(verbOf(w.action)),
       ))
-        for (const personId of await contactRecipients(t))
+        for (const personId of await facts.contactRecipients(t))
           contacts.push({
             reminderId: t.id,
             personId,
@@ -943,7 +1035,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
 
       // Read from the data, not `targets`: these rows carry no engine target.
       const partnerships: PartnershipReminderTarget[] = (
-        await undatedOwnPartnerships()
+        await facts.undatedOwnPartnerships()
       ).map((p) => ({
         reminderId: partnershipNudgeId(p.relationshipId, p.kind),
         relationshipId: p.relationshipId,
@@ -953,7 +1045,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
 
       // A couple's occasion on a person: the other party is unknown, since a
       // linked one lives on the relationship.
-      const selfPersonId = (await self.getSelf())?.personId;
+      const selfPersonId = await facts.reads.selfId();
       const linkPartners: LinkPartnerReminderTarget[] = targets.flatMap((t) => {
         const kind = t.milestone?.kind;
         return t.milestone !== undefined &&
