@@ -23,7 +23,7 @@ git checkout main
 git push origin <that tag> refs/notes/releases
 ```
 
-**Now:** nothing gates; incorporating waits until Leapsake handles money ([`shipping.md`](./shipping.md)).
+**Now:** [bulk-import dedup](./bulk-import-dedup/README.md). Incorporating waits until Leapsake handles money.
 
 **Not gating:** [remote releases](./fable-investigation/remote-releases.md) (the owner's
 go/no-go on step 6, then the Actions secrets); [`export.md`](./export.md) (increment
