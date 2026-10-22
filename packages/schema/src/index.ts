@@ -441,7 +441,7 @@ export type {
   DuplicateTier,
   DuplicateScore,
 } from "./duplicate-score.js";
-export { attachTarget, canAttach } from "./attach.js";
+export { attachNameKey, attachTarget, canAttach } from "./attach.js";
 export type { AttachDate, AttachFields, LabelledValue } from "./attach.js";
 export { parseBirthdayQuery } from "./birthday-query.js";
 export type { PartialDate } from "./birthday-query.js";

@@ -58,7 +58,8 @@ function labelKey(label: string): string {
   return key === "other" ? "" : key;
 }
 
-function fullName(f: AttachFields): string {
+/** The folded full name two sides must share to attach; `""` matches nobody. */
+export function attachNameKey(f: AttachFields): string {
   return [foldName(f.firstName), foldName(f.lastName)]
     .filter((part) => part !== "")
     .join(" ");
@@ -160,10 +161,10 @@ export function canAttach(
   contact: AttachFields,
   person: AttachFields,
 ): boolean {
-  const name = fullName(contact);
+  const name = attachNameKey(contact);
   return (
     name !== "" &&
-    name === fullName(person) &&
+    name === attachNameKey(person) &&
     sharesAValue(contact, person) &&
     compatible(contact, person)
   );

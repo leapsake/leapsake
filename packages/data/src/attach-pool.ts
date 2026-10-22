@@ -3,6 +3,7 @@ import {
   type LabelledValue,
   type MilestoneKind,
   PUBLISHED_SQL,
+  attachNameKey,
   attachTarget,
   foldAddress,
   normalizeEmail,
@@ -139,10 +140,19 @@ export async function loadAttachPool(
   const milestonesBy = groupBy(milestones);
 
   const pool = new Map<string, AttachFields>();
+  /** Person ids by name key, since only a namesake can qualify. */
+  const byName = new Map<string, string[]>();
+  function put(personId: string, fields: AttachFields): void {
+    if (!pool.has(personId)) {
+      const key = attachNameKey(fields);
+      byName.set(key, [...(byName.get(key) ?? []), personId]);
+    }
+    pool.set(personId, fields);
+  }
   for (const p of people) {
     const dated = milestonesBy.get(p.id) ?? [];
     const birthday = dated.find((m) => m.kind === "birthday");
-    pool.set(
+    put(
       p.id,
       normalize({
         firstName: p.first_name ?? "",
@@ -187,13 +197,16 @@ export async function loadAttachPool(
 
   return {
     target(contact) {
-      const people = [...pool].map(([id, fields]) => ({ id, fields }));
+      const people = (byName.get(attachNameKey(contact)) ?? []).map((id) => ({
+        id,
+        fields: pool.get(id) as AttachFields,
+      }));
       return attachTarget(normalize(contact), people)?.id ?? null;
     },
     landed(personId, contact) {
       const added = normalize(contact);
       const had = pool.get(personId);
-      pool.set(
+      put(
         personId,
         had === undefined
           ? added
