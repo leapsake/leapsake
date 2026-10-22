@@ -192,16 +192,16 @@ export async function ingestContacts(
         const target =
           pet || !ports.attach ? null : await ports.attach.target(contact);
         // What is left to write: all of it, unless the person holds some.
-        const adding =
-          target === null || !ports.attach
-            ? contact
-            : await ports.attach.into(target, contact);
-        const { id } =
-          target !== null
-            ? { id: target }
-            : pet
-              ? await ports.createPet(contact.name, contact.gender)
-              : await ports.createPerson(contact.name, contact.gender);
+        let id: string;
+        let adding = contact;
+        if (target !== null && ports.attach) {
+          id = target;
+          adding = await ports.attach.into(target, contact);
+        } else if (pet) {
+          ({ id } = await ports.createPet(contact.name, contact.gender));
+        } else {
+          ({ id } = await ports.createPerson(contact.name, contact.gender));
+        }
 
         if (adding.tags.length > 0) {
           await ports.addTags(pet ? "pet" : "person", id, adding.tags);
