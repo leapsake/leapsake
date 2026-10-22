@@ -70,3 +70,8 @@ nothing.
   those two are duplicates the review should show.
 
 Anything short of that is created as before and left to the duplicates review.
+
+Only an import that asks attaches (`commit(decisions, { attach: true })`): mobile's phone sync
+does, and desktop's review does not yet. It applies from the import on; people already in the
+store are the duplicates review's business. `not_a_duplicate` has no part in it, since a
+dismissal names two stored people and an incoming contact has no id until it lands.
