@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AttachFields, attachTarget, canAttach } from "../src/index.js";
+import { type AttachFields, attachTarget, canAttach } from "./attach.js";
 
 function person(overrides: Partial<AttachFields> = {}): AttachFields {
   return {

@@ -1,10 +1,11 @@
-import { type MilestoneKind, fold } from "@leapsake/schema";
+import type { MilestoneKind } from "./milestone.js";
+import { fold } from "./search-fold.js";
 
 // Whether an incoming contact is a person Leapsake already holds; the rule is
-// in the README's _Attaching a contact to a stored person_.
+// in `@leapsake/contact-import`'s README, _Attaching a contact_.
 
 /** A partial civil date; a field missing on either side never conflicts. */
-export interface PartialDate {
+export interface AttachDate {
   year: number | null;
   month: number | null;
   day: number | null;
@@ -23,8 +24,8 @@ export interface AttachFields {
   middleName: string | null;
   lastName: string;
   gender: string | null;
-  birthday: PartialDate | null;
-  dates: { kind: MilestoneKind; date: PartialDate }[];
+  birthday: AttachDate | null;
+  dates: { kind: MilestoneKind; date: AttachDate }[];
   emails: LabelledValue[];
   phones: LabelledValue[];
   postals: LabelledValue[];
@@ -67,7 +68,7 @@ function bothDiffer<T>(a: T | null, b: T | null): boolean {
   return a !== null && b !== null && a !== b;
 }
 
-function datesConflict(a: PartialDate, b: PartialDate): boolean {
+function datesConflict(a: AttachDate, b: AttachDate): boolean {
   return (
     bothDiffer(a.year, b.year) ||
     bothDiffer(a.month, b.month) ||

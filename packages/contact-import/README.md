@@ -50,7 +50,7 @@ transaction, so one bad row rolls back alone. Because the engine holds that tran
 port writes over the **raw repos** rather than the core methods that would open their own, since
 the driver's transactions do not nest; `setSelf` also skips `core.self.set`'s own reconcile.
 
-## Attaching a contact to a stored person
+## Attaching a contact
 
 A third answer about an incoming card: whether it **is** someone already stored, though no id
 says so. A phone only remembers the contacts it imported itself, so a second phone, a restore

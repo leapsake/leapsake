@@ -17,9 +17,8 @@ Stop an import from creating a second person for someone Leapsake already holds.
 
 ## When a contact attaches
 
-**Built:** `canAttach` and `attachTarget`, specified in
-[`@leapsake/contact-import`](../../packages/contact-import/README.md) → _Attaching a contact to a
-stored person_. Still to wire: only active, published people are targets, and a contact in the
+**Built:** `canAttach` and `attachTarget` in `@leapsake/schema`, specified in
+[`@leapsake/contact-import`](../../packages/contact-import/README.md) → _Attaching a contact_. Still to wire: only active, published people are targets, and a contact in the
 same import attaches to a person an earlier one created.
 
 ## What an attach does — next
