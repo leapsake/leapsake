@@ -47,6 +47,7 @@ import { syncDeviceContacts } from "./device-contacts-sync";
 import { deviceRegion } from "./device-region";
 import { PasswordInput } from "../components/PasswordInput";
 import { openActiveStore } from "./open-active-store";
+import { queryStats } from "./query-stats";
 import { useRecoveryGate } from "./use-recovery-gate";
 import { createAccountRoster, storePath } from "@leapsake/store-layout";
 import {
@@ -179,8 +180,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     const regenerateSystemReminders = async (coreApi: CoreApi) => {
       if (!isLiveCore(coreApi)) return;
       try {
-        const { created, updated, removed } =
-          await coreApi.reminders.regenerateSystem();
+        const { created, updated, removed } = await queryStats.measure(
+          "regenerate system reminders",
+          () => coreApi.reminders.regenerateSystem(),
+        );
         if (!isLiveCore(coreApi)) return;
         if (created > 0 || updated > 0 || removed > 0) {
           setDataVersion((v) => v + 1);
@@ -197,24 +200,26 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       if (scheduler === null || id === null) return;
       if (!isLiveCore(coreApi)) return;
       try {
-        const [policy, reminders, pending] = await Promise.all([
-          coreApi.notificationSettings.get(id),
-          // Not `list`, which is windowed: the schedule reaches a year out,
-          // since nothing advances it until the app is opened again.
-          coreApi.reminders.listNotifiable(),
-          scheduler.listPending(),
-        ]);
-        if (policy === undefined || !isLiveCore(coreApi)) return;
-        const desired = planNotifications(
-          reminders,
-          policy,
-          notificationCopyRef.current,
-          Date.now(),
-          {
-            budget: PLATFORM_NOTIFICATION_BUDGET,
-          },
-        );
-        await reconcileNotificationSchedule(desired, pending, scheduler);
+        await queryStats.measure("reconcile notifications", async () => {
+          const [policy, reminders, pending] = await Promise.all([
+            coreApi.notificationSettings.get(id),
+            // Not `list`, which is windowed: the schedule reaches a year out,
+            // since nothing advances it until the app is opened again.
+            coreApi.reminders.listNotifiable(),
+            scheduler.listPending(),
+          ]);
+          if (policy === undefined || !isLiveCore(coreApi)) return;
+          const desired = planNotifications(
+            reminders,
+            policy,
+            notificationCopyRef.current,
+            Date.now(),
+            {
+              budget: PLATFORM_NOTIFICATION_BUDGET,
+            },
+          );
+          await reconcileNotificationSchedule(desired, pending, scheduler);
+        });
       } catch (cause) {
         if (!isLiveCore(coreApi)) return; // torn down mid-flight, not a failure
         console.error("notification reconcile failed:", cause);
@@ -224,7 +229,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     const bringInNewContacts = async (coreApi: CoreApi) => {
       if (!isLiveCore(coreApi)) return;
       try {
-        const result = await syncDeviceContacts(coreApi);
+        const result = await queryStats.measure("sync device contacts", () =>
+          syncDeviceContacts(coreApi),
+        );
         if (!isLiveCore(coreApi)) return;
         if (result !== null && result.created > 0) {
           setDataVersion((v) => v + 1);
@@ -319,8 +326,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       setCore(bootedCore);
       // Sequenced: planning before the regenerate lands schedules off a stale
       // `dueDate`, a day wrong after a rollover or a milestone edit.
-      void bootedCore.drafts
-        .discardAll() // any draft left by an app closed mid-add
+      void queryStats
+        // Any draft left by an app closed mid-add.
+        .measure("discard drafts", () => bootedCore.drafts.discardAll())
         .catch((cause) => console.error("discarding drafts failed:", cause))
         .then(() => bringInNewContacts(bootedCore))
         .then(() => regenerateSystemReminders(bootedCore))

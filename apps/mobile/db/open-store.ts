@@ -6,6 +6,7 @@ import {
 } from "@leapsake/core";
 import { rawKeyLiteral } from "@leapsake/crypto";
 import { expoSqliteDriver } from "./expo-sqlite-driver";
+import { queryStats } from "../lib/query-stats";
 
 /**
  * Open the store at `path` (expo-sqlite creates its directory), keyed when
@@ -16,7 +17,7 @@ export async function openExpoStore(
   dbKey: Uint8Array | undefined,
 ): Promise<SqliteDriver> {
   const db = await SQLite.openDatabaseAsync(path, { useNewConnection: true });
-  const driver = expoSqliteDriver(db);
+  const driver = queryStats.countStatements(expoSqliteDriver(db));
   if (dbKey !== undefined) {
     // The key must precede any other statement; the read proves it fits.
     await driver.exec(`PRAGMA key = "${rawKeyLiteral(dbKey)}"`);

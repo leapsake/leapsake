@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, usePathname } from "expo-router";
 import { useDataVersion } from "./core-context";
+import { queryStats } from "./query-stats";
 
 /**
  * Load on focus and on every {@link useDataVersion} bump; `load` must be
@@ -14,10 +15,12 @@ export function useFocusedData<T>(load: () => Promise<T>): {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const version = useDataVersion();
+  // Frozen at mount, so a route pushed on top cannot re-run the load.
+  const [pathname] = useState(usePathname());
 
   const reload = useCallback(async () => {
     try {
-      setData(await load());
+      setData(await queryStats.measure(`reload ${pathname}`, load));
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -27,7 +30,8 @@ export function useFocusedData<T>(load: () => Promise<T>): {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      load()
+      queryStats
+        .measure(`load ${pathname}`, load)
         .then((result) => {
           if (active) {
             setData(result);
