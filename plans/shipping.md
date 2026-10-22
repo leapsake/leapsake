@@ -6,16 +6,17 @@
 > macOS ships.
 
 **Where this stands:** `0.1.0` is live on the App Store (iOS alone, single-device), released
-2026-10-17. The relay half of the clients returns later ([`accounts-and-sync.md`](./accounts-and-sync.md)). What is left is the account sequence below.
+2026-10-17. The relay half of the clients returns later ([`accounts-and-sync.md`](./accounts-and-sync.md)). What is left is the account sequence below, which is parked.
 
 ---
 
 # Part 2 — After iOS GA: the account sequence
 
-**Step 1 is now.** It has the only calendar clock left in the whole plan.
+**Parked** _(owner, 2026-10-21)_. Step 1 waits until Leapsake is close to handling financial
+transactions (the paid relay), and every step after it waits on step 1.
 
 1. **Leapsake incorporates** and gets a D-U-N-S number: up to **30 days**, and the entity must
-   exist first.
+   exist first. Start it far enough ahead of the first payment for the transfer to land first.
 2. **The iOS record transfers to the company.**
 3. **macOS follows, signed under the company's Developer ID from its first release**
    ([`desktop-packaging.md`](./desktop-packaging.md)). That ordering is not incidental; see the
@@ -69,9 +70,9 @@ vindication that model has had:
 
 Five consequences, all actionable:
 
-- **Blast radius scales with user count, so keep GA and the transfer close together.** Every day
-  between them adds users who meet that gate. Step 1 running in parallel is what keeps the gap in
-  days rather than months.
+- **Blast radius scales with user count, and parking step 1 lets it grow.** Every month before
+  the transfer adds authenticated users who will meet that gate. That is the accepted cost of
+  waiting, and the reason the password check below should not wait for the transfer.
 - **The gate needs a sentence, timed to the transfer.** A password prompt with no explanation
   reads as a breach. Release notes at minimum; a line on the gate itself is better.
 - ⚠️ **Prove the password still works _before_ the transfer, or the gate strands people.** The
