@@ -169,7 +169,7 @@ export type {
   ImportResult,
   ParsedContact,
 } from "@leapsake/vcard";
-export type { AlreadyStored } from "@leapsake/contact-import";
+export type { AlreadyStored, AttachTarget } from "@leapsake/contact-import";
 
 // What an export run produced, re-exported so a client can type the bytes it
 // writes and the counts it shows without depending on `@leapsake/export`.

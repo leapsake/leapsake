@@ -20,9 +20,9 @@ stays pure.
 The name is the one `vcard` used to carry, before it was renamed to say _format_ rather than
 _direction_. It fits here, where the direction genuinely is the subject.
 
-## Two answers about an incoming card, kept apart
+## Three answers about an incoming card, kept apart
 
-`preview` returns both, and they are not the same question:
+`preview` returns all three, and they are not the same question:
 
 - **`matches`** — what the card _resembles_, scored by `DuplicateService.matchContact` over
   names and contact methods.
@@ -30,6 +30,9 @@ _direction_. It fits here, where the direction genuinely is the subject.
   entity's `people.id`/`pets.id` as the card's `UID`, so a card carrying one we hold is that
   entity coming home. This is what stops a user re-importing their own export from getting a
   second copy of everyone.
+- **`attachTo`** — the person an attaching commit would add the card to, by the rule in
+  _Attaching a contact_. Stricter than `matches`, and not an identity like `alreadyStored`.
+  Preview cannot see a later card attaching to an earlier one in the same file.
 
 Folding the second into the first would mean saying "very likely already in Leapsake" about a
 certainty, and would have nowhere to put a **pet** — `DuplicateMatch.personId` cannot honestly

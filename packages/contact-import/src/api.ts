@@ -39,6 +39,12 @@ export interface AlreadyStored {
   name: string;
 }
 
+/** The stored person an attaching commit would add a contact to. */
+export interface AttachTarget {
+  id: string;
+  name: string;
+}
+
 export interface ImportApiDeps {
   people: PeopleRepo;
   pets: PetsRepo;
@@ -123,6 +129,21 @@ export function createImportApi(deps: ImportApiDeps) {
     return entity === undefined
       ? null
       : { type, id: contact.uid, name: entityLabel(type, entity) };
+  }
+
+  /** The person the attach rule names for `contact`, as preview reports it;
+   *  a pet never attaches. */
+  async function attachTargetOf(
+    pool: AttachPool,
+    contact: ParsedContact,
+  ): Promise<AttachTarget | null> {
+    if (contact.kind === "pet") return null;
+    const id = pool.target(attachFieldsOf(contact));
+    if (id === null) return null;
+    const person = await entities.resolve("person", id);
+    return person === undefined
+      ? null
+      : { id, name: entityLabel("person", person) };
   }
 
   /** The engine's attach ports over one import's pool. */
@@ -331,18 +352,20 @@ export function createImportApi(deps: ImportApiDeps) {
       if (result.created + result.attached > 0) await regenerateSystem();
       return result;
     },
-    /** Read-only: whom each contact resembles, and whom it is; see the
-     *  README's _Two answers about an incoming card_. */
-    preview: (
+    /** Read-only: whom each contact resembles, whom it is, and whom an
+     *  attaching commit would add it to; see the README. */
+    preview: async (
       contacts: ParsedContact[],
     ): Promise<
       {
         index: number;
         matches: DuplicateMatch[];
         alreadyStored: AlreadyStored | null;
+        attachTo: AttachTarget | null;
       }[]
-    > =>
-      Promise.all(
+    > => {
+      const pool = await duplicates.attachPool();
+      return Promise.all(
         contacts.map(async (contact, index) => ({
           index,
           matches: await duplicates.matchContact({
@@ -355,7 +378,9 @@ export function createImportApi(deps: ImportApiDeps) {
             })),
           }),
           alreadyStored: await storedAs(contact),
+          attachTo: await attachTargetOf(pool, contact),
         })),
-      ),
+      );
+    },
   };
 }

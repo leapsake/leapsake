@@ -308,6 +308,40 @@ describe("core.import.preview", () => {
     const [row] = await core.import.preview([contact({ uid: jane.id })]);
     expect(row.alreadyStored).toBeNull();
   });
+
+  it("names the person an attaching commit would add a contact to", async () => {
+    const jane = await core.people.create(
+      { firstName: "Jane", lastName: "Wainwright" },
+      [],
+    );
+    await core.contactMethods.emails.create({
+      ownerType: "person",
+      ownerId: jane.id,
+      label: "Home",
+      address: "jane@home.example",
+    });
+
+    const rows = await core.import.preview([
+      contact({ emails: [{ label: "Work", address: "Jane@Home.example" }] }),
+      contact(),
+    ]);
+
+    expect(rows[0].attachTo).toEqual({ id: jane.id, name: "Jane Wainwright" });
+    // A name alone resembles Jane, but is not enough to attach.
+    expect(rows[1].matches).toHaveLength(1);
+    expect(rows[1].attachTo).toBeNull();
+  });
+
+  it("never names an attach target for a pet card", async () => {
+    await core.pets.create({ name: "Jimmy" }, []);
+    const [row] = await core.import.preview([
+      contact({
+        kind: "pet",
+        name: { firstName: "Jimmy", middleName: null, lastName: "" },
+      }),
+    ]);
+    expect(row.attachTo).toBeNull();
+  });
 });
 
 /**
