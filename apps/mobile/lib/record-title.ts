@@ -98,6 +98,7 @@ export function entityRowHref(row: EntityRow): string {
  */
 export function searchHitHref(hit: SearchHit): string {
   if (hit.entityType === "gift_idea") return `/gifts/${hit.entityId}/edit`;
+  if (hit.entityType === "reminder") return `/reminders/${hit.entityId}`;
   if (hit.entityType === "tag")
     return tagHref({ id: hit.entityId, name: hit.title });
   if (hit.entityType === "holiday")

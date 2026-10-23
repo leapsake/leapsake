@@ -163,6 +163,14 @@ describe("a link built from an already-resolved name", () => {
     ).toBe("/gifts/g1/edit");
   });
 
+  it("sends a reminder hit to the reminder, with no name", () => {
+    expect(
+      searchHitHref(
+        hit({ entityType: "reminder", entityId: "r1", title: "Call Harry" }),
+      ),
+    ).toBe("/reminders/r1");
+  });
+
   it("agrees with the page title, for an @mention", () => {
     // A mention's label is the target's current `entityLabel`, and it is carried
     // bare: the "@" belongs to the sentence it was written in, not to the page.
