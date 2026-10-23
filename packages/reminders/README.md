@@ -275,6 +275,22 @@ Three rules the derivation depends on, all easy to break by accident:
   Holidays carry none today: a holiday's greeting is a stored column seeded from the catalog, so a
   second phrase there is a migration.
 
+### Search finds what the list holds, and what it hides _(owner, 2026-10-22)_
+
+Search reads the same walk as the list, so a result is worded as the row it opens. It finds:
+
+- **Snoozed rows.** Home hides them, and nothing else shows them, so without search a snoozed
+  reminder is unreachable until it returns. Putting something off is "not now", not "hide it".
+  The result says it is snoozed, and until when.
+- **Done rows**, below the open ones, as long as the walk still holds them.
+- **Occasion reminders as well as the user's own**, since a birthday card is as much the user's
+  errand as a typed one. **Not the app's to-dos** (`category: "todo"`): they are about Leapsake,
+  not about anyone.
+
+A title match ranks as a name and a body match as a lesser reason; a mention matches by the name
+it shows. A reminder sorts below a person or pet of equal match, so searching "harry" puts Harry
+first and "Call @Harry" after him.
+
 ### Three windows, and why none of them is the others
 
 | window                     | asks                                                        | answer                  |
