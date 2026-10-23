@@ -7,9 +7,6 @@ How the shipped engine works — the prompt, the windows, the `verb:qualifier` i
 per-kind default.** The four-level cascade was cut on 2026-09-05, and the argument against it — plus
 the four things a second writable level would drag in — is recorded there.
 
-- **Reminder search.** Reminders join `SearchResultType` the way gift ideas did. What it finds
-  is decided: [`../packages/reminders/README.md`](../packages/reminders/README.md) → _Search
-  finds what the list holds_. The last piece of the reminders surface.
 - **The offer-set differ.** An answered prompt stores the **full** set it was offered, so the record
   of what was offered already exists; nothing compares it against today's set, so an action that
   becomes available later never re-asks.

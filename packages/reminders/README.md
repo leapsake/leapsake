@@ -280,7 +280,7 @@ Three rules the derivation depends on, all easy to break by accident:
 Search reads the same walk as the list, so a result is worded as the row it opens. It finds:
 
 - **Snoozed rows**, which the list shows under the day they come back. Putting something off
-  is "not now", not "hide it". The result says it is snoozed, and until when.
+  is "not now", not "hide it".
 - **Done rows**, below the open ones, as long as the walk still holds them.
 - **Occasion reminders as well as the user's own**, since a birthday card is as much the user's
   errand as a typed one. **Not the app's to-dos** (`category: "todo"`): they are about Leapsake,
