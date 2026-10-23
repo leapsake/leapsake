@@ -1,4 +1,5 @@
 import type { SyncStatus } from "@leapsake/core";
+import { useMessages } from "@leapsake/ui/messages";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -49,6 +50,9 @@ export function Settings() {
         <CreateAccount onCreated={setRevealed} />
       )}
 
+      <hr />
+      <ExportSection />
+
       {/* One exit per custody state: Forget account, or factory reset. */}
       {status !== null &&
         (status.hasAccount ? (
@@ -74,6 +78,74 @@ export function Settings() {
         <Link to="/acknowledgements">Acknowledgements</Link>
       </p>
     </main>
+  );
+}
+
+/** Saves the whole store as a `.zip`; `result` stays `null` on a cancel. */
+function useExport() {
+  const m = useMessages();
+  const [working, setWorking] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    if (working) return;
+    setError(null);
+    setResult(null);
+    setWorking(true);
+    try {
+      const counts = await window.data.exportArchive();
+      if (counts !== null) setResult(m.dataExport.summary(counts));
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Couldn't export your data.",
+      );
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return { working, result, error, run: () => void run() };
+}
+
+/** The whole store as one file the user keeps; needs no account. */
+function ExportSection() {
+  const { working, result, error, run } = useExport();
+
+  return (
+    <>
+      <h2>Export</h2>
+      <p>
+        Save everything on this computer as a file you keep — your people and
+        pets, their contact details, their dates and how they're related, plus
+        your reminders, gift ideas and holiday choices. Leapsake doesn't upload
+        it anywhere.
+      </p>
+      <p>
+        <button type="button" onClick={run} aria-disabled={working}>
+          {working ? "Preparing…" : "Export data…"}
+        </button>
+      </p>
+      {result !== null && <p>{result}</p>}
+      {error !== null && <p role="alert">{error}</p>}
+    </>
+  );
+}
+
+/** The export, offered inside a destructive confirmation. */
+function ExportFirst() {
+  const { working, result, error, run } = useExport();
+
+  return (
+    <>
+      <p>
+        <button type="button" onClick={run} aria-disabled={working}>
+          {working ? "Preparing…" : "Export data first…"}
+        </button>
+      </p>
+      {result !== null && <p>{result}</p>}
+      {error !== null && <p role="alert">{error}</p>}
+    </>
   );
 }
 
@@ -196,10 +268,7 @@ function ForgetAccount() {
             </strong>{" "}
             This account is only on this device, so there is no other copy.
           </p>
-          <p>
-            If you might want this data later, close this and export your data
-            first.
-          </p>
+          <ExportFirst />
           <p>
             Type <strong>{FORGET_ACCOUNT_PHRASE}</strong> to confirm.
           </p>
@@ -515,6 +584,7 @@ function FactoryReset() {
         is no account holding a copy, so this data cannot be recovered
         afterward.
       </p>
+      <ExportFirst />
       <p>
         Type <strong>{FACTORY_RESET_PHRASE}</strong> to confirm.
       </p>

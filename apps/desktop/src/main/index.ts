@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type AccountRoster,
@@ -45,7 +46,7 @@ import {
   updateRelationshipInputSchema,
 } from "@leapsake/schema";
 import { importDecisionsSchema, parsedContactsSchema } from "@leapsake/vcard";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, dialog, ipcMain } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import {
   type ApiChannel,
@@ -57,6 +58,7 @@ import { createAccountOnThisDevice } from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
 import { openAppDatabase } from "./db/open.js";
+import { saveExport } from "./export-file.js";
 import { jsonFileStorage } from "./db/roster-storage.js";
 import {
   passwordSidecarPath,
@@ -90,6 +92,15 @@ function setActiveCore(): void {
   activeCore = createCore(driver, {
     phoneRegion: app.getLocaleCountryCode() || null,
   });
+}
+
+/** The open core, or a refusal while the store is swapped or not yet open. */
+function currentCore(): CoreApi {
+  if (storeSwapping) {
+    throw new Error("Leapsake is updating its store. Try again in a moment.");
+  }
+  if (activeCore === undefined) throw new Error("Core is not initialized.");
+  return activeCore;
 }
 
 /** Built per call, so it reflects a conversion since the last read. */
@@ -435,6 +446,27 @@ function registerAccountIpc(): void {
   );
 }
 
+/** The `window.data` surface: the export, saved where the user picks. */
+function registerDataIpc(): void {
+  ipcMain.handle("data:export", () =>
+    saveExport({
+      archive: () =>
+        currentCore().export.archive({ appVersion: app.getVersion() }),
+      choosePath: async (filename) => {
+        const options = {
+          defaultPath: join(app.getPath("downloads"), filename),
+          filters: [{ name: "Zip archive", extensions: ["zip"] }],
+        };
+        const picked = mainWindow
+          ? await dialog.showSaveDialog(mainWindow, options)
+          : await dialog.showSaveDialog(options);
+        return picked.canceled || !picked.filePath ? null : picked.filePath;
+      },
+      write: (path, bytes) => writeFile(path, bytes),
+    }),
+  );
+}
+
 /**
  * A file in `resources/`, or `undefined` if it is not there. A packaged build
  * may put resources elsewhere, so callers treat a miss as "no icon".
@@ -543,14 +575,9 @@ void app.whenReady().then(async () => {
 
   await openActiveStore();
 
-  registerIpc(() => {
-    if (storeSwapping) {
-      throw new Error("Leapsake is updating its store. Try again in a moment.");
-    }
-    if (activeCore === undefined) throw new Error("Core is not initialized.");
-    return activeCore;
-  });
+  registerIpc(currentCore);
   registerAccountIpc();
+  registerDataIpc();
 
   void regenerateSystemReminders();
 

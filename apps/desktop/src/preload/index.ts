@@ -1,4 +1,9 @@
-import type { CoreApi, GenderResult, SyncStatus } from "@leapsake/core";
+import type {
+  CoreApi,
+  ExportArchive,
+  GenderResult,
+  SyncStatus,
+} from "@leapsake/core";
 import { contextBridge, ipcRenderer } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import { buildBridgeApi } from "../shared/ipc-bridge.js";
@@ -98,6 +103,17 @@ const boot = {
 contextBridge.exposeInMainWorld("boot", boot);
 
 export type Boot = typeof boot;
+
+/** `window.data`: getting the store out as a file. */
+const data = {
+  /** Saves the export where the user picks; `null` if they cancelled. */
+  exportArchive: (): Promise<ExportArchive["counts"] | null> =>
+    ipcRenderer.invoke("data:export"),
+};
+
+contextBridge.exposeInMainWorld("data", data);
+
+export type Data = typeof data;
 
 /** Fires when the main process changes rows on its own, e.g. birthdays. */
 const appEvents = {
