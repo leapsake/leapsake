@@ -68,6 +68,3 @@ The re-pointing itself — which tables a merge must touch, and why it replicate
 merge-specific sync code — is [`@leapsake/data`](../data/README.md) → _What a person-merge
 must re-point_, beside `createEntityService` which performs it. `core.people.merge` adds only
 the reminder reconcile that re-titles the loser's birthday reminder onto the survivor.
-
-Remaining reconciliation work (bulk-import dedup, the fuzzy-name tier, E.164 phone matching)
-lives in [`plans/status.md`](../../plans/status.md).
