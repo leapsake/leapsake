@@ -47,7 +47,7 @@ describe("core.search — reminders", () => {
     ]);
   });
 
-  it("finds a snoozed reminder, which the list hides", async () => {
+  it("finds a snoozed reminder, carrying when it comes back", async () => {
     const r = await core.reminders.create({ title: "Renew the passport" });
     await core.reminders.snooze(r.id, 3);
 
