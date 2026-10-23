@@ -5,7 +5,7 @@
 v0.1 is single-device by construction, so the app container is the only place a user's data
 exists. That is what makes this the difference between "delete and reinstall" being an ordinary
 act and being data loss — and why it gates GA rather than being a nicety. What is still ahead of
-it (restore, desktop parity, CardDAV) is [`plans/export.md`](../../plans/export.md); this
+it (restore, CardDAV) is [`plans/export.md`](../../plans/export.md); this
 file is why the package is shaped the way it is.
 
 ## ⚠️ It must never use iCloud
@@ -34,7 +34,9 @@ can.** Two things follow, and both live in the client:
 the builder unit-tests against an in-memory fake with no sqlite driver, and this package never
 depends on `@leapsake/core` or `@leapsake/data`. The composition root wires the real ports over
 its repos and exposes `buildArchive` as `core.export.archive()`; each client only writes the bytes
-somewhere and hands them to whatever "share a file" means on its platform.
+somewhere and hands them to whatever "share a file" means on its platform. Mobile writes to Caches
+and opens the share sheet; desktop's main process writes straight to the path its Save dialog
+returns, so no temporary plaintext copy ever exists there.
 
 `appVersion` and `now` are injected too. That keeps the package pure, and it is what lets a test
 assert the filename and the README — a builder that read the clock could only be tested for shape.

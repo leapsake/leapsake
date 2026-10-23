@@ -13,8 +13,6 @@ bound what shipped.
   because honouring them needs the row-level `insert`. That is the restore door, and nothing on
   the import side lets it in by the back door (`X-LEAPSAKE-MILESTONE-ID` is a dedupe key; `-REL`
   is looked up through a map).
-- **Desktop parity.** Desktop's Settings still says _"Leapsake cannot export it yet"_, and
-  `api-channels.ts` already carries the `export.archive` channel waiting for the button.
 - **CardDAV**, the surface the format was chosen for ([`encryption/model.md`](./encryption/model.md)
   §9.4), and **bulk export of photo originals** once files exist ([`media.md`](./media.md)).
 
