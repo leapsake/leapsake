@@ -18,6 +18,7 @@ export { DropImportProvider } from "./import/DropImportProvider.js";
 export {
   ImportReview,
   type ImportAlreadyStored,
+  type ImportAttachTarget,
   type ImportDecision,
   type ImportDuplicateMatch,
   type ImportOutcome,

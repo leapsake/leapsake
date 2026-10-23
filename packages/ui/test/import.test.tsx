@@ -29,6 +29,7 @@ const contact = (over: Partial<ParsedContact> = {}): ParsedContact =>
 
 const outcome = (over: Partial<ImportOutcome> = {}): ImportOutcome => ({
   created: 1,
+  attached: 0,
   skipped: 0,
   errors: [],
   offerPickSelf: false,
@@ -186,6 +187,46 @@ describe("ImportReview", () => {
     expect(screen.queryByText(/Very likely already in Leapsake/)).toBeNull();
   });
 
+  it("says a row will be added to the person it already is", async () => {
+    renderReview({
+      preview: [
+        {
+          index: 0,
+          matches: [{ tier: "high", name: "Mary L.", reasons: ["same name"] }],
+          alreadyStored: { type: "person", id: "p2", name: "Mary Hatch" },
+          attachTo: { id: "p1", name: "Mary Bailey" },
+        },
+      ],
+    });
+    await flush();
+
+    expect(
+      screen.getByText(
+        /Already in Leapsake as Mary Bailey\. Importing adds only/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Mary Hatch/)).toBeNull();
+    expect(screen.queryByText(/Very likely already in Leapsake/)).toBeNull();
+  });
+
+  it("stops promising to add a row once its name is edited", async () => {
+    renderReview({
+      preview: [
+        {
+          index: 0,
+          matches: [],
+          attachTo: { id: "p1", name: "Mary Bailey" },
+        },
+      ],
+    });
+    await flush();
+    fireEvent.change(screen.getByLabelText("Last name"), {
+      target: { value: "Hatch" },
+    });
+
+    expect(screen.queryByText(/Importing adds only/)).toBeNull();
+  });
+
   it("says a row can't be imported without both names", async () => {
     renderReview({
       contacts: [
@@ -212,6 +253,19 @@ describe("ImportReview", () => {
       "Import complete",
     );
     expect(screen.getByText("Imported 2 people, skipped 1.")).toBeTruthy();
+  });
+
+  it("reports contacts added to people already here", async () => {
+    renderReview({ committed: outcome({ created: 0, attached: 2 }) });
+    await flush();
+    await act(async () => importButton().click());
+
+    expect(
+      screen.getByText(
+        "2 contacts were already in Leapsake, and anything new on them was added.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/^Imported/)).toBeNull();
   });
 
   it("names the contacts that failed rather than only counting them", async () => {

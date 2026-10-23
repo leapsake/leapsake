@@ -281,7 +281,10 @@ const boundaryParsers: Partial<Record<ApiChannel, ArgParser>> = {
   "import.preview": (a) => [parsedContactsSchema.parse(a[0])],
   // The schema has no `sourceId`, so zod strips one: desktop has no address
   // book, and must not be able to write links for one.
-  "import.commit": (a) => [importDecisionsSchema.parse(a[0])],
+  "import.commit": (a) => [
+    importDecisionsSchema.parse(a[0]),
+    { attach: (a[1] as { attach?: unknown } | undefined)?.attach === true },
+  ],
   "deviceContacts.setSyncEnabled": (a) => [a[0] === true],
 };
 

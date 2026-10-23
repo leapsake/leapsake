@@ -21,12 +21,20 @@ export interface ImportAlreadyStored {
   name: string;
 }
 
+/** The stored person an import will add an incoming contact to. */
+export interface ImportAttachTarget {
+  id: string;
+  name: string;
+}
+
 /** One incoming contact's likely duplicates, by its position in the file. */
 export interface ImportPreviewEntry {
   index: number;
   matches: ImportDuplicateMatch[];
   /** The stored entity this card's `UID` names; `null` for a foreign card. */
   alreadyStored?: ImportAlreadyStored | null;
+  /** The person importing will add this contact to, as parsed. */
+  attachTo?: ImportAttachTarget | null;
 }
 
 /** What the user decided about one incoming contact. */
@@ -38,6 +46,8 @@ export interface ImportDecision {
 /** What a commit did, plus whether the app wants to offer the self prompt. */
 export interface ImportOutcome {
   created: number;
+  /** Contacts added to a person already stored. */
+  attached: number;
   skipped: number;
   errors: { index: number; contact: ParsedContact; message: string }[];
   /** Whether to offer “which of these is you?”. */
@@ -82,6 +92,9 @@ export function ImportReview({
   const [storedByIndex, setStoredByIndex] = useState<
     Map<number, ImportAlreadyStored>
   >(new Map());
+  const [attachByIndex, setAttachByIndex] = useState<
+    Map<number, ImportAttachTarget>
+  >(new Map());
   const [phase, setPhase] = useState<"review" | "committing" | "done">(
     "review",
   );
@@ -97,6 +110,13 @@ export function ImportReview({
         new Map(
           preview.flatMap((p) =>
             p.alreadyStored ? [[p.index, p.alreadyStored] as const] : [],
+          ),
+        ),
+      );
+      setAttachByIndex(
+        new Map(
+          preview.flatMap((p) =>
+            p.attachTo ? [[p.index, p.attachTo] as const] : [],
           ),
         ),
       );
@@ -166,7 +186,10 @@ export function ImportReview({
       <div className={styles.backdrop}>
         <div className={styles.dialog}>
           <h2>{m.import.completeHeading}</h2>
-          <p>{m.import.completeSummary(outcome.created, outcome.skipped)}</p>
+          {(outcome.created > 0 || outcome.attached === 0) && (
+            <p>{m.import.completeSummary(outcome.created, outcome.skipped)}</p>
+          )}
+          {outcome.attached > 0 && <p>{m.import.attached(outcome.attached)}</p>}
           {outcome.errors.length > 0 && (
             <div className={styles.errorList}>
               <p>{m.import.failedCount(outcome.errors.length)}</p>
@@ -216,6 +239,12 @@ export function ImportReview({
               row={row}
               matches={matchesByIndex.get(index) ?? []}
               alreadyStored={storedByIndex.get(index) ?? null}
+              // A renamed contact is weighed afresh at commit, so say nothing.
+              attachTo={
+                sameName(row.contact, contacts[index])
+                  ? (attachByIndex.get(index) ?? null)
+                  : null
+              }
               onName={(field, value) => setName(index, field, value)}
               onToggleSkip={() => toggleSkip(index)}
               onToggleSelf={() => toggleSelf(index)}
@@ -253,6 +282,7 @@ function ContactRow({
   row,
   matches,
   alreadyStored,
+  attachTo,
   onName,
   onToggleSkip,
   onToggleSelf,
@@ -261,6 +291,7 @@ function ContactRow({
   row: Row;
   matches: ImportDuplicateMatch[];
   alreadyStored: ImportAlreadyStored | null;
+  attachTo: ImportAttachTarget | null;
   onName: (field: "firstName" | "lastName", value: string) => void;
   onToggleSkip: () => void;
   onToggleSelf: () => void;
@@ -270,8 +301,9 @@ function ContactRow({
   const skipped = action === "skip";
   const needsName =
     contact.name.firstName.trim() === "" || contact.name.lastName.trim() === "";
-  // A known card already says so; a resemblance would repeat it.
-  const topMatch = alreadyStored ? undefined : matches[0];
+  // What the import will do outranks what the card is, and both a guess.
+  const stored = attachTo ? null : alreadyStored;
+  const topMatch = attachTo || alreadyStored ? undefined : matches[0];
 
   return (
     <li className={styles.row} data-skipped={skipped}>
@@ -301,9 +333,15 @@ function ContactRow({
         <p className={styles.needsName}>{m.import.needsName}</p>
       )}
 
-      {alreadyStored && !skipped && (
+      {attachTo && !skipped && (
         <p className={styles.dupWarning}>
-          {m.import.alreadyStored(alreadyStored.name)}
+          {m.import.willAttach(attachTo.name)}
+        </p>
+      )}
+
+      {stored && !skipped && (
+        <p className={styles.dupWarning}>
+          {m.import.alreadyStored(stored.name)}
         </p>
       )}
 
@@ -362,6 +400,14 @@ function ContactDetail({
     bits.push(m.import.labelledValue(d.label, formatBirthday(d.date)));
   if (bits.length === 0) return null;
   return <p className={styles.detail}>{m.import.detailLine(bits)}</p>;
+}
+
+function sameName(a: ParsedContact, b: ParsedContact | undefined): boolean {
+  return (
+    b !== undefined &&
+    a.name.firstName === b.name.firstName &&
+    a.name.lastName === b.name.lastName
+  );
 }
 
 /** Formats a birthday from parts, since a vCard birthday often has no year. */

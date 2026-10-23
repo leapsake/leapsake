@@ -206,6 +206,8 @@ export interface Messages {
     needsName: string;
     /** An incoming card whose `UID` names someone already here: a certainty. */
     alreadyStored: (name: string) => string;
+    /** An incoming contact importing will add to someone already here. */
+    willAttach: (name: string) => string;
     /** The card says it is the user themselves; ticking it makes it so. */
     selfClaim: string;
     /** Why an incoming contact looks like someone already here. */

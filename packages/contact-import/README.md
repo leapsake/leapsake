@@ -38,8 +38,8 @@ Folding the second into the first would mean saying "very likely already in Leap
 certainty, and would have nowhere to put a **pet** — `DuplicateMatch.personId` cannot honestly
 hold a pet's id, and the duplicate detector's pool is published people alone.
 
-Import still creates a **new** entity for an already-stored card; the review's job is to let
-the user skip it. Writing the file's ids back is a restore, not this. The card's `kind` picks
+Import still creates a **new** entity for an already-stored card unless the attach rule names
+someone; the review's job is to let the user skip it. Writing the file's ids back is a restore, not this. The card's `kind` picks
 the one table to ask, so a pet card whose id happens to name a person finds nobody rather than
 "already stored: Jane Wainwright". A deleted entity is not found, so re-importing someone the user
 deleted brings them back as new rather than clashing with a tombstone.
@@ -74,7 +74,8 @@ nothing.
 
 Anything short of that is created as before and left to the duplicates review.
 
-Only an import that asks attaches (`commit(decisions, { attach: true })`): mobile's phone sync
-does, and desktop's review does not yet. It applies from the import on; people already in the
+Only an import that asks attaches (`commit(decisions, { attach: true })`). Both clients ask:
+mobile's phone sync, and desktop's drag-and-drop review, which says on each row whom the
+contact will be added to and offers Skip as the only way out. It applies from the import on; people already in the
 store are the duplicates review's business. `not_a_duplicate` has no part in it, since a
 dismissal names two stored people and an incoming contact has no id until it lands.
