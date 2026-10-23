@@ -769,6 +769,16 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     return Promise.all(rows.map(withTagsAndMentions));
   };
 
+  /** What search looks through: the list's rows, less the app's to-dos, with
+   *  no tags or mentions, since search reads them from the store. */
+  const listSearchable = async (): Promise<WindowedReminder[]> => {
+    const rows = await listRemindersInWindow(
+      systemReminderDeps(),
+      DISPLAY_WINDOW_DAYS,
+    );
+    return rows.filter((r) => r.category !== "todo");
+  };
+
   /** One reminder as `listInWindow` sees it, for a detail screen. Falls back to
    *  the stored row once the walk no longer wants it. */
   const getInWindow = async (
@@ -812,6 +822,7 @@ export function createRemindersApi(deps: RemindersApiDeps) {
     listNotifiable,
     /** What the reminder list shows, bucketed by the clients. See above. */
     listInWindow,
+    listSearchable,
     /** One row of that same list — what a detail screen reads. See above. */
     getInWindow,
     get: async (id: string): Promise<ReminderWithTags | undefined> => {

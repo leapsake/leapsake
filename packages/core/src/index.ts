@@ -447,6 +447,7 @@ export function createCore(
       const { country } = await yourCountryNow();
       return (holiday) => holidayDisplayName(holiday, country);
     },
+    reminders: () => remindersApi.listSearchable(),
   });
   const duplicates = createDuplicateService(
     driver,
@@ -538,8 +539,12 @@ export function createCore(
         today: todayCivil(),
       }),
   });
-  const { occasionDefaults, scheduleContext, ...remindersSurface } =
-    remindersApi;
+  const {
+    occasionDefaults,
+    scheduleContext,
+    listSearchable: _listSearchable,
+    ...remindersSurface
+  } = remindersApi;
   // A couple's occasion on your partner was with you, so it is linked before
   // any reconcile rather than asked about.
   const regenerateSystem = async () => {
