@@ -2,8 +2,7 @@
 
 What this package owns, and — more usefully — **the decisions that constrain anyone changing
 it.** The API surface is documented on the exports themselves (`src/index.ts`); this file is the
-design behind them. Shipped on both clients 2026-07-20; what remains is sequenced in
-[`plans/status.md`](../../plans/status.md).
+design behind them. What remains is [`plans/holidays.md`](../../plans/holidays.md).
 
 ## Code map
 
