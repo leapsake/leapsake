@@ -45,7 +45,7 @@ export interface DuplicateMatch {
 
 export interface DuplicateService {
   /** Every pair of active people not in `excludePairs` (`"lower:higher"` keys),
-   *  tier `high` first; `none` and `low` are dropped. */
+   *  tier `high` first; `none` is dropped. */
   findCandidates(excludePairs: Set<string>): Promise<DuplicateCandidate[]>;
   /** {@link findCandidates} minus the remembered "not a duplicate" pairs. */
   unresolvedCandidates(): Promise<DuplicateCandidate[]>;
@@ -172,7 +172,7 @@ export function createDuplicateService(
   ): DuplicateCandidate | null {
     if (excludePairs.has(pairKey(left.id, right.id))) return null;
     const { tier, reasons } = scoreDuplicate(left.input, right.input);
-    if (tier === "none" || tier === "low") return null;
+    if (tier === "none") return null;
     return {
       a: { id: left.id, name: left.input.name },
       b: { id: right.id, name: right.input.name },
@@ -246,7 +246,7 @@ export function createDuplicateService(
     const matches: DuplicateMatch[] = [];
     for (const person of inputs) {
       const { tier, reasons } = scoreDuplicate(incoming, person.input);
-      if (tier === "none" || tier === "low") continue;
+      if (tier === "none") continue;
       matches.push({
         personId: person.id,
         name: person.input.name,

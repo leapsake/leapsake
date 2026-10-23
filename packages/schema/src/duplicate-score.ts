@@ -18,15 +18,14 @@ export interface DuplicateInput {
   handles: { platform: string; handle: string }[];
 }
 
-/** How confident a pair is a duplicate. `"low"` is reserved and unused. */
-export type DuplicateTier = "high" | "medium" | "low" | "none";
+/** How confident a pair is a duplicate. */
+export type DuplicateTier = "high" | "medium" | "none";
 
 /** Sort weight per tier, high first. The detector orders candidates by this. */
 export const TIER_RANK: Record<DuplicateTier, number> = {
   high: 0,
   medium: 1,
-  low: 2,
-  none: 3,
+  none: 2,
 };
 
 /** The verdict on a pair: a tier plus the human-readable "why". */
