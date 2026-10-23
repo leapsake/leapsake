@@ -109,7 +109,7 @@ describe("reminderListItems", () => {
     );
     expect(header).toMatchObject({
       count: 1,
-      collapsible: true,
+      collapsible: false,
       collapsed: true,
     });
   });

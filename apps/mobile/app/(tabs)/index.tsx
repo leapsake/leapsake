@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react";
-import { FlatList, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { AppState, FlatList, Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
 import type { ReminderInWindow } from "@leapsake/core";
 import {
   formatBackIn,
@@ -38,19 +38,26 @@ const TEXT = {
 
 /**
  * Whether each section is a heading or a button you open, and its words; a
- * button's count is inside its label (the app's README).
+ * button's count is inside its label, and once open it is a heading.
  */
 type SectionChrome =
   | { as: "heading"; title: string }
-  | { as: "button"; label: (count: number) => string };
+  | { as: "button"; title: string; label: (count: number) => string };
 
 const SECTION_CHROME: Record<ReminderSection, SectionChrome> = {
   belated: { as: "heading", title: "Belated" },
   today: { as: "heading", title: "Today" },
-  next7: { as: "button", label: (count) => `Next 7 days (${count})` },
-  later: { as: "button", label: (count) => `Later (${count})` },
+  next7: {
+    as: "button",
+    title: "Next 7 days",
+    label: (count) => `Next 7 days (${count})`,
+  },
+  later: { as: "button", title: "Later", label: (count) => `Later (${count})` },
   done: { as: "heading", title: "Completed" },
 };
+
+/** The sections behind a button, closed again whenever Home is left. */
+const OPENED_BY_BUTTON: readonly ReminderSection[] = ["next7", "later"];
 
 /**
  * Home: reminders split by when, each row a link and nothing else. Reads
@@ -85,6 +92,17 @@ export default function RemindersScreen() {
       if (!next.delete(section)) next.add(section);
       return next;
     });
+  const closeButtonSections = useCallback(
+    () => setCollapsed((current) => new Set([...current, ...OPENED_BY_BUTTON])),
+    [],
+  );
+  useFocusEffect(useCallback(() => closeButtonSections, [closeButtonSections]));
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") closeButtonSections();
+    });
+    return () => sub.remove();
+  }, [closeButtonSections]);
 
   return (
     <View style={styles.screen}>
@@ -108,11 +126,10 @@ export default function RemindersScreen() {
           if (item.kind === "header") {
             const chrome = SECTION_CHROME[item.section];
             const onToggle = () => toggleSection(item.section);
-            return chrome.as === "button" ? (
+            return chrome.as === "button" && item.collapsed ? (
               <SectionButton
                 label={chrome.label(item.count)}
-                collapsed={item.collapsed}
-                onToggle={onToggle}
+                onOpen={onToggle}
               />
             ) : (
               <SectionHeader
@@ -177,25 +194,20 @@ function SectionHeader({
   );
 }
 
-/**
- * A section that opens from a button, and stays one once open. Only
- * `expanded` says which way it goes; the label is the same either way.
- */
+/** A closed section's button; opening it swaps the button for a heading. */
 function SectionButton({
   label,
-  collapsed,
-  onToggle,
+  onOpen,
 }: {
   label: string;
-  collapsed: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
   return (
     <Button
       label={label}
       tone="secondary"
-      accessibilityState={{ expanded: !collapsed }}
-      onPress={onToggle}
+      accessibilityState={{ expanded: false }}
+      onPress={onOpen}
       style={styles.sectionButton}
     />
   );

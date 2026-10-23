@@ -16,12 +16,8 @@ const SECTION_ORDER: readonly ReminderSection[] = [
   "done",
 ];
 
-/** The sections that fold away behind a tap. */
-const COLLAPSIBLE: ReadonlySet<ReminderSection> = new Set([
-  "next7",
-  "later",
-  "done",
-]);
+/** The sections a tap folds away again; the upcoming ones open only once. */
+const COLLAPSIBLE: ReadonlySet<ReminderSection> = new Set(["done"]);
 
 /** A section heading, with the count the screen renders beside it. */
 export interface ReminderHeaderItem {
