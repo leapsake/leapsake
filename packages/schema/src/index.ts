@@ -417,7 +417,11 @@ export {
   isEmptyPostalAddress,
   postalAddressLines,
 } from "./contact-method.js";
-export type { SearchHit, SearchResultType } from "./search.js";
+export type {
+  SearchHit,
+  SearchReminderState,
+  SearchResultType,
+} from "./search.js";
 export {
   foldTextChar,
   foldPhoneChar,

@@ -97,7 +97,11 @@ export {
   createContactMethodsRepo,
   listContactMethods,
 } from "./contact-methods-repo.js";
-export { type SearchService, createSearchService } from "./search-service.js";
+export {
+  type SearchableReminder,
+  type SearchService,
+  createSearchService,
+} from "./search-service.js";
 export {
   type DuplicateService,
   type DuplicateCandidate,

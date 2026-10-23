@@ -45,6 +45,9 @@ describe("searchHitPath", () => {
     expect(
       searchHitPath(hit({ entityType: "gift_idea", entityId: "i-1" })),
     ).toBe("/gifts/i-1/edit");
+    expect(
+      searchHitPath(hit({ entityType: "reminder", entityId: "r-1" })),
+    ).toBe("/reminders/r-1/edit");
   });
 });
 

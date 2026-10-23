@@ -1,5 +1,5 @@
 import { seedHolidayCatalog } from "@leapsake/core";
-import { parseBirthdayQuery } from "@leapsake/schema";
+import { mentionToken, parseBirthdayQuery } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type ContactMethodsRepo,
@@ -8,6 +8,7 @@ import {
   type PetsRepo,
   type RelationshipsRepo,
   type GiftIdeasRepo,
+  type SearchableReminder,
   type SearchService,
   type SqliteDriver,
   type TagsRepo,
@@ -1018,5 +1019,119 @@ describe("searchService — entities that exist only as a relationship", () => {
     const hits = await search.query("ruth");
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({ entityId: ruth.id, title: "Ruth" });
+  });
+});
+
+/**
+ * Reminders arrive through a port, worded as the reminder list words them, so
+ * these feed it a fixed list rather than running the engine.
+ */
+describe("searchService — reminders", () => {
+  const DAY = 86_400_000;
+  let listed: SearchableReminder[];
+
+  function reminder(fields: Partial<SearchableReminder>): SearchableReminder {
+    return {
+      id: crypto.randomUUID(),
+      title: null,
+      body: null,
+      completedAt: null,
+      snoozedUntil: null,
+      dueDate: null,
+      ...fields,
+    };
+  }
+
+  beforeEach(() => {
+    listed = [];
+    search = createSearchService(driver, { reminders: async () => listed });
+  });
+
+  it("finds a reminder by its title, as its own result", async () => {
+    const r = reminder({ title: "Return the umbrella" });
+    listed.push(r);
+    const [hit] = await search.query("umbrella");
+    expect(hit).toMatchObject({
+      entityType: "reminder",
+      entityId: r.id,
+      title: "Return the umbrella",
+      reasons: [{ facet: "name", matchedText: "Return the umbrella" }],
+    });
+  });
+
+  it("finds one by a line of its details, shown as the reason", async () => {
+    listed.push(
+      reminder({ title: "Call the bank", body: "Ask about\nthe Bailey loan" }),
+    );
+    const [hit] = await search.query("bailey loan");
+    expect(hit.title).toBe("Call the bank");
+    expect(hit.reasons).toEqual([
+      { facet: "details", matchedText: "the Bailey loan" },
+    ]);
+  });
+
+  it("is titled by its details' first line when it has no title", async () => {
+    listed.push(reminder({ body: "Pick up the cake\nfrom Martini's" }));
+    expect(await titles("cake")).toEqual(["Pick up the cake"]);
+    expect(await titles("martini")).toEqual(["Pick up the cake"]);
+  });
+
+  it("matches a mention by the name it shows", async () => {
+    const harry = await people.create({
+      firstName: "Harry",
+      lastName: "Bailey",
+    });
+    listed.push(
+      reminder({ title: `Call ${mentionToken("Harry", "person", harry.id)}` }),
+    );
+    expect(await titles("harry")).toEqual(["Harry Bailey", "Call Harry"]);
+  });
+
+  it("sorts below a person or pet of equal match", async () => {
+    await people.create({ firstName: "Violet", lastName: "Bick" });
+    listed.push(reminder({ title: "Violet's recital" }));
+    const hits = await search.query("violet");
+    expect(hits.map((h) => h.entityType)).toEqual(["person", "reminder"]);
+  });
+
+  it("finds a snoozed reminder, carrying when it returns", async () => {
+    const back = Date.UTC(2026, 10, 3);
+    listed.push(reminder({ title: "Renew passport", snoozedUntil: back }));
+    const [hit] = await search.query("passport");
+    expect(hit.reminder).toEqual({
+      completedAt: null,
+      snoozedUntil: back,
+      dueDate: null,
+    });
+  });
+
+  it("finds a done reminder, below the open ones", async () => {
+    listed.push(
+      reminder({ title: "Book the Granville hall", completedAt: DAY }),
+      reminder({ title: "Book the Granville house" }),
+    );
+    const hits = await search.query("book the granville");
+    expect(hits.map((h) => h.title)).toEqual([
+      "Book the Granville house",
+      "Book the Granville hall",
+    ]);
+    expect(hits[1].reminder?.completedAt).toBe(DAY);
+  });
+
+  it("surfaces through a tag it carries, with its state", async () => {
+    const r = reminder({ title: "Wrap presents", dueDate: DAY });
+    listed.push(r);
+    await tags.setEntityTags("reminder", r.id, ["christmas"]);
+    const hit = (await search.query("christmas")).find(
+      (h) => h.entityType === "reminder",
+    );
+    expect(hit?.reasons).toEqual([{ facet: "tag", matchedText: "christmas" }]);
+    expect(hit?.reminder?.dueDate).toBe(DAY);
+  });
+
+  it("finds no reminders when given none", async () => {
+    search = createSearchService(driver);
+    listed.push(reminder({ title: "Return the umbrella" }));
+    expect(await search.query("umbrella")).toEqual([]);
   });
 });

@@ -57,7 +57,8 @@ export function relationshipRemovePath(
     : `${subjectBasePath}/relationships/dismiss?${derivedQuery(neighbor)}`;
 }
 
-/** The screen a search hit opens; a gift idea opens its edit screen. */
+/** The screen a search hit opens; a gift idea or reminder opens its edit
+ *  screen, which sends a reminder the user cannot edit to the list. */
 export function searchHitPath(hit: SearchHit): string {
   switch (hit.entityType) {
     case "tag":
@@ -66,6 +67,8 @@ export function searchHitPath(hit: SearchHit): string {
       return `/holidays/${hit.entityId}`;
     case "gift_idea":
       return `/gifts/${hit.entityId}/edit`;
+    case "reminder":
+      return `/reminders/${hit.entityId}/edit`;
     default:
       return `${entityBasePath(hit.entityType)}/${hit.entityId}`;
   }

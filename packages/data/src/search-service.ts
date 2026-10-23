@@ -1,6 +1,7 @@
 import {
   PUBLISHED_SQL,
   type SearchHit,
+  type SearchReminderState,
   type SearchResultType,
   digits,
   fold,
@@ -13,6 +14,8 @@ import {
   normalizeHandle,
   normalizePhone,
   parseBirthdayQuery,
+  plainMentionText,
+  reminderLabel,
 } from "@leapsake/schema";
 import { findPlatform } from "@leapsake/contact-links";
 import type { SqliteDriver } from "./driver.js";
@@ -144,6 +147,13 @@ interface GiftIdeaRow {
   url: string | null;
 }
 
+/** A reminder worded as the reminder list words it. */
+export interface SearchableReminder extends SearchReminderState {
+  id: string;
+  title: string | null;
+  body: string | null;
+}
+
 /** An accumulating result row plus the keys we sort on. */
 interface Accumulator {
   hit: SearchHit;
@@ -160,6 +170,8 @@ export function createSearchService(
   options: {
     /** A holiday's name as shown, which search matches and returns. */
     holidayName?: () => Promise<(holiday: HolidayRow) => string>;
+    /** The reminders search may return; none when absent. */
+    reminders?: () => Promise<SearchableReminder[]>;
   } = {},
 ): SearchService {
   async function query(term: string): Promise<SearchHit[]> {
@@ -187,6 +199,7 @@ export function createSearchService(
       holidays,
       giftIdeas,
       attached,
+      reminders,
     ] = await Promise.all([
       // Published only; an unpublished entity is found through `attached`
       // below.
@@ -255,6 +268,7 @@ export function createSearchService(
                FROM relationships WHERE deleted_at IS NULL
            ) r ON r.self_type = e.type AND r.self_id = e.id`,
       ),
+      options.reminders?.() ?? Promise.resolve([]),
     ]);
 
     const acc = new Map<string, Accumulator>();
@@ -366,6 +380,33 @@ export function createSearchService(
       }
     }
 
+    // A reminder matches its label as a name and any other line of its
+    // details as a reason; mentions match by the name they show.
+    for (const r of reminders) {
+      const label = reminderLabel(r);
+      titleByEntity.set(key("reminder", r.id), {
+        type: "reminder",
+        title: label,
+      });
+      addNameHit("reminder", r.id, label, [label]);
+      const line = (r.body ?? "")
+        .split("\n")
+        .map(plainMentionText)
+        .find((l) => l !== label && quality(fold(l), folded) !== QUALITY_NONE);
+      if (line !== undefined) {
+        record(
+          "reminder",
+          r.id,
+          label,
+          false,
+          "details",
+          line,
+          quality(fold(line), folded),
+        );
+      }
+    }
+    const reminderById = new Map(reminders.map((r) => [r.id, r]));
+
     /** Resolve a matched contact to its owner (dropping unresolvable ones) and
      *  merge `matchedText` in as the reason. */
     const addOwnerHit = (
@@ -379,7 +420,7 @@ export function createSearchService(
         key(ownerType as SearchResultType, ownerId),
       );
       // No entry means the owner isn't searchable: soft-deleted, a household,
-      // or a bearer type with no results of its own yet (a tagged reminder).
+      // or a reminder search was not given.
       if (!owner) return;
       record(
         owner.type,
@@ -556,11 +597,24 @@ export function createSearchService(
       const aOwn = ownScreen(a.hit.entityType);
       const bOwn = ownScreen(b.hit.entityType);
       if (aOwn !== bOwn) return aOwn ? -1 : 1;
-      // 4. alphabetical by title.
+      // 4. Everything else, then open reminders, then done ones.
+      const rank = (r: Accumulator) =>
+        r.hit.entityType !== "reminder"
+          ? 0
+          : reminderById.get(r.hit.entityId)?.completedAt == null
+            ? 1
+            : 2;
+      if (rank(a) !== rank(b)) return rank(a) - rank(b);
+      // 5. alphabetical by title.
       return a.hit.title.localeCompare(b.hit.title);
     });
 
-    return rows.slice(0, MAX_RESULTS).map((r) => r.hit);
+    return rows.slice(0, MAX_RESULTS).map(({ hit }) => {
+      const r = reminderById.get(hit.entityId);
+      if (hit.entityType !== "reminder" || r === undefined) return hit;
+      const { completedAt, snoozedUntil, dueDate } = r;
+      return { ...hit, reminder: { completedAt, snoozedUntil, dueDate } };
+    });
   }
 
   return { query };
