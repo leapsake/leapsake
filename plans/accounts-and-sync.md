@@ -47,6 +47,16 @@ should be written once:
   rendering each.
 - Tests against the fake relay live once, in the package, not in `apps/desktop/test`.
 
+Two merge gaps only sync can expose, both to close before it returns:
+
+- **Pets duplicated by a join.** Reconcile-on-join, the duplicate scorer and the review cover
+  published people only, so two devices that each made "Max" keep two pets after joining. It
+  needs pet detection and a pet merge; `mergePeople`'s re-points are already entity-typed.
+- **Opposite merges of one pair.** If one device merges B into A while another merges A into B,
+  rows only the first re-pointed may end up pointing at A, which the second deleted. Unproven:
+  sync both ways with the harness in `merge-people.test.ts` → _converges over sync_, and assert
+  that both devices agree and nothing points at a tombstone.
+
 **Compact tombstones once several devices sync.** Nothing is ever purged: every deleted row stays
 as a tombstone, and a discarded draft adds its own while an account exists (with none, a draft is
 removed outright, since nothing has left the device). A tombstone may go only once every device
