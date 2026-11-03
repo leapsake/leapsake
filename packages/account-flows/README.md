@@ -2,7 +2,7 @@
 
 **The account flows both clients run, written once.** Creating an account, publishing it to a
 relay (`startSyncing`), joining or recovering it on another device, and merging a local-only
-account into one that syncs
+account into one that syncs, and reauthenticating after a password change elsewhere
 ([`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md) → _Sync and the relay_).
 
 ## Why it is its own package
@@ -98,7 +98,9 @@ master key and core's `syncableRepos`. A run pushes and pulls only for a relay-b
 with a master key, and skips quietly otherwise, so a client can build it unconditionally. Every
 run reports a `SyncActivity`: `synced` with whether the pull changed anything, so focused
 screens re-read, or `failed` with a reason. `unauthorized` there means the password was
-changed on another device, and the client asks for the new one.
+changed on another device, and the client asks for the new one: `reauthenticate` checks it
+against the relay, refuses a relay key that is not this device's account's, and moves the local
+credential and this device's password door to it. The master key does not change.
 
 ## Relay failures
 

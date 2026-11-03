@@ -5,5 +5,6 @@ export { type SyncActivity, createAccountSync } from "./account-sync.js";
 export { createAccount } from "./create-account.js";
 export { joinAccount, recoverAccount } from "./join-account.js";
 export { mergeIntoAccount } from "./merge-account.js";
+export { reauthenticate } from "./reauthenticate.js";
 export { startSyncing } from "./start-syncing.js";
 export { type RelayFailure, RelayError } from "./relay-error.js";
