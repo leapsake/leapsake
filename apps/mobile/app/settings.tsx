@@ -92,10 +92,12 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
         Account created{" "}
         {formatDateTime(new Date(status.createdAt ?? 0).getTime(), dateFormat)}.
       </Text>
-      <Text style={styles.muted}>
-        This account is on this device only. Nothing is sent anywhere, and
-        nothing leaves this device.
-      </Text>
+      {status.relayUrl === undefined && (
+        <Text style={styles.muted}>
+          This account is on this device only. Nothing is sent anywhere, and
+          nothing leaves this device.
+        </Text>
+      )}
     </View>
   );
 }
