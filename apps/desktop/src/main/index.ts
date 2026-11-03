@@ -18,7 +18,6 @@ import {
   fetchRelayCapabilities,
   getSyncStatus,
   lockThisDevice,
-  MIN_PASSWORD_LENGTH,
   rotateRecoveryPhraseForAccount,
   runMigrations,
   seedHolidayCatalog,
@@ -331,13 +330,9 @@ function registerAccountIpc(): void {
     async (_event, args: { username?: unknown; password?: unknown }) => {
       const username = requireText(args?.username, "Username");
       const password = args?.password;
-      if (
-        typeof password !== "string" ||
-        password.length < MIN_PASSWORD_LENGTH
-      ) {
-        throw new Error(
-          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-        );
+      // Not `requireText`, which trims; the flow checks the length.
+      if (typeof password !== "string") {
+        throw new Error("Password is required.");
       }
       const { accountId, recoveryPhrase } = await withStoreSwap(() =>
         createAccountOnThisDevice({

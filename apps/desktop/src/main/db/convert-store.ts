@@ -2,7 +2,6 @@ import { mkdirSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3-multiple-ciphers";
 import { rawKeyLiteral } from "@leapsake/crypto";
-import type { AccountRoster } from "@leapsake/store-layout";
 import { openEncryptedDatabase } from "./encrypted-sqlite-driver.js";
 import { storeFileState } from "./sqlite-header.js";
 
@@ -101,21 +100,4 @@ export function destroyStoreFiles(path: string): void {
   for (const target of [path, `${path}-wal`, `${path}-shm`]) {
     rmSync(target, { force: true });
   }
-}
-
-/**
- * Clear a destination a killed attempt left behind, but only when no roster
- * entry names it: a named one is somebody's live account.
- */
-export async function clearUnclaimedDestination(opts: {
-  /** The destination store file; its whole directory is what gets removed. */
-  path: string;
-  /** The account that directory is named after. */
-  accountId: string;
-  roster: AccountRoster;
-}): Promise<void> {
-  const { path, accountId, roster } = opts;
-  if (storeFileState(path) === "absent") return;
-  if ((await roster.list()).some((a) => a.id === accountId)) return;
-  rmSync(dirname(path), { recursive: true, force: true });
 }

@@ -1,7 +1,5 @@
 import * as SQLite from "expo-sqlite";
 import { rawKeyLiteral } from "@leapsake/crypto";
-import { type AccountRoster, storePath } from "@leapsake/store-layout";
-import { accountDoors } from "./doors";
 
 /**
  * Copy the plaintext store at `fromName` into an encrypted one at `toName`.
@@ -91,7 +89,7 @@ export async function convertStoreToEncrypted(opts: {
     }
   } catch (error) {
     // Best-effort, so the original error survives. A killed process runs no
-    // `catch`; {@link clearUnclaimedDestination} sweeps that leftover.
+    // `catch`; the next attempt clears that leftover first.
     try {
       await destroyStoreFiles(toName);
     } catch {
@@ -126,25 +124,6 @@ export async function storeState(
 /** Delete a store, of either custody, once the roster names its replacement. */
 export async function destroyStoreFiles(name: string): Promise<void> {
   await SQLite.deleteDatabaseAsync(name);
-}
-
-/**
- * Remove a store and its doors that no roster entry names, left by a killed
- * attempt. Mobile has no directory delete, so the doors go by name.
- */
-export async function clearUnclaimedDestination(opts: {
-  /** The account the destination store is named after. */
-  accountId: string;
-  roster: AccountRoster;
-}): Promise<void> {
-  const { accountId, roster } = opts;
-  if ((await roster.list()).some((a) => a.id === accountId)) return;
-  try {
-    await destroyStoreFiles(storePath(accountId));
-  } catch {
-    // `deleteDatabaseAsync` throws for a missing file, the ordinary case.
-  }
-  await accountDoors(accountId).destroy();
 }
 
 /** Absolute, since `ATTACH` resolves a relative name against the CWD. */

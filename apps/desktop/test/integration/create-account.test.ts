@@ -178,7 +178,7 @@ describe("account creation", () => {
     await createAccount(driver);
 
     await expect(createAccount(driver)).rejects.toThrow(
-      /only be created from an unencrypted store/,
+      /already holds an account/,
     );
   });
 

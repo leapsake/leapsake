@@ -75,6 +75,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@leapsake/account-flows':
+        specifier: workspace:*
+        version: link:../../packages/account-flows
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../../packages/bytes
@@ -148,6 +151,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@leapsake/account-flows':
+        specifier: workspace:*
+        version: link:../../packages/account-flows
       '@leapsake/bytes':
         specifier: workspace:*
         version: link:../../packages/bytes
@@ -325,6 +331,21 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.10
         version: 0.9.10(prettier@3.9.6)(typescript@6.0.3)
+
+  packages/account-flows:
+    dependencies:
+      '@leapsake/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@leapsake/data':
+        specifier: workspace:*
+        version: link:../data
+      '@leapsake/key-custody':
+        specifier: workspace:*
+        version: link:../key-custody
+      '@leapsake/store-layout':
+        specifier: workspace:*
+        version: link:../store-layout
 
   packages/bytes:
     dependencies:

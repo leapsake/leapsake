@@ -25,13 +25,11 @@ import {
   type RecoveryDoorWriter,
   type SyncStatus,
   createCore,
-  createLocalAccount,
   ensureLocalDeviceId,
   fetchRelayCapabilities,
   getSyncStatus,
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
-  MIN_PASSWORD_LENGTH,
   rotateRecoveryPhraseForAccount,
   type UnlockAnswer,
   type UnlockRequest,
@@ -49,16 +47,14 @@ import { PasswordInput } from "../components/PasswordInput";
 import { openActiveStore } from "./open-active-store";
 import { queryStats } from "./query-stats";
 import { useRecoveryGate } from "./use-recovery-gate";
-import { createAccountRoster, storePath } from "@leapsake/store-layout";
-import {
-  clearUnclaimedDestination,
-  convertStoreToEncrypted,
-  destroyStoreFiles,
-} from "../db/convert-store";
+import { type AccountFlowPorts, createAccount } from "@leapsake/account-flows";
+import { createAccountRoster } from "@leapsake/store-layout";
+import { destroyStoreFiles } from "../db/convert-store";
 import { accountDoors } from "../db/doors";
 import { openExpoStore } from "../db/open-store";
 import { deleteAccountRoster, sqliteRosterStorage } from "../db/roster-storage";
 import { secureStoreKeyStore } from "../keystore/secure-store-keystore";
+import { mobileStoreFiles } from "../db/store-files";
 import { forgetActiveAccount } from "./forget-active-account";
 import {
   expoNotificationScheduler,
@@ -333,87 +329,30 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         .then(() => bringInNewContacts(bootedCore))
         .then(() => regenerateSystemReminders(bootedCore))
         .then(() => reconcileNotifications(bootedCore));
-      /**
-       * Convert, write the password door, add the roster entry, then destroy
-       * the original; always re-runs the bootstrap, which opens whichever won.
-       */
-      const adoptStoreForAccount = async (opts: {
-        accountId: string;
-        username: string;
-        /** This device's at-rest key, minted by account creation. */
-        dbKey: Uint8Array;
-        /** `seal(db-key, KEK)`, captured from core, not written by it. */
-        passwordDoor: Uint8Array;
-      }) => {
-        const { accountId, username, dbKey, passwordDoor } = opts;
-        const roster = createAccountRoster(sqliteRosterStorage());
-        const target = storePath(accountId);
-        const targetDoors = accountDoors(accountId);
-        await driver.close?.();
-        try {
-          await clearUnclaimedDestination({ accountId, roster });
-          await convertStoreToEncrypted({
-            fromName: activeStore.path,
-            toName: target,
-            key: dbKey,
-          });
-          // Before the roster entry, so an Authenticated device always has it.
-          // Core cannot write it: the account's directory does not exist yet.
-          await targetDoors.writePassword(passwordDoor);
-          await roster.add({
-            id: accountId,
-            username,
-            createdAt: new Date().toISOString(),
-          });
-
-          // The account now exists, so a throw would hide the one-time phrase.
-          // The delete does not reliably take on iOS.
-          try {
-            await destroyStoreFiles(activeStore.path);
-          } catch {
-            // Swept on the next launch, by `openActiveStore`.
-          }
-        } finally {
-          setResetVersion((v) => v + 1);
-        }
+      let storeClosed = false;
+      const accountFlowPorts: AccountFlowPorts = {
+        keyStore,
+        driver,
+        custody: activeStore.custody,
+        roster: createAccountRoster(sqliteRosterStorage()),
+        files: mobileStoreFiles({
+          plaintextName: activeStore.path,
+          closeStore: async () => {
+            storeClosed = true;
+            await driver.close?.();
+          },
+        }),
+        platform: Platform.OS,
       };
 
-      /** Mints every key into the plaintext store, then converts it. */
-      const createAccountHere = async (opts: {
-        username: string;
-        password: string;
-      }): Promise<{ accountId: string; recoveryKey: string }> => {
-        const { username, password } = opts;
-        if (password.length < MIN_PASSWORD_LENGTH) {
-          throw new Error(
-            `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
-          );
+      /** Re-runs the bootstrap once a flow has closed this store, so it opens
+       *  whichever store won, even after a failure. */
+      const withStoreSwap = async <T,>(flow: () => Promise<T>): Promise<T> => {
+        try {
+          return await flow();
+        } finally {
+          if (storeClosed) setResetVersion((v) => v + 1);
         }
-        // The converter would refuse anyway; this names what is actually wrong.
-        if (activeStore.custody !== "plaintext") {
-          throw new Error(
-            "This device already holds an account. Forget it before creating another.",
-          );
-        }
-        const {
-          accountId,
-          recoveryPhrase,
-          dbKey: newDbKey,
-          passwordSidecar: newPasswordSidecar,
-        } = await createLocalAccount({
-          keyStore,
-          driver,
-          password,
-          username,
-          platform: Platform.OS,
-        });
-        await adoptStoreForAccount({
-          accountId,
-          username,
-          dbKey: newDbKey,
-          passwordDoor: newPasswordSidecar,
-        });
-        return { accountId, recoveryKey: recoveryPhrase };
       };
 
       // Never runs mid-conversion, so `doors` is already the account's own.
@@ -429,7 +368,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       setAccount({
         status: () => getSyncStatus({ driver }),
         createAccount: ({ username, password }) =>
-          createAccountHere({ username, password }),
+          withStoreSwap(async () => {
+            const { accountId, recoveryPhrase } = await createAccount(
+              accountFlowPorts,
+              { username, password },
+            );
+            return { accountId, recoveryKey: recoveryPhrase };
+          }),
         // The re-run bootstrap finds an account with no db-key: the gate.
         // Refuses without a password door; the phrase alone is no way back.
         async signOut() {

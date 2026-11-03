@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit --composite false -p tsconfig.node.json && tsc --noEmit --composite false -p tsconfig.web.json"
   },
   "dependencies": {
+    "@leapsake/account-flows": "workspace:*",
     "@leapsake/bytes": "workspace:*",
     "@leapsake/contact-links": "workspace:*",
     "@leapsake/core": "workspace:*",
