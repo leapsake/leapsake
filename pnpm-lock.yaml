@@ -343,6 +343,9 @@ importers:
       '@leapsake/key-custody':
         specifier: workspace:*
         version: link:../key-custody
+      '@leapsake/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@leapsake/store-layout':
         specifier: workspace:*
         version: link:../store-layout

@@ -60,6 +60,15 @@ device a member of an account on a relay, and both end in `adoptStore`. Two orde
   store holds no account data when it is copied. The client pulls once it has re-opened on the
   encrypted store.
 
+## The sync loop
+
+`createAccountSync` is the scheduler a client builds per open store, from its key session's
+master key and core's `syncableRepos`. A run pushes and pulls only for a relay-bound account
+with a master key, and skips quietly otherwise, so a client can build it unconditionally. Every
+run reports a `SyncActivity`: `synced` with whether the pull changed anything, so focused
+screens re-read, or `failed` with a reason. `unauthorized` there means the password was
+changed on another device, and the client asks for the new one.
+
 ## Relay failures
 
 A flow rethrows a relay failure as a `RelayError` whose `reason` says which one, and leaves any
