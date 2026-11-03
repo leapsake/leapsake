@@ -1,7 +1,8 @@
 # @leapsake/account-flows
 
-**The account flows both clients run, written once.** Creating an account today; joining,
-recovering, binding a relay and merging as sync returns
+**The account flows both clients run, written once.** Creating an account, publishing it to a
+relay (`startSyncing`), and joining or recovering it on another device; merging returns with the
+rest of sync
 ([`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md) → _Sync and the relay_).
 
 ## Why it is its own package
@@ -45,3 +46,22 @@ Every flow that makes a device Authenticated ends in `adoptStore`, in this order
 A destination left by a killed attempt is cleared first, unless the roster names it. The
 reasoning behind the order is
 [`@leapsake/key-custody`](../key-custody/README.md) → _Before you change the conversion_.
+
+## Joining and recovering
+
+`joinAccount` (password) and `recoverAccount` (phrase, plus a new password) make an accountless
+device a member of an account on a relay, and both end in `adoptStore`. Two orderings matter:
+
+- **The db-key is minted before the relay call.** The adoption seals this device's password
+  door only once a db-key exists, so minting first is what makes the door real. A failure after
+  the mint leaves an unused key in the keystore and the device still Unauthenticated, since
+  custody is read from the roster.
+- **The store converts before the first pull.** Neither flow fetches rows, so the plaintext
+  store holds no account data when it is copied. The client pulls once it has re-opened on the
+  encrypted store.
+
+## Relay failures
+
+A flow rethrows a relay failure as a `RelayError` whose `reason` says which one, and leaves any
+other failure as it was. The client words the reason. A taken username is not a failure to
+`startSyncing`, which returns it, because it may be the user's own account on another device.
