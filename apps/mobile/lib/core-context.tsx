@@ -23,14 +23,18 @@ import * as SQLite from "expo-sqlite";
 import {
   type CoreApi,
   type RecoveryDoorWriter,
+  type SyncScheduler,
   type SyncStatus,
+  convergeRecoveryKey,
   createCore,
   ensureLocalDeviceId,
   fetchRelayCapabilities,
+  getAutoSync,
   getSyncStatus,
   KEYSTORE_SECRET_IDS,
   lockThisDevice,
   rotateRecoveryPhraseForAccount,
+  syncableRepos,
   type UnlockAnswer,
   type UnlockRequest,
   withSyncKick,
@@ -47,7 +51,15 @@ import { PasswordInput } from "../components/PasswordInput";
 import { openActiveStore } from "./open-active-store";
 import { queryStats } from "./query-stats";
 import { useRecoveryGate } from "./use-recovery-gate";
-import { type AccountFlowPorts, createAccount } from "@leapsake/account-flows";
+import {
+  type AccountFlowPorts,
+  type SyncActivity,
+  createAccount,
+  createAccountSync,
+  joinAccount,
+  recoverAccount,
+  startSyncing,
+} from "@leapsake/account-flows";
 import { createAccountRoster } from "@leapsake/store-layout";
 import { destroyStoreFiles } from "../db/convert-store";
 import { accountDoors } from "../db/doors";
@@ -64,6 +76,10 @@ import {
 import { Button } from "../components/Button";
 import { FormScrollView } from "../components/FormScrollView";
 import { Tappable } from "../components/Tappable";
+
+// The sync preview's runtime, on in the dev client and an EXPO_PUBLIC_SYNC=1
+// build; a store build never polls or pushes, nor can it bind a relay.
+const SYNC_PREVIEW = __DEV__ || process.env.EXPO_PUBLIC_SYNC === "1";
 
 /** The account surface: custody acts, which are not transactional core ops. */
 export interface AccountApi {
@@ -86,6 +102,28 @@ export interface AccountApi {
   factoryReset(): Promise<void>;
   /** Replace the recovery phrase, gated on the password; shown once. */
   rotateRecoveryPhrase(password: string): Promise<{ recoveryPhrase: string }>;
+  /** Publish this device's account to a relay; a taken username returns. */
+  startSyncing(args: {
+    username: string;
+    relayUrl: string;
+  }): ReturnType<typeof startSyncing>;
+  /** Join an account on a relay from this accountless device. */
+  joinAccount(args: {
+    relayUrl: string;
+    username: string;
+    password: string;
+  }): Promise<void>;
+  /** Recover an account on a relay with its phrase, under a new password. */
+  recoverAccount(args: {
+    relayUrl: string;
+    username: string;
+    recoveryPhrase: string;
+    newPassword: string;
+  }): Promise<void>;
+  /** Push and pull now; a failure also reaches {@link onSyncActivity}. */
+  syncNow(): Promise<void>;
+  /** Every sync run's outcome, until the returned function is called. */
+  onSyncActivity(listener: (activity: SyncActivity) => void): () => void;
 }
 
 const CoreContext = createContext<CoreApi | null>(null);
@@ -153,6 +191,9 @@ export function CoreProvider({ children }: { children: ReactNode }) {
   const [resetVersion, setResetVersion] = useState(0);
   // The current core, for listeners set up once before any core is built.
   const coreRef = useRef<CoreApi | null>(null);
+  // The open store's sync loop, and who hears its runs across store swaps.
+  const accountSyncRef = useRef<SyncScheduler | null>(null);
+  const syncListeners = useRef(new Set<(activity: SyncActivity) => void>());
   // Read by the reconcile, which outlives a render.
   const { notifications: notificationCopy } = useMessages();
   const notificationCopyRef = useRef(notificationCopy);
@@ -256,6 +297,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
       void watchContacts();
+      if (SYNC_PREVIEW) void accountSyncRef.current?.autoTrigger();
       if (coreRef.current !== null) {
         const core = coreRef.current;
         // Sequenced: each step reads what the one before it wrote.
@@ -304,13 +346,33 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           : null,
       );
 
-      // Every mutating call reconciles this device's notifications.
+      const masterKey =
+        established.state === "ok"
+          ? established.keySession?.masterKey
+          : undefined;
+      const accountSync = createAccountSync({
+        keyStore,
+        driver,
+        masterKey,
+        repos: syncableRepos(driver),
+        autoEnabled: await getAutoSync({ driver }),
+        onActivity: (activity) => {
+          if (activity.kind === "synced" && activity.changed) {
+            setDataVersion((v) => v + 1);
+          }
+          for (const listener of syncListeners.current) listener(activity);
+        },
+      });
+      accountSyncRef.current = accountSync;
+
+      // Every mutating call pushes, and reconciles this device's notifications.
       const buildCore = (): CoreApi =>
         withSyncKick(
           createCore(driver, {
             phoneRegion: deviceRegion(),
           }),
           () => {
+            if (SYNC_PREVIEW) accountSync.kick();
             if (coreRef.current !== null) {
               void reconcileNotifications(coreRef.current);
             }
@@ -339,6 +401,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           plaintextName: activeStore.path,
           closeStore: async () => {
             storeClosed = true;
+            accountSync.stop();
             await driver.close?.();
           },
         }),
@@ -392,6 +455,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           }
           setCore(null);
           setAccount(null);
+          accountSync.stop();
           await driver.close?.();
           await lockThisDevice({ keyStore });
           coreRef.current = null;
@@ -414,6 +478,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             onClosing: () => {
               setCore(null);
               setAccount(null);
+              accountSync.stop();
             },
           });
           coreRef.current = null;
@@ -423,6 +488,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
           // Unmount first so the wiped core is never rendered.
           setCore(null);
           setAccount(null);
+          accountSync.stop();
           await driver.close?.();
           await SQLite.deleteDatabaseAsync(activeStore.path);
           await doors?.destroy();
@@ -440,13 +506,51 @@ export function CoreProvider({ children }: { children: ReactNode }) {
             password,
             writeRecoveryDoor: writeThisDeviceRecoveryDoor,
           }),
+        async startSyncing(args) {
+          const result = await startSyncing({ keyStore, driver }, args);
+          if (result.status === "bound") void accountSync.autoTrigger();
+          return result;
+        },
+        // The re-opened store's first sync is the join's first pull.
+        joinAccount: (args) =>
+          withStoreSwap(async () => {
+            await joinAccount(accountFlowPorts, args);
+          }),
+        recoverAccount: (args) =>
+          withStoreSwap(async () => {
+            await recoverAccount(accountFlowPorts, args);
+          }),
+        async syncNow() {
+          await accountSync.trigger();
+        },
+        onSyncActivity(listener) {
+          syncListeners.current.add(listener);
+          return () => syncListeners.current.delete(listener);
+        },
       });
+
+      if (SYNC_PREVIEW) {
+        accountSync.start();
+        void accountSync.autoTrigger();
+        // Once per launch: take on a phrase rotated on another device.
+        if (masterKey !== undefined && doors !== undefined) {
+          void convergeRecoveryKey({
+            keyStore,
+            driver,
+            masterKey,
+            writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+          }).catch((cause) =>
+            console.error("recovery-key catch-up failed:", cause),
+          );
+        }
+      }
     })().catch((e) => setError(String(e)));
 
     return () => {
       unwatched = true;
       appStateSub.remove();
       contactsSub?.remove();
+      accountSyncRef.current?.stop();
     };
   }, [resetVersion]);
 
