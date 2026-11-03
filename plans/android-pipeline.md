@@ -5,11 +5,6 @@
 > the declarations and what invalidates them, the Console facts, decisions and traps — is
 > [`apps/mobile/README.md`](../apps/mobile/README.md) → _Android and the Play Console_. This doc
 > carries only what is unbuilt. **Delete it when the last item lands.**
->
-> The release mechanics under it are changing:
-> [`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md) moves
-> releases to a tag-triggered pipeline, and its per-cell readiness is what lets iOS's marker
-> `final` and Android's production `final` share one tag.
 
 ## Production access: the tester clock
 

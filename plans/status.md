@@ -25,6 +25,6 @@ git push origin <that tag> refs/notes/releases
 
 **Now:** nothing gates; incorporating waits until Leapsake handles money ([`shipping.md`](./shipping.md)).
 
-**Not gating:** [remote releases](./fable-investigation/remote-releases.md) (the owner's
+**Not gating:** [remote releases](./releases-and-ci.md) (the owner's
 go/no-go on step 6, then the Actions secrets); [`export.md`](./export.md) (increment
 6, three device checks), contact-import fidelity, and the contact-method URL templates.

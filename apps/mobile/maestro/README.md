@@ -346,7 +346,7 @@ open the store by each door, on-screen assertions only — and **`rc`'s out-of-b
 custody assertions** on Flows 1 and 4. The key-store row is a decided deferral (`simctl
 keychain` has no read verb, and an in-app "I am encrypted" screen is refused on principle), and
 the catalog becomes a release _check_ rather than a `manual:` sentence when the tag-triggered
-pipeline lands (`plans/fable-investigation/remote-releases.md`); see
+pipeline lands (`plans/releases-and-ci.md`); see
 [`CONTRIBUTING.md`](../../../CONTRIBUTING.md) → _The E2E release gate_ for the rung table.
 
 ### What no tier checks: look at it after changing it

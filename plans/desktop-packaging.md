@@ -114,7 +114,7 @@ have — automated proof a real user can complete the crucial journeys on the bu
 - Add the macOS leg to the `e2e` tier in `scripts/test-all.mjs`, which is already `ready` and
   green on iOS + Android; this extends it rather than unblocking it. Once the tag-triggered
   pipeline exists, the leg is a `mac` cell gated by its per-cell readiness
-  ([`fable-investigation/remote-releases.md`](./fable-investigation/remote-releases.md)).
+  ([`releases-and-ci.md`](./releases-and-ci.md)).
 
 **Hazards to design around**, both learned the expensive way on other tiers:
 
