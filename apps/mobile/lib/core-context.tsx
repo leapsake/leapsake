@@ -307,6 +307,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // This open's sync loop, for this effect's own cleanup to stop.
+    let thisOpensSync: SyncScheduler | null = null;
+    let closed = false;
+
     // Parks the bootstrap on the unlock gate until the user submits a secret.
     const requestUnlock = (request: UnlockRequest) =>
       new Promise<UnlockAnswer>((resolve) =>
@@ -364,6 +368,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
       });
       accountSyncRef.current = accountSync;
+      thisOpensSync = accountSync;
 
       // Every mutating call pushes, and reconciles this device's notifications.
       const buildCore = (): CoreApi =>
@@ -529,7 +534,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (SYNC_PREVIEW) {
+      // An open the cleanup already passed must not start a loop nobody stops.
+      if (SYNC_PREVIEW && !closed) {
         accountSync.start();
         void accountSync.autoTrigger();
         // Once per launch: take on a phrase rotated on another device.
@@ -550,7 +556,8 @@ export function CoreProvider({ children }: { children: ReactNode }) {
       unwatched = true;
       appStateSub.remove();
       contactsSub?.remove();
-      accountSyncRef.current?.stop();
+      closed = true;
+      thisOpensSync?.stop();
     };
   }, [resetVersion]);
 
