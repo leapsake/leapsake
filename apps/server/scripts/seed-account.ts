@@ -6,6 +6,7 @@ import {
   registerAccountWithRelay,
   runAccountSync,
   runMigrations,
+  syncableRepos,
 } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
 import { nodeSqliteDriver } from "@leapsake/data/node-sqlite";
@@ -55,7 +56,12 @@ if (duplicate.trim() !== "") {
 await people.create({ firstName: "Harry", lastName: "Gower" });
 seeded.push("Harry Gower");
 
-await runAccountSync({ keyStore, driver, masterKey });
+await runAccountSync({
+  keyStore,
+  driver,
+  masterKey,
+  repos: syncableRepos(driver),
+});
 
 console.log(`Seeded "${account.username}" on ${relayUrl}`);
 console.log(`  account id      ${account.id}`);
