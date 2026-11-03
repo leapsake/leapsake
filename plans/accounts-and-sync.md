@@ -27,13 +27,11 @@ deferrals, not surprises.
 
 **First, and before anything else in this section: finish rebuilding the client half of sync.**
 The flows are written once in [`@leapsake/account-flows`](../packages/account-flows/README.md):
-create, start syncing, join, recover and the sync loop, tested against a live relay. Both
-clients run them behind a build flag (`EXPO_PUBLIC_SYNC`, `VITE_SYNC`), and a join has been
-driven end to end on each. What the clients deleted on 2026-09-17 is at the tag
+create, start syncing, join, recover, merge and the sync loop, tested against a live relay. Both
+clients run them behind a build flag (`EXPO_PUBLIC_SYNC`, `VITE_SYNC`), and a join and a merge
+have been driven end to end on each. What the clients deleted on 2026-09-17 is at the tag
 `relay-clients-final`. Left, in order:
 
-- **Merge** a local-only account into a synced one, with its relay half against a copy (the
-  deleted flows at the tag carry the crash table), and the taken-username fork that leads to it.
 - **Reauthenticate** after a password change elsewhere: the loop already reports
   `unauthorized`, and nothing yet asks for the new password.
 - **Auto-sync on/off** and the last-synced line on both clients.
