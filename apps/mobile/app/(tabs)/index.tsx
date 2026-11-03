@@ -77,6 +77,18 @@ export default function RemindersScreen() {
     () => new Set(),
   );
 
+  const closeButtonSections = useCallback(
+    () => setCollapsed((current) => new Set([...current, ...OPENED_BY_BUTTON])),
+    [],
+  );
+  useFocusEffect(useCallback(() => closeButtonSections, [closeButtonSections]));
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "background") closeButtonSections();
+    });
+    return () => sub.remove();
+  }, [closeButtonSections]);
+
   if (error !== null || reminders === null) return <LoadState error={error} />;
 
   const items = reminderListItems(reminders, { collapsed, expandedWishes });
@@ -92,17 +104,6 @@ export default function RemindersScreen() {
       if (!next.delete(section)) next.add(section);
       return next;
     });
-  const closeButtonSections = useCallback(
-    () => setCollapsed((current) => new Set([...current, ...OPENED_BY_BUTTON])),
-    [],
-  );
-  useFocusEffect(useCallback(() => closeButtonSections, [closeButtonSections]));
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "background") closeButtonSections();
-    });
-    return () => sub.remove();
-  }, [closeButtonSections]);
 
   return (
     <View style={styles.screen}>
