@@ -4,8 +4,16 @@
     "correctness": "error",
     "suspicious": "warn"
   },
+  "plugins": ["unicorn", "typescript", "oxc", "react"],
   "jsPlugins": ["./scripts/lint/comment-rules.mjs"],
   "rules": {
+    // The React plugin is on for the rules of hooks alone; its other rules
+    // have not been swept, and `react-in-jsx-scope` predates the JSX transform.
+    "react/rules-of-hooks": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/no-unstable-nested-components": "off",
+    "react/style-prop-object": "off",
+    "react/exhaustive-deps": "off",
     // Off because `packages/*` run on mobile's Hermes engine, where `Array#toSorted`
     // does not exist — the rule's suggested fix is the one thing we cannot ship. The
     // floor is enforced in `tsconfig.packages.json` (`lib: ES2022`), which makes the
