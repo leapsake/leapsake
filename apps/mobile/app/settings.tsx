@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import type { SyncStatus } from "@leapsake/core";
@@ -14,6 +14,12 @@ import { showFormProblem } from "../lib/form-problem";
 import { styles } from "../lib/styles";
 import { Button } from "../components/Button";
 import { FormScrollView } from "../components/FormScrollView";
+
+// Decided at bundle time: a store build never contains the entry's module.
+const SyncEntry: ComponentType | null =
+  __DEV__ || process.env.EXPO_PUBLIC_SYNC === "1"
+    ? require("../sync/entry").default
+    : null;
 
 const NOT_CONFIRMED = "Not confirmed yet";
 const PASSWORD_FIRST = "Enter your password to confirm.";
@@ -68,6 +74,7 @@ export default function SettingsScreen() {
             <SignOutSection />
           </>
         )}
+        {SyncEntry !== null && <SyncEntry />}
       </FormScrollView>
     </>
   );
