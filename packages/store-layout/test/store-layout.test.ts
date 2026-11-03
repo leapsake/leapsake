@@ -66,6 +66,38 @@ describe("account roster", () => {
   // The roster is parsed on the boot path, before any UI exists to report an
   // error, so unreadable content must degrade to "no accounts" (recoverable, and
   // it opens the Unauthenticated store) rather than throw and leave the app unlaunchable.
+  it("replaces one account with another in a single write, in its place", async () => {
+    const storage = memoryStorage();
+    const roster = createAccountRoster(storage);
+    await roster.add(entry("first"));
+    await roster.add(entry("local"));
+    let writes = 0;
+    const counted = createAccountRoster({
+      read: () => storage.read(),
+      write: (text) => {
+        writes += 1;
+        return storage.write(text);
+      },
+    });
+
+    await counted.replace("local", entry("synced"));
+
+    expect(writes).toBe(1);
+    expect((await roster.list()).map((a) => a.id)).toEqual(["first", "synced"]);
+  });
+
+  it("drops a second row for the incoming id, and adds when the old one is gone", async () => {
+    const roster = createAccountRoster(memoryStorage());
+    await roster.add(entry("local"));
+    await roster.add(entry("synced"));
+
+    await roster.replace("local", entry("synced", "renamed"));
+    expect(await roster.list()).toEqual([entry("synced", "renamed")]);
+
+    await roster.replace("absent", entry("other"));
+    expect((await roster.list()).map((a) => a.id)).toEqual(["synced", "other"]);
+  });
+
   it("degrades to empty on corrupt content instead of throwing", async () => {
     for (const corrupt of ["", "   ", "{", "null", "[]", '{"accounts":"no"}']) {
       const roster = createAccountRoster(memoryStorage(corrupt));
