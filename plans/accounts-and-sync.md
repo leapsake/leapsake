@@ -27,14 +27,12 @@ deferrals, not surprises.
 
 **First, and before anything else in this section: finish rebuilding the client half of sync.**
 The flows are written once in [`@leapsake/account-flows`](../packages/account-flows/README.md):
-create, start syncing, join, recover, merge and the sync loop, tested against a live relay. Both
-clients run them behind a build flag (`EXPO_PUBLIC_SYNC`, `VITE_SYNC`), and a join and a merge
-have been driven end to end on each. What the clients deleted on 2026-09-17 is at the tag
+create, start syncing, join, recover, merge, reauthenticate and the sync loop, tested against a
+live relay. Both clients run them behind a build flag (`EXPO_PUBLIC_SYNC`, `VITE_SYNC`), and each
+flow has been driven end to end on both. What the clients deleted on 2026-09-17 is at the tag
 `relay-clients-final`. Left, in order:
 
-- **Reauthenticate** after a password change elsewhere: the loop already reports
-  `unauthorized`, and nothing yet asks for the new password.
-- **Auto-sync on/off** and the last-synced line on both clients.
+- **An auto-sync on/off switch** on both clients; the preference is stored, and nothing sets it.
 - **The settings steps as headless state hooks** in `@leapsake/ui/headless`, once desktop's
   screen exists to share them with mobile's.
 
