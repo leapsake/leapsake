@@ -13,6 +13,10 @@
     "@leapsake/crypto": "workspace:*",
     "@leapsake/data": "workspace:*",
     "@leapsake/key-custody": "workspace:*",
-    "@leapsake/store-layout": "workspace:*"
+    "@leapsake/store-layout": "workspace:*",
+    "@leapsake/sync": "workspace:*"
+  },
+  "devDependencies": {
+    "@leapsake/server": "workspace:*"
   }
 }

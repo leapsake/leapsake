@@ -6,7 +6,11 @@ import {
   type RosterStorage,
   createAccountRoster,
 } from "@leapsake/store-layout";
-import type { AccountFlowPorts, StoreFiles } from "../src/index.js";
+import {
+  type AccountFlowPorts,
+  type StoreFiles,
+  createAccount,
+} from "../src/index.js";
 
 /** One store slot on the fake disk; `encrypted` holds its key. */
 interface FakeStore {
@@ -84,4 +88,13 @@ export async function fakeDevice() {
     /** Make a file act throw from now on. */
     fail: (name: keyof StoreFiles) => failing.add(name),
   };
+}
+
+/** A {@link fakeDevice} that has created an account and re-opened on it. */
+export async function deviceWithAccount(username: string, password: string) {
+  const device = await fakeDevice();
+  const created = await createAccount(device.ports, { username, password });
+  device.ports.custody = "encrypted";
+  device.acts.length = 0;
+  return { ...device, ...created };
 }

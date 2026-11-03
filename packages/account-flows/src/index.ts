@@ -2,3 +2,5 @@
  *  README for what a client binds and what it keeps. */
 export type { AccountFlowPorts, StoreFiles } from "./ports.js";
 export { createAccount } from "./create-account.js";
+export { startSyncing } from "./start-syncing.js";
+export { type RelayFailure, RelayError } from "./relay-error.js";

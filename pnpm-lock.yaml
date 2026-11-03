@@ -346,6 +346,13 @@ importers:
       '@leapsake/store-layout':
         specifier: workspace:*
         version: link:../store-layout
+      '@leapsake/sync':
+        specifier: workspace:*
+        version: link:../sync
+    devDependencies:
+      '@leapsake/server':
+        specifier: workspace:*
+        version: link:../../apps/server
 
   packages/bytes:
     dependencies:
