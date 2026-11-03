@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { envSet, fileAt } from "../checks.mjs";
 import { MOBILE, appIcon, must, pinnedConfig } from "../mobile.mjs";
 import { googlePlayFromEnv } from "../google-play.mjs";
-import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
+import { BUNDLE_IN, assertNoUnreleasedCode } from "../unreleased-code.mjs";
 
 // ⚠️ The `beta` rung ships to the API's `alpha` track, Play's closed testing;
 // see `apps/mobile/README.md`.
@@ -263,7 +263,7 @@ export default {
     const aab = AAB(root);
     if (!existsSync(aab)) throw new Error(`gradle produced no AAB at ${aab}`);
     assertSignedByUploadKey(aab);
-    assertNoTestOnlyCode(aab, BUNDLE_IN.aab);
+    assertNoUnreleasedCode(aab, BUNDLE_IN.aab);
 
     return { files: { aab }, buildNumber: versionCode, bundleId: packageName };
   },

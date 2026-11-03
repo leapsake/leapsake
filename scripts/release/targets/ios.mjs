@@ -24,7 +24,7 @@ import {
   pinnedConfig,
 } from "../mobile.mjs";
 import { commitOfBuild } from "../receipts.mjs";
-import { BUNDLE_IN, assertNoTestOnlyCode } from "../test-only.mjs";
+import { BUNDLE_IN, assertNoUnreleasedCode } from "../unreleased-code.mjs";
 import { signingFilesProblem, stageSigningIdentity } from "./ios-signing.mjs";
 
 /** Full Xcode, as the Command Line Tools cannot archive. */
@@ -1228,7 +1228,7 @@ export default {
 
     const ipa = readdirSync(exportPath).find((entry) => entry.endsWith(".ipa"));
     if (!ipa) throw new Error(`no .ipa in ${exportPath}`);
-    assertNoTestOnlyCode(join(exportPath, ipa), BUNDLE_IN.ipa);
+    assertNoUnreleasedCode(join(exportPath, ipa), BUNDLE_IN.ipa);
     // The bundle id Expo resolved for this build travels with it.
     return { files: { ipa: join(exportPath, ipa) }, buildNumber, bundleId };
   },

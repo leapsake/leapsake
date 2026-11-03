@@ -18,6 +18,7 @@ components/   # AppHeader.tsx draws the header for *both* navigators, so iOS and
 db/           # the expo-sqlite driver, store conversion, and the unlock doors
 lib/          # open-active-store.ts — the boot path; core-context.tsx — custody and core wiring
 test/         # the on-device self-tests (driver contract + custody)
+sync/         # the sync preview, which no store build carries; see The sync preview
 maestro/      # the E2E flows; see maestro/README.md
 ```
 
@@ -750,7 +751,7 @@ copy` can pull the app container; otherwise a human has to read the screen. On t
 These exist in the dev client and in a build made with `EXPO_PUBLIC_E2E=1`, where
 `dev-clear-dbkey` is Android-only. A store build contains none of them: the route decides at
 bundle time, so the screen's module (under `test/screens/`) is left out, and
-`scripts/release/test-only.mjs` refuses to upload a bundle that has one.
+`scripts/release/unreleased-code.mjs` refuses to upload a bundle that has one.
 
 **Keep each route's condition written inline** (`__DEV__ || process.env.EXPO_PUBLIC_E2E ===
 "1"`). Metro removes the screen only while it can fold the condition in place; a shared
@@ -773,3 +774,30 @@ leapsake://dev-clear-dbkey    # simulate keychain loss
 > Editing a self-test needs a **bundle reload**, not just re-firing the deep link. See
 > [`maestro/README.md`](./maestro/README.md), which also covers the automated
 > `pnpm test:native` gate.
+
+## The sync preview
+
+Sync is rebuilt in the open on `main` while the app keeps releasing, so everything new it adds
+here sits behind a build flag, `EXPO_PUBLIC_SYNC=1`, exactly as the test-only screens sit behind
+`EXPO_PUBLIC_E2E`. The dev client always has it; a store build never does.
+
+- **Each gated route or entry point writes its condition inline**: `__DEV__ ||
+  process.env.EXPO_PUBLIC_SYNC === "1"`, with the module `require`d inside it. The same Metro
+  folding rule as above applies, and so does the ten-second `expo export` check.
+- **Every gated module lives under `sync/` and tags its root view** with
+  `nativeID={SYNC_PREVIEW_MARKER}` (`sync/preview.ts`).
+  `scripts/release/unreleased-code.mjs` refuses to upload a bundle that carries it.
+- **A flag hides screens, not data or shared code.** Migrations run on every launch, so one
+  the preview needs ships in the next release and must be finished and safe for users before it
+  lands. Shared code that shipped flows already run, such as sign-up, sign-out and recovery,
+  is live the moment it changes.
+- **The flag goes when sync ships**: delete the conditions, the marker and its entry in
+  `UNRELEASED_MARKERS`, and move `sync/` into the app.
+
+To carry the preview onto a phone, add the flag to a local Release build, then confirm the
+marker is in the built bundle, since Metro's cache can hand back one built without it:
+
+```sh
+EXPO_PUBLIC_SYNC=1 CI=1 pnpm --filter @leapsake/mobile exec \
+  expo run:ios --device <hardware UDID> --configuration Release
+```
