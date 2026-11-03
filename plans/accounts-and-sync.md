@@ -25,27 +25,20 @@ deferrals, not surprises.
 
 ## Sync and the relay
 
-**First, and before anything else in this section: rebuild the client half of sync.** The
-platform-neutral half is all still here and tested — `@leapsake/sync`, `apps/server`,
-`@leapsake/key-custody`, and the relay orchestration in core — but both clients' flows, settings
-screens and relay tests were deleted on 2026-09-17. They are at the tag `relay-clients-final`,
-and _how they should be built next time_ is the next paragraph. **Do that before building on
-top of sync**; everything else in this section assumes it has happened.
+**First, and before anything else in this section: finish rebuilding the client half of sync.**
+The flows are written once in [`@leapsake/account-flows`](../packages/account-flows/README.md):
+create, start syncing, join, recover and the sync loop, tested against a live relay. Mobile runs
+them behind `EXPO_PUBLIC_SYNC`, and a join has been driven end to end on a simulator. What the
+clients deleted on 2026-09-17 is at the tag `relay-clients-final`. Left, in order:
 
-**The rebuild.** The two clients at `relay-clients-final` implement the same 17-method surface
-independently. The platform-specific part is small and already isolated by `key-custody`'s port
-style: **where bytes land** (a sidecar file beside the store on desktop, a row in `doors.db` on
-mobile), **how a store is copied under a new key** (`convert-store.ts` in each client), and **the
-keystore**. Everything else — the state machine of signup → login → recover → merge, the 409 fork
-in "start syncing", the store swap during a join, the reconcile-on-join dedup — is identical and
-should be written once:
-
-- A package `@leapsake/account-flows` (or a second entry point of `key-custody`) exporting
-  `createAccountApi(ports)` where `ports` is `{ driver, keyStore, storeFiles, doorWriters,
-  scheduler }`. Both clients bind ports and expose the result over IPC / context unchanged.
-- The settings steps as headless state hooks in `@leapsake/ui/headless`, with a web and a native
-  rendering each.
-- Tests against the fake relay live once, in the package, not in `apps/desktop/test`.
+- **Desktop:** bind the same flows on `window.account` and give the renderer its preview screen.
+- **Merge** a local-only account into a synced one, with its relay half against a copy (the
+  deleted flows at the tag carry the crash table), and the taken-username fork that leads to it.
+- **Reauthenticate** after a password change elsewhere: the loop already reports
+  `unauthorized`, and nothing yet asks for the new password.
+- **Auto-sync on/off** and the last-synced line on both clients.
+- **The settings steps as headless state hooks** in `@leapsake/ui/headless`, once desktop's
+  screen exists to share them with mobile's.
 
 Two merge gaps only sync can expose, both to close before it returns:
 

@@ -23,7 +23,7 @@ git push origin <that tag> refs/notes/releases
 ```
 
 **Now:** sync and the web app, dogfooded on a self-hosted relay ([`shipping.md`](./shipping.md)
-→ Part 1), starting with the client half of sync as `@leapsake/account-flows`.
+→ Part 1): the rest of the client half of sync ([`accounts-and-sync.md`](./accounts-and-sync.md)).
 
 **Not gating:** [remote releases](./releases-and-ci.md) (the owner's go/no-go on step 6, then
 the Actions secrets); [`export.md`](./export.md) (increment 6, three device checks),
