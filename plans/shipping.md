@@ -14,7 +14,11 @@ sequence, stays parked.
 # Part 1 — Sync and the web app, dogfooded
 
 **On the owner's own devices, against a self-hosted relay.** None of it reaches App Store users
-until _Before users_ below; until then sync sits behind a flag. Desktop gets no new features
+until _Before users_ below: mobile keeps releasing, with every new sync surface behind the
+build flag `EXPO_PUBLIC_SYNC`, which the release preflight refuses
+([`apps/mobile/README.md`](../apps/mobile/README.md) → _The sync preview_). ⚠️ **A flag hides
+screens, not migrations**: one that Part 1 needs ships in the next release, so it lands on
+`main` only once it is finished and safe for users. Desktop gets no new features
 meanwhile, but it gets sync through the shared package, and it is the cheapest second device to
 test against ([`apps/desktop/README.md`](../apps/desktop/README.md) → _More than one device at
 once_).
