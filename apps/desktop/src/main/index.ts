@@ -10,19 +10,33 @@ import {
   storePath,
 } from "@leapsake/store-layout";
 import {
+  type AccountFlowPorts,
+  type SyncActivity,
+  RelayError,
+  createAccountSync,
+  joinAccount,
+  recoverAccount,
+  startSyncing,
+} from "@leapsake/account-flows";
+import {
   type AdoptionDoor,
   type CoreApi,
   type SqliteDriver,
+  type SyncScheduler,
+  convergeRecoveryKey,
   createCore,
   establishKeySession,
   fetchRelayCapabilities,
+  getAutoSync,
   getSyncStatus,
   lockThisDevice,
   rotateRecoveryPhraseForAccount,
   runMigrations,
   seedHolidayCatalog,
+  syncableRepos,
   type UnlockAnswer,
   type UnlockRequest,
+  withSyncKick,
 } from "@leapsake/core";
 import type { KeyStore } from "@leapsake/crypto";
 import {
@@ -53,7 +67,10 @@ import {
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
 import { destroyStoreFiles } from "./db/convert-store.js";
-import { createAccountOnThisDevice } from "./db/create-account-flow.js";
+import {
+  createAccountOnThisDevice,
+  desktopStoreFiles,
+} from "./db/create-account-flow.js";
 import { factoryResetFiles } from "./db/factory-reset.js";
 import { forgetAccountOnThisDevice } from "./db/forget-account-flow.js";
 import { openAppDatabase } from "./db/open.js";
@@ -87,10 +104,40 @@ let activeCore: CoreApi | undefined;
 // that could fire then checks it rather than hit a closed driver.
 let storeSwapping = false;
 
+// The sync preview, on in dev and a VITE_SYNC=1 build. Without it nothing
+// polls or pushes, and no `sync:` channel is registered.
+const SYNC_PREVIEW = import.meta.env.DEV || import.meta.env.VITE_SYNC === "1";
+
+// The open store's sync loop and custody, rebuilt by every open.
+let accountSync: SyncScheduler | undefined;
+let activeCustody: "plaintext" | "encrypted" = "plaintext";
+
 function setActiveCore(): void {
-  activeCore = createCore(driver, {
+  const core = createCore(driver, {
     phoneRegion: app.getLocaleCountryCode() || null,
   });
+  activeCore = SYNC_PREVIEW
+    ? withSyncKick(core, () => accountSync?.kick())
+    : core;
+}
+
+/** Close the store's handle so a flow can replace it, stopping its sync. */
+async function closeStoreForSwap(): Promise<void> {
+  storeSwapping = true;
+  accountSync?.stop();
+  await driver.close?.();
+}
+
+/** The shared account flows' ports, over whichever store is open now. */
+function accountFlowPorts(): AccountFlowPorts {
+  return {
+    keyStore,
+    driver,
+    custody: activeCustody,
+    roster: deviceRoster(),
+    files: desktopStoreFiles({ userDataPath, closeStore: closeStoreForSwap }),
+    platform: "desktop",
+  };
 }
 
 /** The open core, or a refusal while the store is swapped or not yet open. */
@@ -160,7 +207,35 @@ async function openActiveStore(): Promise<void> {
       established.cause,
     );
   }
+  activeCustody = activeStore.custody;
+  const masterKey =
+    established.state === "ok" ? established.keySession?.masterKey : undefined;
+  accountSync?.stop();
+  accountSync = createAccountSync({
+    keyStore,
+    driver,
+    masterKey,
+    repos: syncableRepos(driver),
+    autoEnabled: await getAutoSync({ driver }),
+    onActivity: broadcastSyncActivity,
+  });
   setActiveCore();
+
+  if (SYNC_PREVIEW) {
+    accountSync.start();
+    void accountSync.autoTrigger();
+    // Once per open: take on a phrase rotated on another device.
+    if (masterKey !== undefined) {
+      void convergeRecoveryKey({
+        keyStore,
+        driver,
+        masterKey,
+        writeRecoveryDoor: writeThisDeviceRecoveryDoor,
+      }).catch((cause) =>
+        console.error("recovery-key catch-up failed:", cause),
+      );
+    }
+  }
 }
 
 /** Re-open after an operation replaced the store; the old handle is closed. */
@@ -216,6 +291,22 @@ async function regenerateSystemReminders(): Promise<void> {
     if (created > 0 || updated > 0 || removed > 0) broadcastDataChanged();
   } catch (error) {
     console.error("regenerate system reminders failed:", error);
+  }
+}
+
+/** Tell the renderer how a sync run went; a pull that changed rows also
+ *  re-runs its loaders. */
+function broadcastSyncActivity(activity: SyncActivity): void {
+  if (activity.kind === "synced" && activity.changed) broadcastDataChanged();
+  if (activity.kind === "failed" && activity.reason === "other") {
+    console.error("sync failed:", activity.cause);
+  }
+  const payload =
+    activity.kind === "synced"
+      ? activity
+      : { kind: activity.kind, reason: activity.reason };
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("sync:activity", payload);
   }
 }
 
@@ -342,10 +433,7 @@ function registerAccountIpc(): void {
           userDataPath,
           username,
           password,
-          closeStore: async () => {
-            storeSwapping = true;
-            await driver.close?.();
-          },
+          closeStore: closeStoreForSwap,
         }),
       );
       return { accountId, recoveryPhrase };
@@ -369,8 +457,7 @@ function registerAccountIpc(): void {
       );
     }
     await withStoreSwap(async () => {
-      storeSwapping = true;
-      await driver.close?.();
+      await closeStoreForSwap();
       await lockThisDevice({ keyStore });
     });
   });
@@ -402,10 +489,7 @@ function registerAccountIpc(): void {
         roster: deviceRoster(),
         userDataPath,
         accountId,
-        closeStore: async () => {
-          storeSwapping = true;
-          await driver.close?.();
-        },
+        closeStore: closeStoreForSwap,
       }),
     );
     mainWindow?.webContents.reload();
@@ -415,8 +499,7 @@ function registerAccountIpc(): void {
   // the renderer against the fresh Unauthenticated store.
   ipcMain.handle("app:factoryReset", async () => {
     await withStoreSwap(async () => {
-      storeSwapping = true;
-      await driver.close?.();
+      await closeStoreForSwap();
       factoryResetFiles({ dbPath, keystorePath, userDataPath });
     });
     mainWindow?.webContents.reload();
@@ -439,6 +522,88 @@ function registerAccountIpc(): void {
       });
     },
   );
+}
+
+/**
+ * The `window.sync` surface, registered only under the preview flag. A relay
+ * failure resolves as its reason, which a thrown error would lose over IPC.
+ */
+function registerSyncIpc(): void {
+  const overIpc = async <T>(
+    flow: () => Promise<T>,
+  ): Promise<{ ok: true; value: T } | { ok: false; reason: string }> => {
+    try {
+      return { ok: true, value: await flow() };
+    } catch (cause) {
+      if (cause instanceof RelayError)
+        return { ok: false, reason: cause.reason };
+      throw cause;
+    }
+  };
+
+  ipcMain.handle("sync:startSyncing", (_event, args: unknown) => {
+    const { username, relayUrl } = (args ?? {}) as Record<string, unknown>;
+    return overIpc(async () => {
+      const result = await startSyncing(
+        { keyStore, driver },
+        {
+          username: requireText(username, "Username"),
+          relayUrl: requireText(relayUrl, "Relay address"),
+        },
+      );
+      if (result.status === "bound") void accountSync?.autoTrigger();
+      return result;
+    });
+  });
+
+  // The re-opened store's first sync is the join's first pull.
+  ipcMain.handle("sync:join", (_event, args: unknown) => {
+    const { username, password, relayUrl } = (args ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (typeof password !== "string" || password === "") {
+      throw new Error("Password is required.");
+    }
+    return overIpc(async () => {
+      await withStoreSwap(() =>
+        joinAccount(accountFlowPorts(), {
+          relayUrl: requireText(relayUrl, "Relay address"),
+          username: requireText(username, "Username"),
+          password,
+        }),
+      );
+      broadcastDataChanged();
+    });
+  });
+
+  ipcMain.handle("sync:recover", (_event, args: unknown) => {
+    const { username, recoveryPhrase, newPassword, relayUrl } = (args ??
+      {}) as Record<string, unknown>;
+    if (typeof newPassword !== "string") {
+      throw new Error("A new password is required.");
+    }
+    return overIpc(async () => {
+      await withStoreSwap(() =>
+        recoverAccount(accountFlowPorts(), {
+          relayUrl: requireText(relayUrl, "Relay address"),
+          username: requireText(username, "Username"),
+          recoveryPhrase: requireText(recoveryPhrase, "Recovery phrase"),
+          newPassword,
+        }),
+      );
+      broadcastDataChanged();
+    });
+  });
+
+  // A failure also reaches the renderer through `sync:activity`.
+  ipcMain.handle("sync:now", async () => {
+    try {
+      await accountSync?.trigger();
+    } catch {
+      // Reported as activity.
+    }
+  });
 }
 
 /** The `window.data` surface: the export, saved where the user picks. */
@@ -573,12 +738,14 @@ void app.whenReady().then(async () => {
   registerIpc(currentCore);
   registerAccountIpc();
   registerDataIpc();
+  if (SYNC_PREVIEW) registerSyncIpc();
 
   void regenerateSystemReminders();
 
-  // A new local day can bring a birthday into range.
+  // A new day can bring a birthday into range, another device a change.
   app.on("browser-window-focus", () => {
     void regenerateSystemReminders();
+    if (SYNC_PREVIEW && !storeSwapping) void accountSync?.autoTrigger();
   });
 
   announceBootReady();

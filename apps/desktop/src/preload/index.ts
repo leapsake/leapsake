@@ -4,6 +4,7 @@ import type {
   GenderResult,
   SyncStatus,
 } from "@leapsake/core";
+import type { RelayFailure } from "@leapsake/account-flows";
 import { contextBridge, ipcRenderer } from "electron";
 import { API_CHANNELS } from "../shared/api-channels.js";
 import { buildBridgeApi } from "../shared/ipc-bridge.js";
@@ -103,6 +104,57 @@ const boot = {
 contextBridge.exposeInMainWorld("boot", boot);
 
 export type Boot = typeof boot;
+
+/** A sync act's outcome; a relay failure arrives as its reason. */
+export type SyncResult<T = void> =
+  | { ok: true; value: T }
+  | { ok: false; reason: RelayFailure };
+
+/** What one sync run did, as `createAccountSync` reports it. */
+export type SyncActivityPayload =
+  | { kind: "synced"; at: number; changed: boolean }
+  | { kind: "failed"; reason: RelayFailure | "other" };
+
+/** `window.sync`: the sync preview, exposed only under its flag. */
+const sync = {
+  startSyncing: (args: {
+    username: string;
+    relayUrl: string;
+  }): Promise<
+    SyncResult<
+      | { status: "bound"; accountId: string; username: string }
+      | { status: "username-taken"; username: string }
+    >
+  > => ipcRenderer.invoke("sync:startSyncing", args),
+  /** Converts the store; the app re-opens on it before this resolves. */
+  join: (args: {
+    relayUrl: string;
+    username: string;
+    password: string;
+  }): Promise<SyncResult> => ipcRenderer.invoke("sync:join", args),
+  recover: (args: {
+    relayUrl: string;
+    username: string;
+    recoveryPhrase: string;
+    newPassword: string;
+  }): Promise<SyncResult> => ipcRenderer.invoke("sync:recover", args),
+  /** Its outcome arrives through {@link sync.onActivity}. */
+  syncNow: (): Promise<void> => ipcRenderer.invoke("sync:now"),
+  onActivity: (
+    listener: (activity: SyncActivityPayload) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, activity: SyncActivityPayload) =>
+      listener(activity);
+    ipcRenderer.on("sync:activity", handler);
+    return () => ipcRenderer.removeListener("sync:activity", handler);
+  },
+};
+
+if (import.meta.env.DEV || import.meta.env.VITE_SYNC === "1") {
+  contextBridge.exposeInMainWorld("sync", sync);
+}
+
+export type Sync = typeof sync;
 
 /** `window.data`: getting the store out as a file. */
 const data = {
