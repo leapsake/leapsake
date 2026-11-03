@@ -44,8 +44,12 @@ const TEXT = {
     `As ${username}, through ${relayUrl}.`,
   lastSynced: (at: number) =>
     `Last synced ${new Date(at).toLocaleTimeString()}.`,
-  notSyncedYet: "Not synced yet since this window opened.",
+  notSyncedYet: "Not synced yet since this store opened.",
   syncNow: "Sync now",
+  reconnectIntro:
+    "Your password was changed on another device. Enter the new one to keep this computer syncing.",
+  reconnect: "Reconnect",
+  reconnecting: "Reconnecting…",
   syncingNow: "Syncing…",
   reasons: {
     unreachable:
@@ -346,7 +350,8 @@ function StartSyncingForm({
   );
 }
 
-/** A relay-bound account: where it syncs, the last run, and a manual run. */
+/** A relay-bound account: where it syncs, the last run, and a manual run;
+ *  a password changed elsewhere asks for the new one. */
 function SyncingPanel({
   username,
   relayUrl,
@@ -358,7 +363,10 @@ function SyncingPanel({
   const [last, setLast] = useState<SyncActivityPayload | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => sync.onActivity(setLast), [sync]);
+  useEffect(() => {
+    void sync.last().then((latest) => setLast((seen) => seen ?? latest));
+    return sync.onActivity(setLast);
+  }, [sync]);
 
   async function syncNow() {
     if (busy) return;
@@ -367,19 +375,76 @@ function SyncingPanel({
     setBusy(false);
   }
 
+  const needsPassword =
+    last?.kind === "failed" && last.reason === "unauthorized";
+
   return (
     <section>
       <h2>{TEXT.syncingTitle}</h2>
       <p>{TEXT.syncingAs(username ?? "", relayUrl)}</p>
-      <p>
-        {last?.kind === "synced" ? TEXT.lastSynced(last.at) : TEXT.notSyncedYet}
-      </p>
-      {last?.kind === "failed" && (
-        <p role="alert">{TEXT.reasons[last.reason]}</p>
+      {needsPassword ? (
+        <ReconnectForm />
+      ) : (
+        <>
+          <p>
+            {last?.kind === "synced"
+              ? TEXT.lastSynced(last.at)
+              : TEXT.notSyncedYet}
+          </p>
+          {last?.kind === "failed" && (
+            <p role="alert">{TEXT.reasons[last.reason]}</p>
+          )}
+          <button
+            type="button"
+            aria-disabled={busy}
+            onClick={() => void syncNow()}
+          >
+            {busy ? TEXT.syncingNow : TEXT.syncNow}
+          </button>
+        </>
       )}
-      <button type="button" aria-disabled={busy} onClick={() => void syncNow()}>
-        {busy ? TEXT.syncingNow : TEXT.syncNow}
-      </button>
     </section>
+  );
+}
+
+/** The new password; success syncs, which takes this form away. */
+function ReconnectForm() {
+  const sync = window.sync!;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = new FormData(event.currentTarget);
+    setError(null);
+    setBusy(true);
+    const failure = await attempt(
+      () => sync.reauthenticate(field(form, "password")),
+      () => null,
+    );
+    setError(failure);
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={(event) => void onSubmit(event)}>
+      <p>{TEXT.reconnectIntro}</p>
+      <p>
+        <label>
+          {TEXT.password}{" "}
+          <input
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+          />
+        </label>
+      </p>
+      {error !== null && <p role="alert">{error}</p>}
+      <button type="submit" aria-disabled={busy}>
+        {busy ? TEXT.reconnecting : TEXT.reconnect}
+      </button>
+    </form>
   );
 }

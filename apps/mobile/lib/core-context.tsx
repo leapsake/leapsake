@@ -58,6 +58,7 @@ import {
   createAccountSync,
   joinAccount,
   mergeIntoAccount,
+  reauthenticate,
   recoverAccount,
   startSyncing,
 } from "@leapsake/account-flows";
@@ -129,6 +130,10 @@ export interface AccountApi {
   }): Promise<void>;
   /** Push and pull now; a failure also reaches {@link onSyncActivity}. */
   syncNow(): Promise<void>;
+  /** Take on a password changed on another device, then sync. */
+  reauthenticate(password: string): Promise<void>;
+  /** The open store's latest sync run, or `null` before its first. */
+  lastSyncActivity(): SyncActivity | null;
   /** Every sync run's outcome, until the returned function is called. */
   onSyncActivity(listener: (activity: SyncActivity) => void): () => void;
 }
@@ -361,6 +366,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         established.state === "ok"
           ? established.keySession?.masterKey
           : undefined;
+      let lastActivity: SyncActivity | null = null;
       const accountSync = createAccountSync({
         keyStore,
         driver,
@@ -368,6 +374,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         repos: syncableRepos(driver),
         autoEnabled: await getAutoSync({ driver }),
         onActivity: (activity) => {
+          lastActivity = activity;
           if (activity.kind === "synced" && activity.changed) {
             setDataVersion((v) => v + 1);
           }
@@ -539,6 +546,13 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         async syncNow() {
           await accountSync.trigger();
         },
+        async reauthenticate(password) {
+          await reauthenticate(accountFlowPorts, { password });
+          await accountSync.trigger().catch(() => {
+            // Reported through the activity listeners.
+          });
+        },
+        lastSyncActivity: () => lastActivity,
         onSyncActivity(listener) {
           syncListeners.current.add(listener);
           return () => syncListeners.current.delete(listener);

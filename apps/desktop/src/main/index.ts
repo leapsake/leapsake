@@ -16,6 +16,7 @@ import {
   createAccountSync,
   joinAccount,
   mergeIntoAccount,
+  reauthenticate,
   recoverAccount,
   startSyncing,
 } from "@leapsake/account-flows";
@@ -68,6 +69,7 @@ import {
   registerCoreHandlers,
 } from "../shared/ipc-bridge.js";
 import { destroyStoreFiles } from "./db/convert-store.js";
+import type { SyncActivityPayload } from "../preload/index.js";
 import {
   createAccountOnThisDevice,
   desktopStoreFiles,
@@ -109,8 +111,10 @@ let storeSwapping = false;
 // polls or pushes, and no `sync:` channel is registered.
 const SYNC_PREVIEW = import.meta.env.DEV || import.meta.env.VITE_SYNC === "1";
 
-// The open store's sync loop and custody, rebuilt by every open.
+// The open store's sync loop, its latest run, and its custody, all reset by
+// every open.
 let accountSync: SyncScheduler | undefined;
+let lastSyncActivity: SyncActivityPayload | null = null;
 let activeCustody: "plaintext" | "encrypted" = "plaintext";
 
 function setActiveCore(): void {
@@ -212,6 +216,7 @@ async function openActiveStore(): Promise<void> {
   const masterKey =
     established.state === "ok" ? established.keySession?.masterKey : undefined;
   accountSync?.stop();
+  lastSyncActivity = null;
   accountSync = createAccountSync({
     keyStore,
     driver,
@@ -302,10 +307,11 @@ function broadcastSyncActivity(activity: SyncActivity): void {
   if (activity.kind === "failed" && activity.reason === "other") {
     console.error("sync failed:", activity.cause);
   }
-  const payload =
+  const payload: SyncActivityPayload =
     activity.kind === "synced"
       ? activity
       : { kind: activity.kind, reason: activity.reason };
+  lastSyncActivity = payload;
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("sync:activity", payload);
   }
@@ -617,6 +623,20 @@ function registerSyncIpc(): void {
       broadcastDataChanged();
     });
   });
+
+  // Then syncs, whose outcome reaches the renderer through `sync:activity`.
+  ipcMain.handle("sync:reauthenticate", (_event, args: unknown) => {
+    const { password } = (args ?? {}) as { password?: unknown };
+    if (typeof password !== "string" || password === "") {
+      throw new Error("Password is required.");
+    }
+    return overIpc(async () => {
+      await reauthenticate(accountFlowPorts(), { password });
+      await accountSync?.trigger().catch(() => {});
+    });
+  });
+
+  ipcMain.handle("sync:last", () => lastSyncActivity);
 
   // A failure also reaches the renderer through `sync:activity`.
   ipcMain.handle("sync:now", async () => {

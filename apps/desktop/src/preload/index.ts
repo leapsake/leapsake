@@ -145,6 +145,12 @@ const sync = {
     username: string;
     password: string;
   }): Promise<SyncResult> => ipcRenderer.invoke("sync:merge", args),
+  /** Takes on a password changed on another device, then syncs. */
+  reauthenticate: (password: string): Promise<SyncResult> =>
+    ipcRenderer.invoke("sync:reauthenticate", { password }),
+  /** The open store's latest sync run, or `null` before its first. */
+  last: (): Promise<SyncActivityPayload | null> =>
+    ipcRenderer.invoke("sync:last"),
   /** Its outcome arrives through {@link sync.onActivity}. */
   syncNow: (): Promise<void> => ipcRenderer.invoke("sync:now"),
   onActivity: (
