@@ -1,8 +1,8 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
-import { type SqliteDriver, serialTransaction } from "@leapsake/data";
+import { type SqliteDriver, serialTransaction } from "../driver.js";
 
-/** A {@link SqliteDriver} over `node:sqlite` for the tests; a copy of
- *  `packages/data`'s private helper. */
+/** A {@link SqliteDriver} over Node's built-in `node:sqlite`, for tests that
+ *  need real SQLite without a native module. */
 export function nodeSqliteDriver(db: DatabaseSync): SqliteDriver {
   return {
     async exec(sql) {
@@ -20,5 +20,6 @@ export function nodeSqliteDriver(db: DatabaseSync): SqliteDriver {
         | undefined;
     },
     transaction: serialTransaction((sql) => db.exec(sql)),
+    close: async () => db.close(),
   };
 }

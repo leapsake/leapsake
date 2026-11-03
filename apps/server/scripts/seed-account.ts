@@ -8,7 +8,7 @@ import {
   runMigrations,
 } from "@leapsake/core";
 import { createPeopleRepo } from "@leapsake/data";
-import { nodeSqliteDriver } from "../test/node-sqlite-driver.js";
+import { nodeSqliteDriver } from "@leapsake/data/node-sqlite";
 
 // Seeds a relay with somebody else's account, for hand-testing the 409 fork
 // and the merge; the README's _Running_ shows how.

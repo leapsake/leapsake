@@ -49,7 +49,7 @@ import type { SyncRow } from "@leapsake/schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRelayServer } from "../src/relay.js";
 import { createRelayStore } from "../src/store.js";
-import { nodeSqliteDriver } from "./node-sqlite-driver.js";
+import { nodeSqliteDriver } from "@leapsake/data/node-sqlite";
 
 /**
  * These tests exercise the **relay protocol**, not at-rest storage: their drivers

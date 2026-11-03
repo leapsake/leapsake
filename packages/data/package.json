@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/testing/driver-contract.ts"
+    "./testing": "./src/testing/driver-contract.ts",
+    "./node-sqlite": "./src/testing/node-sqlite-driver.ts"
   },
   "scripts": {
     "typecheck": "tsc"
