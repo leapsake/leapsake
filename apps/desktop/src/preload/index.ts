@@ -138,6 +138,13 @@ const sync = {
     recoveryPhrase: string;
     newPassword: string;
   }): Promise<SyncResult> => ipcRenderer.invoke("sync:recover", args),
+  /** Moves this computer's local-only account into one on a relay; the app
+   *  re-opens on it before this resolves. */
+  merge: (args: {
+    relayUrl: string;
+    username: string;
+    password: string;
+  }): Promise<SyncResult> => ipcRenderer.invoke("sync:merge", args),
   /** Its outcome arrives through {@link sync.onActivity}. */
   syncNow: (): Promise<void> => ipcRenderer.invoke("sync:now"),
   onActivity: (

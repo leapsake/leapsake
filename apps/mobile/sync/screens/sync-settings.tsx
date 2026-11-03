@@ -36,7 +36,14 @@ const TEXT = {
   start: "Start syncing",
   starting: "Starting…",
   taken:
-    "That username is already taken on this relay. Pick another, or, if it is your own account, merging arrives in a later preview.",
+    "That username is already taken on this relay. If it is your own account, enter its password to move this device into it. Otherwise, go back and pick another username.",
+  mergeTitle: "Move into your existing account",
+  mergeIntro:
+    "Sign in to the account you use on your other devices. Everything on this device moves into it and syncs, and from then on this device opens with that account's password. People on both are kept, and possible duplicates go to review.",
+  merge: "Move into this account",
+  merging: "Moving…",
+  useMerge: "Already have an account that syncs? Move into it",
+  useStart: "Publish this device's account instead",
   syncingTitle: "Syncing",
   syncingAs: (username: string, relayUrl: string) =>
     `As ${username}, through ${relayUrl}.`,
@@ -241,7 +248,10 @@ function JoinForm() {
   );
 }
 
-/** Publish the account already here; a taken name is a question. */
+/**
+ * Publish the account already here, or move it into one that already syncs;
+ * a taken username leads to the second, since it may be the user's own.
+ */
 function StartSyncingForm({
   status,
   onBound,
@@ -250,20 +260,33 @@ function StartSyncingForm({
   onBound: () => void;
 }) {
   const account = useAccount();
+  const [mode, setMode] = useState<"start" | "merge">("start");
   const [relayUrl, setRelayUrl] = useState("");
   const [username, setUsername] = useState(status.username ?? "");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     if (busy) return;
-    if (relayUrl.trim() === "" || username.trim() === "") {
+    const filled = relayUrl.trim() !== "" && username.trim() !== "";
+    if (!filled || (mode === "merge" && password === "")) {
       setError(TEXT.required);
       return;
     }
     setError(null);
     setBusy(true);
     try {
+      if (mode === "merge") {
+        // Success swaps the store, which re-reads this screen's status.
+        await account.mergeIntoAccount({
+          relayUrl: relayUrl.trim(),
+          username,
+          password,
+        });
+        return;
+      }
       const result = await account.startSyncing({
         relayUrl: relayUrl.trim(),
         username,
@@ -272,17 +295,32 @@ function StartSyncingForm({
         onBound();
         return;
       }
-      setError(TEXT.taken);
+      setMode("merge");
+      setNote(TEXT.taken);
     } catch (cause) {
       setError(problem(cause));
     }
     setBusy(false);
   }
 
+  const submitLabel =
+    mode === "start"
+      ? busy
+        ? TEXT.starting
+        : TEXT.start
+      : busy
+        ? TEXT.merging
+        : TEXT.merge;
+
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{TEXT.startTitle}</Text>
-      <Text style={styles.muted}>{TEXT.startIntro}</Text>
+      <Text style={styles.sectionTitle}>
+        {mode === "start" ? TEXT.startTitle : TEXT.mergeTitle}
+      </Text>
+      <Text style={styles.muted}>
+        {mode === "start" ? TEXT.startIntro : TEXT.mergeIntro}
+      </Text>
+      {note !== null && <Text style={styles.muted}>{note}</Text>}
       <Field
         label={TEXT.relayUrl}
         value={relayUrl}
@@ -290,11 +328,24 @@ function StartSyncingForm({
         placeholder={TEXT.relayUrlPlaceholder}
       />
       <Field label={TEXT.username} value={username} onChange={setUsername} />
+      {mode === "merge" && (
+        <Field
+          label={TEXT.password}
+          value={password}
+          onChange={setPassword}
+          secret
+        />
+      )}
       <Problem text={error} />
+      <Button label={submitLabel} busy={busy} onPress={() => void submit()} />
       <Button
-        label={busy ? TEXT.starting : TEXT.start}
-        busy={busy}
-        onPress={() => void submit()}
+        label={mode === "start" ? TEXT.useMerge : TEXT.useStart}
+        tone="secondary"
+        onPress={() => {
+          setMode(mode === "start" ? "merge" : "start");
+          setNote(null);
+          setError(null);
+        }}
       />
     </View>
   );

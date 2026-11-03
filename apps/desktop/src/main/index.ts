@@ -15,6 +15,7 @@ import {
   RelayError,
   createAccountSync,
   joinAccount,
+  mergeIntoAccount,
   recoverAccount,
   startSyncing,
 } from "@leapsake/account-flows";
@@ -590,6 +591,27 @@ function registerSyncIpc(): void {
           username: requireText(username, "Username"),
           recoveryPhrase: requireText(recoveryPhrase, "Recovery phrase"),
           newPassword,
+        }),
+      );
+      broadcastDataChanged();
+    });
+  });
+
+  // The re-opened store's first sync pushes this computer's rows.
+  ipcMain.handle("sync:merge", (_event, args: unknown) => {
+    const { username, password, relayUrl } = (args ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (typeof password !== "string" || password === "") {
+      throw new Error("Password is required.");
+    }
+    return overIpc(async () => {
+      await withStoreSwap(() =>
+        mergeIntoAccount(accountFlowPorts(), {
+          relayUrl: requireText(relayUrl, "Relay address"),
+          username: requireText(username, "Username"),
+          password,
         }),
       );
       broadcastDataChanged();

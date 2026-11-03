@@ -57,6 +57,7 @@ import {
   createAccount,
   createAccountSync,
   joinAccount,
+  mergeIntoAccount,
   recoverAccount,
   startSyncing,
 } from "@leapsake/account-flows";
@@ -119,6 +120,12 @@ export interface AccountApi {
     username: string;
     recoveryPhrase: string;
     newPassword: string;
+  }): Promise<void>;
+  /** Move this device's local-only account into an account on a relay. */
+  mergeIntoAccount(args: {
+    relayUrl: string;
+    username: string;
+    password: string;
   }): Promise<void>;
   /** Push and pull now; a failure also reaches {@link onSyncActivity}. */
   syncNow(): Promise<void>;
@@ -524,6 +531,10 @@ export function CoreProvider({ children }: { children: ReactNode }) {
         recoverAccount: (args) =>
           withStoreSwap(async () => {
             await recoverAccount(accountFlowPorts, args);
+          }),
+        mergeIntoAccount: (args) =>
+          withStoreSwap(async () => {
+            await mergeIntoAccount(accountFlowPorts, args);
           }),
         async syncNow() {
           await accountSync.trigger();

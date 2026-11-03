@@ -31,7 +31,14 @@ const TEXT = {
   start: "Start syncing",
   starting: "Starting…",
   taken:
-    "That username is already taken on this relay. Pick another, or, if it is your own account, merging arrives in a later preview.",
+    "That username is already taken on this relay. If it is your own account, enter its password to move this computer into it. Otherwise, go back and pick another username.",
+  mergeTitle: "Move into your existing account",
+  mergeIntro:
+    "Sign in to the account you use on your other devices. Everything on this computer moves into it and syncs, and from then on this computer opens with that account's password. People on both are kept, and possible duplicates go to review.",
+  merge: "Move into this account",
+  merging: "Moving…",
+  useMerge: "Already have an account that syncs? Move into it",
+  useStart: "Publish this computer's account instead",
   syncingTitle: "Syncing",
   syncingAs: (username: string, relayUrl: string) =>
     `As ${username}, through ${relayUrl}.`,
@@ -228,7 +235,10 @@ function JoinForm({ onJoined }: { onJoined: () => void }) {
   );
 }
 
-/** Publish the account already here; a taken name is a question. */
+/**
+ * Publish the account already here, or move it into one that already syncs;
+ * a taken username leads to the second, since it may be the user's own.
+ */
 function StartSyncingForm({
   status,
   onBound,
@@ -237,35 +247,60 @@ function StartSyncingForm({
   onBound: () => void;
 }) {
   const sync = window.sync!;
+  const [mode, setMode] = useState<"start" | "merge">("start");
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const form = new FormData(event.currentTarget);
+    const common = {
+      relayUrl: field(form, "relayUrl").trim(),
+      username: field(form, "username").trim(),
+    };
     setError(null);
     setBusy(true);
-    const failure = await attempt(
-      () =>
-        sync.startSyncing({
-          relayUrl: field(form, "relayUrl").trim(),
-          username: field(form, "username").trim(),
-        }),
-      (result) => {
-        if (result.status === "username-taken") return TEXT.taken;
-        onBound();
-        return null;
-      },
-    );
+    const failure =
+      mode === "merge"
+        ? await attempt(
+            () => sync.merge({ ...common, password: field(form, "password") }),
+            () => {
+              onBound();
+              return null;
+            },
+          )
+        : await attempt(
+            () => sync.startSyncing(common),
+            (result) => {
+              if (result.status === "bound") {
+                onBound();
+                return null;
+              }
+              setMode("merge");
+              setNote(TEXT.taken);
+              return null;
+            },
+          );
     setError(failure);
     setBusy(false);
   }
 
+  const submitLabel =
+    mode === "start"
+      ? busy
+        ? TEXT.starting
+        : TEXT.start
+      : busy
+        ? TEXT.merging
+        : TEXT.merge;
+
   return (
     <section>
-      <h2>{TEXT.startTitle}</h2>
-      <p>{TEXT.startIntro}</p>
+      <h2>{mode === "start" ? TEXT.startTitle : TEXT.mergeTitle}</h2>
+      <p>{mode === "start" ? TEXT.startIntro : TEXT.mergeIntro}</p>
+      {note !== null && <p>{note}</p>}
       <form onSubmit={(event) => void onSubmit(event)}>
         <RelayField />
         <p>
@@ -279,9 +314,32 @@ function StartSyncingForm({
             />
           </label>
         </p>
+        {mode === "merge" && (
+          <p>
+            <label>
+              {TEXT.password}{" "}
+              <input
+                name="password"
+                type="password"
+                required
+                autoComplete="current-password"
+              />
+            </label>
+          </p>
+        )}
         {error !== null && <p role="alert">{error}</p>}
         <button type="submit" aria-disabled={busy}>
-          {busy ? TEXT.starting : TEXT.start}
+          {submitLabel}
+        </button>{" "}
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === "start" ? "merge" : "start");
+            setNote(null);
+            setError(null);
+          }}
+        >
+          {mode === "start" ? TEXT.useMerge : TEXT.useStart}
         </button>
       </form>
     </section>
