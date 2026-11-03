@@ -5,8 +5,47 @@
 > next to the code it constrains. **Delete each section as its work lands**, and the file when
 > macOS ships.
 
-**Where this stands:** `0.1.0` is live on the App Store (iOS alone, single-device), released
-2026-10-17. The relay half of the clients returns later ([`accounts-and-sync.md`](./accounts-and-sync.md)). What is left is the account sequence below, which is parked.
+**Where this stands:** `0.2.0` is live on the App Store (iOS alone, single-device). Next is
+Part 1, sync and the web app dogfooded on the owner's own devices. Part 2, the account
+sequence, stays parked.
+
+---
+
+# Part 1 — Sync and the web app, dogfooded
+
+**On the owner's own devices, against a self-hosted relay.** None of it reaches App Store users
+until _Before users_ below; until then sync sits behind a flag. Desktop gets no new features
+meanwhile, but it gets sync through the shared package, and it is the cheapest second device to
+test against ([`apps/desktop/README.md`](../apps/desktop/README.md) → _More than one device at
+once_).
+
+**Why this before desktop:** desktop cannot ship until Part 2 reaches its step 3, Part 2 starts
+when Leapsake handles money, and the paid relay is that money. This is the work that unparks it.
+
+1. **Rebuild the client half of sync** once, as `@leapsake/account-flows` bound by both mobile
+   and desktop, and close the two merge gaps a join exposes (pets, opposite merges of one pair)
+   ([`accounts-and-sync.md`](./accounts-and-sync.md) → _Sync and the relay_).
+2. **The relay changes a browser needs:** CORS + `OPTIONS`, a `pull` that collapses by row id,
+   and a login throttle that survives an SSR host ([`web-and-sharing.md`](./web-and-sharing.md)
+   item 1).
+3. **Two measurements before `apps/web` is written:** the KDF on a real phone, and the
+   framework choice (same item).
+4. **`apps/web`, sync-account-only** (same item).
+5. **Capability links**, with a read-only mode for shared screens
+   ([`web-and-sharing.md`](./web-and-sharing.md) item 2).
+
+**Decide alongside 4 and 5, before photos:** the three questions in [`media.md`](./media.md)
+that shape its schema: one content key per sharing unit rather than per entity, people tags in
+a shared album, and whether media is exempt from the no-JS floor.
+
+**Before users, not before dogfooding:**
+
+- **The lock dial's password check and change-password path**
+  ([`accounts-and-sync.md`](./accounts-and-sync.md) → _The lock dial_). Sync is what makes
+  accounts worth having, and every account made before the transfer meets its gate (Part 2).
+- **The hosted-relay gate** (OPAQUE, quotas, the shared rate-limit counter) before any relay
+  holds someone else's data ([`accounts-and-sync.md`](./accounts-and-sync.md) → _Before any
+  hosted relay_).
 
 ---
 

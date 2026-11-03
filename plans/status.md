@@ -6,8 +6,7 @@
 
 ## In flight
 
-**`0.2.0` is live on the App Store** (iOS alone; macOS follows **after** the company exists
-and the iOS record transfers to it, [`shipping.md`](./shipping.md)).
+**`0.2.0` is live on the App Store** (iOS alone; macOS waits on [`shipping.md`](./shipping.md) Part 2).
 
 **Android ships the same rungs** from the personal Play account, `rc` to closed testing;
 `final` waits on production access, earned by the [14-day closed test](./android-pipeline.md).
@@ -23,8 +22,9 @@ git checkout main
 git push origin <that tag> refs/notes/releases
 ```
 
-**Now:** nothing gates; incorporating waits until Leapsake handles money ([`shipping.md`](./shipping.md)).
+**Now:** sync and the web app, dogfooded on a self-hosted relay ([`shipping.md`](./shipping.md)
+→ Part 1), starting with the client half of sync as `@leapsake/account-flows`.
 
-**Not gating:** [remote releases](./releases-and-ci.md) (the owner's
-go/no-go on step 6, then the Actions secrets); [`export.md`](./export.md) (increment
-6, three device checks), contact-import fidelity, and the contact-method URL templates.
+**Not gating:** [remote releases](./releases-and-ci.md) (the owner's go/no-go on step 6, then
+the Actions secrets); [`export.md`](./export.md) (increment 6, three device checks),
+contact-import fidelity, and the contact-method URL templates.
