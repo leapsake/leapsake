@@ -1,5 +1,8 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { createInMemoryKeyStore } from "@leapsake/crypto";
+import { DATABASE_KEY, createInMemoryKeyStore } from "@leapsake/crypto";
 import { createPeopleRepo, runMigrations } from "@leapsake/data";
 import { nodeSqliteDriver } from "@leapsake/data/node-sqlite";
 import {
@@ -12,23 +15,29 @@ import {
   createAccount,
 } from "../src/index.js";
 
-/** One store slot on the fake disk; `encrypted` holds its key. */
+/** One store slot on the fake disk: a real SQLite file, with the key and door
+ *  a client would encrypt it under and write beside it. */
 interface FakeStore {
+  path: string;
   dbKey?: Uint8Array;
   passwordDoor?: Uint8Array;
 }
 
-/** A device whose store files live in memory, recording every file act in
- *  order; the store itself is real SQLite. */
+/** A device whose stores are SQLite files in a temp directory, recording every
+ *  file act in order; encryption itself is left to the clients' own tests. */
 export async function fakeDevice() {
-  const driver = nodeSqliteDriver(new DatabaseSync(":memory:"));
+  const dir = mkdtempSync(join(tmpdir(), "account-flows-"));
+  const slotPath = (slot: string) => join(dir, `${slot}.db`);
+  const driver = nodeSqliteDriver(new DatabaseSync(slotPath("local")));
   await runMigrations(driver);
   await createPeopleRepo(driver).create({
     firstName: "Mary",
     lastName: "Bailey",
   });
 
-  const disk = new Map<string, FakeStore>([["local", {}]]);
+  const disk = new Map<string, FakeStore>([
+    ["local", { path: slotPath("local") }],
+  ]);
   const acts: string[] = [];
   const failing = new Set<keyof StoreFiles>();
 
@@ -37,21 +46,41 @@ export async function fakeDevice() {
     if (failing.has(name)) throw new Error(`${name} failed`);
   };
 
+  /** Copy slot `from` into a new slot `to`, refusing an occupied one. */
+  const copySlot = (from: string, to: string, dbKey: Uint8Array) => {
+    if (disk.has(to)) {
+      throw new Error("a store already exists at the destination");
+    }
+    const source = new DatabaseSync(disk.get(from)!.path);
+    source.exec(`VACUUM INTO '${slotPath(to)}'`);
+    source.close();
+    disk.set(to, { path: slotPath(to), dbKey });
+  };
+
   const files: StoreFiles = {
     async close() {
       act("close");
     },
     async convertToEncrypted(accountId, dbKey) {
       act("convertToEncrypted", accountId);
-      if (disk.has(accountId)) {
-        throw new Error("a store already exists at the destination");
-      }
-      disk.set(accountId, { dbKey });
+      copySlot("local", accountId, dbKey);
+    },
+    async copyAccountStore(fromAccountId, toAccountId, dbKey) {
+      act("copyAccountStore", `${fromAccountId} ${toAccountId}`);
+      copySlot(fromAccountId, toAccountId, dbKey);
+    },
+    async openAccountStore(accountId, dbKey) {
+      act("openAccountStore", accountId);
+      const store = disk.get(accountId);
+      if (store === undefined) throw new Error("no store in that slot");
+      if (store.dbKey?.join() !== dbKey.join()) throw new Error("wrong key");
+      return nodeSqliteDriver(new DatabaseSync(store.path));
     },
     async writePasswordDoor(accountId, door) {
       act("writePasswordDoor", accountId);
-      const store = disk.get(accountId) ?? {};
-      disk.set(accountId, { ...store, passwordDoor: door });
+      const store = disk.get(accountId);
+      if (store === undefined) throw new Error("no store in that slot");
+      store.passwordDoor = door;
     },
     async removeAccountStore(accountId) {
       act("removeAccountStore", accountId);
@@ -87,6 +116,16 @@ export async function fakeDevice() {
     acts,
     /** Make a file act throw from now on. */
     fail: (name: keyof StoreFiles) => failing.add(name),
+    /** Re-open on whichever store the roster names, as a client does after
+     *  a flow; the plaintext one when it names none. */
+    async reopen() {
+      const [entry] = await ports.roster.list();
+      if (entry === undefined) return;
+      const dbKey = await ports.keyStore.getSecret(DATABASE_KEY);
+      ports.driver = await files.openAccountStore(entry.id, dbKey!);
+      ports.custody = "encrypted";
+      acts.length = 0;
+    },
   };
 }
 
@@ -94,7 +133,6 @@ export async function fakeDevice() {
 export async function deviceWithAccount(username: string, password: string) {
   const device = await fakeDevice();
   const created = await createAccount(device.ports, { username, password });
-  device.ports.custody = "encrypted";
-  device.acts.length = 0;
+  await device.reopen();
   return { ...device, ...created };
 }

@@ -1,8 +1,8 @@
 # @leapsake/account-flows
 
 **The account flows both clients run, written once.** Creating an account, publishing it to a
-relay (`startSyncing`), and joining or recovering it on another device; merging returns with the
-rest of sync
+relay (`startSyncing`), joining or recovering it on another device, and merging a local-only
+account into one that syncs
 ([`plans/accounts-and-sync.md`](../../plans/accounts-and-sync.md) → _Sync and the relay_).
 
 ## Why it is its own package
@@ -59,6 +59,37 @@ device a member of an account on a relay, and both end in `adoptStore`. Two orde
 - **The store converts before the first pull.** Neither flow fetches rows, so the plaintext
   store holds no account data when it is copied. The client pulls once it has re-opened on the
   encrypted store.
+
+## Merging
+
+`mergeIntoAccount` is for a device that already made its own local-only account and now wants
+the account the user has elsewhere. The store moves to that account's slot under the same db-key,
+since the key belongs to the device, keeps every row, and from then on opens with that
+account's password. Overlapping people go to duplicate review rather than being fused.
+
+**The relay half runs against a copy.** Joining refuses a store that still holds an account
+row, so the local account has to be cleared first, and clearing it in the live store would
+mean a wrong password had already destroyed it. So the store is copied first and only the copy
+is changed. Every failure before the roster write is undone by removing the copy, and the live
+store is never touched.
+
+**The keychain is the one thing a copy cannot hold.** A join writes the account's recovery key
+into the device keychain, and the client re-opening the local store after a failure would then
+reseal that store's phrase door under the wrong key. So the flow snapshots every keychain
+secret it may change and restores them on any failure.
+
+| Killed after | Roster | Next open | Outcome |
+| --- | --- | --- | --- |
+| closing, clearing the destination | local | local | nothing happened |
+| the copy, the relay half | local | local | the local account intact; a retry clears the copy |
+| **the roster `replace`** | **synced** | **synced** | merged: one write, the point of no return |
+| removing the local store | synced | synced | finished |
+
+A kill between the relay half and the roster write leaves the local store's phrase door sealed
+under the account's recovery key, since the restore never ran: the one lossy edge, and its
+password still opens it. **Do not add a sweeper for encrypted stores the roster does not name.**
+The roster reads as empty when it is corrupt, so that a corrupt file cannot stop the app
+opening, and a sweeper keyed on it would delete every store on the device.
 
 ## The sync loop
 

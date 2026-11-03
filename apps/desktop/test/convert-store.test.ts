@@ -8,6 +8,7 @@ import { createPeopleRepo } from "@leapsake/data";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   convertStoreToEncrypted,
+  copyEncryptedStore,
   destroyStoreFiles,
 } from "../src/main/db/convert-store.js";
 import {
@@ -202,3 +203,29 @@ function countIndexes(path: string): number {
   db.close();
   return n;
 }
+
+describe("copyEncryptedStore", () => {
+  it("copies an encrypted store to another slot under the same key, keeping the original", async () => {
+    await seedOpenStore();
+    const key = generateKey();
+    convertStoreToEncrypted({ fromPath, toPath, key });
+    const mergedPath = join(dir, "stores", "acct-2", "leapsake.db");
+
+    copyEncryptedStore({ fromPath: toPath, toPath: mergedPath, key });
+
+    const copy = encryptedSqliteDriver(openEncryptedDatabase(mergedPath, key));
+    const names = (await createPeopleRepo(copy).list()).map((p) => p.firstName);
+    await copy.close?.();
+    expect(names).toEqual(["Mary"]);
+    expect(storeFileState(toPath)).toBe("encrypted");
+  });
+
+  it("refuses a plaintext source", async () => {
+    await seedOpenStore();
+
+    expect(() =>
+      copyEncryptedStore({ fromPath, toPath, key: generateKey() }),
+    ).toThrow(/not an encrypted database/);
+    expect(existsSync(toPath)).toBe(false);
+  });
+});

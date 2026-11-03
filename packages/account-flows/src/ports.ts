@@ -10,6 +10,15 @@ export interface StoreFiles {
   /** Copy the open plaintext store into a new encrypted store in
    *  `accountId`'s slot, under `dbKey`, keeping the original. */
   convertToEncrypted(accountId: string, dbKey: Uint8Array): Promise<void>;
+  /** Copy one account's encrypted store into another's slot under the same
+   *  `dbKey`, keeping the original. */
+  copyAccountStore(
+    fromAccountId: string,
+    toAccountId: string,
+    dbKey: Uint8Array,
+  ): Promise<void>;
+  /** Open `accountId`'s store under `dbKey`, writing nothing to it. */
+  openAccountStore(accountId: string, dbKey: Uint8Array): Promise<SqliteDriver>;
   /** Write the password door beside `accountId`'s store. */
   writePasswordDoor(accountId: string, door: Uint8Array): Promise<void>;
   /** Remove `accountId`'s store and doors; nothing there is a success. */

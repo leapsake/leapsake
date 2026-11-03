@@ -14,13 +14,38 @@ export function convertStoreToEncrypted(opts: {
   toPath: string;
   key: Uint8Array;
 }): void {
-  const { fromPath, toPath, key } = opts;
-
-  if (storeFileState(fromPath) !== "plaintext") {
+  if (storeFileState(opts.fromPath) !== "plaintext") {
     throw new Error(
       "Refusing to convert: the source store is not a plaintext database.",
     );
   }
+  copyStore({ fromPath: opts.fromPath, toPath: opts.toPath, key: opts.key });
+}
+
+/** {@link convertStoreToEncrypted} from an encrypted store under `key`, which
+ *  the copy keeps: a merge moves a store between slots, not locks. */
+export function copyEncryptedStore(opts: {
+  fromPath: string;
+  toPath: string;
+  key: Uint8Array;
+}): void {
+  if (storeFileState(opts.fromPath) !== "encrypted") {
+    throw new Error(
+      "Refusing to copy: the source store is not an encrypted database.",
+    );
+  }
+  copyStore({ ...opts, fromKey: opts.key });
+}
+
+/** The copy both share; a `fromKey` opens an encrypted source. */
+function copyStore(opts: {
+  fromPath: string;
+  fromKey?: Uint8Array;
+  toPath: string;
+  key: Uint8Array;
+}): void {
+  const { fromPath, fromKey, toPath, key } = opts;
+
   if (storeFileState(toPath) !== "absent") {
     throw new Error(
       "Refusing to convert: a store already exists at the destination.",
@@ -31,7 +56,10 @@ export function convertStoreToEncrypted(opts: {
 
   // The guard proved the destination absent, so anything there later is ours.
   try {
-    const db = new Database(fromPath);
+    const db =
+      fromKey === undefined
+        ? new Database(fromPath)
+        : openEncryptedDatabase(fromPath, fromKey);
     try {
       const [{ user_version: userVersion }] = db.pragma("user_version", {
         simple: false,

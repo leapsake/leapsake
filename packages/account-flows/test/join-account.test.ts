@@ -80,7 +80,7 @@ describe("joinAccount", () => {
       username: "george",
       password: PASSWORD,
     });
-    second.ports.custody = "encrypted";
+    await second.reopen();
 
     await syncOnce(second);
 

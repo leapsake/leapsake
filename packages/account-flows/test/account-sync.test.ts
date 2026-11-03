@@ -49,7 +49,7 @@ describe("createAccountSync", () => {
       username: "george",
       password: PASSWORD,
     });
-    second.ports.custody = "encrypted";
+    await second.reopen();
     const a = await syncFor(first);
     const b = await syncFor(second);
 

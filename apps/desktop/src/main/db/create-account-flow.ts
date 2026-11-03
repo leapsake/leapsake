@@ -8,7 +8,15 @@ import {
   UNAUTHENTICATED_STORE_SLOT,
   storePath,
 } from "@leapsake/store-layout";
-import { convertStoreToEncrypted, destroyStoreFiles } from "./convert-store.js";
+import {
+  convertStoreToEncrypted,
+  copyEncryptedStore,
+  destroyStoreFiles,
+} from "./convert-store.js";
+import {
+  encryptedSqliteDriver,
+  openEncryptedDatabase,
+} from "./encrypted-sqlite-driver.js";
 import { passwordSidecarPath, writeSidecar } from "./sidecars.js";
 import { storeFileState } from "./sqlite-header.js";
 
@@ -34,6 +42,18 @@ export function desktopStoreFiles(opts: {
         toPath: accountPath(accountId),
         key: dbKey,
       });
+    },
+    async copyAccountStore(fromAccountId, toAccountId, dbKey) {
+      copyEncryptedStore({
+        fromPath: accountPath(fromAccountId),
+        toPath: accountPath(toAccountId),
+        key: dbKey,
+      });
+    },
+    async openAccountStore(accountId, dbKey) {
+      return encryptedSqliteDriver(
+        openEncryptedDatabase(accountPath(accountId), dbKey),
+      );
     },
     async writePasswordDoor(accountId, door) {
       writeSidecar(passwordSidecarPath(accountPath(accountId)), door);

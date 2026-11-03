@@ -1,7 +1,12 @@
 import type { StoreFiles } from "@leapsake/account-flows";
 import { storePath } from "@leapsake/store-layout";
-import { convertStoreToEncrypted, destroyStoreFiles } from "./convert-store";
+import {
+  convertStoreToEncrypted,
+  copyEncryptedStore,
+  destroyStoreFiles,
+} from "./convert-store";
 import { accountDoors } from "./doors";
+import { openKeyedStore } from "./open-store";
 
 /** Mobile's {@link StoreFiles}: each store an expo-sqlite database, its doors
  *  in `doors.db` beside it. */
@@ -19,6 +24,14 @@ export function mobileStoreFiles(opts: {
         toName: storePath(accountId),
         key: dbKey,
       }),
+    copyAccountStore: (fromAccountId, toAccountId, dbKey) =>
+      copyEncryptedStore({
+        fromName: storePath(fromAccountId),
+        toName: storePath(toAccountId),
+        key: dbKey,
+      }),
+    openAccountStore: (accountId, dbKey) =>
+      openKeyedStore(storePath(accountId), dbKey),
     writePasswordDoor: (accountId, door) =>
       accountDoors(accountId).writePassword(door),
     async removeAccountStore(accountId) {

@@ -16,6 +16,18 @@ export async function openExpoStore(
   path: string,
   dbKey: Uint8Array | undefined,
 ): Promise<SqliteDriver> {
+  const driver = await openKeyedStore(path, dbKey);
+  await runMigrations(driver);
+  await seedHolidayCatalog({ driver });
+  return driver;
+}
+
+/** Open the store at `path` on its own connection, keyed when `dbKey` is
+ *  set, writing nothing. */
+export async function openKeyedStore(
+  path: string,
+  dbKey: Uint8Array | undefined,
+): Promise<SqliteDriver> {
   const db = await SQLite.openDatabaseAsync(path, { useNewConnection: true });
   const driver = queryStats.countStatements(expoSqliteDriver(db));
   if (dbKey !== undefined) {
@@ -24,13 +36,12 @@ export async function openExpoStore(
     try {
       await driver.get("PRAGMA user_version");
     } catch (cause) {
+      await driver.close?.();
       throw new Error(
         "Failed to open the encrypted database — wrong or missing key.",
         { cause },
       );
     }
   }
-  await runMigrations(driver);
-  await seedHolidayCatalog({ driver });
   return driver;
 }

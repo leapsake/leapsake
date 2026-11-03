@@ -10,13 +10,37 @@ export async function convertStoreToEncrypted(opts: {
   toName: string;
   key: Uint8Array;
 }): Promise<void> {
-  const { fromName, toName, key: toKey } = opts;
-
-  if ((await storeState(fromName)) === "encrypted") {
+  if ((await storeState(opts.fromName)) === "encrypted") {
     throw new Error(
       "Refusing to convert: the source store is not a plaintext database.",
     );
   }
+  await copyStore(opts);
+}
+
+/** {@link convertStoreToEncrypted} from an encrypted store under `key`, which
+ *  the copy keeps: a merge moves a store between slots, not locks. */
+export async function copyEncryptedStore(opts: {
+  fromName: string;
+  toName: string;
+  key: Uint8Array;
+}): Promise<void> {
+  if ((await storeState(opts.fromName)) !== "encrypted") {
+    throw new Error(
+      "Refusing to copy: the source store is not an encrypted database.",
+    );
+  }
+  await copyStore({ ...opts, fromKey: opts.key });
+}
+
+/** The copy both share; a `fromKey` opens an encrypted source. */
+async function copyStore(opts: {
+  fromName: string;
+  fromKey?: Uint8Array;
+  toName: string;
+  key: Uint8Array;
+}): Promise<void> {
+  const { fromName, fromKey, toName, key: toKey } = opts;
   // Also the `mkdir -p` the ATTACH needs: expo-sqlite creates the account's
   // directory when `storeState` opens the name.
   if ((await storeState(toName)) !== "empty") {
@@ -33,6 +57,9 @@ export async function convertStoreToEncrypted(opts: {
       useNewConnection: true,
     });
     try {
+      if (fromKey !== undefined) {
+        await source.execAsync(`PRAGMA key = "${rawKeyLiteral(fromKey)}"`);
+      }
       const versionRow = await source.getFirstAsync<{ user_version: number }>(
         "PRAGMA user_version",
       );
