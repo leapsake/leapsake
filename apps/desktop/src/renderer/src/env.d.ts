@@ -1,4 +1,4 @@
-import type { Account, Api, AppEvents, Boot, Data } from "../../preload";
+import type { Account, Api, AppEvents, Boot, Data, Sync } from "../../preload";
 
 declare global {
   interface Window {
@@ -7,5 +7,7 @@ declare global {
     boot: Boot;
     app: AppEvents;
     data: Data;
+    /** Present only under the sync preview's flag. */
+    sync?: Sync;
   }
 }

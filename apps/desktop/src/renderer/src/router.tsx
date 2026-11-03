@@ -1084,6 +1084,17 @@ const routes: RouteObject[] = [
         path: "settings",
         element: <Settings />,
       },
+      // Decided at build time: without the flag the screen is not bundled.
+      ...(import.meta.env.DEV || import.meta.env.VITE_SYNC === "1"
+        ? [
+            {
+              path: "sync",
+              lazy: async () => ({
+                Component: (await import("./sync/SyncSettings")).SyncSettings,
+              }),
+            },
+          ]
+        : []),
       {
         // Static: a compile-time list shared with `apps/mobile`.
         path: "acknowledgements",

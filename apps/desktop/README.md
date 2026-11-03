@@ -174,6 +174,25 @@ ELECTRON_RENDERER_URL=http://localhost:5173 "$(node -p 'require("electron")')" \
 Point them at a local relay to exercise sync — see
 [`@leapsake/server`](../server/README.md) → _Running_.
 
+### The sync preview
+
+Sync is rebuilt on `main` behind a build flag, as on mobile
+([`apps/mobile/README.md`](../mobile/README.md) → _The sync preview_). Dev always has it; a build
+has it only with `VITE_SYNC=1`, which electron-vite exposes to main, preload and renderer alike.
+
+- **Write the condition inline at each site**: `import.meta.env.DEV ||
+  import.meta.env.VITE_SYNC === "1"`. Vite replaces it at build time, so a build without the flag
+  drops the `sync:` IPC channels from main, `window.sync` from the preload, and the `/sync` route
+  and its Settings link from the renderer. The route loads its screen with a lazy `import()`
+  under the same condition, which is what lets Rollup leave the module out.
+- **Check a change to it** by building twice into a scratch directory, with and without
+  `VITE_SYNC=1`, and grepping the output for `leapsake-sync-preview-code` and `sync:join`.
+- The renderer's preview modules live in `src/renderer/src/sync/`.
+
+To try it, run two profiles (above) against a local relay
+([`@leapsake/server`](../server/README.md) → _Running_): create an account on one and start
+syncing from Settings → _Sync across devices (preview)_, then join it from the other.
+
 ### Driving the app without a harness
 
 **Until the E2E tier exists this is the only way to prove a user-visible desktop change**, and

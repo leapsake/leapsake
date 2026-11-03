@@ -50,6 +50,12 @@ export function Settings() {
         <CreateAccount onCreated={setRevealed} />
       )}
 
+      {(import.meta.env.DEV || import.meta.env.VITE_SYNC === "1") && (
+        <p>
+          <Link to="/sync">Sync across devices (preview)</Link>
+        </p>
+      )}
+
       <hr />
       <ExportSection />
 
@@ -340,10 +346,12 @@ function AccountEnabled({ status }: { status: SyncStatus }) {
         )}
         Account created {new Date(status.createdAt ?? 0).toLocaleString()}.
       </p>
-      <p>
-        This account is on this computer only. Nothing is sent anywhere, and
-        nothing leaves this device.
-      </p>
+      {status.relayUrl === undefined && (
+        <p>
+          This account is on this computer only. Nothing is sent anywhere, and
+          nothing leaves this device.
+        </p>
+      )}
     </>
   );
 }
