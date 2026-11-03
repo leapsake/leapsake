@@ -115,6 +115,10 @@ have — automated proof a real user can complete the crucial journeys on the bu
   green on iOS + Android; this extends it rather than unblocking it. Once the tag-triggered
   pipeline exists, the leg is a `mac` cell gated by its per-cell readiness
   ([`releases-and-ci.md`](./releases-and-ci.md)).
+- **Not gated on A, and the cheapest desktop confidence until then:** the router's remaining
+  inline `loader`/`action` bodies with real logic (about a dozen in `router.tsx`; most are
+  already named) become named functions over `window.api`, with integration tests beside
+  `apps/desktop/test/integration/`'s existing ones.
 
 **Hazards to design around**, both learned the expensive way on other tiers:
 
