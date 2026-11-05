@@ -27,8 +27,9 @@ once_).
 when Leapsake handles money, and the paid relay is that money. This is the work that unparks it.
 
 1. **Rebuild the client half of sync** once, as `@leapsake/account-flows` bound by both mobile
-   and desktop, and close the two merge gaps a join exposes (pets, opposite merges of one pair)
-   ([`accounts-and-sync.md`](./accounts-and-sync.md) → _Sync and the relay_).
+   and desktop ([`accounts-and-sync.md`](./accounts-and-sync.md) → _Sync and the relay_), and
+   close the two merge gaps a join exposes
+   ([`merging-duplicates-across-devices/`](./merging-duplicates-across-devices/README.md)).
 2. **The relay changes a browser needs:** CORS + `OPTIONS`, a `pull` that collapses by row id,
    and a login throttle that survives an SSR host ([`web-and-sharing.md`](./web-and-sharing.md)
    item 1).

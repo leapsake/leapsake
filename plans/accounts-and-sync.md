@@ -36,15 +36,9 @@ flow has been driven end to end on both. What the clients deleted on 2026-09-17 
 - **The settings steps as headless state hooks** in `@leapsake/ui/headless`, once desktop's
   screen exists to share them with mobile's.
 
-Two merge gaps only sync can expose, both to close before it returns:
-
-- **Pets duplicated by a join.** Reconcile-on-join, the duplicate scorer and the review cover
-  published people only, so two devices that each made "Max" keep two pets after joining. It
-  needs pet detection and a pet merge; `mergePeople`'s re-points are already entity-typed.
-- **Opposite merges of one pair.** If one device merges B into A while another merges A into B,
-  rows only the first re-pointed may end up pointing at A, which the second deleted. Unproven:
-  sync both ways with the harness in `merge-people.test.ts` → _converges over sync_, and assert
-  that both devices agree and nothing points at a tombstone.
+**Two merge gaps only sync can expose**, pets duplicated by a join and merges that collide
+across devices, close before it returns:
+[`merging-duplicates-across-devices/`](./merging-duplicates-across-devices/README.md).
 
 **Compact tombstones once several devices sync.** Nothing is ever purged: every deleted row stays
 as a tombstone, and a discarded draft adds its own while an account exists (with none, a draft is
